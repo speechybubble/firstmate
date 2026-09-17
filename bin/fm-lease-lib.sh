@@ -71,8 +71,8 @@
 # effects on source. set -u / set -e safe.
 
 # Distinct from usage errors (2), the gate refusal (3), and fm-send's
-# unconfirmed submit (3): recognizable as "the other supervision actor holds
-# this task right now - retry after the lease clears".
+# unconfirmed submit (3): a supervision guard refusal, whose diagnostic names
+# the blocking lease, role restriction, durable hold, or indeterminate hold read.
 FM_LEASE_REFUSE_EXIT=6
 FM_LEASE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_LEASE_GUARD_LOCK=
