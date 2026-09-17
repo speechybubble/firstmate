@@ -448,6 +448,7 @@ if [ -n "$TARGET_META" ]; then
   if [ -n "$LEASE_GUARD_TASK" ]; then
     fm_lease_guard "$LEASE_GUARD_TASK" "steer (fm-send)"
     trap 'fm_lease_guard_release' EXIT
+    fm_lease_guard_captain_hold "$LEASE_GUARD_TASK" "steer (fm-send)"
   fi
 fi
 

@@ -429,6 +429,7 @@ const realRoot = process.env.FM_ROOT_OVERRIDE;
 const approvedProject = `${home}/projects/approved`;
 mkdirSync(`${home}/state`, { recursive: true });
 mkdirSync(`${home}/config`, { recursive: true });
+mkdirSync(`${home}/data`, { recursive: true });
 mkdirSync(approvedProject, { recursive: true });
 writeFileSync(`${home}/state/branch-driver.meta`, `project=${approvedProject}\nwindow=fm-branch-driver\n`);
 // Supervision is default-on for every task: no captain grant file gates it
@@ -1371,7 +1372,7 @@ let finishReplacementPrompt;
 globalThis.__fmOnBranchPrompt = () => new Promise((resolve) => { finishReplacementPrompt = resolve; });
 const replacementOffer = dispatch("signal: after replacement");
 if (!replacementOffer.accepted) throw new Error("branch refused a wake after the replacement");
-await settle(() => (globalThis.__fmSessions ?? []).length === 2, "replacement branch session");
+await settle(() => typeof finishReplacementPrompt === "function", "replacement branch prompt");
 const report2 = globalThis.__fmSessions[1].options.customTools.find((tool) => tool.name === "fm_branch_report");
 const beforePair = requests().length;
 const second = await report2.execute("captain-2", { task: "branch-driver", verdict: "captain", summary: "PR https://example.com/pr/e is ready for review" }, undefined, undefined, {});
@@ -4927,6 +4928,53 @@ EOF
   pass "an extension-registered provider resolves in the isolated branch runtime"
 }
 
+test_backlog_only_hold_routes_signal_and_stale_to_main() {
+  local home out status
+  command -v tasks-axi >/dev/null 2>&1 || { echo "skip: hold routing regression requires tasks-axi"; return; }
+  home="$TMP_ROOT/hold-routing-home"
+  mkdir -p "$home/state" "$home/data" "$home/config"
+  cp "$ROOT/.tasks.toml" "$home/.tasks.toml"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
+  FM_HOME="$home" "$ROOT/bin/fm-captain-hold.sh" hold held-task --title 'Held smoke worker' \
+    --reason 'Intentional stop' >/dev/null || fail "hold routing setup failed"
+  FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" node --input-type=module > "$TMP_ROOT/hold-routing-output" 2>&1 <<'EOF'
+import { writeFileSync, existsSync, chmodSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+const home = process.env.FM_HOME;
+const root = process.env.FM_ROOT_OVERRIDE;
+const state = `${home}/state`;
+const { scopeForUnreadWakeWithHolds } = await import(`${root}/.pi/extensions/lib/fm-branch-dispatch.ts`);
+writeFileSync(`${state}/held-task.meta`, "project=/fixture/smoke\nwindow=sess:fm-held-task\n");
+writeFileSync(`${state}/routine.meta`, "project=/fixture/other\nwindow=sess:fm-routine\n");
+writeFileSync(`${state}/.wake-queue`, [
+  "1\t1\tsignal\theld-task.turn-ended\tsignal: held-task.turn-ended",
+  "2\t2\tstale\tsess:fm-held-task\tstale: sess:fm-held-task",
+  "3\t3\tsignal\troutine.turn-ended\tsignal: routine.turn-ended",
+].join("\n") + "\n");
+if (existsSync(`${state}/held-task.status`)) throw new Error("fixture must have no worker status");
+for (const heartbeat of [false, true]) {
+  const scope = await scopeForUnreadWakeWithHolds(state, heartbeat, root, home);
+  if (JSON.stringify(scope.eligibleSeqs) !== '["3"]' ||
+      JSON.stringify(scope.needsDecisionKeys) !== '["held-task.turn-ended","sess:fm-held-task"]') {
+    throw new Error(`backlog hold failed to preserve independent routing: ${JSON.stringify(scope)}`);
+  }
+}
+chmodSync(`${home}/data/backlog.md`, 0);
+const unknown = await scopeForUnreadWakeWithHolds(state, false, root, home);
+chmodSync(`${home}/data/backlog.md`, 0o600);
+if (!unknown.corrupted || unknown.eligible) throw new Error("unreadable authority did not fail closed");
+writeFileSync(`${home}/decision.txt`, "Resume the same task.\n");
+execFileSync(`${root}/bin/fm-captain-hold.sh`, ["answer", "held-task", "--release", "--decision-file", `${home}/decision.txt`]);
+const released = await scopeForUnreadWakeWithHolds(state, false, root, home);
+if (JSON.stringify(released.eligibleSeqs) !== '["1","2","3"]') throw new Error("release did not restore routing");
+EOF
+  status=$?
+  out=$(cat "$TMP_ROOT/hold-routing-output")
+  expect_code 0 "$status" "backlog-only hold routing must be authoritative: $out"
+  pass "backlog-only holds route signal and stale rows to main, fail closed on read errors, and release cleanly"
+}
+
+test_backlog_only_hold_routes_signal_and_stale_to_main
 test_outcomes_tool_uses_stock_execution_and_export_consumers
 test_real_pi_picker_primitives_stay_bounded_and_searchable
 test_branch_dispatch_two_stage_filter_and_prefix_contract

@@ -33,7 +33,7 @@ import { registerFirstmateTool } from "./lib/fm-native-contract.ts";
 import {
   createBranchDispatchOffer,
   FM_BRANCH_DISPATCH_EVENT,
-  scopeForUnreadWake,
+  scopeForUnreadWakeWithHolds,
 } from "./lib/fm-branch-dispatch.ts";
 import {
   type CalmPresentationState,
@@ -594,7 +594,7 @@ export default function (pi: ExtensionAPI) {
     return confirmHandlingDelivery(snapshot());
   }
 
-  function offerWakeToBranch(message: string): Promise<void> | null {
+  async function offerWakeToBranch(message: string, owner: SessionGeneration): Promise<{ settlement: Promise<void> } | null> {
     const heartbeat = /^heartbeat($|:)/.test(message);
     // A check-kind close (merge-confirmation polls, Relay mentions,
     // credential/auth failures, and every other legitimately main-only
@@ -606,7 +606,8 @@ export default function (pi: ExtensionAPI) {
     // signal/stale row still reach the branch on this cycle; it must never
     // also let a check-kind trigger itself slip past main's delivery.
     const isCheckTrigger = /^check:/.test(message);
-    const scope = scopeForUnreadWake(state, heartbeat);
+    const scope = await scopeForUnreadWakeWithHolds(state, heartbeat, fmRoot, fmHome);
+    if (!generationIsLive(owner)) return null;
     // A signal close containing a needs-decision status file, or a stale close
     // for a captain-held task, gets the identical main-only treatment as a
     // check-kind trigger. The cross-reference deliberately includes every
@@ -629,7 +630,7 @@ export default function (pi: ExtensionAPI) {
     const eligible = !isCheckTrigger && !isNeedsDecisionTrigger && scope.eligible;
     const offer = createBranchDispatchOffer(message, scope.projects, heartbeat, eligible);
     pi.events?.emit?.(FM_BRANCH_DISPATCH_EVENT, offer);
-    return offer.accepted ? offer.settlement : null;
+    return offer.accepted ? { settlement: offer.settlement } : null;
   }
 
   async function deliverActionableWake(
@@ -651,10 +652,11 @@ export default function (pi: ExtensionAPI) {
       }
     }
     if (!repairFailed) {
-      const branchDelivery = offerWakeToBranch(message);
+      const branchDelivery = await offerWakeToBranch(message, owner);
+      if (!generationIsLive(owner)) return false;
       if (branchDelivery) {
         try {
-          await branchDelivery;
+          await branchDelivery.settlement;
           return true;
         } catch {}
       }

@@ -50,6 +50,13 @@
 #     other actor cannot claim between the check and the guarded mutation. A
 #     home without the current Pi session lock cannot have a live lease, so
 #     the guard is a no-op there - non-Pi behavior is unchanged by construction.
+#   - Durable captain holds outlive leases. Before a branch steer or relaunch,
+#     fm_lease_guard_captain_hold checks fm-captain-hold.sh's authoritative
+#     read-only predicate under the task-control lock shared by hold/answer.
+#     An open hold or unreadable record refuses; only main can answer or release
+#     that hold. The task lock stays held through the mutation, so a hold cannot
+#     be published between the check and delivery. Main and non-branch callers
+#     retain their existing stop and decision paths.
 #   - Role partition (fm_lease_forbid_branch): actions MAIN alone owns -
 #     merging a PR, landing local-only work, spawning workers - refuse the
 #     branch actor outright, lease or no lease.
@@ -69,6 +76,7 @@
 FM_LEASE_REFUSE_EXIT=6
 FM_LEASE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_LEASE_GUARD_LOCK=
+FM_LEASE_HOLD_LOCK=
 
 fm_lease_lock_helpers() {
   command -v fm_lock_acquire_wait >/dev/null 2>&1 && return 0
@@ -197,10 +205,34 @@ fm_lease_guard() {
   fi
 }
 
+# Check the durable hold under the hold/answer lock. The control command already
+# owns that lock and passes "held"; send lets this helper acquire and retain it.
+fm_lease_guard_captain_hold() { # <task> <action-label> [held]
+  local task=$1 action=$2 actor status=0
+  actor=$(fm_lease_actor) || exit "$FM_LEASE_REFUSE_EXIT"
+  [ "$actor" = branch ] || return 0
+  if [ "${3:-}" != held ]; then
+    fm_lease_lock_helpers
+    FM_LEASE_HOLD_LOCK="$STATE/.control-$task.lock"
+    fm_lock_acquire_wait "$FM_LEASE_HOLD_LOCK"
+  fi
+  "$FM_LEASE_LIB_DIR/fm-captain-hold.sh" open "$task" >/dev/null || status=$?
+  case "$status" in
+    1) return 0 ;;
+    0) echo "error: $action refused - task '$task' is held for the captain; leave it stopped for main" >&2 ;;
+    *) echo "error: $action refused - cannot establish whether task '$task' is held for the captain; leave it to main" >&2 ;;
+  esac
+  exit "$FM_LEASE_REFUSE_EXIT"
+}
+
 # Release the claim/guard serialization lock retained by fm_lease_guard.
 # Idempotent so callers can use it unconditionally from existing EXIT cleanup.
 fm_lease_guard_release() {
   local lock=$FM_LEASE_GUARD_LOCK
+  if [ -n "$FM_LEASE_HOLD_LOCK" ]; then
+    fm_lock_release "$FM_LEASE_HOLD_LOCK"
+    FM_LEASE_HOLD_LOCK=
+  fi
   [ -n "$lock" ] || return 0
   FM_LEASE_GUARD_LOCK=
   fm_lock_release "$lock"

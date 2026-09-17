@@ -38,6 +38,11 @@ install_pi_watch_extension_fixture() {
   cp "$ROOT/.pi/extensions/lib/fm-calm-visibility.ts" "$repo/.pi/extensions/lib/fm-calm-visibility.ts"
   cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" "$repo/.pi/extensions/lib/fm-operational-input.ts"
   mkdir -p "$repo/bin"
+  # These fixtures model homes without a backlog; initialize their data directory
+  # before executing the real read-only hold authority.
+  # shellcheck disable=SC2016 # The fixture shell expands its own home and arguments.
+  printf '#!/usr/bin/env bash\nmkdir -p "${FM_HOME:?}/data"\nexec %q "$@"\n' "$ROOT/bin/fm-captain-hold.sh" > "$repo/bin/fm-captain-hold.sh"
+  chmod +x "$repo/bin/fm-captain-hold.sh"
   cp "$ROOT/bin/fm-operational-input.sh" "$repo/bin/fm-operational-input.sh"
   chmod +x "$repo/bin/fm-operational-input.sh"
   cat > "$repo/node_modules/@earendil-works/pi-coding-agent/package.json" <<'JSON'

@@ -187,7 +187,7 @@ function hasOpenNeedsDecision(
   return [...open.values()].includes("needs-decision");
 }
 
-export function scopeForUnreadWake(state: string, heartbeat: boolean): UnreadWakeScope {
+export function scopeForUnreadWake(state: string, heartbeat: boolean, captainHolds?: ReadonlyMap<string, boolean>): UnreadWakeScope {
   let queue = "";
   try {
     queue = readFileSync(`${state}/.wake-queue`, "utf8");
@@ -313,6 +313,15 @@ export function scopeForUnreadWake(state: string, heartbeat: boolean): UnreadWak
       return UNSAFE_SCOPE;
     }
     if (!project || !task) return UNSAFE_SCOPE;
+    if (captainHolds) {
+      // A new task arriving during the async reads was not checked. Main owns
+      // the retry, rather than treating an absent check as an absent hold.
+      if (!captainHolds.has(task)) return UNSAFE_SCOPE;
+      if (captainHolds.get(task)) {
+        needsDecisionKeys.push(key);
+        continue;
+      }
+    }
     projects.add(project);
     eligibleTasks.add(task);
     eligibleSeqs.push(seq);
@@ -335,6 +344,28 @@ export function scopeForUnreadWake(state: string, heartbeat: boolean): UnreadWak
     needsDecisionKeys,
     taskByWakeKey: Object.fromEntries(taskByKey),
   };
+}
+
+// Backlog-only holds are independent of worker status. Read their existing
+// authority off-thread, then reclassify the current queue with those results.
+// The command guard checks again under the hold/answer lock before mutation.
+export async function scopeForUnreadWakeWithHolds(
+  state: string, heartbeat: boolean, root: string, home: string,
+): Promise<UnreadWakeScope> {
+  const scope = scopeForUnreadWake(state, heartbeat);
+  if (scope.corrupted || scope.eligibleTasks.length === 0) return scope;
+  const holds = new Map<string, boolean>();
+  const results = await Promise.all(scope.eligibleTasks.map(async (task) => {
+    const result = await runCommandAsync("bash", [`${root}/bin/fm-captain-hold.sh`, "open", task], {
+      cwd: root,
+      env: { ...process.env, FM_HOME: home, FM_STATE_OVERRIDE: state, FM_ROOT_OVERRIDE: root },
+    });
+    if (result.status !== 0 && result.status !== 1) return false;
+    holds.set(task, result.status === 0);
+    return true;
+  }));
+  if (results.some((known) => !known)) return UNSAFE_SCOPE;
+  return scopeForUnreadWake(state, heartbeat, holds);
 }
 
 // The exact state-relative filename bin/fm-wake-drain.sh reads for a

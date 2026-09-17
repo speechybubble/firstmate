@@ -274,6 +274,9 @@ trap control_cleanup EXIT
 fm_lock_try_acquire "$CONTROL_LOCK" \
   || die "another lifecycle action is already running for task $ID"
 CONTROL_LOCK_HELD=1
+if [ "$VERB" = relaunch ]; then
+  fm_lease_guard_captain_hold "$ID" "relaunch (fm-control)" held
+fi
 META="$STATE/$ID.meta"
 if [ ! -f "$META" ]; then
   case "$RAW_ID" in
