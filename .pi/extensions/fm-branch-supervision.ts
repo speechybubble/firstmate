@@ -99,6 +99,7 @@ import {
   activateEligibleRowsOwner,
   deactivateEligibleRowsOwner,
   FM_BRANCH_DISPATCH_EVENT,
+  isNeedsDecisionTrigger,
   releaseEligibleRowsSnapshot,
   scopeForUnreadWakeWithHolds,
   writeEligibleRowsSnapshot,
@@ -1417,6 +1418,9 @@ ${context.command}
         const heartbeat = /^heartbeat($|:)/.test(message);
         const scope = await scopeForUnreadWakeWithHolds(state, heartbeat, fmRoot, fmHome);
         if (!(await actingAsOwner(acceptedGeneration))) throw new Error("supervision session no longer owns the fleet lock");
+        if (isNeedsDecisionTrigger(message, scope)) {
+          throw new Error("the accepted wake now requires a captain decision");
+        }
         // A newly-arrived main-owned (check-kind) row never bounces this
         // whole recheck back to main - scopeForUnreadWake excludes it from
         // eligibleSeqs rather than vetoing the scan, in a heartbeat review as

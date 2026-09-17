@@ -33,6 +33,7 @@ import { registerFirstmateTool } from "./lib/fm-native-contract.ts";
 import {
   createBranchDispatchOffer,
   FM_BRANCH_DISPATCH_EVENT,
+  isNeedsDecisionTrigger,
   scopeForUnreadWakeWithHolds,
 } from "./lib/fm-branch-dispatch.ts";
 import {
@@ -614,20 +615,7 @@ export default function (pi: ExtensionAPI) {
     // unread decision row: until that row is read, a later signal or stale
     // trigger for the same task stays on main. Other tasks and heartbeat
     // handling remain independent.
-    const triggerKeys = /^signal:/.test(message)
-      ? message
-        .slice("signal:".length)
-        .split(/\s+/)
-        .filter(Boolean)
-        .map((path) => path.split("/").pop() ?? path)
-      : /^stale:/.test(message)
-        ? [message.slice("stale:".length).trim().split(/\s+/, 1)[0]].filter(Boolean)
-        : [];
-    const taskIdentity = (key: string): string =>
-      scope.taskByWakeKey[key] ?? scope.taskByWakeKey[key.replace(/^fm-/, "")] ?? key;
-    const needsDecisionTasks = new Set(scope.needsDecisionKeys.map(taskIdentity));
-    const isNeedsDecisionTrigger = triggerKeys.some((key) => needsDecisionTasks.has(taskIdentity(key)));
-    const eligible = !isCheckTrigger && !isNeedsDecisionTrigger && scope.eligible;
+    const eligible = !isCheckTrigger && !isNeedsDecisionTrigger(message, scope) && scope.eligible;
     const offer = createBranchDispatchOffer(message, scope.projects, heartbeat, eligible);
     pi.events?.emit?.(FM_BRANCH_DISPATCH_EVENT, offer);
     return offer.accepted ? { settlement: offer.settlement } : null;

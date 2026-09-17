@@ -368,6 +368,22 @@ export async function scopeForUnreadWakeWithHolds(
   return scopeForUnreadWake(state, heartbeat, holds);
 }
 
+export function isNeedsDecisionTrigger(message: string, scope: UnreadWakeScope): boolean {
+  const triggerKeys = /^signal:/.test(message)
+    ? message
+      .slice("signal:".length)
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((path) => path.split("/").pop() ?? path)
+    : /^stale:/.test(message)
+      ? [message.slice("stale:".length).trim().split(/\s+/, 1)[0]].filter(Boolean)
+      : [];
+  const taskIdentity = (key: string): string =>
+    scope.taskByWakeKey[key] ?? scope.taskByWakeKey[key.replace(/^fm-/, "")] ?? key;
+  const needsDecisionTasks = new Set(scope.needsDecisionKeys.map(taskIdentity));
+  return triggerKeys.some((key) => needsDecisionTasks.has(taskIdentity(key)));
+}
+
 // The exact state-relative filename bin/fm-wake-drain.sh reads for a
 // FM_SUPERVISION_ACTOR=branch drain or ack (its header is the single owner of
 // the consume-side contract). Written atomically, immediately before every

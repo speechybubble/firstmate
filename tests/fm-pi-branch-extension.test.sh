@@ -4974,6 +4974,87 @@ EOF
   pass "backlog-only holds route signal and stale rows to main, fail closed on read errors, and release cleanly"
 }
 
+test_branch_predrain_new_hold_rejects_trigger_to_main() {
+  local repo home out status
+  command -v tasks-axi >/dev/null 2>&1 || { echo "skip: hold recheck regression requires tasks-axi"; return; }
+  repo="$TMP_ROOT/hold-recheck-root"
+  home="$TMP_ROOT/hold-recheck-home"
+  mkdir -p "$home/state" "$home/data" "$home/config"
+  cp "$ROOT/.tasks.toml" "$home/.tasks.toml"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
+  install_pi_branch_extension_fixture "$repo"
+  PLUGIN="$repo/.pi/extensions/fm-branch-supervision.ts" FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
+    DRIVER_PRELUDE="$DRIVER_PRELUDE" node --input-type=module > "$TMP_ROOT/hold-recheck-output" 2>&1 <<'EOF'
+const prelude = process.env.DRIVER_PRELUDE;
+await eval(`(async () => { ${prelude}; globalThis.__t = { bus, fire, home, realRoot, defaultSessionCtx }; })()`);
+const { bus, fire, home, realRoot, defaultSessionCtx } = globalThis.__t;
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+const { createBranchDispatchOffer, scopeForUnreadWakeWithHolds } =
+  await import(`${realRoot}/.pi/extensions/lib/fm-branch-dispatch.ts`);
+const run = (script, ...args) => execFileSync("bash", [`${realRoot}/bin/${script}`, ...args], { encoding: "utf8" });
+const append = (kind, key, message) => execFileSync("bash", [
+  "-c", 'source "$1/bin/fm-wake-lib.sh"; fm_wake_append "$2" "$3" "$4"',
+  "bash", realRoot, kind, key, message,
+]);
+await fire("session_start", {}, defaultSessionCtx);
+writeFileSync(`${home}/state/routine.meta`, "project=/fixture/routine\nwindow=fm-routine\n");
+writeFileSync(`${home}/decision.txt`, "Resume the same task.\n");
+for (const kind of ["signal", "stale"]) {
+  for (const mixed of [false, true]) {
+    const key = kind === "signal" ? "branch-driver.turn-ended" : "fm-branch-driver";
+    const message = kind === "signal"
+      ? `signal: ${home}/state/branch-driver.status ${home}/state/branch-driver.turn-ended`
+      : "stale: fm-branch-driver idle";
+    append(kind, key, message);
+    if (mixed) append("signal", "routine.turn-ended", "signal: routine.turn-ended");
+    const scope = await scopeForUnreadWakeWithHolds(`${home}/state`, false, realRoot, home);
+    if (!scope.eligible || scope.needsDecisionKeys.length) throw new Error("wake was not initially branch eligible");
+    const offer = createBranchDispatchOffer(message, scope.projects, false, scope.eligible);
+    bus.emit("fm-branch-supervision:dispatch", offer);
+    if (!offer.accepted) throw new Error("branch did not accept the eligible wake");
+    const settled = offer.settlement.then(() => null, (error) => error);
+    run("fm-captain-hold.sh", "hold", "branch-driver", "--title", "Held worker", "--reason", "Intentional stop");
+    if (existsSync(`${home}/state/branch-driver.status`)) throw new Error("fixture must have no worker status");
+    const queued = readFileSync(`${home}/state/.wake-queue`, "utf8");
+    const failure = await settled;
+    if (!(failure instanceof Error)) throw new Error(`${kind} mixed=${mixed}: held trigger settled successfully instead of rejecting to main`);
+    if ((globalThis.__fmPrompts ?? []).length) throw new Error("held trigger reached a branch prompt");
+    if (existsSync(`${home}/state/.branch-eligible-rows`)) throw new Error("held trigger retained a branch grant");
+    if (readFileSync(`${home}/state/.wake-queue`, "utf8") !== queued) throw new Error("held wake was consumed before main fallback");
+    const drained = spawnSync("bash", [`${realRoot}/bin/fm-wake-drain.sh`], { encoding: "utf8" });
+    if (drained.status !== 0) throw new Error(`main fallback drain failed: ${drained.stderr}`);
+    const drain = drained.stdout;
+    if (!drain.includes(`\t${kind}\t${key}\t`)) throw new Error(`main fallback missed held trigger: ${drain}`);
+    if (mixed && !drain.includes("\tsignal\troutine.turn-ended\t")) throw new Error("main fallback missed coalesced routine row");
+    const recovery = drained.stderr.match(/--recovery-generation (\S+)/)?.[1];
+    if (!recovery) throw new Error("main fallback drain omitted its acknowledgement generation");
+    run("fm-wake-drain.sh", "--ack-through", scope.eligibleSeqs.at(-1), "--recovery-generation", recovery);
+    run("fm-captain-hold.sh", "answer", "branch-driver", "--release", "--decision-file", `${home}/decision.txt`);
+  }
+}
+globalThis.__fmOnBranchPrompt = async ({ session }) => {
+  const report = session.options.customTools.find((tool) => tool.name === "fm_branch_report");
+  const result = await report.execute("released-wake", {
+    task: "branch-driver", verdict: "routine", summary: "Released task reached the branch",
+  }, undefined, undefined, {});
+  if (result.isError) throw new Error(`released report failed: ${JSON.stringify(result)}`);
+};
+append("signal", "branch-driver.turn-ended", "signal: branch-driver.turn-ended");
+const released = createBranchDispatchOffer("signal: branch-driver.turn-ended", ["/fixture/routine"], false, true);
+bus.emit("fm-branch-supervision:dispatch", released);
+if (!released.accepted) throw new Error("release did not restore branch acceptance");
+await released.settlement;
+if (globalThis.__fmPrompts?.length !== 1) throw new Error("released wake did not reach the branch");
+await fire("session_shutdown", {});
+EOF
+  status=$?
+  out=$(cat "$TMP_ROOT/hold-recheck-output")
+  expect_code 0 "$status" "post-acceptance holds must return signal and stale triggers to main: $out"
+  pass "new holds return accepted signal and stale triggers to main, including mixed queues, and release restores delivery"
+}
+
+test_branch_predrain_new_hold_rejects_trigger_to_main
 test_backlog_only_hold_routes_signal_and_stale_to_main
 test_outcomes_tool_uses_stock_execution_and_export_consumers
 test_real_pi_picker_primitives_stay_bounded_and_searchable
