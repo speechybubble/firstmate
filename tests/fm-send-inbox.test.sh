@@ -451,7 +451,7 @@ test_branch_steer_preserves_backlog_only_hold() {
   # A wake granted before a new hold is not authority to resume afterward.
   printf '1\t1\tsignal\tt1.turn-ended\tsignal: t1.turn-ended\n' > "$home/state/.wake-queue"
   FM_HOME="$home" "$ROOT/bin/fm-wake-grant.sh" activate "$$" hold-race || fail "grant activation failed"
-  FM_HOME="$home" "$ROOT/bin/fm-wake-grant.sh" publish hold-race 1 || fail "wake grant failed"
+  FM_HOME="$home" "$ROOT/bin/fm-wake-grant.sh" publish hold-race --tasks t1 --rows 1 || fail "wake grant failed"
   FM_HOME="$home" "$ROOT/bin/fm-captain-hold.sh" hold t1 --reason 'New intentional stop after grant' >/dev/null \
     || fail "post-grant hold failed"
   run_send "$dir" "$err" FM_SUPERVISION_ACTOR=branch -- t1 'Continuation from old grant'

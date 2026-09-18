@@ -1441,6 +1441,7 @@ ${context.command}
           scope.eligibleSeqs,
           wakeGrantScript,
           String(acceptedGeneration),
+          scope.eligibleTasks,
         );
         if (grant === "main-owned") throw new Error("the wake rows are already claimed by main");
         if (grant !== "published") throw new Error("could not record the branch's eligible row snapshot");

@@ -3805,7 +3805,7 @@ test_branch_dispatch_classifies_main_only_rows_and_writes_the_eligible_snapshot(
   local repo home out status
   repo="$TMP_ROOT/dispatch-classify-root"
   home="$TMP_ROOT/dispatch-classify-home"
-  mkdir -p "$repo/.pi/extensions/lib" "$home/state" "$home/projects/approved"
+  mkdir -p "$repo/.pi/extensions/lib" "$home/state" "$home/data" "$home/projects/approved"
   cp "$ROOT/.pi/extensions/lib/fm-branch-dispatch.ts" "$repo/.pi/extensions/lib/fm-branch-dispatch.ts"
   cp "$ROOT/.pi/extensions/lib/fm-native-contract.ts" "$repo/.pi/extensions/lib/fm-native-contract.ts"
   cp "$ROOT/.pi/extensions/lib/fm-async-exec.ts" "$repo/.pi/extensions/lib/fm-async-exec.ts"
@@ -4033,7 +4033,7 @@ if (!mixed.projects.includes(project)) {
 if (!(await activateEligibleRowsOwner(state, process.env.GRANT, process.pid, "fixture"))) {
   throw new Error("branch owner activation failed");
 }
-if ((await writeEligibleRowsSnapshot(state, mixed.eligibleSeqs, process.env.GRANT, "fixture")) !== "published") {
+if ((await writeEligibleRowsSnapshot(state, mixed.eligibleSeqs, process.env.GRANT, "fixture", mixed.eligibleTasks)) !== "published") {
   throw new Error("snapshot write reported failure");
 }
 const snapshot = readFileSync(`${state}/${BRANCH_ELIGIBLE_ROWS_FILE}`, "utf8").trim().split("\n");
@@ -4041,12 +4041,12 @@ if (snapshot.join(",") !== "2,3") throw new Error(`snapshot did not name exactly
 
 // An empty eligible set is refused rather than clearing the snapshot to
 // nothing - a caller must never overwrite a live snapshot with an empty one.
-if ((await writeEligibleRowsSnapshot(state, [], process.env.GRANT, "fixture")) !== "error") {
+if ((await writeEligibleRowsSnapshot(state, [], process.env.GRANT, "fixture", [])) !== "error") {
   throw new Error("an empty eligible set must not be written");
 }
 if (!(await releaseEligibleRowsSnapshot(state, process.env.GRANT, "fixture"))) throw new Error("snapshot release failed");
 writeFileSync(`${state}/.main-eligible-rows`, "2\n");
-if ((await writeEligibleRowsSnapshot(state, ["2"], process.env.GRANT, "fixture")) !== "main-owned") {
+if ((await writeEligibleRowsSnapshot(state, ["2"], process.env.GRANT, "fixture", mixed.eligibleTasks)) !== "main-owned") {
   throw new Error("a row already claimed by main was not reported as main-owned");
 }
 
@@ -5054,6 +5054,173 @@ EOF
   pass "new holds return accepted signal and stale triggers to main, including mixed queues, and release restores delivery"
 }
 
+test_branch_async_hold_race_preserves_main_fallback() {
+  local repo home out status fakebin
+  command -v tasks-axi >/dev/null 2>&1 || { echo "skip: hold race regression requires tasks-axi"; return; }
+  repo="$TMP_ROOT/async-hold-root"
+  home="$TMP_ROOT/async-hold-home"
+  fakebin="$TMP_ROOT/async-hold-bin"
+  mkdir -p "$home/state" "$home/data" "$home/config" "$fakebin"
+  cp "$ROOT/.tasks.toml" "$home/.tasks.toml"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
+  install_pi_branch_extension_fixture "$repo"
+  cat > "$fakebin/bash" <<'SH'
+#!/bin/bash
+if [[ ${1:-} = */fm-captain-hold.sh && ${2:-} = open && -e "$FM_HOME/race-armed" ]]; then
+  if [ "${3:-}" = branch-driver ]; then
+    /bin/bash "$@"
+    result=$?
+    touch "$FM_HOME/first-read"
+    exit "$result"
+  elif [ "${3:-}" = routine ]; then
+    for ((attempt=0; attempt<1000; attempt++)); do
+      [ ! -e "$FM_HOME/first-read" ] || break
+      sleep 0.01
+    done
+    [ -e "$FM_HOME/first-read" ] || exit 2
+    rm "$FM_HOME/race-armed"
+    /bin/bash "$FM_ROOT_OVERRIDE/bin/fm-captain-hold.sh" hold branch-driver \
+      --title 'Held worker' --reason 'Hold during asynchronous recheck' >/dev/null || exit 2
+  fi
+fi
+if [[ ${1:-} = */fm-captain-hold.sh && ${2:-} = open && -e "$FM_HOME/grant-checks" ]]; then
+  /bin/bash "$@"
+  result=$?
+  touch "$FM_HOME/grant-read-$3"
+  exit "$result"
+fi
+exec /bin/bash "$@"
+SH
+  chmod +x "$fakebin/bash"
+  PLUGIN="$repo/.pi/extensions/fm-branch-supervision.ts" FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
+    DRIVER_PRELUDE="$DRIVER_PRELUDE" PATH="$fakebin:$PATH" node --input-type=module > "$TMP_ROOT/async-hold-output" 2>&1 <<'EOF'
+const prelude = process.env.DRIVER_PRELUDE;
+await eval(`(async () => { ${prelude}; globalThis.__t = { bus, fire, home, realRoot, defaultSessionCtx }; })()`);
+const { bus, fire, home, realRoot, defaultSessionCtx } = globalThis.__t;
+import { execFileSync, spawnSync, spawn } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync, rmSync, chmodSync } from "node:fs";
+const { createBranchDispatchOffer, scopeForUnreadWakeWithHolds, writeEligibleRowsSnapshot } =
+  await import(`${realRoot}/.pi/extensions/lib/fm-branch-dispatch.ts`);
+const run = (script, ...args) => execFileSync("bash", [`${realRoot}/bin/${script}`, ...args], { encoding: "utf8" });
+await fire("session_start", {}, defaultSessionCtx);
+writeFileSync(`${home}/state/routine.meta`, "project=/fixture/routine\nwindow=fm-routine\n");
+writeFileSync(`${home}/decision.txt`, "Resume the same task.\n");
+let sequence = 0;
+globalThis.__fmOnBranchPrompt = async ({ session }) => {
+  const env = { ...process.env, FM_SUPERVISION_ACTOR: "branch" };
+  const drained = spawnSync("bash", [`${realRoot}/bin/fm-wake-drain.sh`], { env, encoding: "utf8" });
+  const recovery = drained.stderr.match(/--recovery-generation (\S+)/)?.[1];
+  if (drained.status !== 0 || !recovery) throw new Error("branch drain failed");
+  execFileSync("bash", [`${realRoot}/bin/fm-wake-drain.sh`, "--ack-through", String(sequence), "--recovery-generation", recovery], { env });
+  const report = session.options.customTools.find((tool) => tool.name === "fm_branch_report");
+  const result = await report.execute("race-wake", {
+    task: "branch-driver", verdict: "routine", summary: "Processed the granted rows",
+  }, undefined, undefined, {});
+  if (result.isError) throw new Error(`report failed: ${JSON.stringify(result)}`);
+};
+for (const kind of ["signal", "stale"]) {
+  const key = kind === "signal" ? "branch-driver.turn-ended" : "fm-branch-driver";
+  const message = `${kind}: ${key}`;
+  const first = ++sequence;
+  const last = ++sequence;
+  const queued = `1\t${first}\t${kind}\t${key}\t${message}\n1\t${last}\tsignal\troutine.turn-ended\tsignal: routine.turn-ended\n`;
+  writeFileSync(`${home}/state/.wake-queue`, queued);
+  const scope = await scopeForUnreadWakeWithHolds(`${home}/state`, false, realRoot, home);
+  if (scope.eligibleSeqs.join(",") !== `${first},${last}`) throw new Error("both tasks must initially be eligible");
+  writeFileSync(`${home}/race-armed`, "");
+  const offer = createBranchDispatchOffer(message, scope.projects, false, true);
+  bus.emit("fm-branch-supervision:dispatch", offer);
+  if (!offer.accepted) throw new Error("branch did not accept the eligible wake");
+  const failure = await offer.settlement.then(() => null, (error) => error);
+  if (!existsSync(`${home}/first-read`) || existsSync(`${home}/race-armed`)) throw new Error("race ordering was not exercised");
+  if (spawnSync("bash", [`${realRoot}/bin/fm-captain-hold.sh`, "open", "branch-driver"]).status !== 0) {
+    throw new Error("the concurrent hold was not durable");
+  }
+  if (!(failure instanceof Error)) throw new Error(`${kind}: held trigger settled successfully after stale asynchronous reads`);
+  if ((globalThis.__fmPrompts ?? []).length) throw new Error("held trigger reached the branch");
+  if (existsSync(`${home}/state/.branch-eligible-rows`)) throw new Error("held trigger retained a grant");
+  for (const task of ["branch-driver", "routine"]) {
+    if (existsSync(`${home}/state/.control-${task}.lock`)) throw new Error("rejected grant leaked a control lock");
+  }
+  if (readFileSync(`${home}/state/.wake-queue`, "utf8") !== queued) throw new Error("main lost unread rows");
+  const drained = spawnSync("bash", [`${realRoot}/bin/fm-wake-drain.sh`], { encoding: "utf8" });
+  if (drained.status !== 0 || !drained.stdout.includes(`\t${kind}\t${key}\t`) || !drained.stdout.includes("\tsignal\troutine.turn-ended\t")) {
+    throw new Error(`main fallback lost held or unrelated rows: ${drained.stdout} ${drained.stderr}`);
+  }
+  const recovery = drained.stderr.match(/--recovery-generation (\S+)/)?.[1];
+  if (!recovery) throw new Error("main fallback omitted its acknowledgement generation");
+  run("fm-wake-drain.sh", "--ack-through", String(sequence), "--recovery-generation", recovery);
+  run("fm-captain-hold.sh", "answer", "branch-driver", "--release", "--decision-file", `${home}/decision.txt`);
+  rmSync(`${home}/first-read`);
+}
+
+const waitFor = async (predicate, label) => {
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`timed out waiting for ${label}`);
+};
+const completed = (child) => new Promise((resolve, reject) => {
+  child.once("error", reject);
+  child.once("close", resolve);
+});
+writeFileSync(`${home}/state/.wake-queue`, "1\t5\tsignal\tbranch-driver.turn-ended\tsignal: branch-driver.turn-ended\n1\t6\tsignal\troutine.turn-ended\tsignal: routine.turn-ended\n");
+const scope = await scopeForUnreadWakeWithHolds(`${home}/state`, false, realRoot, home);
+const generation = readFileSync(`${home}/state/.branch-eligible-owner`, "utf8").trim().split("\n").at(-1);
+chmodSync(`${home}/data/backlog.md`, 0);
+try {
+  if (await writeEligibleRowsSnapshot(`${home}/state`, scope.eligibleSeqs, `${realRoot}/bin/fm-wake-grant.sh`, generation, scope.eligibleTasks) !== "error") {
+    throw new Error("indeterminate final hold read published a grant");
+  }
+  if (existsSync(`${home}/state/.branch-eligible-rows`)) throw new Error("unreadable hold retained a grant");
+  for (const task of scope.eligibleTasks) {
+    if (existsSync(`${home}/state/.control-${task}.lock`)) throw new Error("unreadable hold leaked a task lock");
+  }
+} finally {
+  chmodSync(`${home}/data/backlog.md`, 0o600);
+}
+const queueBlocker = spawn("bash", ["-c", '. "$1/bin/fm-wake-lib.sh"; fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK"; touch "$FM_HOME/queue-locked"; read -r release; fm_lock_release "$FM_WAKE_QUEUE_LOCK"', "bash", realRoot]);
+const blockerDone = completed(queueBlocker);
+let hold;
+let holdDone;
+let grant;
+try {
+  await waitFor(() => existsSync(`${home}/queue-locked`), "queue lock");
+  writeFileSync(`${home}/grant-checks`, "");
+  grant = writeEligibleRowsSnapshot(`${home}/state`, scope.eligibleSeqs, `${realRoot}/bin/fm-wake-grant.sh`, generation, scope.eligibleTasks);
+  await waitFor(() => ["branch-driver", "routine"].every((task) => existsSync(`${home}/grant-read-${task}`)), "final hold checks");
+  for (const task of scope.eligibleTasks) {
+    if (!existsSync(`${home}/state/.control-${task}.lock`)) throw new Error("final validation released a task lock before publication");
+  }
+  if (existsSync(`${home}/state/.branch-eligible-rows`)) throw new Error("publication bypassed the queue lock");
+  hold = spawn("bash", [`${realRoot}/bin/fm-captain-hold.sh`, "hold", "branch-driver", "--reason", "Hold while grant awaits publication"]);
+  let holdFinished = false;
+  holdDone = completed(hold).then((code) => { holdFinished = true; return code; });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  if (holdFinished) throw new Error("hold overtook locked grant publication");
+  queueBlocker.stdin.end("release\n");
+  if (await blockerDone !== 0 || await grant !== "published" || await holdDone !== 0) throw new Error("serialized grant and hold failed");
+  if (readFileSync(`${home}/state/.branch-eligible-rows`, "utf8").trim() !== "5\n6") throw new Error("serialized grant lost rows");
+  if (spawnSync("bash", [`${realRoot}/bin/fm-captain-hold.sh`, "open", "branch-driver"]).status !== 0) throw new Error("serialized hold was lost");
+} finally {
+  queueBlocker.stdin.end();
+  await blockerDone;
+  if (grant) await grant;
+  if (holdDone) await holdDone;
+}
+for (const task of scope.eligibleTasks) {
+  if (existsSync(`${home}/state/.control-${task}.lock`)) throw new Error("published grant leaked a task lock");
+}
+await fire("session_shutdown", {});
+EOF
+  status=$?
+  out=$(cat "$TMP_ROOT/async-hold-output")
+  expect_code 0 "$status" "asynchronous hold reads must not authorize stale grants: $out"
+  pass "asynchronous hold races preserve main fallback and task locks serialize final checks through publication"
+}
+
+test_branch_async_hold_race_preserves_main_fallback
 test_branch_predrain_new_hold_rejects_trigger_to_main
 test_backlog_only_hold_routes_signal_and_stale_to_main
 test_outcomes_tool_uses_stock_execution_and_export_consumers

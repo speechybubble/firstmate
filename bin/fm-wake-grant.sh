@@ -10,12 +10,16 @@ BRANCH_OWNER="$STATE/.branch-eligible-owner"
 MAIN_ROWS="$STATE/.main-eligible-rows"
 TMP=
 LOCK_HELD=false
+TASK_LOCKS=()
 
 # shellcheck disable=SC2329 # Registered by the EXIT trap below.
 cleanup() {
   local status=$?
   [ -z "$TMP" ] || rm -f -- "$TMP" 2>/dev/null || true
   [ "$LOCK_HELD" = false ] || fm_lock_release "$FM_WAKE_QUEUE_LOCK"
+  for lock in ${TASK_LOCKS[@]+"${TASK_LOCKS[@]}"}; do
+    fm_lock_release "$lock"
+  done
   exit "$status"
 }
 trap cleanup EXIT
@@ -53,10 +57,34 @@ case "${1:-}" in
     [ "$#" -gt 2 ] || exit 2
     case "$generation" in ''|*[!A-Za-z0-9._-]*) exit 2 ;; esac
     shift 2
+    [ "${1:-}" = --tasks ] || exit 2
+    shift
+    tasks=
+    while [ "$#" -gt 0 ] && [ "$1" != --rows ]; do
+      case "$1" in ''|*[!A-Za-z0-9._-]*) exit 2 ;; esac
+      tasks="$tasks$1"$'\n'
+      shift
+    done
+    [ "${1:-}" = --rows ] || exit 2
+    shift
+    [ "$#" -gt 0 ] || exit 2
     TMP=$(mktemp "$STATE/.branch-eligible-rows.tmp.XXXXXX") || exit 1
     printf '%s\n' "$@" > "$TMP" || exit 1
     chmod 0600 "$TMP" || exit 1
     rows_valid "$TMP" || exit 2
+    tasks=$(printf '%s' "$tasks" | LC_ALL=C sort -u) || exit 1
+    while IFS= read -r task; do
+      [ -n "$task" ] || continue
+      lock="$STATE/.control-$task.lock"
+      fm_lock_acquire_wait "$lock" || exit 1
+      TASK_LOCKS+=("$lock")
+    done <<< "$tasks"
+    while IFS= read -r task; do
+      [ -n "$task" ] || continue
+      rc=0
+      "$SCRIPT_DIR/fm-captain-hold.sh" open "$task" || rc=$?
+      [ "$rc" -eq 1 ] || exit 1
+    done <<< "$tasks"
     fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK"
     LOCK_HELD=true
     owner_matches '' "$generation" || exit 1
@@ -101,7 +129,7 @@ case "${1:-}" in
     rm -f -- "$BRANCH_ROWS" "$BRANCH_OWNER" || exit 1
     ;;
   *)
-    echo "usage: fm-wake-grant.sh activate PID GENERATION | publish GENERATION SEQUENCE... | release GENERATION | deactivate PID GENERATION" >&2
+    echo "usage: fm-wake-grant.sh activate PID GENERATION | publish GENERATION --tasks [TASK...] --rows SEQUENCE... | release GENERATION | deactivate PID GENERATION" >&2
     exit 2
     ;;
 esac

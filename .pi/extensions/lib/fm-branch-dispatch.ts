@@ -398,9 +398,7 @@ export const BRANCH_ELIGIBLE_ROWS_FILE = ".branch-eligible-rows";
 export type EligibleRowsSnapshotResult = "published" | "main-owned" | "error";
 
 // Awaited rather than synchronous because every caller runs on the Pi thread
-// that draws the captain's TUI (lib/fm-async-exec.ts). The grant script itself
-// is unchanged, and so is each result: a null status still means the script
-// could not be run at all.
+// that draws the captain's TUI (lib/fm-async-exec.ts).
 async function runGrantScript(
   state: string,
   grantScript: string,
@@ -431,9 +429,10 @@ export async function writeEligibleRowsSnapshot(
   seqs: readonly string[],
   grantScript: string,
   generation: string,
+  tasks: readonly string[],
 ): Promise<EligibleRowsSnapshotResult> {
   if (seqs.length === 0 || seqs.some((seq) => !/^[0-9]+$/.test(seq))) return "error";
-  const status = await runGrantScript(state, grantScript, ["publish", generation, ...seqs]);
+  const status = await runGrantScript(state, grantScript, ["publish", generation, "--tasks", ...tasks, "--rows", ...seqs]);
   if (status === 0) return "published";
   if (status === 3) return "main-owned";
   return "error";

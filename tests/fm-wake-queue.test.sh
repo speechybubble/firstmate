@@ -864,6 +864,7 @@ test_branch_actor_scoped_ack_never_swallows_a_main_owned_row() {
   local dir state out err sequence generation count
   dir=$(make_case actor-scope)
   state="$dir/state"
+  mkdir -p "$dir/data"
 
   append_wake "$state" check "some-poll.check.sh" "check: some-poll.check.sh: merged" \
     || fail "main-only append failed"
@@ -874,7 +875,7 @@ test_branch_actor_scoped_ack_never_swallows_a_main_owned_row() {
   # two task-local rows; this test drives the bash consume contract those
   # sequence numbers gate, independent of the Pi SDK.
   FM_STATE_OVERRIDE="$state" "$GRANT" activate "$$" actor-scope || fail "branch owner activation failed"
-  FM_STATE_OVERRIDE="$state" "$GRANT" publish actor-scope 2 3 || fail "branch grant publication failed"
+  FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$GRANT" publish actor-scope --tasks task-a --rows 2 3 || fail "branch grant publication failed"
 
   out="$dir/branch-drain.out"
   err="$dir/branch-drain.err"
@@ -922,12 +923,13 @@ test_main_drain_excludes_rows_already_granted_to_branch() {
   local dir state out err sequence generation
   dir=$(make_case main-excludes-branch-grant)
   state="$dir/state"
+  mkdir -p "$dir/data"
 
   append_wake "$state" check "some-poll.check.sh" "check: some-poll.check.sh: merged" \
     || fail "main-only append failed"
   append_wake "$state" signal "task-a.status" "signal: task-a" || fail "signal append failed"
   FM_STATE_OVERRIDE="$state" "$GRANT" activate "$$" main-excludes || fail "branch owner activation failed"
-  FM_STATE_OVERRIDE="$state" "$GRANT" publish main-excludes 2 || fail "branch grant publication failed"
+  FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$GRANT" publish main-excludes --tasks task-a --rows 2 || fail "branch grant publication failed"
 
   out="$dir/main-drain.out"
   err="$dir/main-drain.err"
@@ -966,12 +968,13 @@ test_main_is_never_told_to_drain_rows_only_the_branch_owns() {
   local dir state out err sequence generation
   dir=$(make_case main-not-told-to-drain-branch-rows)
   state="$dir/state"
+  mkdir -p "$dir/data"
   printf 'window=test:fm-x\nkind=ship\n' > "$state/x.meta"
 
   append_wake "$state" stale "fleet:w2:p3" "stale: fleet:w2:p3 (paused, awaiting external)" \
     || fail "stale append failed"
   FM_STATE_OVERRIDE="$state" "$GRANT" activate "$$" held-by-branch || fail "branch owner activation failed"
-  FM_STATE_OVERRIDE="$state" "$GRANT" publish held-by-branch 1 || fail "branch grant publication failed"
+  FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$GRANT" publish held-by-branch --tasks x --rows 1 || fail "branch grant publication failed"
 
   out="$dir/main-drain.out"
   err="$dir/main-drain.err"
@@ -1071,6 +1074,7 @@ test_unconsumable_rows_are_retired_instead_of_wedging_the_queue() {
   local dir state out err sequence generation
   dir=$(make_case unconsumable-row-retirement)
   state="$dir/state"
+  mkdir -p "$dir/data"
   printf 'window=test:fm-x\nkind=ship\n' > "$state/x.meta"
 
   append_wake "$state" signal "task-a.status" "signal: task-a" || fail "signal append failed"
@@ -1079,7 +1083,7 @@ test_unconsumable_rows_are_retired_instead_of_wedging_the_queue() {
 
   # A branch actor never repairs the queue: it may only touch its own grant.
   FM_STATE_OVERRIDE="$state" "$GRANT" activate "$$" retire-scope || fail "branch owner activation failed"
-  FM_STATE_OVERRIDE="$state" "$GRANT" publish retire-scope 1 || fail "branch grant publication failed"
+  FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$GRANT" publish retire-scope --tasks task-a --rows 1 || fail "branch grant publication failed"
   FM_STATE_OVERRIDE="$state" FM_SUPERVISION_ACTOR=branch "$DRAIN" > "$dir/branch.out" 2> "$dir/branch.err" \
     || fail "branch drain failed: $(cat "$dir/branch.err")"
   ! grep -Fq 'retired' "$dir/branch.err" || fail "a branch drain retired rows outside its grant"
@@ -1119,13 +1123,14 @@ test_branch_grant_refuses_rows_already_claimed_by_main() {
   local dir state rc
   dir=$(make_case branch-refuses-main-claim)
   state="$dir/state"
+  mkdir -p "$dir/data"
 
   append_wake "$state" signal "task-a.status" "signal: task-a" || fail "signal append failed"
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/main.out" 2> "$dir/main.err" \
     || fail "main presentation failed"
   FM_STATE_OVERRIDE="$state" "$GRANT" activate "$$" branch-refuses || fail "branch owner activation failed"
   rc=0
-  FM_STATE_OVERRIDE="$state" "$GRANT" publish branch-refuses 1 || rc=$?
+  FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$GRANT" publish branch-refuses --tasks task-a --rows 1 || rc=$?
   [ "$rc" -eq 3 ] || fail "branch grant did not report the existing main ownership: rc=$rc"
   [ ! -e "$state/.branch-eligible-rows" ] || fail "refused branch grant published an ownership snapshot"
   grep -Fq "$(printf '\tsignal\ttask-a.status\t')" "$dir/main.out" \
@@ -1138,10 +1143,11 @@ test_actor_filter_precedes_same_key_deduplication() {
   local dir state main_sequence main_generation branch_sequence branch_generation
   dir=$(make_case actor-dedup-order)
   state="$dir/state"
+  mkdir -p "$dir/data"
 
   append_wake "$state" signal "task-a.status" "signal: branch version" || fail "branch row append failed"
   FM_STATE_OVERRIDE="$state" "$GRANT" activate "$$" actor-dedup || fail "branch owner activation failed"
-  FM_STATE_OVERRIDE="$state" "$GRANT" publish actor-dedup 1 || fail "branch grant publication failed"
+  FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$GRANT" publish actor-dedup --tasks task-a --rows 1 || fail "branch grant publication failed"
   append_wake "$state" signal "task-a.status" "signal: main version" || fail "main row append failed"
 
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/main.out" 2> "$dir/main.err" || fail "main drain failed"
@@ -1169,6 +1175,7 @@ test_main_reclaims_a_grant_whose_branch_owner_exited() {
   local dir state owner sequence generation
   dir=$(make_case stale-branch-owner)
   state="$dir/state"
+  mkdir -p "$dir/data"
 
   append_wake "$state" signal "task-a.status" "signal: task-a" || fail "signal append failed"
   sleep 30 &
@@ -1177,7 +1184,7 @@ test_main_reclaims_a_grant_whose_branch_owner_exited() {
     kill "$owner" 2>/dev/null || true
     fail "branch owner activation failed"
   }
-  FM_STATE_OVERRIDE="$state" "$GRANT" publish stale-owner 1 || {
+  FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$GRANT" publish stale-owner --tasks task-a --rows 1 || {
     kill "$owner" 2>/dev/null || true
     fail "branch grant publication failed"
   }
@@ -1429,9 +1436,10 @@ test_branch_stale_ack_that_consumes_nothing_names_its_granted_wake() {
   local dir state first_seq first_gen second_seq second_gen remedy
   dir=$(make_case branch-stale-ack-current-wake)
   state="$dir/state"
+  mkdir -p "$dir/data"
   append_wake "$state" signal "task-a.status" "signal: task-a first" || fail "first signal append failed"
   FM_STATE_OVERRIDE="$state" "$GRANT" activate "$$" branch-stale || fail "branch owner activation failed"
-  FM_STATE_OVERRIDE="$state" "$GRANT" publish branch-stale 1 || fail "first grant publication failed"
+  FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$GRANT" publish branch-stale --tasks task-a --rows 1 || fail "first grant publication failed"
   FM_STATE_OVERRIDE="$state" FM_SUPERVISION_ACTOR=branch "$DRAIN" > "$dir/first.out" 2> "$dir/first.err" \
     || fail "first branch drain failed: $(cat "$dir/first.err")"
   first_seq=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through \([0-9][0-9]*\) --recovery-generation .*/\1/p' "$dir/first.err")
@@ -1442,7 +1450,7 @@ test_branch_stale_ack_that_consumes_nothing_names_its_granted_wake() {
 
   # The next prompt: a stale escalation for another pane, granted on its own.
   append_wake "$state" stale "fm-window-b" "stale: fm-window-b (idle 378s, possible wedge)" || fail "stale append failed"
-  FM_STATE_OVERRIDE="$state" "$GRANT" publish branch-stale 2 || fail "second grant publication failed"
+  FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$GRANT" publish branch-stale --tasks task-b --rows 2 || fail "second grant publication failed"
   FM_STATE_OVERRIDE="$state" FM_SUPERVISION_ACTOR=branch "$DRAIN" > "$dir/second.out" 2> "$dir/second.err" \
     || fail "second branch drain failed: $(cat "$dir/second.err")"
   second_seq=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through \([0-9][0-9]*\) --recovery-generation .*/\1/p' "$dir/second.err")
