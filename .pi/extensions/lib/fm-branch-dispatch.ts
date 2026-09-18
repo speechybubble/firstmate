@@ -348,7 +348,8 @@ export function scopeForUnreadWake(state: string, heartbeat: boolean, captainHol
 
 // Backlog-only holds are independent of worker status. Read their existing
 // authority off-thread, then reclassify the current queue with those results.
-// The command guard checks again under the hold/answer lock before mutation.
+// These parallel reads are not an atomic snapshot: final grant validation is
+// owned by fm-wake-grant.sh, and mutation guards by fm-lease-lib.sh.
 export async function scopeForUnreadWakeWithHolds(
   state: string, heartbeat: boolean, root: string, home: string,
 ): Promise<UnreadWakeScope> {

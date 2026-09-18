@@ -437,10 +437,8 @@ fm_send_resolve_target "$RAW_TARGET" || exit 1
 T=$RESOLVED_TARGET
 shift
 
-# Supervision lease guard: a steer is overlap territory between the two Pi
-# supervision actors, so refuse while the OTHER actor holds this task's live
-# lease. A home with no supervision branch has no lease files and passes
-# untouched (contract: bin/fm-lease-lib.sh).
+# Supervision guards: bin/fm-lease-lib.sh owns lease exclusion and the durable
+# captain-hold check for branch steering; lease absence alone is not clearance.
 # shellcheck source=bin/fm-lease-lib.sh
 . "$SCRIPT_DIR/fm-lease-lib.sh"
 if [ -n "$TARGET_META" ]; then

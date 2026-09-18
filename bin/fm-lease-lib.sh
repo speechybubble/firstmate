@@ -225,7 +225,7 @@ fm_lease_guard_captain_hold() { # <task> <action-label> [held]
   exit "$FM_LEASE_REFUSE_EXIT"
 }
 
-# Release the claim/guard serialization lock retained by fm_lease_guard.
+# Release the serialization locks retained by the lease and captain-hold guards.
 # Idempotent so callers can use it unconditionally from existing EXIT cleanup.
 fm_lease_guard_release() {
   local lock=$FM_LEASE_GUARD_LOCK
