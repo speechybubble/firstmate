@@ -1,0 +1,27 @@
+LOADER ERRORS []
+{"command":"fm-captain-hold.sh","args":["hold","task-a","--title","Synthetic A","--reason","Intentional stop with no worker status"],"exit":0,"out":"task-a\n","err":""}
+DISPATCH {"message":"signal: /home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/.hold-validation-tmp/manual-watch-full/state/task-a.turn-ended","eligible":false,"accepted":false}
+MAIN INPUT ⁣FIRSTMATE_OP: v1 watcher: FIRSTMATE WATCHER WAKE: signal: /home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/.hold-validation-tmp/manual-watch-full/state/task-a.turn-ended
+
+Run bin/fm-wake-drain.sh first and handle the queued wake. Watcher continuity is extension-owned.
+BACKLOG ONLY HELD SIGNAL DELIVERED TO MAIN BY REAL WATCHER AND PI SDK
+DISPATCH {"message":"stale: fm-task-a","eligible":false,"accepted":false}
+MAIN INPUT ⁣FIRSTMATE_OP: v1 watcher: FIRSTMATE WATCHER WAKE: stale: fm-task-a
+
+Run bin/fm-wake-drain.sh first and handle the queued wake. Watcher continuity is extension-owned.
+BACKLOG ONLY HELD STALE DELIVERED TO MAIN
+{"command":"fm-wake-drain.sh","args":[],"exit":0,"out":"1789707239\t2\tsignal\ttask-a.turn-ended\tsignal: /home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/.hold-validation-tmp/manual-watch-full/state/task-a.turn-ended\n1789707244\t3\tstale\tfm-task-a\tstale: fm-task-a\n","err":"WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 227739.1789707239.EzzYwB\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\n"}
+{"command":"fm-wake-drain.sh","args":["--ack-through","3","--recovery-generation","227739.1789707239.EzzYwB"],"exit":0,"out":"","err":""}
+{"command":"fm-captain-hold.sh","args":["answer","task-a","--release","--decision-file","/home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/.hold-validation-tmp/manual-watch-full/decision.txt"],"exit":0,"out":"released: task-a\n","err":""}
+DISPATCH {"message":"stale: fm-task-b","eligible":false,"accepted":false}
+MAIN INPUT ⁣FIRSTMATE_OP: v1 watcher: FIRSTMATE WATCHER WAKE: stale: fm-task-b
+
+Run bin/fm-wake-drain.sh first and handle the queued wake. Watcher continuity is extension-owned.
+DISPATCH {"message":"signal: /home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/.hold-validation-tmp/manual-watch-full/state/task-a.turn-ended","eligible":true,"accepted":true}
+{"command":"fm-captain-hold.sh","args":["hold","task-a","--reason","After primary accepts signal"],"exit":0,"out":"task-a\n","err":""}
+MAIN INPUT ⁣FIRSTMATE_OP: v1 watcher: FIRSTMATE WATCHER WAKE: signal: /home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/.hold-validation-tmp/manual-watch-full/state/task-a.turn-ended
+
+Run bin/fm-wake-drain.sh first and handle the queued wake. Watcher continuity is extension-owned.
+LATE HOLD PRIMARY FALLBACK Error: the accepted wake now requires a captain decision
+{"command":"fm-wake-drain.sh","args":[],"exit":0,"out":"1789707248\t4\tstale\tfm-task-b\tstale: fm-task-b\n1789707252\t6\tsignal\ttask-a.turn-ended\tsignal: /home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/.hold-validation-tmp/manual-watch-full/state/task-a.turn-ended\n1789707255\t7\tsignal\ttask-b.turn-ended\tsignal: task-b.turn-ended\n","err":"WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 7 --recovery-generation 227739.1789707239.EzzYwB\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\n"}
+PRIMARY ACCEPTANCE HOLD FALLBACK PRESERVED BOTH ROWS

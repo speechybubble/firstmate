@@ -1,0 +1,55 @@
+{"command": "fm-lease.sh claim t1", "actor": "main", "exit": 0, "stdout": "", "stderr": ""}
+{"command": "fm-send.sh t1 Lease must block", "actor": "branch", "exit": 6, "stdout": "", "stderr": "\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\u25cf  WATCHER DOWN - SUPERVISION IS OFF\n\u25cf  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).\n\u25cf  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.\n\u25cf  This is a supervision warning only; the requested message WILL still be sent.\n\u25cf  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/.pi/extensions/fm-primary-turnend-guard.ts -e /home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nerror: steer (fm-send) refused - task 't1' is leased to the main supervision actor (state/.lease-t1); retry after that actor releases it"}
+{"command": "fm-captain-hold.sh hold t1 --title Synthetic worker --reason Intentional stop", "actor": "main", "exit": 0, "stdout": "t1", "stderr": ""}
+{"command": "fm-lease.sh release t1", "actor": "main", "exit": 0, "stdout": "", "stderr": ""}
+{"command": "fm-lease.sh claim t1", "actor": "branch", "exit": 0, "stdout": "", "stderr": ""}
+{"command": "fm-send.sh t1 Continue after main released lease", "actor": "branch", "exit": 6, "stdout": "", "stderr": "WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nerror: steer (fm-send) refused - task 't1' is held for the captain; leave it stopped for main"}
+{"command": "fm-control.sh t1 relaunch --note Synthetic retry", "actor": "branch", "exit": 6, "stdout": "", "stderr": "error: relaunch (fm-control) refused - task 't1' is held for the captain; leave it stopped for main"}
+{"command": "fm-lease.sh release t1", "actor": "branch", "exit": 0, "stdout": "", "stderr": ""}
+{"command": "fm-send.sh t1 --key Escape", "actor": "main", "exit": 0, "stdout": "", "stderr": "WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode."}
+{"command": "fm-captain-hold.sh answer t1 --release --decision-file /home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/.hold-validation-tmp/manual-cli/decision.txt", "actor": "main", "exit": 0, "stdout": "released: t1", "stderr": ""}
+{"command": "fm-send.sh t1 Authorized continuation", "actor": "branch", "exit": 0, "stdout": "", "stderr": "WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nfm-send: doorbell not typed because the agent in sess:fm-t1 has exited; the steer is durably recorded at /home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/.hold-validation-tmp/manual-cli/state/t1.inbox/001.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane"}
+DURABLE INBOX: schema=fm-task-inbox.v1
+at=2026-09-18T04:47:45Z
+--
+Authorized continuation
+{"command": "fm-wake-grant.sh activate 82179 live-probe", "actor": "main", "exit": 0, "stdout": "", "stderr": ""}
+{"command": "fm-wake-grant.sh publish live-probe --tasks t1 --rows 1", "actor": "main", "exit": 0, "stdout": "", "stderr": ""}
+{"command": "fm-captain-hold.sh hold t1 --reason Hold created after grant", "actor": "main", "exit": 0, "stdout": "t1", "stderr": ""}
+{"command": "fm-send.sh t1 Old grant is not authorization", "actor": "branch", "exit": 6, "stdout": "", "stderr": "WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nerror: steer (fm-send) refused - task 't1' is held for the captain; leave it stopped for main"}
+{"command": "fm-send.sh t1 Indeterminate hold", "actor": "branch", "exit": 6, "stdout": "", "stderr": "WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nfm-captain-hold: error: \"EACCES: permission denied, open '/home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/.hold-validation-tmp/manual-cli/data/backlog.md'\"\nerror: steer (fm-send) refused - cannot establish whether task 't1' is held for the captain; leave it to main"}
+{"command": "fm-wake-grant.sh publish live-probe --tasks t1 --rows 1", "actor": "main", "exit": 1, "stdout": "", "stderr": "fm-captain-hold: error: \"EACCES: permission denied, open '/home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/.hold-validation-tmp/manual-cli/data/backlog.md'\""}
+{"command": "fm-captain-hold.sh answer t1 --release --decision-file /home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/.hold-validation-tmp/manual-cli/decision.txt", "actor": "main", "exit": 0, "stdout": "released: t1", "stderr": ""}
+SERIALIZATION: hold remains pending while branch send owns task-control lock
+SEND: 0 ('', 'WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\n') HOLD: 0 ('t1\n', '')
+{"command": "fm-send.sh t1 Must remain stopped", "actor": "branch", "exit": 6, "stdout": "", "stderr": "WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nerror: steer (fm-send) refused - task 't1' is held for the captain; leave it stopped for main"}
+{"command": "fm-captain-hold.sh open t1", "actor": "main", "exit": 0, "stdout": "", "stderr": ""}
+FINAL BACKLOG: ## In flight
+
+## Queued
+- [ ] t1 - Synthetic worker (repo: firstmate) (kind: captain) (since 2026-09-18) (hold: Concurrent stop) (hold-kind: captain)
+  Captain hold set: 2026-09-18T04:47:58Z
+
+  Resolution recorded by fm-captain-hold.
+  Decision digest: ae1fa7a23b27c96ed0d0933cce8d8e281894470a7dcfcad08f102c13bd0512a8
+  Resolution mode: released
+
+  Captain decision:
+  Resume the same bounded synthetic task.
+## Done
+
+TRANSPORT: display-message -p -t sess:fm-t1 #{pane_id}
+send-keys -t sess:fm-t1 Escape
+list-windows -t sess -F #{window_name}
+display-message -p -t sess:fm-t1 #{pane_tty}
+display-message -p -t sess:fm-t1 #{pane_tty}
+display-message -p -t sess:fm-t1 #{pane_tty}
+display-message -p -t sess:fm-t1 #{pane_tty}
+display-message -p -t sess:fm-t1 #{pane_current_command}
+capture-pane -p -t sess:fm-t1 -S -40
+send-keys -t sess:fm-t1 -l /synthetic-command
+send-keys -t sess:fm-t1 Enter
+display-message -p -t sess:fm-t1 #{cursor_y}
+capture-pane -e -p -t sess:fm-t1 -S 0 -E -
+
+LIVE CLI SCENARIOS PASSED

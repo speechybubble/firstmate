@@ -1,0 +1,9 @@
+{"command": ["/home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/bin/fm-wake-grant.sh", "activate", "237892", "serialization"], "exit": 0, "stdout": "", "stderr": ""}
+While queue lock is held: publisher owns both task-control locks; no grant is visible; concurrent hold cannot finish.
+{"command": ["/home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/bin/fm-wake-grant.sh", "publish", "serialization", "--tasks", "t1", "t2", "--rows", "1", "2"], "exit": 0, "stdout": "", "stderr": ""}
+{"command": ["/home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/bin/fm-captain-hold.sh", "hold", "t1", "--title", "Synthetic task", "--reason", "Hold while publication waits"], "exit": 0, "stdout": "t1\n", "stderr": ""}
+Published grant: 1
+2
+
+{"command": ["/home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SD4FJ83Y3V631DJJYY48Y2/bin/fm-captain-hold.sh", "open", "t1"], "exit": 0, "stdout": "", "stderr": ""}
+Grant published before the concurrent hold; hold is durable; both task locks were released.

@@ -1,0 +1,9 @@
+{"command": "fm-wake-grant.sh activate 237260 old", "exit": 0, "stdout": "", "stderr": ""}
+{"command": "fm-wake-grant.sh activate 237260 successor", "exit": 0, "stdout": "", "stderr": ""}
+{"command": "fm-wake-grant.sh publish old --tasks t1 --rows 1", "exit": 1, "stdout": "", "stderr": ""}
+{"command": "fm-wake-grant.sh publish successor --tasks t1 --rows 1", "exit": 0, "stdout": "", "stderr": ""}
+{"command": "fm-wake-grant.sh deactivate 237260 old", "exit": 1, "stdout": "", "stderr": ""}
+SUCCESSOR GRANT SURVIVES OLD-GENERATION PUBLICATION AND CLEANUP: 1
+
+{"command": "fm-wake-grant.sh deactivate 237260 successor", "exit": 0, "stdout": "", "stderr": ""}
+CURRENT OWNER CLEANUP SUCCEEDS
