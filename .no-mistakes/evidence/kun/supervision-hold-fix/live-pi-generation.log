@@ -1,0 +1,2 @@
+{"scenario":"real Pi session replacement after acceptance","replaced":{"cancelled":false},"branchRejection":"supervision session no longer owns the fleet lock","queuePreserved":true,"grantAbsent":true}
+{"result":"pass"}
