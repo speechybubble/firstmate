@@ -1,0 +1,47 @@
+$ fm-captain-hold.sh hold probe --title Isolated readiness hold --reason Do not resume without explicit release
+probe
+exit=0
+
+$ fm-captain-hold.sh open probe
+exit=0
+
+$ fm-wake-grant.sh activate 2351830 reconcile-probe
+exit=0
+
+$ fm-wake-grant.sh publish reconcile-probe --tasks probe --rows 1
+exit=1
+
+Observed: active hold blocked grant; no branch rows published; no lease exists.
+
+$ fm-captain-hold.sh answer probe --release --decision-file /home/denni/.no-mistakes/worktrees/2f5823eea713/01M2STK9JWFSVQHPJQER7N3B14/.test-reconcile-tkqjes31/decision.txt
+released: probe
+exit=0
+
+$ fm-captain-hold.sh open probe
+exit=1
+
+$ fm-wake-grant.sh publish reconcile-probe --tasks probe --rows 1
+exit=0
+
+Observed: explicit release allows grant row 1.
+
+$ fm-wake-grant.sh release reconcile-probe
+exit=0
+
+$ fm-captain-hold.sh hold probe --reason New intentional stop
+probe
+exit=0
+
+$ fm-wake-grant.sh publish reconcile-probe --tasks probe --rows 1
+exit=1
+
+Observed: renewed hold blocks next grant.
+
+$ fm-wake-grant.sh publish reconcile-probe --tasks probe --rows 1
+fm-captain-hold: error: "EACCES: permission denied, open '/home/denni/.no-mistakes/worktrees/2f5823eea713/01M2STK9JWFSVQHPJQER7N3B14/.test-reconcile-tkqjes31/data/backlog.md'"
+exit=1
+
+Observed: unreadable hold record blocks grant.
+
+$ fm-wake-grant.sh deactivate 2351830 reconcile-probe
+exit=0

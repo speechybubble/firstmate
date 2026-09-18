@@ -1,0 +1,20 @@
+$ fm-captain-hold.sh hold probe --title Disposable held task --reason Isolated guard verification
+probe
+exit=0
+
+$ fm-send.sh probe Resume despite hold
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the requested message WILL still be sent.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: steer (fm-send) refused - task 'probe' is held for the captain; leave it stopped for main
+exit=6
+
+$ fm-control.sh probe relaunch
+error: relaunch (fm-control) refused - task 'probe' is held for the captain; leave it stopped for main
+exit=6
+
+Observed: steering and relaunch both refused with exit 6 before endpoint use; backlog unchanged, no inbox delivery, no lease present. No runtime backend was mocked or contacted. Standard test-only gate exemption scoped to the disposable home.
