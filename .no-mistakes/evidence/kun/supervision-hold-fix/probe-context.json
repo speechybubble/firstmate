@@ -1,0 +1,9 @@
+{
+  "head": "18ca0ff1bc1de9457e736c0f74e3b9f2283e1070",
+  "negative_control": "bb2d750",
+  "pi_version": "0.85.1",
+  "node_version": "24.13.0",
+  "isolation": "Synthetic FM_HOME and PI_CODING_AGENT_DIR inside the worktree; no credentials, live fleet, worker sessions, or model calls. Real tracked executables, tasks-axi, and installed Pi; fake terminal transport and a shell interposer controlling timing around real hold predicates.",
+  "scope": "Live Pi branch probes inject the production extension event and inspect rejection and real main drains. A separate real watcher/Pi probe generated held signal and stale wakes, observed ineligible branch offers and main send_user_message attempts. Actual main model-turn consumption was unavailable because isolated Pi intentionally has no credentials. SDK-stubbed repository tests additionally cover primary delivery and session transitions.",
+  "test_changes": "Only watcher-test time budgets and persisted observation assertions changed after reproduced timing flakes."
+}

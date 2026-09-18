@@ -1,0 +1,3 @@
+{"command": "fm-captain-hold.sh hold q --title Synthetic decision --reason Choose whether to close", "exit": 0, "stdout": "q\n", "stderr": ""}
+{"command": "fm-captain-hold.sh answer q --decision-file /home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SAN1W2RGCFYPCS8CPZM60A/.test-hold-validation/cli/home/decision.txt", "exit": 0, "stdout": "answered: q\n", "stderr": ""}
+{"command": "fm-captain-hold.sh open q", "exit": 1, "stdout": "", "stderr": ""}

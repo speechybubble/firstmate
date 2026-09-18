@@ -1,0 +1,4 @@
+{"mode":"prior","staleScope":["1","2"],"holdDurable":true,"grantResult":"published","publishedRows":"1\n2\n","queueUnchanged":true}
+{"mode":"current","staleScope":["1","2"],"holdDurable":true,"grantResult":"error","publishedRows":null,"queueUnchanged":true}
+{"serialization":"queue locked; both task locks retained; concurrent hold waiting; no published rows"}
+{"serializationResults":[0,"published",0],"publishedRows":"1\n2\n","holdDurable":true,"taskLocksReleased":true}

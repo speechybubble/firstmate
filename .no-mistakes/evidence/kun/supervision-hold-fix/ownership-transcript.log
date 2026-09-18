@@ -1,0 +1,14 @@
+{"command": "fm-lease.sh claim t2", "actor": "main", "exit": 0, "stdout": "", "stderr": ""}
+{"command": "fm-send.sh t2 Blocked by main lease", "actor": "branch", "exit": 6, "stdout": "", "stderr": "WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nerror: steer (fm-send) refused - task 't2' is leased to the main supervision actor (state/.lease-t2); retry after that actor releases it\n"}
+{"command": "fm-lease.sh release t2", "actor": "main", "exit": 0, "stdout": "", "stderr": ""}
+{"command": "fm-send.sh t2 Independent unheld task continuation", "actor": "branch", "exit": 0, "stdout": "", "stderr": "WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nfm-send: doorbell not typed because the agent in sess:fm-t2 has exited; the steer is durably recorded at /home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SAN1W2RGCFYPCS8CPZM60A/.test-hold-validation/cli/home/state/t2.inbox/001.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane\n"}
+Nonheld task inbox: schema=fm-task-inbox.v1
+at=2026-09-18T04:11:24Z
+--
+Independent unheld task continuation
+{"command": "fm-wake-grant.sh activate 2600843 new-generation", "actor": "main", "exit": 0, "stdout": "", "stderr": ""}
+{"command": "fm-wake-grant.sh publish old-generation --tasks t2 --rows 2", "actor": "main", "exit": 1, "stdout": "", "stderr": ""}
+{"command": "fm-wake-grant.sh publish new-generation --tasks t2 --rows 2", "actor": "main", "exit": 0, "stdout": "", "stderr": ""}
+{"command": "fm-wake-grant.sh release old-generation", "actor": "main", "exit": 1, "stdout": "", "stderr": ""}
+Obsolete generation cannot publish or remove current rows; current generation retains row 2.
+{"command": "fm-wake-grant.sh deactivate 2600843 new-generation", "actor": "main", "exit": 0, "stdout": "", "stderr": ""}

@@ -1,0 +1,10 @@
+WATCH_PROBE ready
+WATCH_PROBE {"offer":{"message":"signal: /home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SAN1W2RGCFYPCS8CPZM60A/.test-hold-validation/watch-signal/state/a.turn-ended","eligible":false,"accepted":false}}
+{"type":"extension_error","extensionPath":"<runtime>","event":"send_user_message","error":"No API key found for openai-codex.\n\nUse /login to log into a provider via OAuth or API key. See:\n  /home/denni/.local/lib/node_modules/@earendil-works/pi-coding-agent/docs/providers.md\n  /home/denni/.local/lib/node_modules/@earendil-works/pi-coding-agent/docs/models.md"}
+WATCH_PROBE {"offer":{"message":"stale: firstmate:fm-a","eligible":false,"accepted":false}}
+{"type":"extension_error","extensionPath":"<runtime>","event":"send_user_message","error":"No API key found for openai-codex.\n\nUse /login to log into a provider via OAuth or API key. See:\n  /home/denni/.local/lib/node_modules/@earendil-works/pi-coding-agent/docs/providers.md\n  /home/denni/.local/lib/node_modules/@earendil-works/pi-coding-agent/docs/models.md"}
+Traceback (most recent call last):
+  File "/home/denni/kun-validation/firstmate-hold-gate-worktrees/01M2SAN1W2RGCFYPCS8CPZM60A/.test-hold-validation/watcher-probe.py", line 23, in <module>
+    if line.startswith('WATCH_PROBE {'):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: main delivery timeout: signal
