@@ -33,7 +33,8 @@ import { registerFirstmateTool } from "./lib/fm-native-contract.ts";
 import {
   createBranchDispatchOffer,
   FM_BRANCH_DISPATCH_EVENT,
-  scopeForUnreadWake,
+  isNeedsDecisionTrigger,
+  scopeForUnreadWakeWithHolds,
 } from "./lib/fm-branch-dispatch.ts";
 import {
   type CalmPresentationState,
@@ -594,7 +595,7 @@ export default function (pi: ExtensionAPI) {
     return confirmHandlingDelivery(snapshot());
   }
 
-  function offerWakeToBranch(message: string): Promise<void> | null {
+  async function offerWakeToBranch(message: string, owner: SessionGeneration): Promise<{ settlement: Promise<void> } | null> {
     const heartbeat = /^heartbeat($|:)/.test(message);
     // A check-kind close (merge-confirmation polls, Relay mentions,
     // credential/auth failures, and every other legitimately main-only
@@ -606,30 +607,18 @@ export default function (pi: ExtensionAPI) {
     // signal/stale row still reach the branch on this cycle; it must never
     // also let a check-kind trigger itself slip past main's delivery.
     const isCheckTrigger = /^check:/.test(message);
-    const scope = scopeForUnreadWake(state, heartbeat);
+    const scope = await scopeForUnreadWakeWithHolds(state, heartbeat, fmRoot, fmHome);
+    if (!generationIsLive(owner)) return null;
     // A signal close containing a needs-decision status file, or a stale close
     // for a captain-held task, gets the identical main-only treatment as a
     // check-kind trigger. The cross-reference deliberately includes every
     // unread decision row: until that row is read, a later signal or stale
     // trigger for the same task stays on main. Other tasks and heartbeat
     // handling remain independent.
-    const triggerKeys = /^signal:/.test(message)
-      ? message
-        .slice("signal:".length)
-        .split(/\s+/)
-        .filter(Boolean)
-        .map((path) => path.split("/").pop() ?? path)
-      : /^stale:/.test(message)
-        ? [message.slice("stale:".length).trim().split(/\s+/, 1)[0]].filter(Boolean)
-        : [];
-    const taskIdentity = (key: string): string =>
-      scope.taskByWakeKey[key] ?? scope.taskByWakeKey[key.replace(/^fm-/, "")] ?? key;
-    const needsDecisionTasks = new Set(scope.needsDecisionKeys.map(taskIdentity));
-    const isNeedsDecisionTrigger = triggerKeys.some((key) => needsDecisionTasks.has(taskIdentity(key)));
-    const eligible = !isCheckTrigger && !isNeedsDecisionTrigger && scope.eligible;
+    const eligible = !isCheckTrigger && !isNeedsDecisionTrigger(message, scope) && scope.eligible;
     const offer = createBranchDispatchOffer(message, scope.projects, heartbeat, eligible);
     pi.events?.emit?.(FM_BRANCH_DISPATCH_EVENT, offer);
-    return offer.accepted ? offer.settlement : null;
+    return offer.accepted ? { settlement: offer.settlement } : null;
   }
 
   async function deliverActionableWake(
@@ -651,10 +640,11 @@ export default function (pi: ExtensionAPI) {
       }
     }
     if (!repairFailed) {
-      const branchDelivery = offerWakeToBranch(message);
+      const branchDelivery = await offerWakeToBranch(message, owner);
+      if (!generationIsLive(owner)) return false;
       if (branchDelivery) {
         try {
-          await branchDelivery;
+          await branchDelivery.settlement;
           return true;
         } catch {}
       }

@@ -84,6 +84,7 @@ Switching harness is therefore one ordinary relaunch rather than a separate mech
 
 ## Fail-closed boundaries
 
+- Supervision lease and branch relaunch restrictions follow the shared guard contract in [`bin/fm-lease-lib.sh`](../bin/fm-lease-lib.sh), including its durable captain-hold check.
 - Targeting is exact.
   Only a bare task id with a `state/<id>.meta` record in this home is accepted, and that record must pass the shared endpoint-identity validation.
   A legacy `fm-<id>` window label, an explicit `session:window` endpoint, and a record whose `endpoint_task_id` names another task are all refused.

@@ -411,6 +411,65 @@ test_empty_message_refused() {
   pass "fm-send: an empty or whitespace-only text steer refuses before marking, recording, or typing"
 }
 
+test_branch_steer_preserves_backlog_only_hold() {
+  local dir home err rc
+  command -v tasks-axi >/dev/null 2>&1 || { echo "skip: captain hold regression requires tasks-axi"; return; }
+  dir=$(setup_case captain-held)
+  home="$dir/home"
+  err="$dir/send.err"
+  mkdir -p "$home/data" "$home/config"
+  cp "$ROOT/.tasks.toml" "$home/.tasks.toml"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
+  printf '%s\n' "$$" > "$home/state/.lock"
+  FM_HOME="$home" PI_CODING_AGENT=true FM_LEASE_HOLDER_PID=$$ \
+    "$ROOT/bin/fm-lease.sh" claim t1 || fail "main lease claim failed"
+  FM_HOME="$home" "$ROOT/bin/fm-captain-hold.sh" hold t1 \
+    --title 'Intentional worker stop' --reason 'Wait for captain before continuing' >/dev/null \
+    || fail "captain hold setup failed"
+  FM_HOME="$home" "$ROOT/bin/fm-lease.sh" release t1 || fail "main lease release failed"
+  [ ! -e "$home/state/t1.status" ] || fail "the regression needs a backlog-only hold"
+  touch "$home/state/t1.turn-ended"
+  FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_LEASE_HOLDER_PID=$$ \
+    "$ROOT/bin/fm-lease.sh" claim t1 || fail "branch lease claim failed"
+  run_send "$dir" "$err" FM_SUPERVISION_ACTOR=branch -- t1 'Continue the existing bounded brief'
+  rc=$?
+  expect_code 6 "$rc" "branch must refuse continuation of a captain-held task after main releases its lease"
+  assert_contains "$(cat "$err")" 'held for the captain' "refusal must name the durable hold"
+  [ ! -e "$home/state/t1.inbox/001.msg" ] || fail "refused continuation created an inbox message"
+  [ ! -s "$dir/send.log" ] || fail "refused continuation rang the worker doorbell"
+  FM_HOME="$home" FM_SUPERVISION_ACTOR=branch "$ROOT/bin/fm-control.sh" t1 relaunch >"$dir/control.out" 2>&1
+  expect_code 6 "$?" "a branch relaunch must respect the same hold"
+  FM_HOME="$home" FM_SUPERVISION_ACTOR=branch "$ROOT/bin/fm-lease.sh" release t1 || fail "branch release failed"
+  run_send "$dir" "$err" -- t1 --key Escape || fail "main must retain its stop path"
+  printf 'Resume the same bounded task.\n' > "$dir/decision.txt"
+  FM_HOME="$home" "$ROOT/bin/fm-captain-hold.sh" answer t1 --release \
+    --decision-file "$dir/decision.txt" >/dev/null || fail "explicit release failed"
+  run_send "$dir" "$err" FM_SUPERVISION_ACTOR=branch -- t1 'Authorized continuation' \
+    || fail "explicit release must permit steering again"
+  [ -f "$home/state/t1.inbox/001.msg" ] || fail "released continuation was not recorded"
+
+  # A wake granted before a new hold is not authority to resume afterward.
+  printf '1\t1\tsignal\tt1.turn-ended\tsignal: t1.turn-ended\n' > "$home/state/.wake-queue"
+  FM_HOME="$home" "$ROOT/bin/fm-wake-grant.sh" activate "$$" hold-race || fail "grant activation failed"
+  FM_HOME="$home" "$ROOT/bin/fm-wake-grant.sh" publish hold-race --tasks t1 --rows 1 || fail "wake grant failed"
+  FM_HOME="$home" "$ROOT/bin/fm-captain-hold.sh" hold t1 --reason 'New intentional stop after grant' >/dev/null \
+    || fail "post-grant hold failed"
+  run_send "$dir" "$err" FM_SUPERVISION_ACTOR=branch -- t1 'Continuation from old grant'
+  expect_code 6 "$?" "a post-grant hold must block continuation"
+  [ ! -e "$home/state/t1.inbox/002.msg" ] || fail "the old grant bypassed the new hold"
+
+  chmod 000 "$home/data/backlog.md"
+  run_send "$dir" "$err" FM_SUPERVISION_ACTOR=branch -- t1 'Unknown hold is not permission'
+  rc=$?
+  chmod 600 "$home/data/backlog.md"
+  expect_code 6 "$rc" "an unreadable hold record must fail closed"
+  assert_contains "$(cat "$err")" 'cannot establish' "unknown hold must name the read failure"
+  [ ! -e "$home/state/t1.inbox/002.msg" ] || fail "unknown hold created a message"
+  [ ! -s "$dir/send.log" ] || fail "unknown hold rang the doorbell"
+  pass "branch steering and relaunch respect holds before or after a wake grant; main can stop and explicitly release"
+}
+
+test_branch_steer_preserves_backlog_only_hold
 test_text_steer_rides_inbox
 test_multiline_steer_is_legal
 test_resend_enqueues_new_sequence

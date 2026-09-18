@@ -104,6 +104,7 @@ test_branch_annotation_cannot_consume_the_main_resurfacing_backstop() {
   local dir state branch_out branch_err main_out sequence generation old
   dir=$(make_case branch-then-main)
   state="$dir/state"
+  mkdir -p "$dir/data"
   branch_out="$dir/branch.out"
   branch_err="$dir/branch.err"
   main_out="$dir/main.out"
@@ -115,7 +116,7 @@ test_branch_annotation_cannot_consume_the_main_resurfacing_backstop() {
     || fail "could not queue the branch-owned status signal"
   FM_STATE_OVERRIDE="$state" "$GRANT" activate "$$" mode5-backstop \
     || fail "branch owner activation failed"
-  FM_STATE_OVERRIDE="$state" "$GRANT" publish mode5-backstop 1 \
+  FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$GRANT" publish mode5-backstop --tasks lost-task --rows 1 \
     || fail "branch grant publication failed"
 
   FM_STATE_OVERRIDE="$state" FM_SUPERVISION_ACTOR=branch "$DRAIN" > "$branch_out" 2> "$branch_err" \

@@ -99,8 +99,9 @@ import {
   activateEligibleRowsOwner,
   deactivateEligibleRowsOwner,
   FM_BRANCH_DISPATCH_EVENT,
+  isNeedsDecisionTrigger,
   releaseEligibleRowsSnapshot,
-  scopeForUnreadWake,
+  scopeForUnreadWakeWithHolds,
   writeEligibleRowsSnapshot,
   type BranchDispatchOffer,
 } from "./lib/fm-branch-dispatch.ts";
@@ -1415,18 +1416,22 @@ ${context.command}
         await flushMirror(session, acceptedGeneration);
         if (!(await actingAsOwner(acceptedGeneration))) throw new Error("supervision session no longer owns the fleet lock");
         const heartbeat = /^heartbeat($|:)/.test(message);
-        const scope = scopeForUnreadWake(state, heartbeat);
+        const scope = await scopeForUnreadWakeWithHolds(state, heartbeat, fmRoot, fmHome);
+        if (!(await actingAsOwner(acceptedGeneration))) throw new Error("supervision session no longer owns the fleet lock");
+        if (isNeedsDecisionTrigger(message, scope)) {
+          throw new Error("the accepted wake now requires a captain decision");
+        }
         // A newly-arrived main-owned (check-kind) row never bounces this
-        // whole recheck back to main - scopeForUnreadWake excludes it from
+        // whole recheck back to main - scopeForUnreadWakeWithHolds excludes it from
         // eligibleSeqs rather than vetoing the scan, in a heartbeat review as
         // in every other, so it stays queued for main while whatever else is
         // eligible right now still reaches the branch. A genuinely empty
         // queue, or a queue that simply has nothing (or nothing further)
         // eligible for the branch right now, is an ordinary quiet no-op - not
-        // a fault, so it is never reported back to main. Only a scan
-        // scopeForUnreadWake itself marks corrupted (the queue or its
-        // metadata could not be read safely, or an unresolvable task-local
-        // row) still falls back to main.
+        // a fault. The original trigger's decision ownership is checked above
+        // before this quiet return, so an accepted wake cannot disappear when
+        // main holds its task. An unsafe scan (including an indeterminate hold
+        // read) also falls back to main.
         if (scope.status === "empty" || (!scope.corrupted && scope.eligibleSeqs.length === 0)) return;
         if (scope.corrupted) {
           throw new Error("the unread wake queue could not be read safely");
@@ -1436,6 +1441,7 @@ ${context.command}
           scope.eligibleSeqs,
           wakeGrantScript,
           String(acceptedGeneration),
+          scope.eligibleTasks,
         );
         if (grant === "main-owned") throw new Error("the wake rows are already claimed by main");
         if (grant !== "published") throw new Error("could not record the branch's eligible row snapshot");
