@@ -1,0 +1,426 @@
+$ tmux -S /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/tmux.sock new-session -d -s validation -n control -c /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase
+[exit 0]
+
+$ git init -q -b main
+[exit 0]
+
+$ git add .
+[exit 0]
+
+$ git -c user.name=Test -c user.email=test@example.invalid commit -qm initial
+[exit 0]
+
+$ treehouse get --lease --lease-holder task
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Leased worktree at ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/alias/project/.treehouse/project-3f273e/1/project. Run 'treehouse return ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/alias/project/.treehouse/project-3f273e/1/project' to release it.
+/home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/alias/project/.treehouse/project-3f273e/1/project
+[exit 0]
+
+$ tmux new-window -d -t validation -n fm-task -c /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase
+[exit 0]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/base/bin/fm-teardown.sh task
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision with a foreground checkpoint: bin/fm-watch-checkpoint.sh --seconds 180.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REFUSED: task task's recorded worktree /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/alias/project/.treehouse/project-3f273e/1/project is also task task's recorded worktree.
+Returning that pool slot would kill task's processes and reset its copy, so nothing was changed - not even with --force.
+Reconcile whichever record is wrong (bin/fm-crew-state.sh task; bin/fm-crew-state.sh task), then re-run teardown.
+[exit 1]
+
+$ tmux has-session -t validation:fm-task
+[exit 0]
+
+BASELINE: own task falsely reported as competing owner; tab and metadata preserved.
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/bin/fm-teardown.sh task
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+🌳 Worktree returned to pool.
+teardown task complete (window validation:fm-task, worktree /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/alias/project/.treehouse/project-3f273e/1/project)
+Backlog: task just finished (this home keeps no markdown backlog at /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/alias/home/data/backlog.md). Update /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/alias/home/data/backlog.md - move task to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+[exit 0]
+
+$ tmux list-windows -t validation -F #{window_name}
+control
+[exit 0]
+
+$ treehouse status
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+1     available    ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/alias/project/.treehouse/project-3f273e/1/project
+[exit 0]
+
+alias: real task tab closed; task metadata removed; slot returned; report and conversation preserved.
+
+$ git init -q -b main
+[exit 0]
+
+$ git add .
+[exit 0]
+
+$ git -c user.name=Test -c user.email=test@example.invalid commit -qm initial
+[exit 0]
+
+$ treehouse get --lease --lease-holder task
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Leased worktree at ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/physical/project/.treehouse/project-13d630/1/project. Run 'treehouse return ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/physical/project/.treehouse/project-13d630/1/project' to release it.
+/home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/physical/project/.treehouse/project-13d630/1/project
+[exit 0]
+
+$ tmux new-window -d -t validation -n fm-task -c /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase
+[exit 0]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/bin/fm-teardown.sh task
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision with a foreground checkpoint: bin/fm-watch-checkpoint.sh --seconds 180.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+🌳 Worktree returned to pool.
+teardown task complete (window validation:fm-task, worktree /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/physical/project/.treehouse/project-13d630/1/project)
+Backlog: task just finished (this home keeps no markdown backlog at /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/physical/home/data/backlog.md). Update /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/physical/home/data/backlog.md - move task to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+[exit 0]
+
+$ tmux list-windows -t validation -F #{window_name}
+control
+[exit 0]
+
+$ treehouse status
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+1     available    ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/physical/project/.treehouse/project-13d630/1/project
+[exit 0]
+
+physical: real task tab closed; task metadata removed; slot returned; report and conversation preserved.
+
+$ git init -q -b main
+[exit 0]
+
+$ git add .
+[exit 0]
+
+$ git -c user.name=Test -c user.email=test@example.invalid commit -qm initial
+[exit 0]
+
+$ treehouse get --lease --lease-holder task
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Leased worktree at ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/duplicate-local/project/.treehouse/project-87c8d8/1/project. Run 'treehouse return ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/duplicate-local/project/.treehouse/project-87c8d8/1/project' to release it.
+/home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/duplicate-local/project/.treehouse/project-87c8d8/1/project
+[exit 0]
+
+$ tmux new-window -d -t validation -n fm-task -c /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase
+[exit 0]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/bin/fm-teardown.sh task
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  2 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision with a foreground checkpoint: bin/fm-watch-checkpoint.sh --seconds 180.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REFUSED: task task's recorded worktree /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/duplicate-local/project/.treehouse/project-87c8d8/1/project is also task other's recorded worktree.
+Returning that pool slot would kill other's processes and reset its copy, so nothing was changed - not even with --force.
+Reconcile whichever record is wrong (bin/fm-crew-state.sh task; bin/fm-crew-state.sh other), then re-run teardown.
+[exit 1]
+
+$ tmux list-windows -t validation -F #{window_name}
+control
+fm-task
+[exit 0]
+
+$ treehouse status
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+1     leased       ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/duplicate-local/project/.treehouse/project-87c8d8/1/project  (held by task)
+[exit 0]
+
+duplicate-local: refused; real tab, metadata and leased worktree preserved.
+
+$ tmux kill-window -t validation:fm-task
+[exit 0]
+
+$ git init -q -b main
+[exit 0]
+
+$ git add .
+[exit 0]
+
+$ git -c user.name=Test -c user.email=test@example.invalid commit -qm initial
+[exit 0]
+
+$ treehouse get --lease --lease-holder task
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Leased worktree at ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/duplicate-home/project/.treehouse/project-0c5f4c/1/project. Run 'treehouse return ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/duplicate-home/project/.treehouse/project-0c5f4c/1/project' to release it.
+/home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/duplicate-home/project/.treehouse/project-0c5f4c/1/project
+[exit 0]
+
+$ tmux new-window -d -t validation -n fm-task -c /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase
+[exit 0]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/bin/fm-teardown.sh task
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision with a foreground checkpoint: bin/fm-watch-checkpoint.sh --seconds 180.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REFUSED: task task's recorded worktree /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/duplicate-home/project/.treehouse/project-0c5f4c/1/project is also task task's recorded worktree.
+Returning that pool slot would kill task's processes and reset its copy, so nothing was changed - not even with --force.
+Reconcile whichever record is wrong (bin/fm-crew-state.sh task; bin/fm-crew-state.sh task), then re-run teardown.
+[exit 1]
+
+$ tmux list-windows -t validation -F #{window_name}
+control
+fm-task
+[exit 0]
+
+$ treehouse status
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+1     leased       ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/duplicate-home/project/.treehouse/project-0c5f4c/1/project  (held by task)
+[exit 0]
+
+duplicate-home: refused; real tab, metadata and leased worktree preserved.
+
+$ tmux kill-window -t validation:fm-task
+[exit 0]
+
+$ git init -q -b main
+[exit 0]
+
+$ git add .
+[exit 0]
+
+$ git -c user.name=Test -c user.email=test@example.invalid commit -qm initial
+[exit 0]
+
+$ treehouse get --lease --lease-holder task
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Leased worktree at ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/symlink-meta/project/.treehouse/project-445e2a/1/project. Run 'treehouse return ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/symlink-meta/project/.treehouse/project-445e2a/1/project' to release it.
+/home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/symlink-meta/project/.treehouse/project-445e2a/1/project
+[exit 0]
+
+$ tmux new-window -d -t validation -n fm-task -c /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase
+[exit 0]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/bin/fm-teardown.sh task
+error: teardown refused: task record resolves outside its authorized directory at /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/symlink-meta/physical-state/task.meta
+[exit 1]
+
+$ tmux list-windows -t validation -F #{window_name}
+control
+fm-task
+[exit 0]
+
+$ treehouse status
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+1     leased       ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/symlink-meta/project/.treehouse/project-445e2a/1/project  (held by task)
+[exit 0]
+
+symlink-meta: refused; real tab, metadata and leased worktree preserved.
+
+$ tmux kill-window -t validation:fm-task
+[exit 0]
+
+$ git init -q -b main
+[exit 0]
+
+$ git add .
+[exit 0]
+
+$ git -c user.name=Test -c user.email=test@example.invalid commit -qm initial
+[exit 0]
+
+$ treehouse get --lease --lease-holder task
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Leased worktree at ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/hardlink-meta/project/.treehouse/project-3f79eb/1/project. Run 'treehouse return ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/hardlink-meta/project/.treehouse/project-3f79eb/1/project' to release it.
+/home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/hardlink-meta/project/.treehouse/project-3f79eb/1/project
+[exit 0]
+
+$ tmux new-window -d -t validation -n fm-task -c /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase
+[exit 0]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/bin/fm-teardown.sh task
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  2 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision with a foreground checkpoint: bin/fm-watch-checkpoint.sh --seconds 180.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REFUSED: task task's recorded worktree /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/hardlink-meta/project/.treehouse/project-3f79eb/1/project is also task other's recorded worktree.
+Returning that pool slot would kill other's processes and reset its copy, so nothing was changed - not even with --force.
+Reconcile whichever record is wrong (bin/fm-crew-state.sh task; bin/fm-crew-state.sh other), then re-run teardown.
+[exit 1]
+
+$ tmux list-windows -t validation -F #{window_name}
+control
+fm-task
+[exit 0]
+
+$ treehouse status
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+1     leased       ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/hardlink-meta/project/.treehouse/project-3f79eb/1/project  (held by task)
+[exit 0]
+
+hardlink-meta: refused; real tab, metadata and leased worktree preserved.
+
+$ tmux kill-window -t validation:fm-task
+[exit 0]
+
+$ git init -q -b main
+[exit 0]
+
+$ git add .
+[exit 0]
+
+$ git -c user.name=Test -c user.email=test@example.invalid commit -qm initial
+[exit 0]
+
+$ treehouse get --lease --lease-holder task
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Leased worktree at ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/dirty/project/.treehouse/project-514de9/1/project. Run 'treehouse return ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/dirty/project/.treehouse/project-514de9/1/project' to release it.
+/home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/dirty/project/.treehouse/project-514de9/1/project
+[exit 0]
+
+$ tmux new-window -d -t validation -n fm-task -c /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase
+[exit 0]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/bin/fm-teardown.sh task
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision with a foreground checkpoint: bin/fm-watch-checkpoint.sh --seconds 180.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REFUSED: local-only worktree /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/dirty/project/.treehouse/project-514de9/1/project has work not yet merged into main and not on any remote.
+uncommitted changes present
+Merge the branch into local main first (bin/fm-merge-local.sh after the captain approves), or push to a fork/remote, or get the captain's explicit OK to discard, then --force.
+[exit 1]
+
+$ tmux list-windows -t validation -F #{window_name}
+control
+fm-task
+[exit 0]
+
+$ treehouse status
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+1     leased       ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/dirty/project/.treehouse/project-514de9/1/project  (held by task)
+[exit 0]
+
+dirty: refused; real tab, metadata and leased worktree preserved.
+
+$ tmux kill-window -t validation:fm-task
+[exit 0]
+
+$ git init -q -b main
+[exit 0]
+
+$ git add .
+[exit 0]
+
+$ git -c user.name=Test -c user.email=test@example.invalid commit -qm initial
+[exit 0]
+
+$ treehouse get --lease --lease-holder task
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Leased worktree at ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/unmerged/project/.treehouse/project-eaf833/1/project. Run 'treehouse return ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/unmerged/project/.treehouse/project-eaf833/1/project' to release it.
+/home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/unmerged/project/.treehouse/project-eaf833/1/project
+[exit 0]
+
+$ tmux new-window -d -t validation -n fm-task -c /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase
+[exit 0]
+
+$ git add payload
+[exit 0]
+
+$ git -c user.name=Test -c user.email=test@example.invalid commit -qm unmerged
+[exit 0]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/bin/fm-teardown.sh task
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision with a foreground checkpoint: bin/fm-watch-checkpoint.sh --seconds 180.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REFUSED: local-only worktree /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/unmerged/project/.treehouse/project-eaf833/1/project has work not yet merged into main and not on any remote.
+commits not yet on main:
+7b3c8a5 unmerged
+Merge the branch into local main first (bin/fm-merge-local.sh after the captain approves), or push to a fork/remote, or get the captain's explicit OK to discard, then --force.
+[exit 1]
+
+$ tmux list-windows -t validation -F #{window_name}
+control
+fm-task
+[exit 0]
+
+$ treehouse status
+A new version of treehouse is available: v2.0.1 → v2.3.0
+Run "treehouse update" to update
+
+1     leased       ~/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/unmerged/project/.treehouse/project-eaf833/1/project  (held by task)
+[exit 0]
+
+unmerged: refused; real tab, metadata and leased worktree preserved.
+
+$ tmux kill-window -t validation:fm-task
+[exit 0]
+
+$ tmux -S /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/tmux.sock kill-server
+[exit 0]
+
+$ FM_STATE_OVERRIDE=<home/state symlink> bin/fm-teardown.sh task
+error: teardown refused: state directory is not a real directory at /home/denni/.no-mistakes/worktrees/d567722de3ac/01M2VVKQWXBN90TPW34R58VBCD/.test-phase/dirty/home/state
+[exit 1]
+Symlink state override refused; task metadata unchanged.
