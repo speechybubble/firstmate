@@ -2,6 +2,9 @@
 # Regression tests for cleanup endpoint and worktree-slot identity validation.
 set -u
 
+# A worker may inherit live fleet routing; every case owns its fixture home.
+unset FM_HOME FM_STATE_OVERRIDE FM_BACKEND
+
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -594,6 +597,81 @@ test_sole_slot_record_still_tears_down() {
   kill "$worker" 2>/dev/null || true
   wait "$worker" 2>/dev/null || true
   pass "fm-teardown: a task that solely holds its slot still returns it"
+}
+
+# Exercise the public teardown path with a physical state override and a home
+# alias, without --force. Only runtime calls are faked; ownership and file
+# integrity guards, Git inspection, and cleanup run normally.
+test_state_directory_alias_preserves_record_identity() {
+  local mode dir id=alias-task second_home rc
+  for mode in physical competing-local competing-home alias-local alias-home symlink-meta hardlink-meta alias; do
+    dir=$(make_case "state-identity-$mode")
+    mark_case_as_treehouse_pool "$dir"
+    mkdir -p "$dir/home/data/$id"
+    printf 'Completed fixture investigation.\n' > "$dir/home/data/$id/report.md"
+    fm_write_meta "$dir/home/state/$id.meta" \
+      "window=firstmate:fm-$id" "endpoint_task_id=$id" \
+      "worktree=$dir/worktree" "project=$dir/project" "kind=scout" \
+      "decisions_reviewed=1" "decision_keys="
+    mv "$dir/home/state" "$dir/physical-state"
+    if [ "$mode" = physical ] || [ "$mode" = competing-local ] || [ "$mode" = competing-home ]; then
+      mkdir "$dir/home/state"
+    else
+      ln -s ../physical-state "$dir/home/state"
+      [ "$dir/home/state" -ef "$dir/physical-state" ] \
+        || fail "state alias fixture does not identify the same directory"
+    fi
+    case "$mode" in
+      competing-local|alias-local)
+        cp "$dir/physical-state/$id.meta" "$dir/physical-state/other-task.meta"
+        ;;
+      competing-home|alias-home)
+        second_home="$dir/second-home"
+        mkdir -p "$second_home/state" "$second_home/data"
+        printf '%s\n' "- mate - fixture (home: $second_home; scope: test; projects: project; added 2026-01-01)" \
+          > "$dir/home/data/secondmates.md"
+        # The same task ID in a different directory is still another owner.
+        cp "$dir/physical-state/$id.meta" "$second_home/state/$id.meta"
+        ;;
+      symlink-meta)
+        mv "$dir/physical-state/$id.meta" "$dir/saved.meta"
+        ln -s ../saved.meta "$dir/physical-state/$id.meta"
+        ;;
+      hardlink-meta)
+        ln "$dir/physical-state/$id.meta" "$dir/physical-state/other-task.meta"
+        ;;
+    esac
+    set +e
+    FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/physical-state" FM_ROOT_OVERRIDE="$ROOT" \
+      FM_RUNTIME_LOG="$dir/runtime.log" PATH="$dir/fakebin:$PATH" \
+      "$TEARDOWN" "$id" > "$dir/stdout" 2> "$dir/stderr"
+    rc=$?
+    set -e
+    case "$mode" in
+      physical|alias)
+        [ "$rc" -eq 0 ] || fail "$mode state teardown failed: $(cat "$dir/stderr")"
+        assert_absent "$dir/physical-state/$id.meta" "$mode teardown left metadata"
+        assert_present "$dir/home/data/$id/report.md" "$mode teardown removed saved report"
+        grep -Fq 'treehouse <return>' "$dir/runtime.log" \
+          || fail "$mode teardown did not return its slot"
+        ;;
+      *)
+        [ "$rc" -ne 0 ] || fail "$mode unexpectedly allowed teardown"
+        assert_present "$dir/physical-state/$id.meta" "$mode removed metadata"
+        assert_present "$dir/worktree/sentinel" "$mode changed worktree"
+        [ ! -s "$dir/runtime.log" ] || fail "$mode reached runtime cleanup"
+        case "$mode" in
+          competing-*|alias-local|alias-home)
+            assert_contains "$(cat "$dir/stderr")" 'also task' "$mode missed owner conflict"
+            if [ "$mode" = competing-local ] || [ "$mode" = alias-local ]; then
+              assert_contains "$(cat "$dir/stderr")" 'also task other-task' "local conflict named the wrong owner"
+            fi
+            ;;
+        esac
+        ;;
+    esac
+    pass "fm-teardown: state directory identity - $mode"
+  done
 }
 
 test_recorded_endpoint_that_changed_directory_still_tears_down() {
@@ -1385,6 +1463,7 @@ test_bare_relative_origin_shares_project_lock_with_clone
 test_reused_pool_slot_refuses_before_touching_the_other_task
 test_cross_home_pool_slot_collision_refuses
 test_sole_slot_record_still_tears_down
+test_state_directory_alias_preserves_record_identity
 test_reassigned_pool_slot_finishes_own_cleanup_without_touching_the_slot
 test_own_and_absent_slot_claims_still_tear_down
 test_recorded_endpoint_that_changed_directory_still_tears_down
