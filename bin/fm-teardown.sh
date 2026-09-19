@@ -87,6 +87,8 @@
 # this home or any locally registered Firstmate home may name the same live path
 # in its worktree= or home=. One live path with two task records is the reuse
 # collision itself, whichever record is stale.
+# State directories are deduplicated by filesystem identity, retaining the
+# record's state spelling first; a home alias is not a second task record.
 # That scan alone cannot prove THIS record is the current owner, because the task
 # that took the slot next may leave no record it can reach - its own worker may
 # have exited and its record been cleaned up, or it may live in a home this
@@ -2171,7 +2173,10 @@ collect_local_firstmate_states() {
     i=$((i + 1))
     known=0
     for existing in "${TREEHOUSE_OWNER_STATES[@]}"; do
-      [ "$existing" != "$home/state" ] || known=1
+      if [ "$existing" = "$home/state" ] || [ "$existing" -ef "$home/state" ]; then
+        known=1
+        break
+      fi
     done
     [ "$known" = 1 ] || TREEHOUSE_OWNER_STATES+=("$home/state")
     reg="$home/data/secondmates.md"
