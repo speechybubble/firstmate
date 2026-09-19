@@ -229,10 +229,12 @@ MANAGER_DIRS=(
   "$ACCOUNT_HOME"/.local/share/mise/installs/*/*/bin
   "$ACCOUNT_HOME"/.mise/installs/*/*/bin
 )
-OPTIONAL_DIRS=(
+NIX_DIRS=(
   "$ACCOUNT_HOME/.nix-profile/bin"
   "/etc/profiles/per-user/$ACCOUNT_USER/bin"
   /run/current-system/sw/bin
+)
+OPTIONAL_DIRS=(
   /opt/homebrew/bin
   /usr/local/bin
 )
@@ -255,6 +257,15 @@ fi
 for candidate in "${NVM_CHILD_DIRS[@]}"; do expect_dir "$candidate"; done
 for candidate in "${MANAGER_DIRS[@]}"; do
   [ -d "$candidate" ] && [ ! -L "$candidate" ] && expect_dir "$candidate"
+done
+# Nix profile links contribute their physical directories to the child PATH.
+for candidate in "${NIX_DIRS[@]}"; do
+  [ -d "$candidate" ] || continue
+  if [ -L "$candidate" ]; then
+    expect_dir "$(CDPATH='' cd "$candidate" && pwd -P)"
+  else
+    expect_dir "$candidate"
+  fi
 done
 for candidate in "${OPTIONAL_DIRS[@]}"; do
   [ -d "$candidate" ] && [ ! -L "$candidate" ] && expect_dir "$candidate"
@@ -288,11 +299,12 @@ done
 pass "the entrypoint composes a deduplicated discovered child PATH (kept $PRESENT_CHECKED existing, omitted $ABSENT_CHECKED absent)"
 
 WORKER_PID=$(cat "$TMP_ROOT/remote-jobs/worker.pid")
-kill -TERM "$WORKER_PID"
-for _ in $(seq 1 100); do
-  [ ! -f "$TMP_ROOT/remote-jobs/worker.pid" ] && break
-  sleep 0.05
-done
+# Stop the restart supervisor too, as in cleanup, so this fixture cannot race
+# a replacement worker while the read-only doctor inspects the stopped state.
+# shellcheck source=bin/fm-remote-job-lib.sh
+. "$ROOT/bin/fm-remote-job-lib.sh"
+fm_remote_job_stop_worker_tree "$WORKER_PID" \
+  || fail "the worker tree did not stop for the doctor bootstrap fixture"
 assert_absent "$TMP_ROOT/remote-jobs/worker.pid" "the worker did not stop for the doctor bootstrap fixture"
 set +e
 out=$(fm_on ios fm-remote-doctor.sh 2>&1)
