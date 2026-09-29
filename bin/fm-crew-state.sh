@@ -114,6 +114,8 @@ STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 . "$SCRIPT_DIR/fm-tmux-lib.sh"
 # shellcheck source=bin/fm-backend.sh
 . "$SCRIPT_DIR/fm-backend.sh"
+# shellcheck source=bin/fm-treehouse-slot-lib.sh
+. "$SCRIPT_DIR/fm-treehouse-slot-lib.sh"
 # shellcheck source=bin/fm-classify-lib.sh
 . "$SCRIPT_DIR/fm-classify-lib.sh"
 # shellcheck source=bin/fm-busy-lib.sh
@@ -146,6 +148,18 @@ SEP=' · '
 
 # Emit the one canonical line and exit 0. Detail is optional.
 emit() {  # <state> <source> [detail]
+  if [ -n "${INITIAL_OWNER_STATE:-}" ]; then
+    if [ ! -d "$WT" ]; then
+      set -- unknown ownership "worktree unavailable during observation"
+    else
+      fm_treehouse_slot_owner_state "$WT" "$ID"
+      if [ "$FM_TREEHOUSE_SLOT_OWNER" != "$INITIAL_OWNER_STATE" ] \
+        || [ "$FM_TREEHOUSE_SLOT_OWNER_ID" != "$INITIAL_OWNER_ID" ] \
+        || [ "$FM_TREEHOUSE_SLOT_OWNER_HOME" != "$INITIAL_OWNER_HOME" ]; then
+        set -- unknown ownership "worktree ownership changed during observation"
+      fi
+    fi
+  fi
   local line="state: $1${SEP}source: $2"
   [ -n "${3:-}" ] && line="$line${SEP}$3"
   printf '%s\n' "$line"
@@ -171,6 +185,19 @@ REMOTE_HOST=$(meta_value remote_host)
 # probe proves nothing for it - the remote arm below reads the true source.
 if [ -z "$REMOTE_HOST" ] && { [ -z "$WT" ] || [ ! -d "$WT" ]; }; then
   emit unknown none "worktree gone (torn down?)"
+fi
+
+# A reused or unreadable claim cannot attribute this copy or its runtime to ID.
+# Missing claims remain unverified legacy ownership, never a death verdict.
+if [ -z "$REMOTE_HOST" ]; then
+  fm_treehouse_slot_owner_state "$WT" "$ID"
+  INITIAL_OWNER_STATE=$FM_TREEHOUSE_SLOT_OWNER
+  INITIAL_OWNER_ID=$FM_TREEHOUSE_SLOT_OWNER_ID
+  INITIAL_OWNER_HOME=$FM_TREEHOUSE_SLOT_OWNER_HOME
+  case "$FM_TREEHOUSE_SLOT_OWNER" in
+    other) emit unknown ownership "worktree owner is $FM_TREEHOUSE_SLOT_OWNER_ID, not $ID" ;;
+    unsafe) emit unknown ownership "worktree owner claim is unreadable or ambiguous" ;;
+  esac
 fi
 
 # --- status log ------------------------------------------------------------

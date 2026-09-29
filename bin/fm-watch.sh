@@ -1592,9 +1592,9 @@ scan_signals() {
   return 0
 }
 
-# Deliver a durably queued process-event result to firstmate. Publication is
-# owned by bin/fm-procevent.sh - by the runner at capture time and by reconcile's
-# re-announcement - so this decides only whether a queued check record has been
+# Deliver queued process-event results and captain inbox notes to firstmate.
+# Publication stays with bin/fm-procevent.sh and bin/fm-inbox.sh; this decides
+# only whether a queued check record has been
 # surfaced yet, then reports it through the same actionable exit every other wake
 # uses. Without it a captured result sits on the queue until something else
 # happens to wake firstmate, which is exactly the missed delivery this repairs.
@@ -1602,15 +1602,17 @@ scan_signals() {
 # always written before its marker, so nothing is suppressed before it is queued,
 # and re-announcement, drain-time deduplication, and the handled acknowledgement
 # keep their existing owners untouched.
-procevent_surfaced_marker() {  # <queue-key>
-  printf '%s/.seen-procevent-%s' "$STATE" "$(printf '%s' "$1" | LC_ALL=C od -An -tx1 | tr -d ' \n')"
+queued_check_surfaced_marker() {  # <queue-key>
+  local kind=procevent
+  case "$1" in inbox:*) kind=inbox ;; esac
+  printf '%s/.seen-%s-%s' "$STATE" "$kind" "$(printf '%s' "$1" | LC_ALL=C od -An -tx1 | tr -d ' \n')"
 }
 
-procevent_surface_after_output() {
+queued_check_surface_after_output() {
   local output_status=$1 key marker tmp status=0
   if [ "$output_status" -eq 0 ]; then
-    for key in $PROCEVENT_SURFACED; do
-      marker=$(procevent_surfaced_marker "$key")
+    for key in $QUEUED_CHECK_SURFACED; do
+      marker=$(queued_check_surfaced_marker "$key")
       tmp=$(umask 077; mktemp "$STATE/.seen-procevent.XXXXXX") || { status=1; continue; }
       if ! mv -f -- "$tmp" "$marker"; then
         rm -f -- "$tmp"
@@ -1622,26 +1624,46 @@ procevent_surface_after_output() {
   return "$status"
 }
 
-procevent_surface_queued() {
-  local key reason captured="" stranded="" unstarted=""
-  PROCEVENT_SURFACED=
+queued_check_surface_queued() {
+  local key id reason presented="" captured="" stranded="" unstarted="" inbox=""
+  QUEUED_CHECK_SURFACED=
   [ -s "$FM_WAKE_QUEUE" ] || return 0
   fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK"
+  # A main drain already presented its claimed rows, including on an older
+  # watcher that had no inbox surface marker. Recovery, not a handling
+  # successor, owns replay of that interrupted handling. Never change claims.
+  if fm_wake_grant_rows_valid "$STATE/.main-eligible-rows"; then
+    presented=$(awk -F '\t' -v rows="$STATE/.main-eligible-rows" '
+      BEGIN { while ((getline seq < rows) > 0) claimed[seq]=1 }
+      NF >= 5 && $3 == "check" && ($2 in claimed) { print $4 }
+    ' "$FM_WAKE_QUEUE")
+    presented=$'\n'"$presented"$'\n'
+  fi
   while IFS= read -r key; do
-    case "$key" in procevent:*) ;; *) continue ;; esac
-    [ -e "$(procevent_surfaced_marker "$key")" ] && continue
-    PROCEVENT_SURFACED="$PROCEVENT_SURFACED $key"
+    case "$key" in
+      procevent:*) ;;
+      inbox:*)
+        id=${key#inbox:}
+        case "$id" in ''|*[!A-Za-z0-9_-]*) continue ;; esac
+        [ -f "$STATE/inbox/$id.note" ] || continue
+        case "$presented" in *$'\n'"$key"$'\n'*) continue ;; esac
+        ;;
+      *) continue ;;
+    esac
+    [ -e "$(queued_check_surfaced_marker "$key")" ] && continue
+    QUEUED_CHECK_SURFACED="$QUEUED_CHECK_SURFACED $key"
     # A stranded source or one whose launch never proved itself is the opposite
     # of a captured result: nothing is collecting for it. Headlining either as
     # a capture would present it as healthy, which is the shape of defect
     # these wakes exist to surface.
     case "$key" in
+      inbox:*) inbox="$inbox $key" ;;
       procevent:*:stranded:*) stranded="$stranded $key" ;;
       procevent:*:launch-failed:*) unstarted="$unstarted $key" ;;
       *) captured="$captured $key" ;;
     esac
   done < <(fm_wake_queued_keys_locked check)
-  if [ -z "$PROCEVENT_SURFACED" ]; then
+  if [ -z "$QUEUED_CHECK_SURFACED" ]; then
     fm_lock_release "$FM_WAKE_QUEUE_LOCK"
     return 0
   fi
@@ -1655,8 +1677,12 @@ procevent_surface_queued() {
     [ "$reason" = "check:" ] || reason="$reason;"
     reason="$reason process-event source failed to start:$unstarted"
   fi
+  if [ -n "$inbox" ]; then
+    [ "$reason" = "check:" ] || reason="$reason;"
+    reason="$reason captain inbox notes:$inbox"
+  fi
   # shellcheck disable=SC2034 # Consumed by wake() in the separately linted transition owner.
-  FM_WAKE_POST_OUTPUT_ACTION=procevent_surface_after_output
+  FM_WAKE_POST_OUTPUT_ACTION=queued_check_surface_after_output
   wake "$reason"
 }
 
@@ -2201,9 +2227,9 @@ while :; do
   if [ -d "$STATE/procevent" ]; then
     FM_HOME="$FM_HOME" "$SCRIPT_DIR/fm-procevent.sh" reconcile >/dev/null 2>&1 || true
   fi
-  # Then deliver any queued-but-unsurfaced result, including one a runner
-  # published while this watcher was between cycles.
-  procevent_surface_queued
+  # Then deliver queued results or captain inbox notes, including records
+  # published while this handling successor was between cycles.
+  queued_check_surface_queued
 
   # A process-event result carries richer adapter-owned wake context than the
   # generic recovery reason, so give that owner first refusal.

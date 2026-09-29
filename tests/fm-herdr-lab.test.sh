@@ -28,23 +28,31 @@ done
 [ "${previous:-}" = --session ] || { echo "fake herdr: missing trailing --session" >&2; exit 90; }
 session=$last
 default_socket=$(cat "$state/default-socket")
+production=$(jq -nc --arg socket "$default_socket" --arg named "${FM_FAKE_HERDR_NAMED_PRODUCTION:-0}" '
+  [{default:true,name:"default",running:($named != "1"),socket_path:$socket}]
+  + if $named == "1" then [{default:false,name:"kun",running:true,socket_path:"/fixture/kun.sock"}] else [] end')
+[ ! -f "$state/production.json" ] || production=$(cat "$state/production.json")
 lab_state=absent
 [ ! -f "$state/$session" ] || lab_state=$(cat "$state/$session")
 
 case "$1 ${2:-}" in
   "session list")
     if [ "$lab_state" = absent ] || [ "$lab_state" = deleted ]; then
-      jq -nc --arg socket "$default_socket" '{sessions:[{default:true,name:"default",running:true,socket_path:$socket}]}'
+      jq -nc --argjson production "$production" '{sessions:$production}'
     else
       running=false
       [ "$lab_state" = running ] && running=true
-      jq -nc --arg socket "$default_socket" --arg name "$session" --argjson running "$running" \
-        '{sessions:[{default:true,name:"default",running:true,socket_path:$socket},{default:false,name:$name,running:$running,socket_path:("/tmp/" + $name + ".sock")}]}'
+      jq -nc --argjson production "$production" --arg name "$session" --argjson running "$running" \
+        '{sessions:($production + [{default:false,name:$name,running:$running,socket_path:("/tmp/" + $name + ".sock")}])}'
     fi
     ;;
   "server --session")
-    if [ "${FM_FAKE_HERDR_SERVER_DELAY:-0}" != 0 ]; then
-      "$FM_FAKE_HERDR_REAL_SLEEP" "$FM_FAKE_HERDR_SERVER_DELAY"
+    if [ -n "${FM_FAKE_HERDR_SERVER_RELEASE:-}" ]; then
+      deadline=$((SECONDS + 120))
+      while [ ! -f "$FM_FAKE_HERDR_SERVER_RELEASE" ]; do
+        [ "$SECONDS" -lt "$deadline" ] || exit 95
+        "$FM_FAKE_HERDR_REAL_SLEEP" 0.05
+      done
     fi
     printf '%s\n' running > "$state/$session"
     ;;
@@ -85,7 +93,7 @@ run_with_fake() {
     FM_FAKE_HERDR_STATE="$FAKE_STATE" \
     FM_FAKE_HERDR_LOG="$FAKE_LOG" \
     FM_FAKE_HERDR_REAL_SLEEP="$REAL_SLEEP" \
-    FM_FAKE_HERDR_SERVER_DELAY="${FM_FAKE_HERDR_SERVER_DELAY:-0}" \
+    FM_FAKE_HERDR_SERVER_RELEASE="${FM_FAKE_HERDR_SERVER_RELEASE:-}" \
     FM_FAKE_HERDR_FAST_POLL="${FM_FAKE_HERDR_FAST_POLL:-}" \
     FM_FAKE_HERDR_DELETE_FAIL="${FM_FAKE_HERDR_DELETE_FAIL:-}" \
     FM_FAKE_HERDR_TITLE_FAIL="${FM_FAKE_HERDR_TITLE_FAIL:-}" \
@@ -229,7 +237,7 @@ exec "$FM_FAKE_HERDR_REAL_SLEEP" "$@"
 SH
   chmod +x "$FAKEBIN/sleep"
   : > "$FAKE_LOG"
-  FM_FAKE_HERDR_FAST_POLL=1 FM_FAKE_HERDR_SERVER_DELAY=30 \
+  FM_FAKE_HERDR_FAST_POLL=1 FM_FAKE_HERDR_SERVER_RELEASE="$TMP_ROOT/server-release" \
     run_with_fake fm_herdr_lab_provision "$name" >/dev/null 2>&1 || status=$?
   expect_code 1 "$status" "timed-out provision must fail"
   assert_present "$TRIPWIRES/$name.fleet-state.json" \
@@ -237,6 +245,8 @@ SH
   run_with_fake fm_herdr_lab_teardown "$name" || fail "teardown after timed-out provision failed"
   assert_absent "$TRIPWIRES/$name.fleet-state.json" \
     "teardown after timed-out provision did not remove its tripwire"
+  # Release only after cancellation and teardown, independent of host speed.
+  : > "$TMP_ROOT/server-release"
   "$REAL_SLEEP" 1.1
   if [ -f "$FAKE_STATE/$name" ] && [ "$(cat "$FAKE_STATE/$name")" = running ]; then
     fail "timed-out provision left a late-starting lab session after teardown"
@@ -498,6 +508,115 @@ test_viewer_launcher_refuses_unsafe_arguments() {
   pass "fm-herdr-lab: the viewer launcher refuses unsafe sessions and pidfiles"
 }
 
+test_explicit_protected_session() {
+  local name="fm-lab-named-$$" status=0 before
+  FM_FAKE_HERDR_NAMED_PRODUCTION=1 run_with_fake bash "$ROOT/bin/fm-herdr-lab.sh" prepare "$name" >/dev/null 2>&1 || status=$?
+  expect_code 1 "$status" "stopped default must not silently select running kun"
+  FM_FAKE_HERDR_NAMED_PRODUCTION=1 FM_HERDR_LAB_PROTECTED_SESSION=kun \
+    run_with_fake bash "$ROOT/bin/fm-herdr-lab.sh" provision "$name" || fail "explicit kun provision failed"
+  jq -e '.name == "kun" and .default == false and .running == true' \
+    "$TRIPWIRES/$name.fleet-state.json" >/dev/null || fail "tripwire did not record kun"
+  before=$(wc -l < "$FAKE_LOG")
+  status=0
+  run_with_fake bash "$ROOT/bin/fm-herdr-lab.sh" teardown "$name" >/dev/null 2>&1 || status=$?
+  expect_code 1 "$status" "omitting explicit selection must not retarget recorded protection"
+  [ "$before" = "$(wc -l < "$FAKE_LOG")" ] || fail "changed protection reached Herdr"
+  [ "$(cat "$FAKE_STATE/$name")" = running ] || fail "changed protection stopped the lab"
+  FM_FAKE_HERDR_NAMED_PRODUCTION=1 FM_HERDR_LAB_PROTECTED_SESSION=kun \
+    run_with_fake bash "$ROOT/bin/fm-herdr-lab.sh" teardown "$name" || fail "named protection teardown failed"
+  status=0
+  FM_HERDR_LAB_PROTECTED_SESSION=fm-lab-production \
+    run_with_fake bash "$ROOT/bin/fm-herdr-lab.sh" provision fm-lab-production >/dev/null 2>&1 || status=$?
+  expect_code 1 "$status" "a lab-like protected name must never be provisioned"
+  pass "fm-herdr-lab: explicit production session is protected without retargeting existing tripwires"
+}
+
+invalid_protected_snapshots() {
+  jq -nc --arg name "$1" '
+    {name:$name, default:($name == "default"), running:true, socket_path:"/fixture/production.sock"}
+    | {name}, del(.name), (.name = ""), (.name = 42), (.name = "other"),
+      del(.default), (.default = null), (.default = "false"), (.default = 0),
+      (.default = []), (.default = {}),
+      del(.running), (.running = false), (.running = "true"), (.running = 1),
+      (.running = []), (.running = {}),
+      del(.socket_path), (.socket_path = null), (.socket_path = false),
+      (.socket_path = 42), (.socket_path = []), (.socket_path = {}),
+      (.socket_path = ""), (.socket_path = "bad\u0000path"),
+      (if $name == "default" then .default = false else empty end)
+  '
+}
+
+assert_invalid_tripwire_blocks_commands() {
+  local name=$1 command status
+  for command in prepare provision run viewer-start viewer-stop stop teardown check verify; do
+    status=0
+    : > "$FAKE_LOG"
+    case "$command" in
+      run) run_with_fake bash "$ROOT/bin/fm-herdr-lab.sh" run "$name" workspace list >/dev/null 2>&1 || status=$? ;;
+      viewer-*) run_with_fake bash "$ROOT/bin/fm-herdr-lab.sh" viewer "${command#viewer-}" "$name" >/dev/null 2>&1 || status=$? ;;
+      check|verify) run_with_fake "fm_herdr_lab_${command}_tripwire" "$name" >/dev/null 2>&1 || status=$? ;;
+      *) run_with_fake bash "$ROOT/bin/fm-herdr-lab.sh" "$command" "$name" >/dev/null 2>&1 || status=$? ;;
+    esac
+    expect_code 1 "$status" "$command accepted an invalid protection record"
+    [ ! -s "$FAKE_LOG" ] || fail "$command reached Herdr with an invalid protection record"
+    [ "$(cat "$FAKE_STATE/$name")" = running ] || fail "$command changed the lab with an invalid protection record"
+  done
+}
+
+test_invalid_protection_records_block_all_operations() {
+  local name="fm-lab-invalid-record-$$" protected snapshot tripwire kind
+  tripwire="$TRIPWIRES/$name.fleet-state.json"
+  mkdir -p "$TRIPWIRES"
+  printf '%s\n' running > "$FAKE_STATE/$name"
+  for protected in default kun; do
+    while IFS= read -r snapshot; do
+      printf '%s\n' "$snapshot" > "$tripwire"
+      FM_HERDR_LAB_PROTECTED_SESSION="$protected" assert_invalid_tripwire_blocks_commands "$name"
+      [ "$(cat "$tripwire")" = "$snapshot" ] || fail "invalid record was changed"
+    done < <(invalid_protected_snapshots "$protected"; printf '%s\n' '' '{' 'null' '[]' '{}')
+    snapshot=$(jq -nc --arg name "$protected" '{name:$name,default:($name == "default"),running:true,socket_path:"/fixture/production.sock"}')
+    printf '%s\n%s\n' "$snapshot" "$snapshot" > "$tripwire"
+    FM_HERDR_LAB_PROTECTED_SESSION="$protected" assert_invalid_tripwire_blocks_commands "$name"
+    rm -f "$tripwire"
+    printf '%s\n' "$snapshot" > "$TMP_ROOT/record-target"
+    for kind in symlink dangling directory fifo; do
+      case "$kind" in
+        symlink) ln -s "$TMP_ROOT/record-target" "$tripwire" ;;
+        dangling) ln -s "$TMP_ROOT/missing-target" "$tripwire" ;;
+        directory) mkdir "$tripwire" ;;
+        fifo) mkfifo "$tripwire" ;;
+      esac
+      FM_HERDR_LAB_PROTECTED_SESSION="$protected" assert_invalid_tripwire_blocks_commands "$name"
+      [ "$(cat "$TMP_ROOT/record-target")" = "$snapshot" ] || fail "symlink target was changed"
+      assert_absent "$TMP_ROOT/missing-target" "dangling tripwire target was created"
+      if [ "$kind" = directory ]; then rmdir "$tripwire"; else rm -f "$tripwire"; fi
+    done
+  done
+  pass "fm-herdr-lab: malformed and unsafe tripwires block every operation before side effects"
+}
+
+test_invalid_production_snapshots_are_not_persisted() {
+  local name="fm-lab-invalid-snapshot-$$" protected snapshot command status
+  for protected in default kun; do
+    while IFS= read -r snapshot; do
+      printf '[%s]\n' "$snapshot" > "$FAKE_STATE/production.json"
+      for command in prepare provision; do
+        status=0
+        FM_HERDR_LAB_PROTECTED_SESSION="$protected" \
+          run_with_fake bash "$ROOT/bin/fm-herdr-lab.sh" "$command" "$name" >/dev/null 2>&1 || status=$?
+        expect_code 1 "$status" "$command accepted a malformed production snapshot"
+        assert_absent "$TRIPWIRES/$name.fleet-state.json" "$command persisted a malformed production snapshot"
+        assert_absent "$FAKE_STATE/$name" "$command launched a lab with a malformed production snapshot"
+      done
+    done < <(invalid_protected_snapshots "$protected")
+  done
+  rm -f "$FAKE_STATE/production.json"
+  pass "fm-herdr-lab: malformed production snapshots are rejected before persistence or launch"
+}
+
+test_invalid_protection_records_block_all_operations
+test_invalid_production_snapshots_are_not_persisted
+test_explicit_protected_session
 test_refuses_unsafe_names
 test_provision_run_and_guarded_teardown
 test_missing_tripwire_blocks_destruction

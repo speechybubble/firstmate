@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Provision and operate an isolated Herdr lab session without risking the live
-# default session.
+# protected production session.
 #
 # Usage:
 #   fm-herdr-lab.sh name <label>
@@ -12,6 +12,11 @@
 #   fm-herdr-lab.sh stop <session>
 #   fm-herdr-lab.sh teardown <session>
 #
+# Set FM_HERDR_LAB_PROTECTED_SESSION to the production session before lab work
+# (for example, export FM_HERDR_LAB_PROTECTED_SESSION=kun). Unset means default.
+# Keep this explicit selection unchanged through teardown; no session is inferred.
+# The selected session must exist exactly once and be running.
+#
 # Session names must begin with "fm-lab-" and can never be "default".
 # The name command sanitizes the label, caps it at 16 characters, and appends
 # process/random suffixes to keep generated socket paths short.
@@ -21,9 +26,9 @@
 # operation.
 # Session stop is available only through guarded stop or teardown, and session
 # delete is available only through teardown.
-# Both paths perform a fresh refuse-default check immediately before each
+# Both paths refuse the protected name and perform a fresh default-flag check before each
 # destructive call.
-# Provision records the running default session as a fleet-state tripwire and
+# Provision records the selected production session as a fleet-state tripwire and
 # teardown requires that record to be identical afterward.
 # The viewer command attaches or detaches one real foreground Herdr client on
 # an owned lab session over a fixed 40-row by 120-column pty;
@@ -40,8 +45,29 @@ fm_herdr_lab_error() {
 }
 
 fm_herdr_lab_validate_name() { # <session>
-  local name=${1:-}
-  [[ "$name" =~ ^fm-lab-[a-zA-Z0-9][a-zA-Z0-9_-]*$ ]] && return 0
+  local name=${1:-} protected=${FM_HERDR_LAB_PROTECTED_SESSION-default} tripwire
+  [[ "$protected" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ ]] || {
+    fm_herdr_lab_error "invalid FM_HERDR_LAB_PROTECTED_SESSION: expected an explicit session name"
+    return 1
+  }
+  [ "$name" != "$protected" ] || {
+    fm_herdr_lab_error "refusing protected production session '$protected'"
+    return 1
+  }
+  if [[ "$name" =~ ^fm-lab-[a-zA-Z0-9][a-zA-Z0-9_-]*$ ]]; then
+    tripwire=$(fm_herdr_lab_tripwire_path "$name")
+    if [ -e "$tripwire" ] || [ -L "$tripwire" ]; then
+      [ -f "$tripwire" ] && [ ! -L "$tripwire" ] || {
+        fm_herdr_lab_error "refusing call because the protected session tripwire is not a regular non-symlink file"
+        return 1
+      }
+      fm_herdr_lab_validate_snapshot < "$tripwire" >/dev/null 2>&1 || {
+        fm_herdr_lab_error "refusing call because the protected session tripwire is invalid or its selection differs"
+        return 1
+      }
+    fi
+    return 0
+  fi
   case "$name" in
     default) fm_herdr_lab_error "refusing session name 'default'" ;;
     '') fm_herdr_lab_error "refusing an empty session name" ;;
@@ -68,28 +94,39 @@ fm_herdr_lab_session_list() { # <session>
   fm_herdr_lab_raw "$1" session list --json
 }
 
+fm_herdr_lab_validate_snapshot() {
+  jq -ces --arg protected "${FM_HERDR_LAB_PROTECTED_SESSION-default}" '
+    select(length == 1) | .[0]
+    | select(type == "object")
+    | select(keys == ["default", "name", "running", "socket_path"])
+    | select(.name == $protected and .running == true)
+    | select((.default | type) == "boolean")
+    | select($protected != "default" or .default == true)
+    | select(.socket_path | type == "string")
+    | select(.socket_path | length > 0 and (explode | all(. != 0)))
+    | {name, default, running, socket_path}
+  '
+}
+
 fm_herdr_lab_fleet_state() { # <session>
-  local name=$1 sessions snapshot
+  local name=$1 sessions snapshot protected=${FM_HERDR_LAB_PROTECTED_SESSION-default}
   sessions=$(fm_herdr_lab_session_list "$name" 2>/dev/null) || {
     fm_herdr_lab_error "cannot read Herdr sessions for the fleet-state tripwire"
     return 1
   }
-  snapshot=$(printf '%s' "$sessions" | jq -c '
-    [.sessions[]? | select(.default == true)]
-    | if length == 1 and .[0].name == "default" and .[0].running == true
-      then .[0] | {name, default, running, socket_path}
-      else empty
-      end
-  ' 2>/dev/null)
-  [ -n "$snapshot" ] || {
-    fm_herdr_lab_error "fleet-state tripwire requires exactly one running default session"
+  snapshot=$(printf '%s' "$sessions" | jq -ces --arg protected "$protected" '
+    select(length == 1) | .[0]
+    | [.sessions[]? | select(if $protected == "default" then .default == true else .name == $protected end)]
+    | select(length == 1) | .[0] | {name, default, running, socket_path}
+  ' 2>/dev/null | fm_herdr_lab_validate_snapshot 2>/dev/null) || {
+    fm_herdr_lab_error "fleet-state tripwire requires exactly one running $protected session"
     return 1
   }
   printf '%s\n' "$snapshot"
 }
 
 fm_herdr_lab_prepare() { # <session>
-  local name=$1 sessions state_dir tripwire
+  local name=$1 sessions state_dir tripwire snapshot
   fm_herdr_lab_validate_name "$name" || return 1
   command -v herdr >/dev/null 2>&1 || { fm_herdr_lab_error "herdr is required"; return 1; }
   command -v jq >/dev/null 2>&1 || { fm_herdr_lab_error "jq is required"; return 1; }
@@ -110,7 +147,8 @@ fm_herdr_lab_prepare() { # <session>
     fm_herdr_lab_error "tripwire already exists for '$name'; refusing ambiguous ownership"
     return 1
   }
-  fm_herdr_lab_fleet_state "$name" > "$tripwire" || {
+  snapshot=$(fm_herdr_lab_fleet_state "$name") || return 1
+  printf '%s\n' "$snapshot" > "$tripwire" || {
     rm -f "$tripwire"
     return 1
   }
@@ -450,6 +488,7 @@ fm_herdr_lab_provision() { # <session>
 
 fm_herdr_lab_check_tripwire() { # <session>
   local name=$1 tripwire before after
+  fm_herdr_lab_validate_name "$name" || return 1
   tripwire=$(fm_herdr_lab_tripwire_path "$name")
   [ -f "$tripwire" ] || {
     fm_herdr_lab_error "missing fleet-state tripwire for '$name'; refusing unverified teardown"
@@ -458,7 +497,7 @@ fm_herdr_lab_check_tripwire() { # <session>
   before=$(cat "$tripwire")
   after=$(fm_herdr_lab_fleet_state "$name") || return 1
   [ "$before" = "$after" ] || {
-    fm_herdr_lab_error "FLEET-STATE TRIPWIRE FAILED: default session changed during lab work"
+    fm_herdr_lab_error "FLEET-STATE TRIPWIRE FAILED: protected production session changed during lab work"
     fm_herdr_lab_error "before: $before"
     fm_herdr_lab_error "after:  $after"
     return 1
@@ -534,7 +573,7 @@ fm_herdr_lab_name() { # <label>
 }
 
 fm_herdr_lab_usage() {
-  sed -n '2,15p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 fm_herdr_lab_main() {

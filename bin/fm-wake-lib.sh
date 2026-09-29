@@ -1271,11 +1271,8 @@ fm_treehouse_pool_slot() {  # <project-dir> <worktree>
 # checkout rather than a file inside it - so claiming a slot can never dirty the
 # copy teardown's landed-work checks inspect, and a returned slot carries no
 # untracked leftover from it.
-fm_treehouse_slot_owner_marker() {  # <worktree>
-  local worktree=$1 slot
-  slot=$(CDPATH='' cd -- "$worktree" 2>/dev/null && pwd -P) || return 1
-  printf '%s/.fm-slot-owner\n' "$(dirname "$slot")"
-}
+# shellcheck source=bin/fm-treehouse-slot-lib.sh
+. "$FM_WAKE_LIB_DIR/fm-treehouse-slot-lib.sh"
 
 # Claim a pool slot for a task, replacing whatever the previous holder left.
 # The rename is atomic, so a reader either sees the old claim or the new one.
@@ -1298,43 +1295,6 @@ fm_treehouse_slot_owner_claim() {  # <worktree> <task-id> <home>
   mv -f "$tmp" "$marker" 2>/dev/null || { rm -f "$tmp"; return 1; }
 }
 
-# Read the claim on a pool slot and compare it with a task id.
-# Sets FM_TREEHOUSE_SLOT_OWNER to one of:
-#   mine   - the claim names this task
-#   other  - the claim names a different task, so the slot was reassigned
-#   absent - no claim: the slot was taken before claims existed, or returned since
-#   unsafe - a claim file exists but cannot be read as a claim
-# FM_TREEHOUSE_SLOT_OWNER_ID and FM_TREEHOUSE_SLOT_OWNER_HOME carry the recorded
-# claimant as evidence. The home is reported, never matched: a home that moved
-# must not turn a task's own slot into a refusal.
-fm_treehouse_slot_owner_state() {  # <worktree> <task-id>
-  local worktree=$1 id=$2 marker line owner_id='' owner_home=''
-  FM_TREEHOUSE_SLOT_OWNER=unsafe
-  FM_TREEHOUSE_SLOT_OWNER_ID=
-  FM_TREEHOUSE_SLOT_OWNER_HOME=
-  marker=$(fm_treehouse_slot_owner_marker "$worktree") || return 0
-  if [ ! -e "$marker" ] && [ ! -L "$marker" ]; then
-    FM_TREEHOUSE_SLOT_OWNER=absent
-    return 0
-  fi
-  [ -f "$marker" ] && [ ! -L "$marker" ] || return 0
-  while IFS= read -r line || [ -n "$line" ]; do
-    case "$line" in
-      task=*) owner_id=${line#task=} ;;
-      home=*) owner_home=${line#home=} ;;
-    esac
-  done < "$marker" || return 0
-  [ -n "$owner_id" ] || return 0
-  # shellcheck disable=SC2034 # Output globals, read by the sourcing caller.
-  FM_TREEHOUSE_SLOT_OWNER_ID=$owner_id
-  # shellcheck disable=SC2034 # Output globals, read by the sourcing caller.
-  FM_TREEHOUSE_SLOT_OWNER_HOME=$owner_home
-  if [ "$owner_id" = "$id" ]; then
-    FM_TREEHOUSE_SLOT_OWNER=mine
-  else
-    FM_TREEHOUSE_SLOT_OWNER=other
-  fi
-}
 
 # Drop a task's own claim once its slot is back in the pool. Never removes
 # another task's claim, so a misdirected release cannot strip the evidence that

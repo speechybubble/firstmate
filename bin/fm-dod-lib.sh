@@ -266,6 +266,9 @@ Firstmate will then instruct you to run /no-mistakes to validate and ship a PR.
 
 You drive no-mistakes by responding to its gates, not by implementing fixes.
 Follow the guidance no-mistakes itself provides for the mechanics: it loads when you invoke /no-mistakes, and \`no-mistakes axi run --help\` plus the \`help\` lines in each \`axi\` response are authoritative and version-matched to the installed binary.
+For model and effort routing, require the installed No Mistakes help to support \`--model\` and \`--effort\` and the configured pipeline harness to be Pi-only. If those preconditions fail, report the version/configuration mismatch to firstmate before starting the pipeline; never temporarily rewrite shared global settings.
+Start an ordinary validation with \`--model openai-codex/gpt-6-astra --effort medium\`; use \`--model openai-codex/gpt-6-astra --effort high\` for a difficult validation. Follow firstmate's classification in the task specification; if none is recorded, assess the work before starting and record whether the review is ordinary or difficult. A difficult pin applies to every duty in that run, including reviewer and fixer.
+Confirm that the returned \`pi_profile\` matches the requested model and effort. Reattach to that run with selection flags omitted; its pin is immutable. When starting a new rerun, explicitly supply the same intended Astra model and medium/high effort again because an unflagged rerun uses current global defaults.
 When starting no-mistakes, pass \`--intent\` as only this brief's \`## Captain's intent\` subsection body, not its heading, plus any later words the captain actually said.
 Preserve the actual words without adding speaker labels or direct address; the subsection heading supplies provenance outside the pipeline input.
 For a legacy brief with no such subsection, include only words on lines marked \`[captain] \`, excluding that metadata prefix; never copy its mixed \`# Task\` wholesale.

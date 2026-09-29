@@ -4882,7 +4882,7 @@ install_marker_mv_fault() {  # <dir>
 #!/usr/bin/env bash
 dest=${!#}
 case "$dest" in
-  */.seen-procevent-*)
+  */.seen-procevent-*|*/.seen-inbox-*)
     case "${FM_MARKER_MV_MODE:-}" in
       pause)
         printf '1\n' > "$FM_MARKER_MV_READY"
@@ -5007,6 +5007,125 @@ test_procevent_marker_failure_exits_and_replays() {
     || fail "marker failure lost the later proactive replay"
   FM_STATE_OVERRIDE="$state" "$DRAIN" >/dev/null 2>&1 || fail "marker-failure fixture drain failed"
   pass "marker failure exits through the shared wake owner, releases its lock, and replays later"
+}
+
+
+# Captain notes share the queued-check surface, not worker steering or ack.
+captain_note() { # <case> <text>
+  FM_HOME="$1" FM_STATE_OVERRIDE="$1/state" FM_CONFIG_OVERRIDE="$1/config" \
+    FM_DATA_OVERRIDE="$1/data" "$ROOT/bin/fm-inbox.sh" note "$2" | awk 'NR == 1 { print $2 }'
+}
+
+captain_note_ack() { # <case> <id>
+  FM_HOME="$1" FM_STATE_OVERRIDE="$1/state" FM_CONFIG_OVERRIDE="$1/config" \
+    FM_DATA_OVERRIDE="$1/data" "$ROOT/bin/fm-inbox.sh" drain --ack "$2"
+}
+
+test_captain_inbox_successors() {
+  local dir state out pid first second before
+  dir=$(make_case captain-inbox-successors); state="$dir/state"; out="$dir/watch.out"
+  FM_WATCH_HANDLING_SUCCESSOR=1 procevent_watch_bg "$dir" "$out"; pid=$!
+  wait_poll_cycle "$state" "$pid" || fail "empty handling successor did not remain alive"
+  first=$(captain_note "$dir" 'First captain note') || fail "note failed"
+  wait_for_exit "$pid" 100 || fail "handling successor missed captain note"
+  assert_contains "$(cat "$out")" "captain inbox notes: inbox:$first" "missing captain note headline"
+  [ -f "$state/inbox/$first.note" ] || fail "notification acknowledged the note"
+  before=$(cat "$state/.wake-queue")
+  : > "$out"
+  FM_WATCH_HANDLING_SUCCESSOR=1 procevent_watch_bg "$dir" "$out"; pid=$!
+  wait_poll_cycle "$state" "$pid" || fail "successor repeated an already surfaced captain note"
+  [ ! -s "$out" ] || fail "already surfaced note repeated"
+  [ "$before" = "$(cat "$state/.wake-queue")" ] || fail "successor changed queued note"
+  second=$(captain_note "$dir" 'Second captain note') || fail "second note failed"
+  wait_for_exit "$pid" 100 || fail "successor missed a new captain note"
+  assert_contains "$(cat "$out")" "inbox:$second" "new note missing"
+  assert_not_contains "$(cat "$out")" "inbox:$first" "old note was repeated"
+  [ "$(wc -l < "$state/.wake-queue" | tr -d ' ')" = 2 ] || fail "delivery duplicated or consumed queue rows"
+  pass "captain inbox: healthy handling successors deliver each new note once without acknowledging it"
+}
+
+test_captain_inbox_claimed_and_handled() {
+  local dir state out pid claimed fresh before rows handled
+  dir=$(make_case captain-inbox-claimed); state="$dir/state"; out="$dir/watch.out"
+  claimed=$(captain_note "$dir" 'Already presented note') || fail "note failed"
+  FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/drain.out" 2> "$dir/drain.err" || fail "claiming drain failed"
+  assert_contains "$(cat "$dir/drain.out")" "inbox:$claimed" "drain did not present note"
+  rows=$(cat "$state/.main-eligible-rows")
+  handled=$(captain_note "$dir" 'Handled before watcher presentation') || fail "note failed"
+  captain_note_ack "$dir" "$handled" >/dev/null || fail "early note ack failed"
+  FM_WATCH_HANDLING_SUCCESSOR=1 procevent_watch_bg "$dir" "$out"; pid=$!
+  wait_poll_cycle "$state" "$pid" || fail "successor repeated already presented note"
+  fresh=$(captain_note "$dir" 'New unclaimed note') || fail "new note failed"
+  wait_for_exit "$pid" 100 || fail "unclaimed note was suppressed with claimed note"
+  assert_contains "$(cat "$out")" "inbox:$fresh" "fresh note missing"
+  assert_not_contains "$(cat "$out")" "inbox:$claimed" "claimed note repeated"
+  assert_not_contains "$(cat "$out")" "inbox:$handled" "handled-before-presentation note surfaced"
+  [ "$rows" = "$(cat "$state/.main-eligible-rows")" ] || fail "watcher changed presentation claims"
+  captain_note_ack "$dir" "$fresh" >/dev/null || fail "note ack failed"
+  before=$(cat "$state/.wake-queue")
+  : > "$out"
+  FM_WATCH_HANDLING_SUCCESSOR=1 procevent_watch_bg "$dir" "$out"; pid=$!
+  wait_poll_cycle "$state" "$pid" || fail "handled or claimed note woke successor"
+  reap "$pid"
+  [ -f "$state/inbox/handled/$fresh.note" ] && [ -f "$state/inbox/$claimed.note" ] || fail "note ownership changed"
+  [ "$before" = "$(cat "$state/.wake-queue")" ] || fail "watcher acknowledged a queue row"
+  pass "captain inbox: main claims and handled notes remain owned by their existing acknowledgements"
+}
+
+test_captain_inbox_mixed_and_duplicate() {
+  local dir state out pid id before
+  dir=$(make_case captain-inbox-mixed); state="$dir/state"; out="$dir/watch.out"
+  id=$(captain_note "$dir" 'Mixed captain note') || fail "note failed"
+  append_wake "$state" check "inbox:$id" 'duplicate captain key'
+  append_wake "$state" check 'procevent:fixture:1' 'process-event fixture'
+  before=$(cat "$state/.wake-queue")
+  FM_WATCH_HANDLING_SUCCESSOR=1 procevent_watch_bg "$dir" "$out"; pid=$!
+  wait_for_exit "$pid" 100 || fail "mixed queued checks did not surface"
+  assert_contains "$(cat "$out")" 'process-event result captured: procevent:fixture:1' "process-event headline changed"
+  [ "$(grep -o "inbox:$id" "$out" | wc -l | tr -d ' ')" = 1 ] || fail "duplicate captain key repeated"
+  [ "$before" = "$(cat "$state/.wake-queue")" ] || fail "mixed delivery changed queued rows"
+  pass "captain inbox: duplicate keys coalesce and mixed process-event headlines retain their meaning"
+}
+
+test_captain_inbox_output_failure_replays() {
+  local dir state out fifo pid reader id marker status=0
+  dir=$(make_case captain-inbox-output-fail); state="$dir/state"; out="$dir/watch.out"; fifo="$dir/output.fifo"
+  id=$(captain_note "$dir" 'Replay captain note') || fail "note failed"
+  mkfifo "$fifo"
+  sh -c ': < "$1"' _ "$fifo" & reader=$!
+  FM_WATCH_HANDLING_SUCCESSOR=1 procevent_watch_bg "$dir" "$fifo"; pid=$!
+  wait "$reader" || true
+  wait_for_exit "$pid" 100 || status=$?
+  [ "$status" -ne 0 ] && [ "$status" -ne 124 ] || fail "broken output did not fail bounded"
+  marker=$(find "$state" -maxdepth 1 -name '.seen-inbox-*' -type f | head -1)
+  [ -z "$marker" ] || fail "failed output suppressed future note delivery"
+  [ -f "$state/inbox/$id.note" ] && [ -s "$state/.wake-queue" ] || fail "output failure lost note"
+  FM_WATCH_HANDLING_SUCCESSOR=1 procevent_watch_bg "$dir" "$out"; pid=$!
+  wait_for_exit "$pid" 100 || fail "failed output was not replayable"
+  assert_contains "$(cat "$out")" "inbox:$id" "replayed note missing"
+  pass "captain inbox: failed output leaves the durable note and queue replayable"
+}
+
+test_captain_inbox_ack_race() {
+  local dir state out pid id ready release note before
+  dir=$(make_case captain-inbox-ack-race); state="$dir/state"; out="$dir/watch.out"
+  ready="$dir/marker-ready"; release="$dir/marker-release"
+  id=$(captain_note "$dir" 'Ack-race captain note') || fail "note failed"
+  note=$(cat "$state/inbox/$id.note"); before=$(cat "$state/.wake-queue")
+  install_marker_mv_fault "$dir"
+  FM_WATCH_HANDLING_SUCCESSOR=1 FM_MARKER_MV_MODE=pause FM_MARKER_MV_READY="$ready" FM_MARKER_MV_RELEASE="$release" \
+    procevent_watch_bg "$dir" "$out"; pid=$!
+  wait_numeric_file "$ready" 100 || fail "watcher did not reach output/marker boundary"
+  captain_note_ack "$dir" "$id" >/dev/null || fail "racing note ack failed"
+  touch "$release"
+  wait "$pid" || fail "watcher failed after racing ack"
+  [ ! -e "$state/inbox/$id.note" ] && [ "$note" = "$(cat "$state/inbox/handled/$id.note")" ] || fail "watcher resurrected or rewrote handled note"
+  [ "$before" = "$(cat "$state/.wake-queue")" ] || fail "note ack race consumed queue row"
+  : > "$out"
+  FM_WATCH_HANDLING_SUCCESSOR=1 procevent_watch_bg "$dir" "$out"; pid=$!
+  wait_poll_cycle "$state" "$pid" || fail "racing handled note repeated"
+  reap "$pid"
+  pass "captain inbox: acknowledgement racing the marker never resurrects or repeats the note"
 }
 
 # --- heartbeat: no-change absorbed, backstop surfaces a missed status --------
@@ -5531,6 +5650,11 @@ test_secondmate_home_supervision_churn_is_not_write_evidence
 test_timer_repair_drops_a_finished_write_deferral_chain
 test_terminal_first_sight_drops_a_finished_write_deferral_chain
 test_triage_log_size_cap_accepts_spaced_wc_counts
+test_captain_inbox_successors
+test_captain_inbox_claimed_and_handled
+test_captain_inbox_mixed_and_duplicate
+test_captain_inbox_output_failure_replays
+test_captain_inbox_ack_race
 test_procevent_captured_result_surfaces_proactively
 test_procevent_unacknowledged_result_redrains_until_handled
 test_procevent_marker_keys_are_injective

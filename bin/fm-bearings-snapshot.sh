@@ -445,6 +445,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
   | ($per_home_capped | sort_by([(.completion.date // ""), .id]) | reverse) as $landed_sorted
   | (if $all_landed == 1 then $landed_sorted else ($per_home_groups | round_robin_landed($landed_n)) end) as $done
   | ($done | map(.id)) as $done_ids
+  | .tasks |= map(select(.lifecycle.state != "completed_retained"))
   | ([.tasks[] | select(.kind != "secondmate") | .id]) as $live_ids
   | ([.tasks[] | select(.kind != "secondmate" and .current_state.state == "working") | .id]) as $working_ids
   | ($live_ids + $done_ids) as $rel_ids
@@ -492,7 +493,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
   | ([ .tasks[]
        | select(.kind != "secondmate")
        | select(.backlog.current_role != "program")
-       | select(.backlog.current_role != "held" or .current_state.state == "working")
+       | select(.lifecycle.state != "held" or .current_state.state == "working")
        | {id, kind,
         state: .current_state.state,
         repo:(.backlog.repo // .project // null),
