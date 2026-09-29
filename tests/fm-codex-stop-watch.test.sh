@@ -164,6 +164,119 @@ mkdir -p "$P/overlap-state"
 FM_STATE_OVERRIDE="$P/overlap-state" STATE="$P/overlap-state" "$TMP_ROOT/native/codex" "$TMP_ROOT/overlap-scenario"
 pass 'overlapping Stop waits for delivery, handles both real rows and establishes the next owned cycle'
 
+cat > "$P/bin/fm-watch-arm.sh" <<'SH'
+#!/usr/bin/env bash
+set -eu
+printf 'armed\n' > "$STATE/successor-armed"
+if [ -e "$STATE/emit-source" ]; then
+  rm "$STATE/emit-source"
+  if [ "$CONTENTION_STAGE" = poll ]; then
+    touch "$STATE/watcher-returning"
+    FM_POLL=1 exec "$FM_HOME/bin/fm-watch.sh"
+  fi
+  . "$FM_HOME/bin/fm-wake-lib.sh"
+  fm_wake_append signal fixture.status 'done: contention event'
+  touch "$STATE/watcher-returning"
+  while [ ! -e "$STATE/queue-held" ]; do sleep 0.1; done
+else
+  while [ ! -e "$STATE/release-arm" ]; do sleep 0.1; done
+fi
+SH
+cat > "$TMP_ROOT/cli/codex" <<'SH'
+#!/usr/bin/env bash
+set -eu
+[ "$1" = queue ]
+[ ! -e "$STATE/.wake-queue.lock" ]
+printf '%s\n' "$*" >> "$STATE/deliveries"
+SH
+cat > "$TMP_ROOT/contention-scenario" <<'SH'
+set -eu
+trap 'touch "$STATE/release-queue" "$STATE/release-arm" "$STATE/.afk"; wait' EXIT
+printf '%s\n' "$$" > "$STATE/.lock"
+. "$FM_HOME/bin/fm-wake-lib.sh"
+payload='{"hook_event_name":"Stop","session_id":"01a0ed98-600a-7c81-98d6-56affd853dec"}'
+wait_file() {
+  local i=0
+  while [ ! -e "$1" ] && [ "$i" -lt 200 ]; do sleep 0.1; i=$((i+1)); done
+  [ -e "$1" ]
+}
+hold_queue() {
+  fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK"
+  trap 'fm_lock_release "$FM_WAKE_QUEUE_LOCK"' EXIT
+  if [ "$CONTENTION_STAGE" = poll ]; then
+    fm_wake_append_locked signal fixture.status 'done: contention event'
+  fi
+  touch "$STATE/queue-held"
+  while [ ! -e "$STATE/release-queue" ]; do sleep 0.1; done
+}
+: > "$STATE/task.meta"
+if [ "$CONTENTION_STAGE" = initial ]; then
+  fm_wake_append signal fixture.status 'done: contention event'
+  hold_queue & holder=$!
+  wait_file "$STATE/queue-held"
+else
+  touch "$STATE/emit-source"
+fi
+"$FM_HOME/bin/fm-codex-stop-watch.sh" <<< "$payload" & hook=$!
+if [ "$CONTENTION_STAGE" != initial ]; then
+  wait_file "$STATE/watcher-returning"
+  if [ "$CONTENTION_STAGE" = poll ]; then
+    wait_file "$STATE/.last-watcher-beat"
+  fi
+  hold_queue & holder=$!
+  wait_file "$STATE/queue-held"
+fi
+wait_file "$STATE/.codex-watch.lock/target.json"
+sleep 0.5
+kill -0 "$hook"
+[ "$(cat "$STATE/.codex-watch.lock/pid")" = "$hook" ]
+[ "$(cat "$STATE/.wake-queue.lock/pid")" = "$holder" ]
+[ ! -e "$STATE/deliveries" ]
+[ ! -e "$STATE/.codex-watch-delivered" ]
+if [ "$CONTENTION_RESULT" = exhausted ]; then
+  if wait "$hook"; then exit 21; fi
+  grep -q 'queue snapshot unavailable' "$STATE/.codex-watch-error"
+  [ ! -e "$STATE/.codex-watch.lock" ]
+  [ ! -e "$STATE/.codex-watch-delivered" ]
+  [ ! -e "$STATE/deliveries" ]
+  [ "$(cat "$STATE/.wake-queue.lock/pid")" = "$holder" ]
+fi
+[ "$(wc -l < "$STATE/.wake-queue")" -eq 1 ]
+touch "$STATE/release-queue"
+wait "$holder"
+if [ "$CONTENTION_RESULT" = exhausted ]; then
+  "$FM_HOME/bin/fm-codex-stop-watch.sh" <<< "$payload"
+else
+  wait "$hook"
+fi
+[ "$(wc -l < "$STATE/deliveries")" -eq 1 ]
+[ "$(jq .seq "$STATE/.codex-watch-delivered")" -eq 1 ]
+[ ! -e "$STATE/.codex-watch-error" ]
+"$FM_HOME/bin/fm-wake-drain.sh" > "$STATE/presentation" 2>&1
+awk -F '\t' 'NF >= 5 {print $5}' "$STATE/presentation" > "$STATE/handled"
+[ "$(cat "$STATE/handled")" = 'done: contention event' ]
+ack=$(sed -n 's/^WAKE_ACK_REQUIRED: after handling completes run //p' "$STATE/presentation")
+[ -n "$ack" ]
+(cd "$FM_HOME" && bash -c "$ack")
+[ ! -s "$STATE/.wake-queue" ]
+rm -f "$STATE/successor-armed"
+"$FM_HOME/bin/fm-codex-stop-watch.sh" <<< "$payload" & successor=$!
+wait_file "$STATE/successor-armed"
+[ "$(cat "$STATE/.codex-watch.lock/pid")" = "$successor" ]
+kill -0 "$successor"
+touch "$STATE/release-arm"
+wait "$successor"
+SH
+for stage in initial returned poll; do
+  for result in released exhausted; do
+    state="$P/contention-$stage-$result"
+    mkdir -p "$state"
+    FM_STATE_OVERRIDE="$state" STATE="$state" CONTENTION_STAGE="$stage" CONTENTION_RESULT="$result" \
+      "$TMP_ROOT/native/codex" "$TMP_ROOT/contention-scenario"
+    pass "Codex $stage snapshot contention $result preserves rows, exact ack and successor ownership"
+  done
+done
+
 # A linked worker must remain inert, even if its native-shaped parent owns .lock.
 git -C "$P" add AGENTS.md
 git -C "$P" commit -qm fixture

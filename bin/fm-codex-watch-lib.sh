@@ -29,16 +29,18 @@ fm_codex_watch_owner_valid() {
   [ "$(jq -r .codex_home "$record")" = "$codex_home" ] || return 1
 }
 
-# Snapshot only fully committed queue rows. Contention is retriable by the
-# existing watcher poll, not permission to read a mail producer's partial commit.
 # Returns 0 with FM_CODEX_PENDING_SEQ > 0 only for a not-yet-notified row.
 fm_codex_watch_pending() {
-  local record="$STATE/.codex-watch.lock/target.json" delivered="$STATE/.codex-watch-delivered" seq previous=0
+  local record="$STATE/.codex-watch.lock/target.json" delivered="$STATE/.codex-watch-delivered" seq=0 previous=0 rc=0
   FM_CODEX_PENDING_SEQ=0
   fm_codex_watch_owner_valid || return 1
-  fm_lock_try_acquire "$FM_WAKE_QUEUE_LOCK" || return 1
-  seq=$(awk -F '\t' 'NF >= 5 && $2 ~ /^[0-9]+$/ { if ($2 > max) max=$2 } END { print max+0 }' "$FM_WAKE_QUEUE" 2>/dev/null) || seq=0
-  fm_lock_release "$FM_WAKE_QUEUE_LOCK" || return 1
+  fm_lock_acquire_wait_bounded "$FM_WAKE_QUEUE_LOCK" 5 || return 2
+  if [ -e "$FM_WAKE_QUEUE" ]; then
+    seq=$(awk -F '\t' 'NF >= 5 && $2 ~ /^[0-9]+$/ { if ($2 > max) max=$2 } END { print max+0 }' "$FM_WAKE_QUEUE" 2>/dev/null) || rc=2
+  fi
+  fm_lock_release "$FM_WAKE_QUEUE_LOCK" || return 2
+  [ "$rc" -eq 0 ] || return "$rc"
+  fm_codex_watch_owner_valid || return 1
   if [ -f "$delivered" ] && [ ! -L "$delivered" ]; then
     previous=$(jq -er --slurpfile target "$record" '
       select(.thread == $target[0].thread and .native_identity == $target[0].native_identity)

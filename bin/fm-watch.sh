@@ -2202,6 +2202,9 @@ while :; do
     fm_codex_watch_owner_valid || exit 0
     if fm_codex_watch_pending; then
       wake "check: codex durable wake pending through $FM_CODEX_PENDING_SEQ"
+    elif [ "$?" -ne 1 ]; then
+      echo 'watcher: Codex queue snapshot unavailable after bounded acquisition' >&2
+      exit 1
     fi
   fi
 

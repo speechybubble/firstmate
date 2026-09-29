@@ -95,14 +95,20 @@ fm_codex_watch_owner_valid || exit 0
 # shellcheck source=/dev/null
 [ ! -f "$CONFIG/x-mode.env" ] || . "$CONFIG/x-mode.env"
 OUT=$(mktemp "${TMPDIR:-/tmp}/fm-codex-stop.XXXXXX") || fail 'cannot create output file'
-if ! fm_codex_watch_pending; then
+fm_codex_watch_pending
+RC=$?
+if [ "$RC" -ne 0 ]; then
+  [ "$RC" -eq 1 ] || fail 'queue snapshot unavailable after bounded acquisition'
   "$SCRIPT_DIR/fm-watch-arm.sh" > "$OUT" 2>&1
   RC=$?
   fm_codex_watch_owner_valid || exit 0
   [ "$RC" -eq 0 ] || fail "watcher cycle exited $RC: $(tail -c 1024 "$OUT")"
   # A row may have been handled while the watcher returned. No synthetic wake
   # for an empty/replayed recovery notice; the next Stop owns another cycle.
-  fm_codex_watch_pending || exit 0
+  fm_codex_watch_pending
+  RC=$?
+  [ "$RC" -ne 1 ] || exit 0
+  [ "$RC" -eq 0 ] || fail 'queue snapshot unavailable after bounded acquisition'
 fi
 SEQ=$FM_CODEX_PENDING_SEQ
 MESSAGE='Firstmate Codex watcher: durable events await handling. Run bin/fm-wake-drain.sh, semantically handle its emitted events within existing authority and holds, then run the exact printed WAKE_ACK_REQUIRED command. Do not resume held work. The native Stop hook owns the next watcher; do not manually rearm it.'

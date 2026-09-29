@@ -82,7 +82,8 @@ def run(args, env=CHILD, check=True, timeout=30):
 
 
 def helper(*args):
-    result = run([HELPER, *args], CONTROL, check=False)
+    result = run([HELPER, *args], CONTROL, check=False,
+                 timeout=None if args[0] in {"provision", "teardown"} else 30)
     record("helper", args=args, rc=result.returncode, stdout=result.stdout, stderr=result.stderr)
     if result.returncode:
         raise RuntimeError("guarded helper refused")
@@ -105,6 +106,7 @@ run(["git", "init", "-q"])
     '[ ! -f "$FM_HOME/data/poll-emitted" ]; then\n'
     'touch "$FM_HOME/data/poll-emitted"\necho "fixture POLL event"\nfi\n'
 )
+(FM / "state/poll.check.sh").chmod(0o700)
 run(["bin/fm-check-register.sh", "poll"])
 # Keep all child paths explicit. The helper alone retains host discovery identity.
 (BASE / "child-env.json").write_text(json.dumps(CHILD, indent=2))
