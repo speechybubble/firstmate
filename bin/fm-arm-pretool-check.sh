@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Stable PreToolUse transport for the watcher-arm command policy.
 #
-# A firstmate primary must arm the watcher or run a Codex checkpoint as a
-# standalone verified harness call.
+# docs/arm-pretool-check.md owns when model-issued watcher calls require this
+# seatbelt; harness-owned continuity is not a request for a manual arm.
 # bin/fm-arm-command-policy.mjs is the sole owner of shell classification,
 # protected execution identity, the blessed setup tree, and deny reason codes.
 # This wrapper only acquires the harness payload, discovers the active roots,
