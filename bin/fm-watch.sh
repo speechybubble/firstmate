@@ -2191,6 +2191,20 @@ while :; do
     exit 0
   fi
 
+  # A Codex async Stop owns this cycle only while its exact native generation
+  # owns the home. Read fully committed durable rows through the same queue
+  # lock all producers use, including mail/contribution atomic appends.
+  if [ -n "${FM_CODEX_WATCH_OWNER_PID:-}" ]; then
+    if ! command -v fm_codex_watch_pending >/dev/null 2>&1; then
+      # shellcheck source=bin/fm-codex-watch-lib.sh
+      . "$SCRIPT_DIR/fm-codex-watch-lib.sh"
+    fi
+    fm_codex_watch_owner_valid || exit 0
+    if fm_codex_watch_pending; then
+      wake "check: codex durable wake pending through $FM_CODEX_PENDING_SEQ"
+    fi
+  fi
+
   # Liveness beacon for fm-guard.sh: a fresh mtime here means a watcher is
   # alive. Supervision scripts warn when this goes stale with tasks in flight.
   touch "$STATE/.last-watcher-beat"
@@ -2229,11 +2243,15 @@ while :; do
   fi
   # Then deliver queued results or captain inbox notes, including records
   # published while this handling successor was between cycles.
-  queued_check_surface_queued
+  if [ -z "${FM_CODEX_WATCH_OWNER_PID:-}" ]; then
+    queued_check_surface_queued
+  fi
 
   # A process-event result carries richer adapter-owned wake context than the
   # generic recovery reason, so give that owner first refusal.
-  resurface_after_downtime
+  if [ -z "${FM_CODEX_WATCH_OWNER_PID:-}" ]; then
+    resurface_after_downtime
+  fi
 
   # The existing poll loop also owns the bounded inactive-outcome cadence.
   # This is mechanical and silent unless a durable terminal-outcome obligation

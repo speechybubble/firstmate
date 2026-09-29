@@ -9,6 +9,9 @@
 #                a live, identity-matched watcher lock plus a fresh beacon.
 # All hermetic over temp dirs; no real agent session is invoked.
 set -u
+# Every scenario installs its own home. An inherited worker state override
+# must never redirect the real hook into the supervising home.
+unset FM_HOME FM_STATE_OVERRIDE FM_ROOT_OVERRIDE FM_CONFIG_OVERRIDE FM_DATA_OVERRIDE FM_PROJECTS_OVERRIDE
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -193,7 +196,9 @@ install_guard_scripts() {
   cp "$ROOT/bin/fm-wake-lib.sh" "$dir/bin/fm-wake-lib.sh"
   cp "$ROOT/bin/fm-hook-host-lib.sh" "$dir/bin/fm-hook-host-lib.sh"
   cp "$ROOT/bin/fm-session-lock-lib.sh" "$dir/bin/fm-session-lock-lib.sh"
+  cp "$ROOT/bin/fm-codex-watch-lib.sh" "$dir/bin/fm-codex-watch-lib.sh"
   cp "$ROOT/bin/fm-cursor-lib.sh" "$dir/bin/fm-cursor-lib.sh"
+  cp "$ROOT/bin/fm-treehouse-slot-lib.sh" "$dir/bin/fm-treehouse-slot-lib.sh"
   mkdir -p "$dir/docs"
   cp -R "$ROOT/docs/supervision-protocols" "$dir/docs/supervision-protocols"
   chmod +x "$dir/bin/fm-turnend-guard.sh" "$dir/bin/fm-turnend-guard-grok.sh" "$dir/bin/fm-operational-input.sh" "$dir/bin/fm-supervision-instructions.sh" "$dir/bin/fm-harness.sh"
@@ -940,7 +945,7 @@ test_codex_hook_uses_process_pwd_when_payload_cwd_is_outside_root() {
   local settings command dir expected_root outside payload out status
   settings="$ROOT/.codex/hooks.json"
   [ -f "$settings" ] || fail "tracked .codex/hooks.json is missing"
-  command=$(jq -r '.hooks.Stop[0].hooks[0].command // empty' "$settings")
+  command=$(jq -r '.hooks.Stop[].hooks[] | select(.async != true) | .command // empty' "$settings")
   [ -n "$command" ] || fail "Stop hook command is missing from .codex/hooks.json"
   dir=$(make_primary_dir "$TMP_ROOT/codex-hook-root")
   mark_codex_hook_root "$dir"
@@ -965,7 +970,7 @@ test_codex_hook_ignores_nested_git_root_guard() {
   local settings command dir nested subdir expected_root payload out status
   settings="$ROOT/.codex/hooks.json"
   [ -f "$settings" ] || fail "tracked .codex/hooks.json is missing"
-  command=$(jq -r '.hooks.Stop[0].hooks[0].command // empty' "$settings")
+  command=$(jq -r '.hooks.Stop[].hooks[] | select(.async != true) | .command // empty' "$settings")
   [ -n "$command" ] || fail "Stop hook command is missing from .codex/hooks.json"
   dir=$(make_primary_dir "$TMP_ROOT/codex-hook-outer")
   mark_codex_hook_root "$dir"
@@ -1213,7 +1218,9 @@ install_integrated_autoarm() {
   cp "$ROOT/bin/fm-wake-lib.sh" "$dir/bin/fm-wake-lib.sh"
   cp "$ROOT/bin/fm-hook-host-lib.sh" "$dir/bin/fm-hook-host-lib.sh"
   cp "$ROOT/bin/fm-session-lock-lib.sh" "$dir/bin/fm-session-lock-lib.sh"
+  cp "$ROOT/bin/fm-codex-watch-lib.sh" "$dir/bin/fm-codex-watch-lib.sh"
   cp "$ROOT/bin/fm-cursor-lib.sh" "$dir/bin/fm-cursor-lib.sh"
+  cp "$ROOT/bin/fm-treehouse-slot-lib.sh" "$dir/bin/fm-treehouse-slot-lib.sh"
   cp "$ROOT/bin/fm-lock.sh" "$dir/bin/fm-lock.sh"
   chmod +x "$dir/bin/fm-claude-stop-autoarm.sh" "$dir/bin/fm-lock.sh"
   ln -s /bin/bash "$dir/fake-claude"

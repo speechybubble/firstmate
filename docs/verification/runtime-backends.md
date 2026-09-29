@@ -2065,3 +2065,19 @@ A throwaway scout was spawned through `bin/fm-spawn.sh --scout --harness omp --m
 6. `bin/fm-control.sh <id> exit` stopped the agent and `bin/fm-teardown.sh` returned the worktree and closed the item.
 
 `FM_OMP_LIVE_E2E=1 tests/fm-omp-primary-live-e2e.test.sh` refreshes the primary evidence; the worker path above is refreshed by repeating the scout dispatch after any omp upgrade.
+
+## Codex parked-turn ownership (bounded native evidence)
+
+On 2026-09-29, Codex CLI 0.154.0 on Linux accepted normal project-folder trust and project hook review, with native hooks enabled and gpt-6-astra at medium effort.
+The async Stop hook remained alive after native task_complete.
+Scheduled durable, raw status-file and registered-check inputs each produced a new native turn, semantic handling, the exact printed acknowledgement with exit0, and another identity-checked parked watcher.
+The three ordinary cycles used no operator queue submission or manual rearm.
+A subsequent append between drain6 and ack6 survived as row7 and was handled before ack7; that boundary also used one guard-requested foreground checkpoint, so it does not establish pure asynchronous late-event continuation.
+The final durable queue was empty, the fixture hold remained unchanged, guarded Herdr teardown preserved the protected session, and private test credentials were removed.
+The executed Stop script SHA-256 was `105d38c608ff3910974cd421ea1247fe31875e4ea13bfa88325c9c46874c9cea`; the subsequent bounded successor-overlap acquisition change has portable coverage but has not yet been exercised natively.
+
+`tests/fm-codex-stop-watch.test.sh` executes ownership, coalescing, failed-delivery, late-row, concurrent-successor, AFK and child-exclusion controls without model access.
+`FM_CODEX_LIVE_E2E=1 FM_HERDR_LAB_PROTECTED_SESSION=<running-session> tests/fm-codex-continuity-live-e2e.test.sh` is the opt-in interactive refresh entry point; its header owns private credential and retained-fixture settings.
+The current refresh entry point has not yet been run as a complete script; the observations above came from the equivalent bounded task fixture and retain their narrower limits.
+The hook's finite lifetime and recovery limits are owned by [the Codex supervision protocol](../supervision-protocols/codex.md).
+Native24-hour expiry, hard-kill cleanup and indefinite unattended continuity are not established by these short trials.

@@ -46,6 +46,9 @@ FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
+if [ -f "$STATE/.codex-watch-error" ] && [ ! -L "$STATE/.codex-watch-error" ]; then
+  head -c 2048 "$STATE/.codex-watch-error" >&2
+fi
 WATCH="$SCRIPT_DIR/fm-watch.sh"
 GRACE=${FM_GUARD_GRACE:-300}
 queue_pending=false
