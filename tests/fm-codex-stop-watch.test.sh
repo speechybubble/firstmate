@@ -5,6 +5,7 @@ set -eu
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 TMP_ROOT=$(fm_test_tmproot fm-codex-stop-watch)
+python3 "$ROOT/tests/fm-codex-stop-watch-fixture.py"
 fm_git_identity fmtest fmtest@example.invalid
 P="$TMP_ROOT/primary"
 mkdir -p "$P/bin" "$P/state" "$P/config" "$TMP_ROOT/native" "$TMP_ROOT/cli" "$TMP_ROOT/codex-home"

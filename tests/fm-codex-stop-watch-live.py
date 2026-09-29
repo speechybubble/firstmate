@@ -27,7 +27,7 @@ if not PROTECTED:
     raise SystemExit("Set FM_HERDR_LAB_PROTECTED_SESSION to the real protected running session")
 if not AUTH_SOURCE.is_file() or AUTH_SOURCE.is_symlink():
     raise SystemExit("Native ChatGPT file credentials required via FM_CODEX_TEST_AUTH")
-HELPER = str(ROOT / "bin/fm-herdr-lab.sh")
+HELPER = os.environ.get("HERDR_LAB_HELPER", str(ROOT / "bin/fm-herdr-lab.sh"))
 FM = BASE / "fm"
 CH = BASE / "codex"
 for path in [FM, CH, BASE / "home", BASE / "tmp", BASE / "herdr", BASE / "events"]:
@@ -84,7 +84,7 @@ def run(args, env=CHILD, check=True, timeout=30):
 def helper(*args):
     result = run([HELPER, *args], CONTROL, check=False,
                  timeout=None if args[0] in {"provision", "teardown"} else 30)
-    record("helper", args=args, rc=result.returncode, stdout=result.stdout, stderr=result.stderr)
+    record("helper", executable=HELPER, args=args, rc=result.returncode, stdout=result.stdout, stderr=result.stderr)
     if result.returncode:
         raise RuntimeError("guarded helper refused")
     return result.stdout
