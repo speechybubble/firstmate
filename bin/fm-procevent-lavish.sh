@@ -18,9 +18,9 @@
 # read       Print a structured presentation of one already-captured result so a
 #            handler consumes every queued item without grepping the raw file.
 #            It is read-only over the capture: it does not arm, poll, or change
-#            what Lavish delivered. The session-ending freeform message
-#            (tag=message) is its own labeled field, printed first and distinct
-#            from per-element annotations. Declared and presented item counts,
+#            what Lavish delivered. A freeform message (tag=message) is its own
+#            labeled field, marked session-ending only for an ended capture,
+#            distinct from per-element annotations. Declared and presented item counts,
 #            plus a completeness verdict, follow before all annotations so a
 #            partial read is obvious. Each annotation retains its element uid,
 #            selector, tag, and text. A non-choice freeform comment (`prompt`)
@@ -537,7 +537,7 @@ cmd_answers() { cmd_choice_rows answers "$@"; }
 cmd_reconciles() { cmd_choice_rows reconciles "$@"; }
 
 # Present one already-captured result for a handler. Body lines are prefixed
-# so a captain-supplied string cannot forge a section label. The session-ending
+# so a captain-supplied string cannot forge a section label. The freeform
 # message is printed before the count line and before any annotation, because
 # that is the field a truncated grep of the raw capture historically dropped.
 # A non-choice annotation that carries a freeform `prompt` prints that comment
@@ -622,18 +622,20 @@ cmd_read() {
       return if !@lines || (@lines == 1 && $lines[0] eq "");
       print "| $_\n" for @lines;
     }
+    my $message_label = ($lifecycle eq "ended" || lc($session_ended) eq "true")
+      ? "SESSION-ENDING MESSAGE" : "MESSAGE";
     if (@messages) {
-      print "SESSION-ENDING MESSAGE\n";
+      print "$message_label\n";
       for my $i (0 .. $#messages) {
-        print "SESSION-ENDING MESSAGE PART ", ($i + 1), " of ", scalar(@messages), "\n" if @messages > 1;
+        print "$message_label PART ", ($i + 1), " of ", scalar(@messages), "\n" if @messages > 1;
         my $body = defined $messages[$i]{prompt} && length $messages[$i]{prompt}
           ? $messages[$i]{prompt}
           : (defined $messages[$i]{text} ? $messages[$i]{text} : "");
         emit_body($body);
       }
-      print "END SESSION-ENDING MESSAGE\n";
+      print "END $message_label\n";
     } else {
-      print "SESSION-ENDING MESSAGE: (none)\n";
+      print "$message_label: (none)\n";
     }
     print "\n";
     print "declared_items: $want\n";

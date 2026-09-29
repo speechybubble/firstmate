@@ -2244,10 +2244,69 @@ pass "the adapter owns which Lavish results are silent, and fails closed on ever
 
 # `read` is the handler's presentation of a captured result. Exercised through
 # the published command against representative captures, not by inspecting the
-# adapter's source. A tag=message row is the session-ending freeform message
+# adapter's source. A tag=message row is a freeform message
 # and must appear as its own field, not as just another annotation.
 READ="$TMP_ROOT/read-result"
 read_out() { "$ROOT/bin/fm-procevent-lavish.sh" read "$READ"; }
+# Only the human message labels depend on ending state. Compare the entire
+# presentation so message bodies, part order, annotation content and legacy
+# machine fields cannot change unnoticed, including absent/empty messages.
+for read_case in unset false true True TRUE ended; do
+  read_lifecycle=feedback
+  read_ended=$read_case
+  read_label=MESSAGE
+  case "$read_case" in
+    unset) read_ended='(unset)' ;;
+    false) ;;
+    ended) read_lifecycle=ended; read_ended='(unset)'; read_label='SESSION-ENDING MESSAGE' ;;
+    *) read_label='SESSION-ENDING MESSAGE' ;;
+  esac
+  for read_shape in single multipart empty absent; do
+    {
+      printf 'session:\n  file: /review.html\n  status: %s\n' "$read_lifecycle"
+      [ "$read_ended" = '(unset)' ] || printf '  session_ended: %s\n' "$read_ended"
+      case "$read_shape" in
+        single)
+          printf 'prompts[2]{uid,prompt,selector,tag,text}:\n'
+          printf '  "",First line\\nMESSAGE,"",message,Fallback\n' ;;
+        multipart)
+          printf 'prompts[3]{uid,prompt,selector,tag,text}:\n'
+          printf '  "",First line\\nMESSAGE,"",message,Fallback\n'
+          printf '  "","","",message,Second body\n' ;;
+        empty)
+          printf 'prompts[2]{uid,prompt,selector,tag,text}:\n'
+          printf '  "","","",message,""\n' ;;
+        absent) printf 'prompts[1]{uid,prompt,selector,tag,text}:\n' ;;
+      esac
+      printf '  el-a,Typed comment,section#call,note,Element text\n'
+    } > "$READ"
+    out=$(read_out) || fail "read failed for $read_case/$read_shape"
+    read_messages=1
+    case "$read_shape" in multipart) read_messages=2 ;; absent) read_messages=0 ;; esac
+    expected=$(
+      if [ "$read_shape" = absent ]; then
+        printf '%s: (none)\n' "$read_label"
+      else
+        printf '%s\n' "$read_label"
+        [ "$read_shape" != multipart ] || printf '%s PART 1 of 2\n' "$read_label"
+        [ "$read_shape" = empty ] || printf '| First line\n| MESSAGE\n'
+        if [ "$read_shape" = multipart ]; then
+          printf '%s PART 2 of 2\n| Second body\n' "$read_label"
+        fi
+        printf 'END %s\n' "$read_label"
+      fi
+      printf '\ndeclared_items: %s\npresented_items: %s\nmalformed_items: 0\ncomplete: yes\n' \
+        "$((read_messages + 1))" "$((read_messages + 1))"
+      printf 'lifecycle: %s\nsession_ended: %s\nannotation_count: 1\nsession_ending_message_count: %s\n\n' \
+        "$read_lifecycle" "$read_ended" "$read_messages"
+      printf 'ANNOTATIONS\nANNOTATION 1 of 1\nelement_uid: el-a\nelement_selector: section#call\ntag: note\ntext:\n| Element text\nprompt:\n| Typed comment\nEND ANNOTATIONS\n'
+      printf 'END LAVISH RESULT (%s of %s)\n' "$((read_messages + 1))" "$((read_messages + 1))"
+    )
+    assert_equals "$expected" "$out" "read changed labels or content for $read_case/$read_shape"
+  done
+done
+pass "read labels ordinary and ending single, multipart, empty and absent messages without changing content"
+
 cat > "$READ" <<'EOF'
 session:
   file: /review.html
