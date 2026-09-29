@@ -2069,15 +2069,18 @@ A throwaway scout was spawned through `bin/fm-spawn.sh --scout --harness omp --m
 ## Codex parked-turn ownership (bounded native evidence)
 
 On 2026-09-29, Codex CLI 0.154.0 on Linux accepted normal project-folder trust and project hook review, with native hooks enabled and gpt-6-astra at medium effort.
+The native Review hooks screen exposed `t` to trust the listed hooks; this was exercised only for the authorized fixture root, not as blanket trust for other projects.
 The async Stop hook remained alive after native task_complete.
 Scheduled durable, raw status-file and registered-check inputs each produced a new native turn, semantic handling, the exact printed acknowledgement with exit0, and another identity-checked parked watcher.
 The three ordinary cycles used no operator queue submission or manual rearm.
+These trials deliberately ended turns and used fixture producers; they do not establish spontaneous production parking or production status-source latency.
 A subsequent append between drain6 and ack6 survived as row7 and was handled before ack7; that boundary also used one guard-requested foreground checkpoint, so it does not establish pure asynchronous late-event continuation.
 The final durable queue was empty, the fixture hold remained unchanged, guarded Herdr teardown preserved the protected session, and private test credentials were removed.
-The executed Stop script SHA-256 was `105d38c608ff3910974cd421ea1247fe31875e4ea13bfa88325c9c46874c9cea`; the subsequent bounded successor-overlap acquisition change has portable coverage but has not yet been exercised natively.
+The executed Stop script SHA-256 was `105d38c608ff3910974cd421ea1247fe31875e4ea13bfa88325c9c46874c9cea`; subsequent successor-overlap, queue-snapshot contention and acknowledgement-claim fixes are not covered by that native receipt.
 
-`tests/fm-codex-stop-watch.test.sh` executes ownership, coalescing, failed-delivery, late-row, concurrent-successor, AFK and child-exclusion controls without model access.
+`tests/fm-codex-stop-watch.test.sh` exercises ownership, coalescing, failed-delivery, late-row, concurrent-successor, queue-contention, AFK and child-exclusion controls without model access.
+Its fixture lifecycle mock covers helper selection, isolated environments and cleanup after provisioning refusal; `tests/fm-watch-triage.test.sh` covers notification of unseen inbox rows after an earlier acknowledgement.
 `FM_CODEX_LIVE_E2E=1 FM_HERDR_LAB_PROTECTED_SESSION=<running-session> tests/fm-codex-continuity-live-e2e.test.sh` is the opt-in interactive refresh entry point; its header owns private credential and retained-fixture settings.
 The current refresh entry point has not yet been run as a complete script; the observations above came from the equivalent bounded task fixture and retain their narrower limits.
 The hook's finite lifetime and recovery limits are owned by [the Codex supervision protocol](../supervision-protocols/codex.md).
-Native24-hour expiry, hard-kill cleanup and indefinite unattended continuity are not established by these short trials.
+Native 24-hour expiry, hard-kill cleanup and indefinite unattended continuity are not established by these short trials.

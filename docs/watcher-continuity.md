@@ -43,10 +43,9 @@ No PreToolUse hook denies fleet commands based on watcher status.
 A genuine auto-arm failure describes the automatic mechanism as broken and never directs a routine manual background arm.
 Terminal arm-output classification (`started`, `attached`, or `FAILED`) remains defense in depth for the manual recovery path.
 Codex uses the asynchronous project Stop owner `bin/fm-codex-stop-watch.sh` to run the existing watcher between completed turns and notify the exact owning native thread with `codex queue`.
-Its script header owns binding, bounded delivery, coalescing and failure semantics; the model retains semantic handling and exact acknowledgement through `docs/supervision-protocols/codex.md`.
+Its [script header](../bin/fm-codex-stop-watch.sh) owns binding, bounded delivery, coalescing and failure mechanics; the [Codex supervision protocol](supervision-protocols/codex.md) owns handling, recovery and lifetime limits.
 Status and registered-check discovery stay in `bin/fm-watch.sh`, which also observes fully committed durable rows for this owner, including atomic mail and contribution publications.
 No producer invokes native delivery under the queue lock.
-A bounded foreground checkpoint remains an explicit repair fallback.
 Grok retains its tracked background-task notification protocol.
 No adapter starts a replacement with shell `&`.
 
@@ -84,7 +83,8 @@ The branch actor's queued-wake output stays suppressed in every case.
 A main drain with nothing of its own left, and a live grant still holding the queue, says so in one bounded line instead of exiting silently.
 A row that lost the five appended fields or its numeric sequence can never be claimed, presented, or named by an `--ack-through` cutoff, so a main drain retires it under the queue lock and reports how many it removed together with those rows verbatim, bounded to the first 20 and a count of the rest, because the queue was their only durable record; a branch drain never does, because a grant can only name sequences that were structurally valid when it was published.
 A retirement that cannot be read or written is reported and never fails the drain: the rows that remain usable are still presented with their acknowledgement command, the unusable ones stay queued for a later drain to retire, and failing the whole drain would strand the usable rows too.
-Its `--ack-through <SEQ>` deletes only claimed main rows at or below the cutoff, while a branch acknowledgement deletes only claimed branch rows at or below its cutoff.
+A main `--ack-through <SEQ>` reclaims unreserved rows only through its cutoff, then deletes claimed main rows at or below that cutoff; a branch acknowledgement deletes only claimed branch rows at or below its cutoff.
+Existing main presentation claims above the cutoff remain owned, but unseen later rows stay unclaimed so a handling successor can notify them.
 Every settled branch prompt releases any residual grant, so an omitted or failed acknowledgement leaves the durable row available to a later main drain; a successful acknowledgement has already removed it.
 An acknowledgement whose cutoff removes none of the actor's rows while a presented row above the cutoff still waits is reported as having acknowledged nothing, together with the exact `--ack-through` and `--recovery-generation` command for that presented row; the presented set is read before any re-claim, so a row that arrived after presentation is never named for unseen acknowledgement.
 If a branch offer loses the claim race to main, it rejects its settlement so the watcher retains the actionable close until Pi accepts its main follow-up.
@@ -133,6 +133,7 @@ It also covers generation-claim single-flight, stuck-claim supersession, superse
 The goal is continuity without a Pi, omp, or OpenCode model-memory re-arm step.
 No zero-latency guarantee is claimed because lock verification, watcher startup, and bounded retry delays remain deliberate safety work.
 OpenCode support targets persistent TUI sessions rather than headless `opencode run`.
-Claude depends on the Stop `asyncRewake` rewake, Cursor depends on its awaited stop-hook park, Grok retains native background-completion notifications, and Codex retains bounded foreground checkpoints.
+Claude depends on the Stop `asyncRewake` rewake, Cursor depends on its awaited stop-hook park, and Grok retains native background-completion notifications.
+For Codex's finite Stop lifetime and recovery limits, see the [Codex supervision protocol](supervision-protocols/codex.md).
 
-[`verification/supervision.md`](verification/supervision.md#watcher-continuity) records the current five-harness live evidence, the 2026-07-24 Stop-owned Claude auto-arm results, and exact opt-in commands.
+[`verification/supervision.md`](verification/supervision.md#watcher-continuity) records cross-harness live evidence and routes to the bounded native Codex evidence and refresh entry point.

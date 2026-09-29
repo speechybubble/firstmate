@@ -1594,10 +1594,11 @@ scan_signals() {
 
 # Deliver queued process-event results and captain inbox notes to firstmate.
 # Publication stays with bin/fm-procevent.sh and bin/fm-inbox.sh; this decides
-# only whether a queued check record has been
-# surfaced yet, then reports it through the same actionable exit every other wake
-# uses. Without it a captured result sits on the queue until something else
-# happens to wake firstmate, which is exactly the missed delivery this repairs.
+# only whether a queued check record has been surfaced yet, then reports it
+# through the same actionable exit every other wake uses. Handling successors
+# must notice new inbox rows without replaying main's already-presented claims;
+# interrupted handling stays with recovery, and note/queue acknowledgements
+# keep their separate owners. tests/fm-watch-triage.test.sh pins these races.
 # Dedup uses the same .seen-* discipline as scan_signals: the durable record is
 # always written before its marker, so nothing is suppressed before it is queued,
 # and re-announcement, drain-time deduplication, and the handled acknowledgement

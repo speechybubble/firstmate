@@ -48,9 +48,16 @@
 #     bounded snapshot.
 #   tasks[]: one row per task metadata record captured at snapshot start, sorted
 #     by id. A record removed before capture is omitted. If a captured task's
-#     generation changes while observations run, its selected metadata remains
-#     but mutable current-state, status, report, and endpoint evidence is discarded
-#     rather than attributed to the replacement generation.
+#     generation or worktree claim changes while observations run, its selected
+#     metadata remains but mutable current-state, status, report, and endpoint
+#     evidence is discarded rather than attributed to a replacement owner.
+#     ownership records the Treehouse claim from fm-treehouse-slot-lib.sh, or
+#     unavailable/changed evidence; a foreign or unsafe claim prevents runtime
+#     attribution, while an absent legacy claim is not proof of endpoint death.
+#     lifecycle separates structured task history from runtime state (see
+#     task_lifecycle_json). Completed retained metadata stays in this snapshot
+#     with raw observations, but is excluded from current-work projections in
+#     Fleet View, Bearings and home summaries; no teardown is implied.
 #     Local current_state is parsed from bin/fm-crew-state.sh <id> and preserves
 #     state, source, detail, and raw line separately. Remote secondmate rows use
 #     an explicit unknown value because their endpoint liveness belongs to
@@ -105,8 +112,14 @@
 #   contributions: cached owned-contribution coverage; fm-contributions.sh owns it.
 #   secondmate_guidance: return-channel action note for renderers and bearings.
 #
+# --secondmate-home-summary keeps completed_retained observations separately,
+# with the child-count/text bounds and omitted disclosures, so retained metadata
+# cannot crowd out current children or invalidate their inventory.
+# Full snapshots and home summaries read the completion archive; an archive
+# parse/read failure aborts rather than silently classifying retained work live.
 # --contribution-input prints only the canonical backlog/tasks ownership pair,
-# without worker observations or cross-home collection, for the home-local poll.
+# without archive reads, worker observations or cross-home collection, for the
+# home-local poll. tests/fm-observation-boundaries.test.sh covers these boundaries.
 # Compatibility: JSON is the primary machine-readable surface.
 # Human views must render this output instead of parsing state files again.
 set -u

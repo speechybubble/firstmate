@@ -196,9 +196,10 @@ fm_watcher_healthy() {
 #               spawns the replacement itself, so a genuinely unheld singleton lock
 #               is healthy during that hand-off only with extension ownership and a
 #               fresh beacon. Any held but unhealthy lock remains down.
-#   persistent  every other harness (codex foreground checkpoint, opencode/grok
-#               background arm, tmux, unknown): the watcher runs as a tracked live
-#               process, so a live identity-matched pid is the real liveness signal.
+#   persistent  every other harness: requires a live identity-matched watcher.
+#               Codex still uses this strict predicate even though its Stop owner
+#               starts between-turn cycles; a delivered notification alone must
+#               not certify continuing source coverage.
 # FM_SUPERVISION_MODEL overrides detection (tests, and callers that already know
 # the harness). Otherwise bin/fm-harness.sh is the single detection owner, so this
 # stays consistent with the harness-specific repair line the guards already emit.

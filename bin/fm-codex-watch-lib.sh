@@ -29,7 +29,9 @@ fm_codex_watch_owner_valid() {
   [ "$(jq -r .codex_home "$record")" = "$codex_home" ] || return 1
 }
 
-# Returns 0 with FM_CODEX_PENDING_SEQ > 0 only for a not-yet-notified row.
+# Returns 0 with FM_CODEX_PENDING_SEQ > 0 only for a not-yet-notified row,
+# 1 for no new row or lost ownership, and 2 for an unavailable queue snapshot.
+# Callers must surface 2 as failure, never silently treat contention as empty.
 fm_codex_watch_pending() {
   local record="$STATE/.codex-watch.lock/target.json" delivered="$STATE/.codex-watch-delivered" seq=0 previous=0 rc=0
   FM_CODEX_PENDING_SEQ=0

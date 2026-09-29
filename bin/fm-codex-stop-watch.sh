@@ -11,13 +11,16 @@
 # always the model's job. Unacked rows are not repeatedly notified in one native
 # generation. A later row gets a later watermark even during an ack race.
 #
-# Native delivery has two attempts of at most 15s. Failure leaves all rows and
-# an advisory for fm-guard.sh; no recursive wake, unbounded retry or fake ack.
+# Native delivery has two attempts of at most 15s. A successor waits up to 40s
+# for the prior hook owner without stealing its live lock. Queue snapshots wait
+# up to 5s under that owner; contention is not an empty queue. Exhausted waits
+# or delivery failure leave all rows and an advisory for fm-guard.sh; no recursive
+# wake, unbounded retry or fake ack.
 # AFK, scope/owner loss and native process reuse suppress delivery. A crash
 # after acceptance but before watermark commit can duplicate a notification,
 # never consume work. Acceptance can duplicate after a crash; it is not an ack.
-# The native hook timeout is 86400 seconds. There is no timeout-owned successor:
-# recovery requires a subsequent native turn, and hard kills may bypass traps.
+# docs/supervision-protocols/codex.md owns the configured hook lifetime, expiry
+# coverage gap, recovery requirements and native-evidence limits.
 set -u
 umask 077
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

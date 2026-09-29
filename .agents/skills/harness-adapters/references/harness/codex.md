@@ -23,9 +23,10 @@ The decision persists for the repository, so later worktrees of the same project
 ## Hook trust
 
 A second dialog, "Hooks need review - N hooks are new or changed", appears whenever the machine's `~/.codex/hooks.json` or a project's own `.codex/hooks.json` carries a hook Codex has not persisted trust for.
-In codex-cli 0.154.0 on Linux, the native Review hooks screen exposes `t` to trust its listed hooks; the parked-continuity lab verified that normal action activated the project hooks.
+For version-scoped normal review navigation, see [bounded native Codex evidence](../../../../../docs/verification/runtime-backends.md#codex-parked-turn-ownership-bounded-native-evidence).
 Use it only for the exact fixture or project whose trust review is authorized, then inspect the active counts and verify native execution.
-Older verified adapters lacked reachable review navigation, so crewmate/scout launches still disable project hooks through `bin/fm-spawn.sh`; this task does not broaden trust or change worker launch policy.
+Writing Codex's trust store would manufacture consent; `--dangerously-bypass-hook-trust` runs untrusted hooks rather than disabling them, so neither substitutes for normal review.
+Crewmate/scout launches still disable project hooks through `bin/fm-spawn.sh`; normal primary hook review does not broaden trust or change worker launch policy.
 Secondmates keep their own primary hooks and require normal review of new or changed entries.
 
 ## Skill popup
@@ -47,6 +48,5 @@ The Stop payload includes `cwd`, but the tracked hook does not use it to choose 
 Codex runs the Stop command with process PWD set to the hook-loaded project root, while no `CODEX_PROJECT_DIR`, `CODEX_WORKSPACE_ROOT`, or `CODEX_CWD` root variable is set.
 The tracked hook anchors to `pwd -P`, verifies that root is Firstmate-shaped and hook-bearing, and then invokes the guard with the original payload.
 
-Codex's native Stop-owned watcher protocol is owned by `../../../docs/supervision-protocols/codex.md` and `../../../bin/fm-codex-stop-watch.sh`.
-The bounded foreground checkpoint remains a missing-supervision repair fallback.
+Codex's watcher protocol, recovery and limits are owned by [the Codex supervision protocol](../../../../../docs/supervision-protocols/codex.md).
 Codex's PreToolUse watcher-arm seatbelt blocks directly through its project hook.

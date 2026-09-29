@@ -3,6 +3,11 @@
 # folder/hook trust only; private file-store ChatGPT auth, removed in finally.
 # Set FM_HERDR_LAB_PROTECTED_SESSION explicitly and FM_CODEX_TEST_AUTH when the
 # local auth file is elsewhere. TMPDIR selects retained private fixture storage.
+# HERDR_LAB_HELPER selects an explicitly trusted guarded helper; unset uses the
+# repository's bin/fm-herdr-lab.sh. Evidence records the effective executable.
+# Provision/teardown keep the helper's own cleanup bounds, not the generic
+# subprocess deadline. Control discovery retains host HOME/XDG_CONFIG_HOME;
+# the Codex child and all fixture FM paths remain isolated.
 # No production lifecycle, operator queue/rearm, hook bypass or paid API.
 set -eu
 # shellcheck source=tests/lib.sh
