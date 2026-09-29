@@ -139,16 +139,17 @@ write_rows_file_locked() { # <target> <source>
   _fm_atomic_replace "$source" "$target"
 }
 
-claim_main_rows_locked() {
+claim_main_rows_locked() { # [ack-cutoff]: do not claim unseen rows beyond an acknowledgement
+  local cutoff=${1:-}
   DRAIN_TMP=$(mktemp "$STATE/.main-eligible-rows.tmp.XXXXXX") || return 1
-  awk -F '\t' -v branch="$ELIGIBLE_ROWS_FILE" -v main="$MAIN_ROWS_FILE" '
+  awk -F '\t' -v branch="$ELIGIBLE_ROWS_FILE" -v main="$MAIN_ROWS_FILE" -v cutoff="$cutoff" '
     BEGIN {
       while ((getline line < branch) > 0) reserved[line]=1
       while ((getline line < main) > 0) owned[line]=1
     }
     NF >= 5 && $2 ~ /^[0-9]+$/ {
       present[$2]=1
-      if (!($2 in reserved)) owned[$2]=1
+      if (!($2 in reserved) && (cutoff == "" || $2 <= cutoff)) owned[$2]=1
     }
     END { for (seq in owned) if (seq in present) print seq }
   ' "$FM_WAKE_QUEUE" | LC_ALL=C sort -n > "$DRAIN_TMP" || return 1
@@ -653,10 +654,11 @@ if [ -n "$ACK_THROUGH" ]; then
     # Preserve main's original whole-cutoff acknowledgement contract: rows may
     # arrive after presentation but before the printed ack runs, and a direct
     # or replayed main ack still owns every unreserved row through its cutoff.
-    # Claim again under the queue lock so those rows cannot be stranded merely
-    # because they were not present during the earlier drain. A live branch
-    # grant remains excluded by claim_main_rows_locked.
-    claim_main_rows_locked || exit 1
+    # Claim again only through that cutoff: later rows have not been presented
+    # and must remain available for notification by the handling successor.
+    # Existing presentation claims above the cutoff remain owned, and a live
+    # branch grant remains excluded by claim_main_rows_locked.
+    claim_main_rows_locked "$ACK_THROUGH" || exit 1
   fi
   if [ "$ACTOR" = branch ]; then
     # check-kind rows (inactive-outcome receipts, secondmate stall markers)

@@ -5072,6 +5072,43 @@ test_captain_inbox_claimed_and_handled() {
   pass "captain inbox: main claims and handled notes remain owned by their existing acknowledgements"
 }
 
+test_captain_inbox_late_append_after_drain() {
+  local dir state out pid first late before
+  dir=$(make_case captain-inbox-late-append); state="$dir/state"; out="$dir/watch.out"
+  first=$(captain_note "$dir" 'Presented captain note') || fail "first note failed"
+  FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/first.out" 2> "$dir/first.err" || fail "first drain failed"
+  assert_contains "$(cat "$dir/first.out")" "inbox:$first" "first note was not presented"
+  captain_note_ack "$dir" "$first" >/dev/null || fail "first note handling failed"
+  late=$(captain_note "$dir" 'Late unpresented captain note') || fail "late note failed"
+  assert_not_contains "$(cat "$dir/first.out")" "inbox:$late" "late note was already presented"
+  FM_HOME="$dir" ack_drain_err "$state" "$dir/first.err" || fail "first exact acknowledgement failed"
+  before=$(cat "$state/.wake-queue")
+  assert_contains "$before" "inbox:$late" "earlier acknowledgement consumed late row"
+  assert_not_contains "$before" "inbox:$first" "earlier acknowledgement left handled row"
+
+  FM_WATCH_HANDLING_SUCCESSOR=1 procevent_watch_bg "$dir" "$out"; pid=$!
+  if ! wait_for_exit "$pid" 100; then
+    reap "$pid"
+    fail "handling successor suppressed the unseen late note after acknowledgement"
+  fi
+  assert_contains "$(cat "$out")" "inbox:$late" "late notification missing"
+  assert_not_contains "$(cat "$out")" "inbox:$first" "handled note repeated"
+  [ -f "$state/inbox/$late.note" ] || fail "notification acknowledged the late note"
+  [ "$before" = "$(cat "$state/.wake-queue")" ] || fail "notification changed the late row"
+  FM_WATCH_HANDLING_SUCCESSOR=1 procevent_watch_bg "$dir" "$out.successor"; pid=$!
+  wait_poll_cycle "$state" "$pid" || { reap "$pid"; fail "late notification repeated on successor"; }
+  reap "$pid"
+  [ ! -s "$out.successor" ] || fail "late notification was duplicated"
+
+  FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/late.out" 2> "$dir/late.err" || fail "late drain failed"
+  assert_contains "$(cat "$dir/late.out")" "inbox:$late" "late row could not be presented"
+  captain_note_ack "$dir" "$late" >/dev/null || fail "late note handling failed"
+  FM_HOME="$dir" ack_drain_err "$state" "$dir/late.err" || fail "late exact acknowledgement failed"
+  [ ! -s "$state/.wake-queue" ] || fail "late acknowledgement left queued rows"
+  [ -f "$state/inbox/handled/$late.note" ] || fail "late note was not handled"
+  pass "captain inbox: a late append survives the earlier ack and notifies once before exact handling"
+}
+
 test_captain_inbox_mixed_and_duplicate() {
   local dir state out pid id before
   dir=$(make_case captain-inbox-mixed); state="$dir/state"; out="$dir/watch.out"
@@ -5652,6 +5689,7 @@ test_terminal_first_sight_drops_a_finished_write_deferral_chain
 test_triage_log_size_cap_accepts_spaced_wc_counts
 test_captain_inbox_successors
 test_captain_inbox_claimed_and_handled
+test_captain_inbox_late_append_after_drain
 test_captain_inbox_mixed_and_duplicate
 test_captain_inbox_output_failure_replays
 test_captain_inbox_ack_race
