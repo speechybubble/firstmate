@@ -94,6 +94,9 @@
 #      backend's pane busy state, then the resolved status declaration
 #      when its verb maps to a recognized run-state. Decision-only events such as
 #      `resolved` never become current state or detail.
+#      Unknown semantics stay unknown; a readable endpoint with a matching
+#      ownership claim may disclose proven agent absence as diagnostic detail
+#      only, without adopting the failed-capture recovery wording below.
 #   5. Missing meta or torn-down worktree: report unknown · none. If no run is
 #      attributed to this crew, a dead endpoint also reports unknown · none rather
 #      than trusting a stale status log. On tmux and herdr, which own a
@@ -989,7 +992,9 @@ fi
 # verdict reports unknown rather than trusting a possibly-stale status log as
 # the current state.
 [ -n "$BACKEND_TARGET" ] || emit unknown none "no backend target recorded"
+PANE_READABLE=1
 if ! pane_readable "$BACKEND_TARGET"; then
+  PANE_READABLE=0
   # A failed probe is not itself evidence the pane is gone: the herdr CLI can
   # error or stall under load, and tmux can fail to be executed at all (a
   # trimmed PATH) or answer non-definitively, while the pane is alive - a busy
@@ -1048,7 +1053,23 @@ if [ "$KIND" != secondmate ]; then
   case "${BUSY_VERDICT%% *}" in
     busy) emit working pane "harness busy (${BUSY_VERDICT#* })" ;;
     idle) ;;
-    *) emit unknown pane "harness state unavailable ($BUSY_VERDICT)" ;;
+    *)
+      DETAIL="harness state unavailable ($BUSY_VERDICT)"
+      # Disclose positive absence on a readable, owned endpoint without changing
+      # semantic state or borrowing the unreadable-path recovery wording above.
+      # Missing claims and unsupported classifiers cannot establish attribution;
+      # emit rechecks the claim after this observation, as on every other path.
+      if [ "$PANE_READABLE" = 1 ] && [ "$INITIAL_OWNER_STATE" = mine ]; then
+        case "$TASK_BACKEND" in
+          tmux|herdr)
+            if [ "$(fm_backend_agent_state "$TASK_BACKEND" "$BACKEND_TARGET")" = dead ]; then
+              DETAIL="$DETAIL; no running agent observed (diagnostic only)"
+            fi
+            ;;
+        esac
+      fi
+      emit unknown pane "$DETAIL"
+      ;;
   esac
 fi
 

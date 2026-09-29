@@ -173,11 +173,18 @@ case "${1:-}" in
   list-windows)
     # A successful but empty inventory: it omits the crew's window, so absence
     # is proved by the answer rather than by an addressed call failing. Only
-    # reached once display-message has already failed.
+    # reached once display-message has already failed, except for the explicit
+    # readable-shell diagnostic fixture that supplies an exact window.
+    [ -z "${FM_FAKE_TMUX_WINDOW:-}" ] || printf '%s\n' "$FM_FAKE_TMUX_WINDOW"
     ;;
   display-message)
     [ "${FM_FAKE_TMUX_MISSING:-0}" = 1 ] && exit 1
-    printf '%%1\n' ;;
+    case "${FM_FAKE_TMUX_COMMAND:+set}:$*" in
+      set:*pane_current_command*)
+        [ -z "${FM_FAKE_TMUX_CLAIM:-}" ] || printf 'task=replacement\n' > "$FM_FAKE_TMUX_CLAIM"
+        printf '%s\n' "$FM_FAKE_TMUX_COMMAND" ;;
+      *) printf '%%1\n' ;;
+    esac ;;
   capture-pane)
     [ "${FM_FAKE_TMUX_MISSING:-0}" = 1 ] && exit 1
     if [ "${FM_FAKE_BUSY:-0}" = 1 ]; then printf 'work in progress\n%s\n' "${FM_FAKE_BUSY_TEXT:-esc to interrupt}"
@@ -256,7 +263,7 @@ make_no_timeout_toolbin() {  # <dir> -> echoes toolbin path
 # Run the helper for one case dir. FM_FAKE_* env (run output, busy flag) are read
 # from the caller's environment by the fakes above.
 run_crew_state() {  # <case-dir> <id>
-  PATH="$1/fakebin:$PATH" FM_STATE_OVERRIDE="$1/state" "$CREW_STATE" "$2"
+  PATH="$1/fakebin:$PATH" FM_HOME="$1" FM_STATE_OVERRIDE="$1/state" "$CREW_STATE" "$2"
 }
 
 new_case() {  # <name> -> echoes case dir with an empty state/
@@ -289,6 +296,7 @@ reset_fakes() {
   FM_FAKE_BUSY_TEXT=
   FM_FAKE_TMUX_MISSING=0
   FM_FAKE_TMUX_UNREADABLE=0
+  export FM_FAKE_TMUX_WINDOW='' FM_FAKE_TMUX_COMMAND='' FM_FAKE_TMUX_CLAIM=''
   FM_FAKE_HERDR_BUSY=0
   FM_FAKE_HERDR_MISSING=0
   FM_FAKE_HERDR_READ_FAIL=0
@@ -3527,6 +3535,103 @@ test_captured_completed_history() {
   pass 'captured completed status yields to synthetic subsequent development'
 }
 
+# A readable endpoint with unknown semantics can still have positive liveness
+# evidence. Disclose it without changing task state or granting recovery authority.
+test_readable_shell_diagnostic_preserves_unknown() {
+  reset_fakes
+  local d out absorb before live_snapshot shell_snapshot projection; d=$(new_case readable-shell)
+  make_repo_on_branch "$d/wt" fm/readable-shell
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/readable-shell.meta" "window=fixture:w1:p2" "worktree=$d/wt" \
+    "kind=ship" "backend=herdr" "harness=codex"
+  printf 'task=readable-shell\nhome=%s\n' "$d" > "$d/.fm-slot-owner"
+  printf 'needs-decision: [key=review] review remains held\n' > "$d/state/readable-shell.status"
+  before=$(cat "$d/state/readable-shell.status")
+  FM_FAKE_HERDR_HUSK=1
+  out=$(run_crew_state "$d" readable-shell)
+  printf 'readable shell observation: %s\n' "$out"
+  assert_contains "$out" 'state: unknown · source: pane' 'endpoint absence never classifies task progress'
+  assert_contains "$out" 'harness state unavailable (unknown codex-unverified)' 'semantic uncertainty stays explicit'
+  assert_contains "$out" 'no running agent observed (diagnostic only)' 'proven absence must be disclosed'
+  assert_not_contains "$out" 'backend target gone' 'diagnostic must not adopt recovery wording'
+  absorb=$(PATH="$d/fakebin:$PATH" FM_HOME="$d" FM_STATE_OVERRIDE="$d/state" \
+    FM_CREW_STATE_BIN="$CREW_STATE" crew_absorb_class readable-shell)
+  [ "$absorb" = none ] || fail 'unknown endpoint must still surface to watcher'
+  [ "$(cat "$d/state/readable-shell.status")" = "$before" ] || fail 'diagnostic changed held event'
+  assert_contains "$(status_open_decisions "$d/state/readable-shell.status" ship)" review 'diagnostic leaves keyed hold open'
+  # Change only agent evidence, then only ownership evidence.
+  FM_FAKE_HERDR_HUSK=0
+  FM_FAKE_HERDR_AGENT_STATUS=idle
+  out=$(run_crew_state "$d" readable-shell)
+  assert_not_contains "$out" 'no running agent observed' 'a live agent must not receive absence diagnostic'
+  # The real snapshot parser keeps holds and action suggestions independent of
+  # diagnostic detail. Compare both observations of the same held task.
+  mkdir -p "$d/data" "$d/config" "$d/projects"
+  printf 'manual\n' > "$d/config/backlog-backend"
+  printf '## In flight\n## Queued\n- [ ] readable-shell - Review (kind: ship) (hold: review) (hold-kind: captain)\n## Done\n' > "$d/data/backlog.md"
+  live_snapshot=$(PATH="$d/fakebin:$PATH" FM_HOME="$d" "$ROOT/bin/fm-fleet-snapshot.sh" --json)
+  FM_FAKE_HERDR_HUSK=1
+  shell_snapshot=$(PATH="$d/fakebin:$PATH" FM_HOME="$d" "$ROOT/bin/fm-fleet-snapshot.sh" --json)
+  printf '%s' "$shell_snapshot" | jq -e '.tasks[0] | .current_state.state == "unknown" and .lifecycle.state == "held" and (.current_state.detail | contains("no running agent observed"))' >/dev/null \
+    || fail 'snapshot lost the held unknown task or diagnostic'
+  projection='.tasks[0] | {state:.current_state.state,source:.current_state.source,lifecycle,actions,backlog,hints}'
+  [ "$(printf '%s' "$live_snapshot" | jq -c "$projection")" = "$(printf '%s' "$shell_snapshot" | jq -c "$projection")" ] \
+    || fail 'detail-only observation changed snapshot state, holds or actions'
+  FM_FAKE_HERDR_HUSK=0
+  FM_FAKE_HERDR_PROCESS=unreadable
+  out=$(run_crew_state "$d" readable-shell)
+  assert_not_contains "$out" 'no running agent observed' 'unreadable liveness is not absence'
+  FM_FAKE_HERDR_HUSK=1
+  rm "$d/.fm-slot-owner"
+  out=$(run_crew_state "$d" readable-shell)
+  assert_not_contains "$out" 'no running agent observed' 'legacy missing ownership is unverified'
+  printf 'task=replacement\n' > "$d/.fm-slot-owner"
+  out=$(run_crew_state "$d" readable-shell)
+  assert_contains "$out" 'source: ownership' 'foreign ownership blocks endpoint attribution'
+  assert_not_contains "$out" 'no running agent observed' 'foreign endpoint cannot be attributed'
+  printf 'task=readable-shell\ntask=replacement\n' > "$d/.fm-slot-owner"
+  out=$(run_crew_state "$d" readable-shell)
+  assert_contains "$out" 'source: ownership' 'ambiguous ownership blocks endpoint attribution'
+  printf 'task=readable-shell\nhome=%s\n' "$d" > "$d/.fm-slot-owner"
+  FM_FAKE_AXI_HOME="count: 1 of 1 total
+runs[1]{id,branch,status,head,pr}:
+  01RUN,fm/readable-shell,running,$FM_FAKE_RUN_HEAD,\"\""
+  FM_FAKE_AXI_STATUS="$(run_running fm/readable-shell)"
+  FM_FAKE_AXI_STATUS_RUN=$FM_FAKE_AXI_STATUS
+  out=$(run_crew_state "$d" readable-shell)
+  assert_contains "$out" 'state: working · source: run-step' 'active run outranks readable shell absence'
+  assert_not_contains "$out" 'no running agent observed' 'endpoint diagnostic cannot override a run'
+  assert_contains "$out" 'run: 01RUN' 'selected run identity survives absence'
+  FM_FAKE_AXI_STATUS_RUN="$(run_parked fm/readable-shell)"
+  out=$(run_crew_state "$d" readable-shell)
+  assert_contains "$out" 'state: parked · source: run-step' 'selected approval gate survives absence'
+  FM_FAKE_AXI_STATUS='' FM_FAKE_AXI_STATUS_RUN='' FM_FAKE_AXI_HOME=''
+  # The supported tmux reader applies the same detail-only boundary.
+  fm_write_meta "$d/state/readable-shell.meta" "window=fixture:fm-readable-shell" "worktree=$d/wt" \
+    "kind=ship" "backend=tmux" "harness=codex"
+  FM_FAKE_TMUX_WINDOW=fm-readable-shell
+  FM_FAKE_TMUX_COMMAND=bash
+  out=$(run_crew_state "$d" readable-shell)
+  assert_contains "$out" 'no running agent observed (diagnostic only)' 'tmux shell uses existing liveness proof'
+  FM_FAKE_TMUX_CLAIM="$d/.fm-slot-owner"
+  out=$(run_crew_state "$d" readable-shell)
+  assert_contains "$out" 'source: ownership' 'ownership race during liveness overrides absence'
+  assert_not_contains "$out" 'no running agent observed' 'changed claim suppresses diagnostic attribution'
+  FM_FAKE_TMUX_CLAIM=''
+  printf 'task=readable-shell\nhome=%s\n' "$d" > "$d/.fm-slot-owner"
+  FM_FAKE_TMUX_COMMAND=codex
+  out=$(run_crew_state "$d" readable-shell)
+  assert_not_contains "$out" 'no running agent observed' 'live tmux agent remains protected'
+  FM_FAKE_TMUX_COMMAND=node
+  out=$(run_crew_state "$d" readable-shell)
+  assert_not_contains "$out" 'no running agent observed' 'ambiguous tmux command is not absence'
+  FM_FAKE_TMUX_WINDOW=
+  out=$(run_crew_state "$d" readable-shell)
+  assert_not_contains "$out" 'no running agent observed' 'missing endpoint is not a readable shell observation'
+  pass 'readable shell disclosure preserves unknown state, ownership, active runs and holds'
+}
+
+test_readable_shell_diagnostic_preserves_unknown
 test_captured_axi_status_shapes
 test_captured_inventory_replay
 test_captured_authority_transition
