@@ -229,6 +229,14 @@
       "audience": "agent-runtime"
     },
     {
+      "path": ".agents/skills/product-experience/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": ".agents/skills/product-experience/references/experience-exercise.md",
+      "audience": "agent-runtime"
+    },
+    {
       "path": ".agents/skills/project-management/SKILL.md",
       "audience": "agent-runtime"
     },

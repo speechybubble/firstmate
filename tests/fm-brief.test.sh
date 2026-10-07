@@ -18,6 +18,10 @@ set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# Fixtures own their data/state paths, even when launched from a worker shell.
+# Individual cases set explicit overrides to exercise that public contract.
+unset FM_DATA_OVERRIDE FM_STATE_OVERRIDE
+
 TMP_ROOT=$(fm_test_tmproot fm-brief)
 BRIEF_HOME="$TMP_ROOT/home"
 mkdir -p "$BRIEF_HOME/data"
@@ -187,6 +191,51 @@ write_registry() {
 - direct-proj [direct-PR] - fixture for direct-PR mode (added 2026-07-01)
 - local-proj [local-only] - fixture for local-only mode (added 2026-07-01)
 EOF
+}
+
+# Exercise the generated entry point with a private home and a destination
+# project that has no skill copy. The tracked code root remains the owner.
+test_product_workflow_pointer_is_portable_and_worker_only() {
+  local product_home project mode id brief pointer count
+  product_home="$TMP_ROOT/product-home"
+  project="$TMP_ROOT/product-destination"
+  mkdir -p "$product_home/data" "$product_home/state" "$project"
+  for mode in no-mistakes direct-PR local-only scout; do
+    id="product-$mode"
+    if [ "$mode" = scout ]; then
+      FM_HOME="$product_home" FM_DATA_OVERRIDE="$product_home/data" FM_STATE_OVERRIDE="$product_home/state" \
+        "$ROOT/bin/fm-brief.sh" "$id" "$project" --scout --herdr-lab >/dev/null 2>&1 \
+        || fail "product scout did not scaffold"
+    else
+      FM_HOME="$product_home" FM_DATA_OVERRIDE="$product_home/data" FM_STATE_OVERRIDE="$product_home/state" \
+        "$ROOT/bin/fm-brief.sh" "$id" "$project" --mode "$mode" --herdr-lab >/dev/null 2>&1 \
+        || fail "product $mode did not scaffold"
+    fi
+    brief="$product_home/data/$id/brief.md"
+    # shellcheck disable=SC2016 # Backticks are literal Markdown path delimiters.
+    pointer=$(sed -n 's/.*read and follow `\([^`]*product-experience\/SKILL.md\)`.*/\1/p' "$brief")
+    assert_equals "$ROOT/.agents/skills/product-experience/SKILL.md" "$pointer" \
+      "$mode: pointer must resolve to the tracked code root, not FM_HOME or destination"
+    [ -r "$pointer" ] || fail "$mode: generated product pointer is unreadable"
+    count=$(grep -c '^# Product experience workflow$' "$brief")
+    assert_equals 1 "$count" "$mode: workflow must be emitted once"
+    assert_grep 'If this task changes a user or caller experience' "$brief" "$mode: missing conditional activation"
+    awk '/^\{FIRSTMATE_SPEC\}$/{task=NR} /^# Product experience workflow$/{product=NR} /^# Herdr isolation/{herdr=NR} END{exit !(task < product && product < herdr)}' "$brief" \
+      || fail "$mode: workflow must follow task instructions and precede safety sections"
+    assert_grep "$product_home/state/$id.inbox" "$brief" "$mode: steering inbox contract changed"
+    assert_grep '# Herdr isolation - HARD SAFETY CONTRACT' "$brief" "$mode: Herdr contract changed"
+    assert_grep "## Captain's intent" "$brief" "$mode: intent authoring contract changed"
+    if [ "$mode" != scout ]; then
+      assert_grep "Delivery contract: mode=$mode" "$brief" "$mode: delivery mode changed"
+    fi
+  done
+  FM_HOME="$product_home" FM_DATA_OVERRIDE="$product_home/data" FM_STATE_OVERRIDE="$product_home/state" FM_SECONDMATE_CHARTER='Synthetic domain' \
+    "$ROOT/bin/fm-brief.sh" product-charter --secondmate --no-projects >/dev/null 2>&1 \
+    || fail "product secondmate did not scaffold"
+  brief="$product_home/data/product-charter/brief.md"
+  assert_not_contains "$(cat "$brief")" 'product-experience' "secondmate must not receive a worker workflow"
+  assert_absent "$project/.agents/skills/product-experience/SKILL.md" "test destination unexpectedly contains the skill"
+  pass "fm-brief.sh: product pointer is readable across homes/modes and excludes supervisor charters"
 }
 
 # fm-brief.sh must exit 0 and produce a brief with no unreplaced shell
@@ -929,6 +978,7 @@ test_script_parses
 test_no_heredoc_in_command_substitution
 test_help_includes_entire_header
 test_ship_modes_generate_clean_briefs
+test_product_workflow_pointer_is_portable_and_worker_only
 test_ship_mode_is_required_and_closed_set
 test_ship_mode_is_explicit_not_registry
 test_delivery_flags_are_refused_where_they_do_not_apply

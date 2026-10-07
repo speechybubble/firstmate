@@ -68,6 +68,9 @@
 # it carries the AGENTS.md authoring bar (widely useful knowledge only, pointers
 # over copied detail) and defers self-governance recognition and insertion to
 # fm-ensure-agents-md.sh's contract.
+# Ship/scout briefs point eligible experience and explanation tasks at the
+# internal product-experience owner in the resolved tracked code root, even
+# when FM_HOME and the destination project live elsewhere.
 # Scaffolds carry no role scope: fm-spawn.sh supplies fm_brief_worker_role from
 # fm-dod-lib.sh to every ship/scout launch brief, so this file never becomes a
 # second owner of a contract that must stay current across relaunches.
@@ -358,6 +361,12 @@ IFS= read -r -d '' TASK_SECTION <<'EOF' || true
 EOF
 TASK_SECTION=${TASK_SECTION%$'\n'}
 
+IFS= read -r -d '' PRODUCT_SECTION <<EOF || true
+# Product experience workflow
+If this task changes a user or caller experience, compares interaction alternatives, creates a tutorial, or explains a material technical decision, read and follow \`$FM_ROOT/.agents/skills/product-experience/SKILL.md\`.
+EOF
+PRODUCT_SECTION=${PRODUCT_SECTION%$'\n'}
+
 if [ "$KIND" = scout ]; then
 if "$SCRIPT_DIR/fm-bootstrap.sh" lavish-compatible >/dev/null 2>&1; then
   LAVISH_LINE='If your deliverable is a visual artifact the captain will review and iterate on, you may host the Lavish review loop yourself (poll, revise, re-serve, staying alive) instead of handing it back to firstmate.'
@@ -368,6 +377,8 @@ cat > "$BRIEF" <<EOF
 You are a crewmate: an autonomous worker agent managed by firstmate. Work on your own; do not wait for a human.
 
 $TASK_SECTION
+
+$PRODUCT_SECTION
 
 $HERDR_SECTION
 
@@ -452,6 +463,8 @@ cat > "$BRIEF" <<EOF
 You are a crewmate: an autonomous worker agent managed by firstmate. Work on your own; do not wait for a human.
 
 $TASK_SECTION
+
+$PRODUCT_SECTION
 
 $HERDR_SECTION
 
