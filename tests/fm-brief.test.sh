@@ -18,6 +18,10 @@ set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# Every scaffold below belongs to a fixture home; inherited supervisor path
+# overrides must not redirect generated inbox/status paths to the live fleet.
+unset FM_HOME FM_ROOT_OVERRIDE FM_DATA_OVERRIDE FM_STATE_OVERRIDE
+
 TMP_ROOT=$(fm_test_tmproot fm-brief)
 BRIEF_HOME="$TMP_ROOT/home"
 mkdir -p "$BRIEF_HOME/data"
@@ -924,6 +928,64 @@ test_worker_role_scope() {
   pass "fm-brief: scaffolds leave the worker role scope to the launch boundary and keep the secondmate contract"
 }
 
+# Follow the generated worker entry point from a home distinct from the code
+# root, then use the existing launch parser to prove it cannot become intent.
+# This tests transport and discovery; semantic recall has a worked verification
+# record rather than a string-matching oracle.
+test_task_context_activation_and_intent_boundary() {
+  local home kind brief section intent spec skill intent_body spec_body
+  home="$TMP_ROOT/context-home"
+  skill="$ROOT/.agents/skills/task-context/SKILL.md"
+  intent='Retain the draft when retrying after a timeout.'
+  spec='Use the linked rejection report; keep the existing export behavior.'
+  # shellcheck source=bin/fm-dod-lib.sh
+  . "$ROOT/bin/fm-dod-lib.sh"
+  for kind in no-mistakes direct-PR local-only scout; do
+    if [ "$kind" = scout ]; then
+      FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" FM_DATA_OVERRIDE='' FM_STATE_OVERRIDE='' \
+        "$ROOT/bin/fm-brief.sh" "$kind" external-project --scout >/dev/null \
+        || fail "context: scout scaffold failed"
+    else
+      FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" FM_DATA_OVERRIDE='' FM_STATE_OVERRIDE='' \
+        "$ROOT/bin/fm-brief.sh" "$kind" external-project --mode "$kind" >/dev/null \
+        || fail "context: $kind scaffold failed"
+    fi
+    brief="$home/data/$kind/brief.md"
+    section=$(fm_brief_heading_body "$brief" '# Task context and learning')
+    assert_contains "$section" "\`$skill\`" "$kind: context entry point did not resolve against the code root"
+    assert_contains "$section" 'When earlier decisions' "$kind: pickup activation is not conditional"
+    assert_contains "$section" 'durable lesson' "$kind: learning admission lost its entry point"
+    [ -r "$skill" ] || fail "$kind: generated context skill cannot be read outside the fleet home"
+    assert_no_grep "$home/.agents/skills/task-context" "$brief" "$kind: skill resolved against the operational home"
+    fm_brief_task_placeholders_present "$brief" || fail "$kind: scaffold placeholders lost their ordinary meaning"
+    sed -e "s/{TASK}/$intent/" -e "s/{FIRSTMATE_SPEC}/$spec/" "$brief" > "$brief.filled"
+    fm_brief_task_content_valid "$brief.filled" || fail "$kind: filled brief is not valid for launch"
+    if fm_brief_task_placeholders_present "$brief.filled"; then
+      fail "$kind: filled brief still has task placeholders"
+    fi
+    intent_body=$(fm_brief_task_heading_body "$brief.filled" "## Captain's intent")
+    spec_body=$(fm_brief_task_heading_body "$brief.filled" '## Firstmate spec')
+    [ "$intent_body" = "$intent" ] || fail "$kind: context or specification leaked into authorized intent"
+    [ "$spec_body" = "$spec" ] || fail "$kind: context entry point leaked into the specification body"
+    assert_no_grep '# Task context and learning' <(fm_brief_heading_body "$brief.filled" '# Task') \
+      "$kind: workflow activation became task content"
+    if [ "$kind" != scout ]; then
+      assert_grep "Delivery contract: mode=$kind" "$brief" "$kind: context activation changed delivery mode"
+      assert_grep 'task-context learning disposition above' "$brief" "$kind: project memory did not use learning admission"
+    fi
+  done
+  FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" FM_DATA_OVERRIDE='' FM_STATE_OVERRIDE='' \
+    FM_SECONDMATE_CHARTER='Supervise assigned work.' \
+    "$ROOT/bin/fm-brief.sh" context-supervisor --secondmate --no-projects >/dev/null \
+    || fail "context: secondmate scaffold failed"
+  brief="$home/data/context-supervisor/brief.md"
+  assert_no_grep '# Task context and learning' "$brief" 'secondmate received worker context activation'
+  assert_grep 'persistent second mate' "$brief" 'secondmate lost its supervisor role'
+  assert_grep 'That file is your parent channel' "$brief" 'secondmate lost its return channel'
+  pass 'fm-brief: task context is reachable in every worker mode and stays outside intent and charters'
+}
+
+test_task_context_activation_and_intent_boundary
 test_worker_role_scope
 test_script_parses
 test_no_heredoc_in_command_substitution

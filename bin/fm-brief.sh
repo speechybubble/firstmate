@@ -68,6 +68,10 @@
 # it carries the AGENTS.md authoring bar (widely useful knowledge only, pointers
 # over copied detail) and defers self-governance recognition and insertion to
 # fm-ensure-agents-md.sh's contract.
+# Ship and scout scaffolds conditionally load the code-root task-context skill
+# for relevant task pickup and evidence-backed learning admission, outside # Task
+# so the pointer never becomes captain intent. Secondmate charters use their
+# own supervisor contract instead.
 # Scaffolds carry no role scope: fm-spawn.sh supplies fm_brief_worker_role from
 # fm-dod-lib.sh to every ship/scout launch brief, so this file never becomes a
 # second owner of a contract that must stay current across relaunches.
@@ -316,6 +320,14 @@ fi
 
 REPO=${POS[1]}
 
+# One context/learning entry point for both worker scaffold paths, independent
+# of the active FM_HOME and the project the worker will run in.
+IFS= read -r -d '' TASK_CONTEXT_SECTION <<EOF || true
+# Task context and learning
+When earlier decisions, corrections or domain context can change task pickup, or an explicit preference or correction, verified mistake or evidenced reusable success may warrant a durable lesson, read and follow \`$FM_ROOT/.agents/skills/task-context/SKILL.md\`.
+EOF
+TASK_CONTEXT_SECTION=${TASK_CONTEXT_SECTION%$'\n'}
+
 if [ "$HERDR_LAB" -eq 1 ]; then
 HERDR_LAB_HELPER=$(shell_quote "$FM_ROOT/bin/fm-herdr-lab.sh")
 # shellcheck disable=SC2016  # single quotes are deliberate: these lines are literal brief text whose backtick-wrapped $(...) and "$HERDR_LAB_SESSION" snippets must reach the reading agent verbatim, not expand at scaffold time; only the '"$VAR"' break-outs interpolate.
@@ -368,6 +380,8 @@ cat > "$BRIEF" <<EOF
 You are a crewmate: an autonomous worker agent managed by firstmate. Work on your own; do not wait for a human.
 
 $TASK_SECTION
+
+$TASK_CONTEXT_SECTION
 
 $HERDR_SECTION
 
@@ -453,6 +467,8 @@ You are a crewmate: an autonomous worker agent managed by firstmate. Work on you
 
 $TASK_SECTION
 
+$TASK_CONTEXT_SECTION
+
 $HERDR_SECTION
 
 # Setup
@@ -508,6 +524,7 @@ $INBOX_SECTION
 # Project memory
 If \`AGENTS.md\` or \`CLAUDE.md\` already exists, or if this task produced durable project-intrinsic knowledge, run \`$FM_ROOT/bin/fm-ensure-agents-md.sh .\` in the worktree.
 Record only project knowledge useful to almost every future session.
+For a candidate lesson, use the task-context learning disposition above before recording project memory.
 For anything the codebase already shows, prefer a pointer to the authoritative file, command, or doc over copying the detail.
 If you touch a project \`AGENTS.md\`, follow \`$FM_ROOT/bin/fm-ensure-agents-md.sh\`'s self-governance contract in the same pass.
 Keep it proportionate: skip \`AGENTS.md\` edits for trivial tasks that produced no durable project knowledge.
