@@ -63,6 +63,8 @@
 # Every scaffold also carries the steering-inbox receive-and-ack section:
 # process state/<id>.inbox/*.msg in order and acknowledge each by moving it to
 # handled/ (record, doorbell, and ladder owned by bin/fm-task-inbox-lib.sh).
+# Ordinary ship/scout tasks conditionally route task execution through the tracked
+# skill under FM_ROOT; secondmate charters retain their own supervisor contract.
 # Ship tasks include a project-memory section so durable project-intrinsic
 # learnings can be committed to AGENTS.md through the project's delivery path;
 # it carries the AGENTS.md authoring bar (widely useful knowledge only, pointers
@@ -358,6 +360,12 @@ IFS= read -r -d '' TASK_SECTION <<'EOF' || true
 EOF
 TASK_SECTION=${TASK_SECTION%$'\n'}
 
+IFS= read -r -d '' EXECUTION_SECTION <<EOF || true
+# Task execution
+When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow \`$FM_ROOT/.agents/skills/task-execution/SKILL.md\` before execution.
+EOF
+EXECUTION_SECTION=${EXECUTION_SECTION%$'\n'}
+
 if [ "$KIND" = scout ]; then
 if "$SCRIPT_DIR/fm-bootstrap.sh" lavish-compatible >/dev/null 2>&1; then
   LAVISH_LINE='If your deliverable is a visual artifact the captain will review and iterate on, you may host the Lavish review loop yourself (poll, revise, re-serve, staying alive) instead of handing it back to firstmate.'
@@ -368,6 +376,8 @@ cat > "$BRIEF" <<EOF
 You are a crewmate: an autonomous worker agent managed by firstmate. Work on your own; do not wait for a human.
 
 $TASK_SECTION
+
+$EXECUTION_SECTION
 
 $HERDR_SECTION
 
@@ -452,6 +462,8 @@ cat > "$BRIEF" <<EOF
 You are a crewmate: an autonomous worker agent managed by firstmate. Work on your own; do not wait for a human.
 
 $TASK_SECTION
+
+$EXECUTION_SECTION
 
 $HERDR_SECTION
 

@@ -18,6 +18,9 @@ set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# Each case owns its home and overrides; launcher paths must not leak into fixtures.
+unset FM_ROOT_OVERRIDE FM_DATA_OVERRIDE FM_STATE_OVERRIDE
+
 TMP_ROOT=$(fm_test_tmproot fm-brief)
 BRIEF_HOME="$TMP_ROOT/home"
 mkdir -p "$BRIEF_HOME/data"
@@ -924,6 +927,43 @@ test_worker_role_scope() {
   pass "fm-brief: scaffolds leave the worker role scope to the launch boundary and keep the secondmate contract"
 }
 
+test_task_execution_route() {
+  local home root kind brief route status
+  home="$TMP_ROOT/execution home with spaces"
+  root="$TMP_ROOT/tracked root with spaces"
+  mkdir -p "$root/.agents/skills"
+  ln -s "$ROOT/.agents/skills/task-execution" "$root/.agents/skills/task-execution"
+  for kind in no-mistakes direct-PR local-only scout; do
+    if [ "$kind" = scout ]; then
+      FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" FM_ROOT_OVERRIDE="$root" "$ROOT/bin/fm-brief.sh" "$kind" fixture --scout >/dev/null || fail "scout route scaffold failed"
+    else
+      FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" FM_ROOT_OVERRIDE="$root" "$ROOT/bin/fm-brief.sh" "$kind" fixture --mode "$kind" >/dev/null || fail "$kind route scaffold failed"
+    fi
+    brief="$home/data/$kind/brief.md"
+    # shellcheck disable=SC2016 # Match literal Markdown backticks, not command substitution.
+    route=$(sed -n 's/.*read and follow `\([^`]*\/task-execution\/SKILL.md\)`.*/\1/p' "$brief")
+    [ "$route" = "$root/.agents/skills/task-execution/SKILL.md" ] || fail "$kind route did not resolve through FM_ROOT"
+    [ -r "$route" ] && [ -s "$route" ] || fail "$kind emitted an unreadable workflow route"
+    cat "$route" > "$TMP_ROOT/$kind-loaded-skill.md" || fail "cannot load emitted workflow route"
+    cmp -s "$route" "$TMP_ROOT/$kind-loaded-skill.md" || fail "loaded route changed bytes"
+    assert_grep '{TASK}' "$brief" "$kind lost intent placeholder"
+    assert_grep '{FIRSTMATE_SPEC}' "$brief" "$kind lost spec placeholder"
+    assert_grep "$home/state/$kind.status" "$brief" "$kind lost isolated status"
+    assert_grep "$home/state/$kind.inbox" "$brief" "$kind lost isolated inbox"
+    assert_grep '# Herdr lifecycle declaration - NOT ENABLED' "$brief" "$kind lost safety gate"
+    if [ "$kind" != scout ]; then
+      assert_grep "Delivery contract: mode=$kind" "$brief" "$kind lost delivery contract"
+    fi
+  done
+  FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" "$ROOT/bin/fm-brief.sh" malformed fixture --mode unsupported >/dev/null 2>&1; status=$?
+  [ "$status" -ne 0 ] || fail "malformed mode succeeded"
+  assert_absent "$home/data/malformed/brief.md" "invalid mode wrote a successful artifact"
+  FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" FM_SECONDMATE_CHARTER=x "$ROOT/bin/fm-brief.sh" mate --secondmate --no-projects >/dev/null || fail "secondmate neighbor failed"
+  assert_no_grep '# Task execution' "$home/data/mate/brief.md" "worker procedure leaked into secondmate contract"
+  pass "fm-brief: eligible worker routes are readable with spaces and preserve neighboring contracts"
+}
+
+test_task_execution_route
 test_worker_role_scope
 test_script_parses
 test_no_heredoc_in_command_substitution

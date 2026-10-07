@@ -515,6 +515,30 @@
     {
       "path": "tests/captures/no-mistakes-v1.70.1/README.md",
       "audience": "maintainer-verification"
+    },
+    {
+      "path": ".agents/skills/task-execution/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": ".agents/skills/verify-firstmate-brief/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": ".agents/skills/verify-firstmate-brief/features/README.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": ".agents/skills/verify-firstmate-brief/features/invalid-mode.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": ".agents/skills/verify-firstmate-brief/features/scout.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": ".agents/skills/verify-firstmate-brief/features/ship.md",
+      "audience": "agent-runtime"
     }
   ]
 }
