@@ -113,6 +113,8 @@
 # Every scaffold also carries the steering-inbox receive-and-ack section:
 # process state/<id>.inbox/*.msg in order and acknowledge each by moving it to
 # handled/ (record, doorbell, and ladder owned by bin/fm-task-inbox-lib.sh).
+# Ordinary ship/scout tasks conditionally route task execution through the tracked
+# skill under FM_ROOT; secondmate charters retain their own supervisor contract.
 # Ship tasks include a project-memory section bounding crewmate edits to a
 # project's AGENTS.md/CLAUDE.md: only corrections of factually wrong
 # information, including wrong information the task itself introduced - never
@@ -627,6 +629,12 @@ Apply the matching method within this task; routine edits stay on their direct p
 EOF
 METHOD_SECTION=${METHOD_SECTION%$'\n'}
 
+IFS= read -r -d '' EXECUTION_SECTION <<EOF || true
+# Task execution
+When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow \`$FM_ROOT/.agents/skills/task-execution/SKILL.md\` before execution.
+EOF
+EXECUTION_SECTION=${EXECUTION_SECTION%$'\n'}
+
 if [ "$KIND" = scout ]; then
 if "$SCRIPT_DIR/fm-bootstrap.sh" lavish-compatible >/dev/null 2>&1; then
   LAVISH_LINE='If your deliverable is a visual artifact the captain will review and iterate on, use the lavish-axi rule: arm your board with bin/fm-procevent-lavish.sh arm <artifact.html> --for <task-id>; never run lavish-axi poll yourself. Re-arm with the reply after each nonterminal round to acknowledge it, route the board feedback through your steering inbox, write needs-decision [key=board-review] with the live board URL when the captain owes a decision, and stop at session_ended or an empty End without re-arming - acknowledge that final round with bin/fm-procevent.sh handled <source-id> <sequence> to conclude and retire your board.'
@@ -643,6 +651,8 @@ $TASK_CONTEXT_SECTION
 $PRODUCT_SECTION
 
 $METHOD_SECTION
+
+$EXECUTION_SECTION
 
 $HERDR_SECTION
 
@@ -720,6 +730,8 @@ $TASK_CONTEXT_SECTION
 $PRODUCT_SECTION
 
 $METHOD_SECTION
+
+$EXECUTION_SECTION
 
 $HERDR_SECTION
 

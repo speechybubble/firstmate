@@ -61,6 +61,19 @@ Repair the narrowest demonstrated owner: the body, discovery trigger, execution/
 Repeated failure alone does not justify another AGENTS rule, a wrapper, or actor rotation.
 When the remedy changes a material interface or ownership boundary, use [caller-first-design](../caller-first-design/SKILL.md) for the compact caller and invariant handoff.
 
+## Verify a plausible existing fix
+
+Before choosing new implementation, preserve each original report's identity, user symptom, environment and release, and supplied attachments.
+Check the existing assigned owner and concrete candidate artifact before starting competing work.
+Group reports only with causal evidence, not merely a shared topic.
+For a plausible patch, name exact baseline and candidate revisions and replay the same user action with the same environment and data, checking the positive expected state and relevant persistence.
+Record repeatability proportionately without compulsory repetitions or a statistical claim from a tiny sample.
+Without a failing baseline, the causal-fix claim remains inconclusive even when the candidate passes.
+Retain one disposition per original symptom: confirmed existing fix, insufficient fix, inconclusive reproduction, expected behavior with evidence, recurrence, or fixed-on-main/not-yet-released.
+Keep unrelated unresolved symptoms open.
+Distinguish main availability from availability in the reporter's release; a release gap is neither a new patch request nor release authority.
+This triage implies no external ticket or chat integration and no new issue creation.
+
 ## Scope and act on the result
 
 A diagnosis brief should ask for the reproduction, trigger/mask/symptom separation, divergent and proven path comparison, relevant history, smallest counterfactual, and disconfirming evidence in the report.
