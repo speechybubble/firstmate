@@ -10,7 +10,6 @@
 # fails, not just the generated brief. The DOD and Herdr-section builders now
 # use `IFS= read -r -d '' VAR <<EOF || true` instead, which removes the `$(...)`
 # wrapper and eliminates the whole defect class regardless of future prose.
-# test_no_heredoc_in_command_substitution guards that structure directly.
 # Ambient `bash -n` here is Bash 5 and cannot see the bug, so the real
 # cross-version enforcement lives in the macos-stock-bash CI job.
 set -u
@@ -18,156 +17,20 @@ set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# Every scaffold below belongs to a fixture home; inherited supervisor path
+# overrides must not redirect generated inbox/status paths to the live fleet.
+unset FM_HOME FM_ROOT_OVERRIDE FM_DATA_OVERRIDE FM_STATE_OVERRIDE
+
 TMP_ROOT=$(fm_test_tmproot fm-brief)
 BRIEF_HOME="$TMP_ROOT/home"
 mkdir -p "$BRIEF_HOME/data"
 
-# The script itself must always parse under the ambient bash. That is Bash 5 in
-# CI and locally, where the issue #958/#1069 parser bug does not fire, so this
-# is a weak guard on its own; test_no_heredoc_in_command_substitution and the
-# macos-stock-bash CI job carry the real cross-version enforcement.
 test_script_parses() {
   local out rc
   out=$(bash -n "$ROOT/bin/fm-brief.sh" 2>&1); rc=$?
   expect_code 0 "$rc" "bash -n bin/fm-brief.sh must parse cleanly (got: $out)"
   [ -z "$out" ] || fail "bash -n bin/fm-brief.sh emitted unexpected output: $out"
   pass "fm-brief.sh: bash -n succeeds"
-}
-
-# Structural class guard (issues #166, #958, #1069): never build a variable by
-# wrapping a heredoc in a command substitution (`VAR=$(cat <<EOF ... EOF)`).
-# That construct is what breaks Bash 3.2 parsing, and pinning one historical
-# apostrophe phrase (as the old test did) missed the #945 reintroduction. This
-# guards the *shape* directly against the whole file, so any future DOD or
-# section builder that reintroduces the class fails here regardless of prose.
-test_no_heredoc_in_command_substitution() {
-  local unsafe safe
-  unsafe="$TMP_ROOT/heredoc-in-substitution.sh"
-  safe="$TMP_ROOT/plain-heredoc.sh"
-  # shellcheck disable=SC2016 # Literal shell fixtures must remain unexpanded.
-  printf '%s\n' 'value=$(' '  cat <<EOF' 'body' 'EOF' ')' > "$unsafe"
-  # shellcheck disable=SC2016 # Literal shell fixtures must remain unexpanded.
-  printf '%s\n' 'cat <<EOF' '$(' '  cat <<INNER' 'INNER' ')' 'EOF' > "$safe"
-  if no_heredoc_in_command_substitution "$unsafe"; then
-    fail "structural guard accepted a multiline heredoc nested in a command substitution"
-  fi
-  no_heredoc_in_command_substitution "$safe" \
-    || fail "structural guard treated heredoc body prose as shell structure"
-  no_heredoc_in_command_substitution "$ROOT/bin/fm-brief.sh" \
-    || fail "fm-brief.sh wraps a heredoc in a command substitution (breaks Bash 3.2 parsing)"
-  pass "fm-brief.sh: no heredoc is nested inside a command substitution (Bash 3.2 parse-safe)"
-}
-
-no_heredoc_in_command_substitution() {
-  perl - "$1" <<'PERL'
-use strict;
-use warnings;
-
-my $path = shift;
-open my $source, '<', $path or die "$path: $!\n";
-my @frames;
-my @heredocs;
-my $quote = '';
-my $line_number = 0;
-
-while (my $line = <$source>) {
-  $line_number++;
-  if (@heredocs) {
-    my $candidate = $line;
-    $candidate =~ s/\r?\n\z//;
-    $candidate =~ s/^\t+// if $heredocs[0]{strip_tabs};
-    shift @heredocs if $candidate eq $heredocs[0]{delimiter};
-    next;
-  }
-
-  my $length = length $line;
-  for (my $i = 0; $i < $length; $i++) {
-    my $char = substr($line, $i, 1);
-    if ($quote eq "'") {
-      $quote = '' if $char eq "'";
-      next;
-    }
-    if ($char eq '\\') {
-      $i++;
-      next;
-    }
-    if ($quote eq '"' && $char eq '"') {
-      $quote = '';
-      next;
-    }
-    if ($char eq "'" && $quote eq '') {
-      $quote = "'";
-      next;
-    }
-    if ($char eq '"' && $quote eq '') {
-      $quote = '"';
-      next;
-    }
-    if ($char eq '#' && $quote eq '' && ($i == 0 || substr($line, $i - 1, 1) =~ /[\s;|&()]/)) {
-      last;
-    }
-    if ($char eq '$' && substr($line, $i + 1, 1) eq '(') {
-      push @frames, { depth => 1, quote => $quote };
-      $quote = '';
-      $i++;
-      next;
-    }
-    if (@frames && $quote eq '' && $char eq '(') {
-      $frames[-1]{depth}++;
-      next;
-    }
-    if (@frames && $quote eq '' && $char eq ')') {
-      $frames[-1]{depth}--;
-      if ($frames[-1]{depth} == 0) {
-        my $frame = pop @frames;
-        $quote = $frame->{quote};
-      }
-      next;
-    }
-    next unless $quote eq '' && $char eq '<' && substr($line, $i + 1, 1) eq '<';
-    if (@frames) {
-      print STDERR "$path:$line_number\n";
-      exit 1;
-    }
-
-    my $j = $i + 2;
-    my $strip_tabs = substr($line, $j, 1) eq '-';
-    $j++ if $strip_tabs;
-    $j++ while substr($line, $j, 1) =~ /[ \t]/;
-    my $delimiter = '';
-    my $delimiter_quote = '';
-    for (; $j < $length; $j++) {
-      my $token = substr($line, $j, 1);
-      if ($delimiter_quote) {
-        if ($token eq $delimiter_quote) {
-          $delimiter_quote = '';
-        } elsif ($token eq '\\' && $delimiter_quote eq '"') {
-          $j++;
-          $delimiter .= substr($line, $j, 1);
-        } else {
-          $delimiter .= $token;
-        }
-        next;
-      }
-      if ($token eq "'" || $token eq '"') {
-        $delimiter_quote = $token;
-        next;
-      }
-      if ($token eq '\\') {
-        $j++;
-        $delimiter .= substr($line, $j, 1);
-        next;
-      }
-      last if $token =~ /[\s;|&()<>]/;
-      $delimiter .= $token;
-    }
-    push @heredocs, { delimiter => $delimiter, strip_tabs => $strip_tabs };
-    $i = $j - 1;
-  }
-}
-
-exit 0;
-PERL
 }
 
 test_help_includes_entire_header() {
@@ -924,9 +787,66 @@ test_worker_role_scope() {
   pass "fm-brief: scaffolds leave the worker role scope to the launch boundary and keep the secondmate contract"
 }
 
+# Follow the generated worker entry point from a home distinct from the code
+# root, then use the existing launch parser to prove it cannot become intent.
+# This tests transport and discovery; semantic recall has a worked verification
+# record rather than a string-matching oracle.
+test_task_context_activation_and_intent_boundary() {
+  local home kind brief section intent spec skill intent_body spec_body
+  home="$TMP_ROOT/context-home"
+  skill="$ROOT/.agents/skills/task-context/SKILL.md"
+  intent='Retain the draft when retrying after a timeout.'
+  spec='Use the linked rejection report; keep the existing export behavior.'
+  # shellcheck source=bin/fm-dod-lib.sh
+  . "$ROOT/bin/fm-dod-lib.sh"
+  for kind in no-mistakes direct-PR local-only scout; do
+    if [ "$kind" = scout ]; then
+      FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" FM_DATA_OVERRIDE='' FM_STATE_OVERRIDE='' \
+        "$ROOT/bin/fm-brief.sh" "$kind" external-project --scout >/dev/null \
+        || fail "context: scout scaffold failed"
+    else
+      FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" FM_DATA_OVERRIDE='' FM_STATE_OVERRIDE='' \
+        "$ROOT/bin/fm-brief.sh" "$kind" external-project --mode "$kind" >/dev/null \
+        || fail "context: $kind scaffold failed"
+    fi
+    brief="$home/data/$kind/brief.md"
+    section=$(fm_brief_heading_body "$brief" '# Task context and learning')
+    assert_contains "$section" "\`$skill\`" "$kind: context entry point did not resolve against the code root"
+    assert_contains "$section" 'When earlier decisions' "$kind: pickup activation is not conditional"
+    assert_contains "$section" 'durable lesson' "$kind: learning admission lost its entry point"
+    [ -r "$skill" ] || fail "$kind: generated context skill cannot be read outside the fleet home"
+    assert_no_grep "$home/.agents/skills/task-context" "$brief" "$kind: skill resolved against the operational home"
+    fm_brief_task_placeholders_present "$brief" || fail "$kind: scaffold placeholders lost their ordinary meaning"
+    sed -e "s/{TASK}/$intent/" -e "s/{FIRSTMATE_SPEC}/$spec/" "$brief" > "$brief.filled"
+    fm_brief_task_content_valid "$brief.filled" || fail "$kind: filled brief is not valid for launch"
+    if fm_brief_task_placeholders_present "$brief.filled"; then
+      fail "$kind: filled brief still has task placeholders"
+    fi
+    intent_body=$(fm_brief_task_heading_body "$brief.filled" "## Captain's intent")
+    spec_body=$(fm_brief_task_heading_body "$brief.filled" '## Firstmate spec')
+    [ "$intent_body" = "$intent" ] || fail "$kind: context or specification leaked into authorized intent"
+    [ "$spec_body" = "$spec" ] || fail "$kind: context entry point leaked into the specification body"
+    assert_no_grep '# Task context and learning' <(fm_brief_heading_body "$brief.filled" '# Task') \
+      "$kind: workflow activation became task content"
+    if [ "$kind" != scout ]; then
+      assert_grep "Delivery contract: mode=$kind" "$brief" "$kind: context activation changed delivery mode"
+      assert_grep 'task-context learning disposition above' "$brief" "$kind: project memory did not use learning admission"
+    fi
+  done
+  FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" FM_DATA_OVERRIDE='' FM_STATE_OVERRIDE='' \
+    FM_SECONDMATE_CHARTER='Supervise assigned work.' \
+    "$ROOT/bin/fm-brief.sh" context-supervisor --secondmate --no-projects >/dev/null \
+    || fail "context: secondmate scaffold failed"
+  brief="$home/data/context-supervisor/brief.md"
+  assert_no_grep '# Task context and learning' "$brief" 'secondmate received worker context activation'
+  assert_grep 'persistent second mate' "$brief" 'secondmate lost its supervisor role'
+  assert_grep 'That file is your parent channel' "$brief" 'secondmate lost its return channel'
+  pass 'fm-brief: task context is reachable in every worker mode and stays outside intent and charters'
+}
+
+test_task_context_activation_and_intent_boundary
 test_worker_role_scope
 test_script_parses
-test_no_heredoc_in_command_substitution
 test_help_includes_entire_header
 test_ship_modes_generate_clean_briefs
 test_ship_mode_is_required_and_closed_set

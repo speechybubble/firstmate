@@ -253,6 +253,10 @@
       "audience": "agent-runtime"
     },
     {
+      "path": ".agents/skills/task-context/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
       "path": ".agents/skills/updatefirstmate/SKILL.md",
       "audience": "agent-runtime"
     },
@@ -486,6 +490,10 @@
     },
     {
       "path": "docs/verification/supervision.md",
+      "audience": "maintainer-verification"
+    },
+    {
+      "path": "docs/verification/task-context.md",
       "audience": "maintainer-verification"
     },
     {

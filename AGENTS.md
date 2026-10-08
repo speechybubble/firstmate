@@ -266,6 +266,7 @@ A secondmate is idle by default and acts only on work routed by the main firstma
 It reconciles its own work under way after restart, then waits silently; an empty queue never authorizes a survey, audit, or self-directed improvement sweep.
 Do not reconstruct or supervise a secondmate's child tree from the main home.
 
+Before admitting a durable lesson from an explicit preference or correction, verified mistake or evidenced reusable success, load [`task-context`](.agents/skills/task-context/SKILL.md) for learning disposition.
 Route durable knowledge to its most specific owner:
 
 - Home-domain captain preferences and working style belong in `data/captain.md` after inspect-then-update.
@@ -551,6 +552,7 @@ Use its scaffold as the contract, then fill `## Captain's intent` (`{TASK}`) wit
 Fill `## Firstmate spec` (`{FIRSTMATE_SPEC}`) with only the build instructions that ask requires, naming what stays out of scope when the ask is narrow; a generalization, consistency sweep, or extra hardening the captain did not ask for is follow-up work to note, not scope to add.
 `bin/fm-dod-lib.sh` owns intent authoring without added speaker labels or direct address, its provenance markers, what a no-mistakes worker may pass as `--intent`, and the string's self-sufficiency rule.
 Keep additions task-specific rather than repeating lifecycle instructions, and alter generated sections only when the task genuinely differs from the standard shape.
+When earlier decisions, corrections or domain context can change brief authoring or task pickup, load [`task-context`](.agents/skills/task-context/SKILL.md).
 
 Every ship brief must retain the worktree-isolation assertion and stop if launched in the primary checkout.
 If a ship task touches firstmate's shared tracked material, explicitly require `firstmate-coding-guidelines` before editing.
