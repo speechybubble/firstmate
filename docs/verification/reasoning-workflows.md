@@ -47,7 +47,8 @@ Those bounded exercises establish usable invocation, not a quantitative comparis
 
 `bin/fm-brief.sh` uses the same method section for each ordinary delivery mode and does not depend on a primary harness or runtime backend.
 The portable output checks exercise that common surface without starting an agent or lifecycle endpoint.
-Local parsing and the existing heredoc regression pass on the Bash version above; stock macOS Bash compatibility remains covered by the existing CI job.
+The [brief suite](../../tests/fm-brief.test.sh) checks ambient Bash parsing and executable scaffold output; it does not enforce heredoc source structure.
+Stock macOS Bash compatibility is checked by the `macos-stock-bash` job in [CI](../../.github/workflows/ci.yml), not established by the local Bash run above.
 Landing and supported fleet convergence are required before new live briefs receive the change.
 
 ## Required ancestry fixture compatibility
