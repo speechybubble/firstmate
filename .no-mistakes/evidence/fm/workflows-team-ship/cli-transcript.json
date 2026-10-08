@@ -1,0 +1,376 @@
+[
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "--help"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces",
+    "exit": 0,
+    "stdout": "Scaffold a crewmate brief or persistent secondmate charter at\ndata/<task-id>/brief.md under the active firstmate home.\nFor ordinary tasks, the standard Setup/Rules/Definition-of-done contract is\nfilled in. Ship and scout `# Task` sections have two subsections Firstmate\nfills before dispatch: `{TASK}` under `## Captain's intent` (the captain's\nown ask plus the context needed to read it, including the substance of any\nreport, decision, or PR the ask refers to, without added speaker labels or\ndirect address) and `{FIRSTMATE_SPEC}`\nunder `## Firstmate spec` (build instructions, which are never the captain's\nintent). bin/fm-dod-lib.sh owns the no-mistakes `--intent` contract those\nsubsections feed; bin/fm-spawn.sh refuses leftover placeholders and a\n`## Captain's intent` line opening with a Captain label or address. Secondmate\ncharters still use a single `{TASK}` charter fill. Firstmate may adjust other\nsections when the task genuinely deviates (e.g. working an existing external\nPR instead of shipping a new one).\nUsage: fm-brief.sh <task-id> <repo-name> --mode <no-mistakes|direct-PR|local-only> [--herdr-lab]\n       fm-brief.sh <task-id> <repo-name> --scout [--herdr-lab]\n       fm-brief.sh <task-id> --secondmate {<project>...|--no-projects}\n  --scout writes the scout contract instead: the deliverable is a report at\n  data/<task-id>/report.md (no branch, no push, no PR) and the worktree is scratch.\n  It offers the Lavish review loop only when `fm-bootstrap.sh lavish-compatible`\n  confirms the supported lavish-axi floor; otherwise it asks for a text report.\n  --secondmate writes a persistent secondmate charter. The project list\n  is cloned into the secondmate home, while the natural-language scope\n  tells the main firstmate when to route work there; routine churn stays in its own home;\n  captain-relevant escalations and marked from-firstmate replies append to this\n  home's status file.\n  --no-projects writes a project-less charter for a domain whose subject is the\n  firstmate repo itself (its home is a firstmate worktree, its crews take pooled\n  worktrees of the same repo). It is mutually exclusive with a project list, and\n  omitting both still fails loudly so an accidental omission is never silent.\n  Set FM_SECONDMATE_CHARTER='<charter>' to fill the charter text.\n  Set FM_SECONDMATE_SCOPE='<scope>' to write a routing scope distinct from the charter text.\n  --herdr-lab is mandatory when the task will issue Herdr lifecycle commands.\n  It adds the hard isolation contract backed by bin/fm-herdr-lab.sh.\n  The flag must be explicit because {TASK} and {FIRSTMATE_SPEC} are filled\n  after scaffolding and the caller-supplied repo string cannot reliably\n  identify this repo. Briefs made without it carry a loud declaration so an\n  omitted contract cannot be silent.\nFor ship tasks, --mode is REQUIRED and shapes the definition of done. Firstmate\nresolves it per task at intake (AGENTS.md section 7); data/projects.md holds the\ncaptain's standing posture as context, and this script never reads it:\n  no-mistakes  implement -> /no-mistakes pipeline -> PR -> configured merge authority\n  direct-PR    implement -> push + open PR via gh-axi (no pipeline) -> configured merge authority\n  local-only   implement on branch, stop and report \"ready in branch\" (no push/PR);\n               the configured merge authority approves, firstmate merges to local main\nno-mistakes-prod-only is a registry policy, not a task mode; resolve it to one of\nthe three concrete modes at intake before calling this script.\nThe generated ship brief records the chosen mode as a fixed machine-readable\n\"Delivery contract: mode=<mode>\" line. bin/fm-spawn.sh reads that line and refuses\nto launch a ship task whose explicit --mode disagrees, so an adjusted brief and the\nrecorded task metadata cannot drift apart.\nShip briefs begin with a worktree-isolation assertion before the branch step.\n--mode is refused on scout and secondmate scaffolds: a scout's deliverable is a\nreport rather than a merge, and a charter is not a delivery contract.\nThere is no --yolo flag here. The worker never owns merge decisions, so yolo is\na spawn-time and firstmate-side input only (AGENTS.md section 7).\nEvery scaffold's status protocol distinguishes the configured\ndeclared-external-wait verb (FM_CLASSIFY_PAUSED_VERB, default \"paused\") from\n\"blocked:\": pause for a known external wait expected to clear on its own,\nblocked when firstmate must act.\nEvery scaffold also carries the steering-inbox receive-and-ack section:\nprocess state/<id>.inbox/*.msg in order and acknowledge each by moving it to\nhandled/ (record, doorbell, and ladder owned by bin/fm-task-inbox-lib.sh).\nOrdinary ship/scout tasks conditionally route task execution through the tracked\nskill under FM_ROOT; secondmate charters retain their own supervisor contract.\nShip tasks include a project-memory section so durable project-intrinsic\nlearnings can be committed to AGENTS.md through the project's delivery path;\nit carries the AGENTS.md authoring bar (widely useful knowledge only, pointers\nover copied detail) and defers self-governance recognition and insertion to\nfm-ensure-agents-md.sh's contract.\nScaffolds carry no role scope: fm-spawn.sh supplies fm_brief_worker_role from\nfm-dod-lib.sh to every ship/scout launch brief, so this file never becomes a\nsecond owner of a contract that must stay current across relaunches.\nRefuses to overwrite an existing brief.\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "no-mistakes",
+      "fixture",
+      "--mode",
+      "no-mistakes"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces",
+    "exit": 0,
+    "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces/data/no-mistakes/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "no-mistakes",
+      "fixture",
+      "--mode",
+      "no-mistakes"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces/data/no-mistakes/brief.md already exists\n",
+    "persisted_result": "Existing brief unchanged byte-for-byte"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "direct-PR",
+      "fixture",
+      "--mode",
+      "direct-PR"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces",
+    "exit": 0,
+    "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces/data/direct-PR/brief.md (ship, mode=direct-PR; replace {TASK} and {FIRSTMATE_SPEC})\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "direct-PR",
+      "fixture",
+      "--mode",
+      "direct-PR"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces/data/direct-PR/brief.md already exists\n",
+    "persisted_result": "Existing brief unchanged byte-for-byte"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "local-only",
+      "fixture",
+      "--mode",
+      "local-only"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces",
+    "exit": 0,
+    "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces/data/local-only/brief.md (ship, mode=local-only; replace {TASK} and {FIRSTMATE_SPEC})\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "local-only",
+      "fixture",
+      "--mode",
+      "local-only"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces/data/local-only/brief.md already exists\n",
+    "persisted_result": "Existing brief unchanged byte-for-byte"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "scout",
+      "fixture",
+      "--scout"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces",
+    "exit": 0,
+    "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces/data/scout/brief.md (scout; replace {TASK} and {FIRSTMATE_SPEC})\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "scout",
+      "fixture",
+      "--scout"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces/data/scout/brief.md already exists\n",
+    "persisted_result": "Existing brief unchanged byte-for-byte"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "unsupported",
+      "fixture",
+      "--mode",
+      "unsupported"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: --mode must be one of no-mistakes, direct-PR, local-only (got 'unsupported')\n",
+    "persisted_result": "No brief artifact created"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "missing",
+      "fixture"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: ship briefs require --mode <no-mistakes|direct-PR|local-only>; resolve it at intake from the captain's instruction and the project's registered posture in data/projects.md\n",
+    "persisted_result": "No brief artifact created"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "conditional",
+      "fixture",
+      "--mode",
+      "no-mistakes-prod-only"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: no-mistakes-prod-only is a registry policy, not a task mode; classify this task's surface and resolve it to no-mistakes or direct-PR at intake\n",
+    "persisted_result": "No brief artifact created"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "scout-mode",
+      "fixture",
+      "--scout",
+      "--mode",
+      "direct-PR"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: --mode applies only to ship briefs; a scout delivers a report and a secondmate charter is not a delivery contract\n",
+    "persisted_result": "No brief artifact created"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "mate",
+      "--secondmate",
+      "--no-projects"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces",
+    "exit": 0,
+    "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/first home with spaces/data/mate/brief.md (secondmate charter; replace {TASK})\n",
+    "stderr": ""
+  },
+  {
+    "episode": "first",
+    "result": "All emitted routes readable; mode, intent, status, inbox, report and safety contracts preserved; refusals leave no successful artifact"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "--help"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces",
+    "exit": 0,
+    "stdout": "Scaffold a crewmate brief or persistent secondmate charter at\ndata/<task-id>/brief.md under the active firstmate home.\nFor ordinary tasks, the standard Setup/Rules/Definition-of-done contract is\nfilled in. Ship and scout `# Task` sections have two subsections Firstmate\nfills before dispatch: `{TASK}` under `## Captain's intent` (the captain's\nown ask plus the context needed to read it, including the substance of any\nreport, decision, or PR the ask refers to, without added speaker labels or\ndirect address) and `{FIRSTMATE_SPEC}`\nunder `## Firstmate spec` (build instructions, which are never the captain's\nintent). bin/fm-dod-lib.sh owns the no-mistakes `--intent` contract those\nsubsections feed; bin/fm-spawn.sh refuses leftover placeholders and a\n`## Captain's intent` line opening with a Captain label or address. Secondmate\ncharters still use a single `{TASK}` charter fill. Firstmate may adjust other\nsections when the task genuinely deviates (e.g. working an existing external\nPR instead of shipping a new one).\nUsage: fm-brief.sh <task-id> <repo-name> --mode <no-mistakes|direct-PR|local-only> [--herdr-lab]\n       fm-brief.sh <task-id> <repo-name> --scout [--herdr-lab]\n       fm-brief.sh <task-id> --secondmate {<project>...|--no-projects}\n  --scout writes the scout contract instead: the deliverable is a report at\n  data/<task-id>/report.md (no branch, no push, no PR) and the worktree is scratch.\n  It offers the Lavish review loop only when `fm-bootstrap.sh lavish-compatible`\n  confirms the supported lavish-axi floor; otherwise it asks for a text report.\n  --secondmate writes a persistent secondmate charter. The project list\n  is cloned into the secondmate home, while the natural-language scope\n  tells the main firstmate when to route work there; routine churn stays in its own home;\n  captain-relevant escalations and marked from-firstmate replies append to this\n  home's status file.\n  --no-projects writes a project-less charter for a domain whose subject is the\n  firstmate repo itself (its home is a firstmate worktree, its crews take pooled\n  worktrees of the same repo). It is mutually exclusive with a project list, and\n  omitting both still fails loudly so an accidental omission is never silent.\n  Set FM_SECONDMATE_CHARTER='<charter>' to fill the charter text.\n  Set FM_SECONDMATE_SCOPE='<scope>' to write a routing scope distinct from the charter text.\n  --herdr-lab is mandatory when the task will issue Herdr lifecycle commands.\n  It adds the hard isolation contract backed by bin/fm-herdr-lab.sh.\n  The flag must be explicit because {TASK} and {FIRSTMATE_SPEC} are filled\n  after scaffolding and the caller-supplied repo string cannot reliably\n  identify this repo. Briefs made without it carry a loud declaration so an\n  omitted contract cannot be silent.\nFor ship tasks, --mode is REQUIRED and shapes the definition of done. Firstmate\nresolves it per task at intake (AGENTS.md section 7); data/projects.md holds the\ncaptain's standing posture as context, and this script never reads it:\n  no-mistakes  implement -> /no-mistakes pipeline -> PR -> configured merge authority\n  direct-PR    implement -> push + open PR via gh-axi (no pipeline) -> configured merge authority\n  local-only   implement on branch, stop and report \"ready in branch\" (no push/PR);\n               the configured merge authority approves, firstmate merges to local main\nno-mistakes-prod-only is a registry policy, not a task mode; resolve it to one of\nthe three concrete modes at intake before calling this script.\nThe generated ship brief records the chosen mode as a fixed machine-readable\n\"Delivery contract: mode=<mode>\" line. bin/fm-spawn.sh reads that line and refuses\nto launch a ship task whose explicit --mode disagrees, so an adjusted brief and the\nrecorded task metadata cannot drift apart.\nShip briefs begin with a worktree-isolation assertion before the branch step.\n--mode is refused on scout and secondmate scaffolds: a scout's deliverable is a\nreport rather than a merge, and a charter is not a delivery contract.\nThere is no --yolo flag here. The worker never owns merge decisions, so yolo is\na spawn-time and firstmate-side input only (AGENTS.md section 7).\nEvery scaffold's status protocol distinguishes the configured\ndeclared-external-wait verb (FM_CLASSIFY_PAUSED_VERB, default \"paused\") from\n\"blocked:\": pause for a known external wait expected to clear on its own,\nblocked when firstmate must act.\nEvery scaffold also carries the steering-inbox receive-and-ack section:\nprocess state/<id>.inbox/*.msg in order and acknowledge each by moving it to\nhandled/ (record, doorbell, and ladder owned by bin/fm-task-inbox-lib.sh).\nOrdinary ship/scout tasks conditionally route task execution through the tracked\nskill under FM_ROOT; secondmate charters retain their own supervisor contract.\nShip tasks include a project-memory section so durable project-intrinsic\nlearnings can be committed to AGENTS.md through the project's delivery path;\nit carries the AGENTS.md authoring bar (widely useful knowledge only, pointers\nover copied detail) and defers self-governance recognition and insertion to\nfm-ensure-agents-md.sh's contract.\nScaffolds carry no role scope: fm-spawn.sh supplies fm_brief_worker_role from\nfm-dod-lib.sh to every ship/scout launch brief, so this file never becomes a\nsecond owner of a contract that must stay current across relaunches.\nRefuses to overwrite an existing brief.\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "no-mistakes",
+      "fixture",
+      "--mode",
+      "no-mistakes"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces",
+    "exit": 0,
+    "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces/data/no-mistakes/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "no-mistakes",
+      "fixture",
+      "--mode",
+      "no-mistakes"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces/data/no-mistakes/brief.md already exists\n",
+    "persisted_result": "Existing brief unchanged byte-for-byte"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "direct-PR",
+      "fixture",
+      "--mode",
+      "direct-PR"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces",
+    "exit": 0,
+    "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces/data/direct-PR/brief.md (ship, mode=direct-PR; replace {TASK} and {FIRSTMATE_SPEC})\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "direct-PR",
+      "fixture",
+      "--mode",
+      "direct-PR"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces/data/direct-PR/brief.md already exists\n",
+    "persisted_result": "Existing brief unchanged byte-for-byte"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "local-only",
+      "fixture",
+      "--mode",
+      "local-only"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces",
+    "exit": 0,
+    "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces/data/local-only/brief.md (ship, mode=local-only; replace {TASK} and {FIRSTMATE_SPEC})\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "local-only",
+      "fixture",
+      "--mode",
+      "local-only"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces/data/local-only/brief.md already exists\n",
+    "persisted_result": "Existing brief unchanged byte-for-byte"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "scout",
+      "fixture",
+      "--scout"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces",
+    "exit": 0,
+    "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces/data/scout/brief.md (scout; replace {TASK} and {FIRSTMATE_SPEC})\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "scout",
+      "fixture",
+      "--scout"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces/data/scout/brief.md already exists\n",
+    "persisted_result": "Existing brief unchanged byte-for-byte"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "unsupported",
+      "fixture",
+      "--mode",
+      "unsupported"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: --mode must be one of no-mistakes, direct-PR, local-only (got 'unsupported')\n",
+    "persisted_result": "No brief artifact created"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "missing",
+      "fixture"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: ship briefs require --mode <no-mistakes|direct-PR|local-only>; resolve it at intake from the captain's instruction and the project's registered posture in data/projects.md\n",
+    "persisted_result": "No brief artifact created"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "conditional",
+      "fixture",
+      "--mode",
+      "no-mistakes-prod-only"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: no-mistakes-prod-only is a registry policy, not a task mode; classify this task's surface and resolve it to no-mistakes or direct-PR at intake\n",
+    "persisted_result": "No brief artifact created"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "scout-mode",
+      "fixture",
+      "--scout",
+      "--mode",
+      "direct-PR"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: --mode applies only to ship briefs; a scout delivers a report and a secondmate charter is not a delivery contract\n",
+    "persisted_result": "No brief artifact created"
+  },
+  {
+    "command": [
+      "bin/fm-brief.sh",
+      "mate",
+      "--secondmate",
+      "--no-projects"
+    ],
+    "FM_HOME": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces",
+    "exit": 0,
+    "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DDZQ8SWVK6EK8PERYEZ132/.test-phase-scratch/live-f3r1et_b/reuse home with spaces/data/mate/brief.md (secondmate charter; replace {TASK})\n",
+    "stderr": ""
+  },
+  {
+    "episode": "reuse",
+    "result": "All emitted routes readable; mode, intent, status, inbox, report and safety contracts preserved; refusals leave no successful artifact"
+  }
+]

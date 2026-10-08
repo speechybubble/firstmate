@@ -1,0 +1,1 @@
+Both disposable episode homes removed. Generated CLI briefs and refusal transcript remain readable outside cleanup roots. No workers, backend sessions, or pipeline commands launched.
