@@ -184,6 +184,7 @@ Classify the deliverable:
 - Never both present a likely-enough solution and launch a parallel design exercise that is not expected to change it.
 - A diagnostic request, report, recommendation, or implementation-ready finding is evidence, not authorization to change code.
 - Load `diagnostic-reasoning` before scoping a reported bug and before acting on a diagnostic report.
+- Load `caller-first-design` before choosing or materially changing an interface or ownership boundary, an internal migration, or a repeated mechanical operation whose implementation remains uncertain.
 
 Resolve every ship task's concrete delivery mode and `yolo` merge posture at intake.
 Pass the mode explicitly to the brief, and pass both values explicitly to the spawn and any scout promotion; each command refuses to guess the values it consumes.

@@ -14,6 +14,12 @@
 # charters still use a single `{TASK}` charter fill. Firstmate may adjust other
 # sections when the task genuinely deviates (e.g. working an existing external
 # PR instead of shipping a new one).
+# Ordinary ship and scout briefs carry conditional method references from the
+# resolved absolute FM_ROOT code directory, independently of the private home
+# and target project. Workers select diagnosis for reported bugs and
+# caller-first design for uncertain material interfaces, migrations, or reuse;
+# the scaffold does not classify task text or impose a method on routine edits.
+# Secondmate charters keep their supervisor contract instead.
 # Usage: fm-brief.sh <task-id> <repo-name> --mode <no-mistakes|direct-PR|local-only> [--branch-prefix <prefix>] [--base-branch <branch>] [--forge <none|gerrit> [--shape squash]] [--herdr-lab]
 #        fm-brief.sh <task-id> <repo-name> --scout [--base-branch <branch>] [--herdr-lab]
 #        fm-brief.sh <task-id> --secondmate {<project>...|--no-projects}
@@ -178,7 +184,7 @@ resolve_directory_input() {
   printf '%s\n' "$resolved"
 }
 
-FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+FM_ROOT=$(resolve_directory_input FM_ROOT "${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}") || exit 1
 FM_HOME=$(resolve_directory_input FM_HOME "${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}") || exit 1
 if [ -n "${FM_DATA_OVERRIDE:-}" ]; then
   DATA=$(resolve_directory_input FM_DATA_OVERRIDE "$FM_DATA_OVERRIDE") || exit 1
@@ -605,6 +611,14 @@ else
   SETUP_BASE="You are in a disposable git worktree of $REPO, at a detached HEAD on a clean default branch."
 fi
 
+IFS= read -r -d '' METHOD_SECTION <<EOF || true
+# Conditional methods
+For reported bugs, load [diagnostic-reasoning](<$FM_ROOT/.agents/skills/diagnostic-reasoning/SKILL.md>) before scoping the bug or acting on a diagnostic report.
+Before choosing or materially changing an interface or ownership boundary, an internal migration, or a repeated mechanical operation whose implementation remains uncertain, load [caller-first-design](<$FM_ROOT/.agents/skills/caller-first-design/SKILL.md>).
+Apply the matching method within this task; routine edits stay on their direct path.
+EOF
+METHOD_SECTION=${METHOD_SECTION%$'\n'}
+
 if [ "$KIND" = scout ]; then
 if "$SCRIPT_DIR/fm-bootstrap.sh" lavish-compatible >/dev/null 2>&1; then
   LAVISH_LINE='If your deliverable is a visual artifact the captain will review and iterate on, use the lavish-axi rule: arm your board with bin/fm-procevent-lavish.sh arm <artifact.html> --for <task-id>; never run lavish-axi poll yourself. Re-arm with the reply after each nonterminal round to acknowledge it, route the board feedback through your steering inbox, write needs-decision [key=board-review] with the live board URL when the captain owes a decision, and stop at session_ended or an empty End without re-arming - acknowledge that final round with bin/fm-procevent.sh handled <source-id> <sequence> to conclude and retire your board.'
@@ -617,6 +631,8 @@ You are a crewmate: an autonomous worker agent managed by firstmate. Work on you
 $TASK_SECTION
 
 $TASK_CONTEXT_SECTION
+
+$METHOD_SECTION
 
 $HERDR_SECTION
 
@@ -690,6 +706,8 @@ You are a crewmate: an autonomous worker agent managed by firstmate. Work on you
 $TASK_SECTION
 
 $TASK_CONTEXT_SECTION
+
+$METHOD_SECTION
 
 $HERDR_SECTION
 
