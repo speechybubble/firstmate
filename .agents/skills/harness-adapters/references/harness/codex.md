@@ -49,4 +49,5 @@ Codex runs the Stop command with process PWD set to the hook-loaded project root
 The tracked hook anchors to `pwd -P`, verifies that root is Firstmate-shaped and hook-bearing, and then invokes the guard with the original payload.
 
 Codex's watcher protocol, recovery and limits are owned by [the Codex supervision protocol](../../../../../docs/supervision-protocols/codex.md).
+For configured supervision-host behavior during a checkpoint, see [the supervision-host contract](../../../../../docs/supervision-host.md).
 Codex's PreToolUse watcher-arm seatbelt blocks directly through its project hook.
