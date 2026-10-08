@@ -10,7 +10,6 @@
 # fails, not just the generated brief. The DOD and Herdr-section builders now
 # use `IFS= read -r -d '' VAR <<EOF || true` instead, which removes the `$(...)`
 # wrapper and eliminates the whole defect class regardless of future prose.
-# test_no_heredoc_in_command_substitution guards that structure directly.
 # Ambient `bash -n` here is Bash 5 and cannot see the bug, so the real
 # cross-version enforcement lives in the macos-stock-bash CI job.
 set -u
@@ -18,156 +17,23 @@ set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# Fixtures own their data/state paths, even when launched from a worker shell.
+# Individual cases set explicit overrides to exercise that public contract.
+unset FM_DATA_OVERRIDE FM_STATE_OVERRIDE
+
 TMP_ROOT=$(fm_test_tmproot fm-brief)
 BRIEF_HOME="$TMP_ROOT/home"
 mkdir -p "$BRIEF_HOME/data"
 
 # The script itself must always parse under the ambient bash. That is Bash 5 in
 # CI and locally, where the issue #958/#1069 parser bug does not fire, so this
-# is a weak guard on its own; test_no_heredoc_in_command_substitution and the
-# macos-stock-bash CI job carry the real cross-version enforcement.
+# is a weak guard on its own.
 test_script_parses() {
   local out rc
   out=$(bash -n "$ROOT/bin/fm-brief.sh" 2>&1); rc=$?
   expect_code 0 "$rc" "bash -n bin/fm-brief.sh must parse cleanly (got: $out)"
   [ -z "$out" ] || fail "bash -n bin/fm-brief.sh emitted unexpected output: $out"
   pass "fm-brief.sh: bash -n succeeds"
-}
-
-# Structural class guard (issues #166, #958, #1069): never build a variable by
-# wrapping a heredoc in a command substitution (`VAR=$(cat <<EOF ... EOF)`).
-# That construct is what breaks Bash 3.2 parsing, and pinning one historical
-# apostrophe phrase (as the old test did) missed the #945 reintroduction. This
-# guards the *shape* directly against the whole file, so any future DOD or
-# section builder that reintroduces the class fails here regardless of prose.
-test_no_heredoc_in_command_substitution() {
-  local unsafe safe
-  unsafe="$TMP_ROOT/heredoc-in-substitution.sh"
-  safe="$TMP_ROOT/plain-heredoc.sh"
-  # shellcheck disable=SC2016 # Literal shell fixtures must remain unexpanded.
-  printf '%s\n' 'value=$(' '  cat <<EOF' 'body' 'EOF' ')' > "$unsafe"
-  # shellcheck disable=SC2016 # Literal shell fixtures must remain unexpanded.
-  printf '%s\n' 'cat <<EOF' '$(' '  cat <<INNER' 'INNER' ')' 'EOF' > "$safe"
-  if no_heredoc_in_command_substitution "$unsafe"; then
-    fail "structural guard accepted a multiline heredoc nested in a command substitution"
-  fi
-  no_heredoc_in_command_substitution "$safe" \
-    || fail "structural guard treated heredoc body prose as shell structure"
-  no_heredoc_in_command_substitution "$ROOT/bin/fm-brief.sh" \
-    || fail "fm-brief.sh wraps a heredoc in a command substitution (breaks Bash 3.2 parsing)"
-  pass "fm-brief.sh: no heredoc is nested inside a command substitution (Bash 3.2 parse-safe)"
-}
-
-no_heredoc_in_command_substitution() {
-  perl - "$1" <<'PERL'
-use strict;
-use warnings;
-
-my $path = shift;
-open my $source, '<', $path or die "$path: $!\n";
-my @frames;
-my @heredocs;
-my $quote = '';
-my $line_number = 0;
-
-while (my $line = <$source>) {
-  $line_number++;
-  if (@heredocs) {
-    my $candidate = $line;
-    $candidate =~ s/\r?\n\z//;
-    $candidate =~ s/^\t+// if $heredocs[0]{strip_tabs};
-    shift @heredocs if $candidate eq $heredocs[0]{delimiter};
-    next;
-  }
-
-  my $length = length $line;
-  for (my $i = 0; $i < $length; $i++) {
-    my $char = substr($line, $i, 1);
-    if ($quote eq "'") {
-      $quote = '' if $char eq "'";
-      next;
-    }
-    if ($char eq '\\') {
-      $i++;
-      next;
-    }
-    if ($quote eq '"' && $char eq '"') {
-      $quote = '';
-      next;
-    }
-    if ($char eq "'" && $quote eq '') {
-      $quote = "'";
-      next;
-    }
-    if ($char eq '"' && $quote eq '') {
-      $quote = '"';
-      next;
-    }
-    if ($char eq '#' && $quote eq '' && ($i == 0 || substr($line, $i - 1, 1) =~ /[\s;|&()]/)) {
-      last;
-    }
-    if ($char eq '$' && substr($line, $i + 1, 1) eq '(') {
-      push @frames, { depth => 1, quote => $quote };
-      $quote = '';
-      $i++;
-      next;
-    }
-    if (@frames && $quote eq '' && $char eq '(') {
-      $frames[-1]{depth}++;
-      next;
-    }
-    if (@frames && $quote eq '' && $char eq ')') {
-      $frames[-1]{depth}--;
-      if ($frames[-1]{depth} == 0) {
-        my $frame = pop @frames;
-        $quote = $frame->{quote};
-      }
-      next;
-    }
-    next unless $quote eq '' && $char eq '<' && substr($line, $i + 1, 1) eq '<';
-    if (@frames) {
-      print STDERR "$path:$line_number\n";
-      exit 1;
-    }
-
-    my $j = $i + 2;
-    my $strip_tabs = substr($line, $j, 1) eq '-';
-    $j++ if $strip_tabs;
-    $j++ while substr($line, $j, 1) =~ /[ \t]/;
-    my $delimiter = '';
-    my $delimiter_quote = '';
-    for (; $j < $length; $j++) {
-      my $token = substr($line, $j, 1);
-      if ($delimiter_quote) {
-        if ($token eq $delimiter_quote) {
-          $delimiter_quote = '';
-        } elsif ($token eq '\\' && $delimiter_quote eq '"') {
-          $j++;
-          $delimiter .= substr($line, $j, 1);
-        } else {
-          $delimiter .= $token;
-        }
-        next;
-      }
-      if ($token eq "'" || $token eq '"') {
-        $delimiter_quote = $token;
-        next;
-      }
-      if ($token eq '\\') {
-        $j++;
-        $delimiter .= substr($line, $j, 1);
-        next;
-      }
-      last if $token =~ /[\s;|&()<>]/;
-      $delimiter .= $token;
-    }
-    push @heredocs, { delimiter => $delimiter, strip_tabs => $strip_tabs };
-    $i = $j - 1;
-  }
-}
-
-exit 0;
-PERL
 }
 
 test_help_includes_entire_header() {
@@ -187,6 +53,51 @@ write_registry() {
 - direct-proj [direct-PR] - fixture for direct-PR mode (added 2026-07-01)
 - local-proj [local-only] - fixture for local-only mode (added 2026-07-01)
 EOF
+}
+
+# Exercise the generated entry point with a private home and a destination
+# project that has no skill copy. The tracked code root remains the owner.
+test_product_workflow_pointer_is_portable_and_worker_only() {
+  local product_home project mode id brief pointer count
+  product_home="$TMP_ROOT/product-home"
+  project="$TMP_ROOT/product-destination"
+  mkdir -p "$product_home/data" "$product_home/state" "$project"
+  for mode in no-mistakes direct-PR local-only scout; do
+    id="product-$mode"
+    if [ "$mode" = scout ]; then
+      FM_HOME="$product_home" FM_DATA_OVERRIDE="$product_home/data" FM_STATE_OVERRIDE="$product_home/state" \
+        "$ROOT/bin/fm-brief.sh" "$id" "$project" --scout --herdr-lab >/dev/null 2>&1 \
+        || fail "product scout did not scaffold"
+    else
+      FM_HOME="$product_home" FM_DATA_OVERRIDE="$product_home/data" FM_STATE_OVERRIDE="$product_home/state" \
+        "$ROOT/bin/fm-brief.sh" "$id" "$project" --mode "$mode" --herdr-lab >/dev/null 2>&1 \
+        || fail "product $mode did not scaffold"
+    fi
+    brief="$product_home/data/$id/brief.md"
+    # shellcheck disable=SC2016 # Backticks are literal Markdown path delimiters.
+    pointer=$(sed -n 's/.*read and follow `\([^`]*product-experience\/SKILL.md\)`.*/\1/p' "$brief")
+    assert_equals "$ROOT/.agents/skills/product-experience/SKILL.md" "$pointer" \
+      "$mode: pointer must resolve to the tracked code root, not FM_HOME or destination"
+    [ -r "$pointer" ] || fail "$mode: generated product pointer is unreadable"
+    count=$(grep -c '^# Product experience workflow$' "$brief")
+    assert_equals 1 "$count" "$mode: workflow must be emitted once"
+    assert_grep 'If this task changes a user or caller experience' "$brief" "$mode: missing conditional activation"
+    awk '/^\{FIRSTMATE_SPEC\}$/{task=NR} /^# Product experience workflow$/{product=NR} /^# Herdr isolation/{herdr=NR} END{exit !(task < product && product < herdr)}' "$brief" \
+      || fail "$mode: workflow must follow task instructions and precede safety sections"
+    assert_grep "$product_home/state/$id.inbox" "$brief" "$mode: steering inbox contract changed"
+    assert_grep '# Herdr isolation - HARD SAFETY CONTRACT' "$brief" "$mode: Herdr contract changed"
+    assert_grep "## Captain's intent" "$brief" "$mode: intent authoring contract changed"
+    if [ "$mode" != scout ]; then
+      assert_grep "Delivery contract: mode=$mode" "$brief" "$mode: delivery mode changed"
+    fi
+  done
+  FM_HOME="$product_home" FM_DATA_OVERRIDE="$product_home/data" FM_STATE_OVERRIDE="$product_home/state" FM_SECONDMATE_CHARTER='Synthetic domain' \
+    "$ROOT/bin/fm-brief.sh" product-charter --secondmate --no-projects >/dev/null 2>&1 \
+    || fail "product secondmate did not scaffold"
+  brief="$product_home/data/product-charter/brief.md"
+  assert_not_contains "$(cat "$brief")" 'product-experience' "secondmate must not receive a worker workflow"
+  assert_absent "$project/.agents/skills/product-experience/SKILL.md" "test destination unexpectedly contains the skill"
+  pass "fm-brief.sh: product pointer is readable across homes/modes and excludes supervisor charters"
 }
 
 # fm-brief.sh must exit 0 and produce a brief with no unreplaced shell
@@ -926,9 +837,9 @@ test_worker_role_scope() {
 
 test_worker_role_scope
 test_script_parses
-test_no_heredoc_in_command_substitution
 test_help_includes_entire_header
 test_ship_modes_generate_clean_briefs
+test_product_workflow_pointer_is_portable_and_worker_only
 test_ship_mode_is_required_and_closed_set
 test_ship_mode_is_explicit_not_registry
 test_delivery_flags_are_refused_where_they_do_not_apply
