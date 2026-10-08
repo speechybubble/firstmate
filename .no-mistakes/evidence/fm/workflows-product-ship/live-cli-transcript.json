@@ -1,0 +1,115 @@
+{
+  "revision": "5dedbe907091cbc378bcedb3926b51b17462a6c9",
+  "resolved_skill": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.agents/skills/product-experience/SKILL.md",
+  "skill_sha256": "17503d6c1588c0fa493480f251aa98a02021ae8c64924593d659a1abacb7b618",
+  "commands": [
+    {
+      "command": [
+        "bin/fm-brief.sh",
+        "live-no-mistakes",
+        "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/destination",
+        "--mode",
+        "no-mistakes",
+        "--herdr-lab"
+      ],
+      "exit": 0,
+      "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/live-home/data/live-no-mistakes/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "bin/fm-brief.sh",
+        "live-direct-PR",
+        "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/destination",
+        "--mode",
+        "direct-PR",
+        "--herdr-lab"
+      ],
+      "exit": 0,
+      "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/live-home/data/live-direct-PR/brief.md (ship, mode=direct-PR; replace {TASK} and {FIRSTMATE_SPEC})\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "bin/fm-brief.sh",
+        "live-local-only",
+        "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/destination",
+        "--mode",
+        "local-only",
+        "--herdr-lab"
+      ],
+      "exit": 0,
+      "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/live-home/data/live-local-only/brief.md (ship, mode=local-only; replace {TASK} and {FIRSTMATE_SPEC})\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "bin/fm-brief.sh",
+        "live-scout",
+        "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/destination",
+        "--scout",
+        "--herdr-lab"
+      ],
+      "exit": 0,
+      "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/live-home/data/live-scout/brief.md (scout; replace {TASK} and {FIRSTMATE_SPEC})\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "bin/fm-brief.sh",
+        "live-charter",
+        "--secondmate",
+        "--no-projects"
+      ],
+      "exit": 0,
+      "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/live-home/data/live-charter/brief.md (secondmate charter)\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "bin/fm-brief.sh",
+        "tutorial",
+        "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/destination"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "error: ship briefs require --mode <no-mistakes|direct-PR|local-only>; resolve it at intake from the captain's instruction and the project's registered posture in data/projects.md\n"
+    },
+    {
+      "command": [
+        "bin/fm-brief.sh",
+        "tutorial",
+        "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/destination",
+        "--mode",
+        "local-only"
+      ],
+      "exit": 0,
+      "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/live-home/data/tutorial/brief.md (ship, mode=local-only; replace {TASK} and {FIRSTMATE_SPEC})\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "bin/fm-brief.sh",
+        "tutorial",
+        "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/destination",
+        "--mode",
+        "direct-PR"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "error: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/live-home/data/tutorial/brief.md already exists\n"
+    },
+    {
+      "command": [
+        "bin/fm-brief.sh",
+        "tutorial-recovery",
+        "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/destination",
+        "--mode",
+        "local-only"
+      ],
+      "exit": 0,
+      "stdout": "scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/live-home/data/tutorial-recovery/brief.md (ship, mode=local-only; replace {TASK} and {FIRSTMATE_SPEC})\n",
+      "stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "inherited_FM_DATA_OVERRIDE": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/poison/data",
+  "inherited_FM_STATE_OVERRIDE": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQVPC3WMSW92N41XQY4YRJ/.validation/poison/state",
+  "remaining_entries_after_both_targeted_runs": {
+    ".validation/poison/data": [],
+    ".validation/poison/state": []
+  }
+}
