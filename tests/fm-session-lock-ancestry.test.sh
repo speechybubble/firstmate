@@ -8,16 +8,50 @@
 # reports the kernel exec name and ignores argv[0] entirely. The end-to-end cases
 # run the REAL Stop auto-arm inside real process trees whose shapes differ only
 # in how the per-session process is named and what its parent is. Those trees are
-# orphaned before the hook fires, so the ancestry walk terminates inside the
-# fixture and can never escape into the session running this suite.
+# owned by this test's ordinary shell. The production ancestry walk must stop
+# at that non-harness gap, including when the host reparents orphans to a
+# subreaper rather than PID 1. Every fixture child is reaped before home cleanup.
 # shellcheck disable=SC2016 # single quotes are deliberate: $FM_HOME and $$ expand inside the fixture child
 set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# Every E2E case owns its home, code, state, and configuration paths.
+unset FM_HOME FM_ROOT_OVERRIDE FM_DATA_OVERRIDE FM_STATE_OVERRIDE FM_CONFIG_OVERRIDE
+
 TMP_ROOT=$(fm_test_tmproot fm-session-lock-ancestry)
 fm_git_identity fmtest fmtest@example.invalid
+
+FIXTURE_PID=
+
+# Only signal a still-owned direct child; never select by harness name.
+# This definition is copied into the session and daemon fixtures below so each
+# parent reaps its own child before its parent can remove the fixture home.
+stop_owned_fixture_child() {
+  local pid=${1:-} parent
+  [ -n "$pid" ] || return 0
+  parent=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+  if [ "$parent" = "$$" ]; then
+    kill -TERM "$pid" 2>/dev/null || true
+  fi
+  wait "$pid" 2>/dev/null || true
+}
+
+stop_fixture_tree() {
+  stop_owned_fixture_child "$FIXTURE_PID"
+  FIXTURE_PID=
+}
+
+cleanup_ancestry_fixtures() {
+  stop_fixture_tree
+  fm_test_cleanup
+}
+trap cleanup_ancestry_fixtures EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+trap 'exit 131' QUIT
 
 LIB="$ROOT/bin/fm-session-lock-lib.sh"
 
@@ -296,7 +330,7 @@ SH
 # gates both pass and only identity decides the outcome.
 make_primary_home() {  # <dir>
   local dir=$1
-  mkdir -p "$dir/state"
+  mkdir -p "$dir/state" "$dir/config"
   git init -q "$dir"
   git -C "$dir" commit -q --allow-empty -m init
   : > "$dir/AGENTS.md"
@@ -304,53 +338,82 @@ make_primary_home() {  # <dir>
   install_autoarm_scripts "$dir"
   # The process that fires the hook records its own pid as the session lock
   # owner, exactly as a real session does at session start.
-  cat > "$dir/session.sh" <<'SH'
-#!/usr/bin/env bash
-if [ "${FM_FIXTURE_ORPHAN_HERE:-0}" = 1 ]; then
-  i=0
-  while [ "$i" -lt 200 ] && [ "$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' ')" != 1 ]; do
-    sleep 0.05
-    i=$((i + 1))
-  done
-fi
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    declare -f stop_owned_fixture_child
+    cat <<'SH'
+hook_pid=
+trap 'stop_owned_fixture_child "$hook_pid"' EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+trap 'exit 129' HUP
 printf '%s\n' "$$" > "$FM_HOME/state/session-pid"
 printf '%s\n' "$$" > "$FM_HOME/state/.lock"
-"$FM_HOME/bin/fm-claude-stop-autoarm.sh" </dev/null > "$FM_HOME/state/hook.out" 2>&1
-printf '%s\n' "$?" > "$FM_HOME/state/hook.rc"
+# Exercise the real ancestry owner in this real process tree, not a stubbed ps.
+. "$FM_HOME/bin/fm-session-lock-lib.sh"
+fm_harness_ancestry_pids > "$FM_HOME/state/ancestry"
+"$FM_HOME/bin/fm-claude-stop-autoarm.sh" </dev/null > "$FM_HOME/state/hook.out" 2>&1 &
+hook_pid=$!
+printf '%s\n' "$hook_pid" > "$FM_HOME/state/hook-pid"
+wait "$hook_pid"
+hook_rc=$?
+hook_pid=
+printf '%s\n' "$hook_rc" > "$FM_HOME/state/hook.rc"
 SH
-  cat > "$dir/daemon.sh" <<'SH'
-#!/usr/bin/env bash
-i=0
-while [ "$i" -lt 200 ] && [ "$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' ')" != 1 ]; do
-  sleep 0.05
-  i=$((i + 1))
-done
+  } > "$dir/session.sh"
+  {
+    printf '%s\n' '#!/usr/bin/env bash'
+    declare -f stop_owned_fixture_child
+    cat <<'SH'
+session_pid=
+trap 'stop_owned_fixture_child "$session_pid"' EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+trap 'exit 129' HUP
 printf '%s\n' "$$" > "$FM_HOME/state/daemon-pid"
-"$FM_SESSION_BIN" "$FM_HOME/session.sh"
+"$FM_SESSION_BIN" "$FM_HOME/session.sh" &
+session_pid=$!
+wait "$session_pid"
+session_pid=
 exit 0
 SH
+  } > "$dir/daemon.sh"
   chmod +x "$dir/session.sh" "$dir/daemon.sh"
 }
 
-# Start the fixture tree detached from this suite's own process tree: the
-# launcher exits immediately, so the tree is reparented to init and the ancestry
-# walk terminates inside the fixture. Returns once the hook has recorded its exit
-# code.
-run_fixture_tree() {  # <dir> <session-bin> [<daemon-bin>]
-  local dir=$1 session_bin=$2 daemon_bin=${3:-} i
+start_fixture_tree() {  # <dir> <session-bin> [<daemon-bin>]
+  local dir=$1 session_bin=$2 daemon_bin=${3:-}
   if [ -n "$daemon_bin" ]; then
-    FM_HOME="$dir" FM_SESSION_BIN="$session_bin" FM_FIXTURE_ORPHAN_HERE=0 \
-      bash -c '"$0" "$1" &' "$daemon_bin" "$dir/daemon.sh"
+    FM_HOME="$dir" FM_STATE_OVERRIDE="$dir/state" FM_CONFIG_OVERRIDE="$dir/config" FM_SESSION_BIN="$session_bin" \
+      "$daemon_bin" "$dir/daemon.sh" &
   else
-    FM_HOME="$dir" FM_FIXTURE_ORPHAN_HERE=1 \
-      bash -c '"$0" "$1" &' "$session_bin" "$dir/session.sh"
+    FM_HOME="$dir" FM_STATE_OVERRIDE="$dir/state" FM_CONFIG_OVERRIDE="$dir/config" \
+      "$session_bin" "$dir/session.sh" &
   fi
+  FIXTURE_PID=$!
+}
+
+# Preserve the completion budget; the fixture starts immediately and has an
+# ordinary non-harness parent rather than waiting for a specific orphan adopter.
+run_fixture_tree() {  # <dir> <session-bin> [<daemon-bin>]
+  local dir=$1 i expected session_pid daemon_pid
+  start_fixture_tree "$@"
   i=0
   while [ "$i" -lt 400 ] && [ ! -s "$dir/state/hook.rc" ]; do
     sleep 0.05
     i=$((i + 1))
   done
   [ -s "$dir/state/hook.rc" ] || fail "the fixture hook never finished"
+  wait "$FIXTURE_PID" || fail "the fixture tree failed after hook completion"
+  FIXTURE_PID=
+  session_pid=$(cat "$dir/state/session-pid")
+  expected=$session_pid
+  if [ -s "$dir/state/daemon-pid" ]; then
+    daemon_pid=$(cat "$dir/state/daemon-pid")
+    expected=$(printf '%s\n%s' "$session_pid" "$daemon_pid")
+  fi
+  assert_equals "$expected" "$(cat "$dir/state/ancestry")" \
+    "real ancestry must contain exactly the fixture harness run and stop before the test shell"
 }
 
 hook_rc() {
@@ -404,6 +467,42 @@ test_e2e_daemon_parented_version_named_session_keeps_its_lock() {
   pass "session-lock e2e: a version-named session under a harness-named daemon keeps its own lock"
 }
 
+test_fixture_cleanup_reaps_before_removing_home() {
+  local dir i session_pid hook_pid root_pid
+  dir="$TMP_ROOT/e2e-cleanup"
+  make_primary_home "$dir"
+  # Hold only this fixture's hook to exercise termination while descendants
+  # still need their home. The stub is bounded even if its owner is interrupted.
+  cat > "$dir/bin/fm-claude-stop-autoarm.sh" <<'SH'
+#!/usr/bin/env bash
+trap 'printf "stopped\n" > "$FM_HOME/state/hook-stopped"; exit 0' TERM
+printf 'started\n' > "$FM_HOME/state/hook-started"
+i=0
+while [ "$i" -lt 200 ] && [ ! -e "$FM_HOME/state/release-hook" ]; do
+  sleep 0.05
+  i=$((i + 1))
+done
+SH
+  start_fixture_tree "$dir" "$VERSIONED_CLAUDE" "$NAMED_CLAUDE"
+  root_pid=$FIXTURE_PID
+  i=0
+  while [ "$i" -lt 400 ] && { [ ! -s "$dir/state/hook-started" ] || [ ! -s "$dir/state/hook-pid" ]; }; do
+    sleep 0.05
+    i=$((i + 1))
+  done
+  [ -s "$dir/state/hook-started" ] || fail "the cleanup fixture hook never started"
+  session_pid=$(cat "$dir/state/session-pid")
+  hook_pid=$(cat "$dir/state/hook-pid")
+  stop_fixture_tree
+  assert_present "$dir/state/hook-stopped" "fixture cleanup did not reach the owned hook before removing its home"
+  for i in "$root_pid" "$session_pid" "$hook_pid"; do
+    if kill -0 "$i" 2>/dev/null; then
+      fail "fixture cleanup left its owned process $i alive"
+    fi
+  done
+  pass "session-lock fixtures reap the owned daemon, session and hook before home cleanup"
+}
+
 test_version_named_session_is_identified_on_both_platforms
 test_harness_at_namespace_pid1_is_examined
 test_ordinary_paths_are_never_harness_processes
@@ -412,3 +511,4 @@ test_competing_version_named_session_is_seen_as_live
 test_e2e_version_named_session_claims_the_home
 test_e2e_daemon_parented_session_claims_the_home
 test_e2e_daemon_parented_version_named_session_keeps_its_lock
+test_fixture_cleanup_reaps_before_removing_home

@@ -129,6 +129,14 @@
       "audience": "agent-runtime"
     },
     {
+      "path": ".agents/skills/caller-first-design/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": ".agents/skills/caller-first-design/references/worked-example.md",
+      "audience": "agent-runtime"
+    },
+    {
       "path": ".agents/skills/captain-hold-lifecycle/SKILL.md",
       "audience": "agent-runtime"
     },
@@ -466,6 +474,10 @@
     },
     {
       "path": "docs/verification/public-followup.md",
+      "audience": "maintainer-verification"
+    },
+    {
+      "path": "docs/verification/reasoning-workflows.md",
       "audience": "maintainer-verification"
     },
     {

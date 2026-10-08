@@ -1,173 +1,24 @@
 #!/usr/bin/env bash
 # Behavior tests for bin/fm-brief.sh.
-#
-# Regression coverage for the heredoc-in-command-substitution parse bug (issues
-# #166, #958, #1069). Building a variable with `VAR=$(cat <<EOF ... EOF)` is
-# unsafe on Bash 3.2 (macOS /bin/bash): the lexer scans for the matching `)` of
-# the command substitution textually and tracks quote state through the heredoc
-# body, so a single apostrophe, unbalanced quote, or unbalanced paren anywhere
-# in that body breaks parsing of the *entire rest of the script* - `bash -n`
-# fails, not just the generated brief. The DOD and Herdr-section builders now
-# use `IFS= read -r -d '' VAR <<EOF || true` instead, which removes the `$(...)`
-# wrapper and eliminates the whole defect class regardless of future prose.
-# test_no_heredoc_in_command_substitution guards that structure directly.
-# Ambient `bash -n` here is Bash 5 and cannot see the bug, so the real
-# cross-version enforcement lives in the macos-stock-bash CI job.
 set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# A worker may inherit the supervising home's path overrides. Each case owns
+# its fixture home, and cases testing overrides set them explicitly.
+unset FM_ROOT_OVERRIDE FM_DATA_OVERRIDE FM_STATE_OVERRIDE
+
 TMP_ROOT=$(fm_test_tmproot fm-brief)
 BRIEF_HOME="$TMP_ROOT/home"
 mkdir -p "$BRIEF_HOME/data"
 
-# The script itself must always parse under the ambient bash. That is Bash 5 in
-# CI and locally, where the issue #958/#1069 parser bug does not fire, so this
-# is a weak guard on its own; test_no_heredoc_in_command_substitution and the
-# macos-stock-bash CI job carry the real cross-version enforcement.
 test_script_parses() {
   local out rc
   out=$(bash -n "$ROOT/bin/fm-brief.sh" 2>&1); rc=$?
   expect_code 0 "$rc" "bash -n bin/fm-brief.sh must parse cleanly (got: $out)"
   [ -z "$out" ] || fail "bash -n bin/fm-brief.sh emitted unexpected output: $out"
   pass "fm-brief.sh: bash -n succeeds"
-}
-
-# Structural class guard (issues #166, #958, #1069): never build a variable by
-# wrapping a heredoc in a command substitution (`VAR=$(cat <<EOF ... EOF)`).
-# That construct is what breaks Bash 3.2 parsing, and pinning one historical
-# apostrophe phrase (as the old test did) missed the #945 reintroduction. This
-# guards the *shape* directly against the whole file, so any future DOD or
-# section builder that reintroduces the class fails here regardless of prose.
-test_no_heredoc_in_command_substitution() {
-  local unsafe safe
-  unsafe="$TMP_ROOT/heredoc-in-substitution.sh"
-  safe="$TMP_ROOT/plain-heredoc.sh"
-  # shellcheck disable=SC2016 # Literal shell fixtures must remain unexpanded.
-  printf '%s\n' 'value=$(' '  cat <<EOF' 'body' 'EOF' ')' > "$unsafe"
-  # shellcheck disable=SC2016 # Literal shell fixtures must remain unexpanded.
-  printf '%s\n' 'cat <<EOF' '$(' '  cat <<INNER' 'INNER' ')' 'EOF' > "$safe"
-  if no_heredoc_in_command_substitution "$unsafe"; then
-    fail "structural guard accepted a multiline heredoc nested in a command substitution"
-  fi
-  no_heredoc_in_command_substitution "$safe" \
-    || fail "structural guard treated heredoc body prose as shell structure"
-  no_heredoc_in_command_substitution "$ROOT/bin/fm-brief.sh" \
-    || fail "fm-brief.sh wraps a heredoc in a command substitution (breaks Bash 3.2 parsing)"
-  pass "fm-brief.sh: no heredoc is nested inside a command substitution (Bash 3.2 parse-safe)"
-}
-
-no_heredoc_in_command_substitution() {
-  perl - "$1" <<'PERL'
-use strict;
-use warnings;
-
-my $path = shift;
-open my $source, '<', $path or die "$path: $!\n";
-my @frames;
-my @heredocs;
-my $quote = '';
-my $line_number = 0;
-
-while (my $line = <$source>) {
-  $line_number++;
-  if (@heredocs) {
-    my $candidate = $line;
-    $candidate =~ s/\r?\n\z//;
-    $candidate =~ s/^\t+// if $heredocs[0]{strip_tabs};
-    shift @heredocs if $candidate eq $heredocs[0]{delimiter};
-    next;
-  }
-
-  my $length = length $line;
-  for (my $i = 0; $i < $length; $i++) {
-    my $char = substr($line, $i, 1);
-    if ($quote eq "'") {
-      $quote = '' if $char eq "'";
-      next;
-    }
-    if ($char eq '\\') {
-      $i++;
-      next;
-    }
-    if ($quote eq '"' && $char eq '"') {
-      $quote = '';
-      next;
-    }
-    if ($char eq "'" && $quote eq '') {
-      $quote = "'";
-      next;
-    }
-    if ($char eq '"' && $quote eq '') {
-      $quote = '"';
-      next;
-    }
-    if ($char eq '#' && $quote eq '' && ($i == 0 || substr($line, $i - 1, 1) =~ /[\s;|&()]/)) {
-      last;
-    }
-    if ($char eq '$' && substr($line, $i + 1, 1) eq '(') {
-      push @frames, { depth => 1, quote => $quote };
-      $quote = '';
-      $i++;
-      next;
-    }
-    if (@frames && $quote eq '' && $char eq '(') {
-      $frames[-1]{depth}++;
-      next;
-    }
-    if (@frames && $quote eq '' && $char eq ')') {
-      $frames[-1]{depth}--;
-      if ($frames[-1]{depth} == 0) {
-        my $frame = pop @frames;
-        $quote = $frame->{quote};
-      }
-      next;
-    }
-    next unless $quote eq '' && $char eq '<' && substr($line, $i + 1, 1) eq '<';
-    if (@frames) {
-      print STDERR "$path:$line_number\n";
-      exit 1;
-    }
-
-    my $j = $i + 2;
-    my $strip_tabs = substr($line, $j, 1) eq '-';
-    $j++ if $strip_tabs;
-    $j++ while substr($line, $j, 1) =~ /[ \t]/;
-    my $delimiter = '';
-    my $delimiter_quote = '';
-    for (; $j < $length; $j++) {
-      my $token = substr($line, $j, 1);
-      if ($delimiter_quote) {
-        if ($token eq $delimiter_quote) {
-          $delimiter_quote = '';
-        } elsif ($token eq '\\' && $delimiter_quote eq '"') {
-          $j++;
-          $delimiter .= substr($line, $j, 1);
-        } else {
-          $delimiter .= $token;
-        }
-        next;
-      }
-      if ($token eq "'" || $token eq '"') {
-        $delimiter_quote = $token;
-        next;
-      }
-      if ($token eq '\\') {
-        $j++;
-        $delimiter .= substr($line, $j, 1);
-        next;
-      }
-      last if $token =~ /[\s;|&()<>]/;
-      $delimiter .= $token;
-    }
-    push @heredocs, { delimiter => $delimiter, strip_tabs => $strip_tabs };
-    $i = $j - 1;
-  }
-}
-
-exit 0;
-PERL
 }
 
 test_help_includes_entire_header() {
@@ -924,9 +775,66 @@ test_worker_role_scope() {
   pass "fm-brief: scaffolds leave the worker role scope to the launch boundary and keep the secondmate contract"
 }
 
+test_conditional_methods_resolve_from_code_root() {
+  local home code_root variant kind id brief
+  home="$TMP_ROOT/private home"
+  code_root="$TMP_ROOT/tracked code root"
+  mkdir -p "$home/data"
+  ln -s "$ROOT" "$code_root"
+  for variant in default override; do
+    for kind in no-mistakes direct-PR local-only scout; do
+      id="methods-$variant-$kind"
+      if [ "$kind" = scout ]; then
+        if [ "$variant" = override ]; then
+          FM_HOME="$home" FM_ROOT_OVERRIDE="$code_root" \
+            "$ROOT/bin/fm-brief.sh" "$id" arbitrary-project --scout >/dev/null || fail "method scout scaffold failed"
+        else
+          FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" arbitrary-project --scout >/dev/null || fail "method scout scaffold failed"
+        fi
+      else
+        if [ "$variant" = override ]; then
+          FM_HOME="$home" FM_ROOT_OVERRIDE="$code_root" \
+            "$ROOT/bin/fm-brief.sh" "$id" arbitrary-project --mode "$kind" >/dev/null || fail "method $kind scaffold failed"
+        else
+          FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" arbitrary-project --mode "$kind" >/dev/null || fail "method $kind scaffold failed"
+        fi
+      fi
+      brief="$home/data/$id/brief.md"
+      python3 - "$brief" "$kind" "$variant" "$ROOT" "$code_root" <<'PY' || fail "unusable conditional method references"
+from pathlib import Path
+import re
+import sys
+
+brief, kind, variant, root, override = sys.argv[1:]
+text = Path(brief).read_text()
+expected_root = Path(override if variant == "override" else root)
+section = text.split("# Conditional methods\n")[1].split("\n# ", 1)[0]
+links = re.findall(r"\[([^]]+)\]\(<([^>]+)>\)", section)
+assert len(links) == 2, links
+for name, target in links:
+    path = Path(target)
+    assert path.is_absolute() and path.is_file(), target
+    assert path == expected_root / ".agents" / "skills" / name / "SKILL.md", target
+assert text.index("## Firstmate spec") < text.index("# Conditional methods") < text.index("# Setup")
+assert "{TASK}" in text and "{FIRSTMATE_SPEC}" in text
+assert "routine edits stay on their direct path" in section
+if kind != "scout":
+    assert f"Delivery contract: mode={kind}" in text.splitlines()
+else:
+    assert "Delivery contract: mode=" not in text
+PY
+    done
+  done
+  FM_HOME="$home" FM_ROOT_OVERRIDE="$code_root" FM_SECONDMATE_CHARTER='Assigned scope.' \
+    "$ROOT/bin/fm-brief.sh" methods-secondmate --secondmate --no-projects >/dev/null || fail "method charter scaffold failed"
+  assert_no_grep '# Conditional methods' "$home/data/methods-secondmate/brief.md" \
+    "worker methods changed secondmate charter semantics"
+  pass "fm-brief: ship and scout method links use the code root across modes and paths with spaces"
+}
+
 test_worker_role_scope
+test_conditional_methods_resolve_from_code_root
 test_script_parses
-test_no_heredoc_in_command_substitution
 test_help_includes_entire_header
 test_ship_modes_generate_clean_briefs
 test_ship_mode_is_required_and_closed_set
