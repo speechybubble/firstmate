@@ -49,9 +49,10 @@ This skill does not expand source access or authorize unrestricted transcript mi
 1. Admit a candidate only from an explicit preference or correction, a verified mistake, or an evidenced reusable success.
    Read the existing owning instruction or record before choosing a change.
    A transient tool failure or lucky success is insufficient evidence for a standing lesson.
-2. For a correction, distinguish a missing or wrong instruction body, a missed trigger, noncompliance with adequate guidance, a structural defect, and an unknown cause.
-   Adequate existing guidance calls for correcting execution, not duplicating its rule; a missed trigger calls for fixing discovery at that owner.
-   Route structural defects to the existing repair owner, and keep an unknown cause qualified.
+2. For a correction, verified mistake or evidenced reusable success, classify the supported source or cause before choosing disposition: instruction body, activation trigger, execution, structural behavior, or unknown.
+   Use the supplied evidence and existing owner; stop when they suffice, and retain unknown rather than requiring a new investigation when attribution is unsupported.
+   For failures, distinguish missing or wrong guidance, missed discovery, noncompliance with adequate guidance and structural defects; correct execution without duplicating adequate rules, fix discovery at its owner, or route structural defects to the existing repair owner.
+   For successes, distinguish useful guidance, successful discovery, compliant execution and structural support; retain an existing adequate rule rather than duplicating it, and qualify any unsupported attribution.
    When actual causal investigation is needed, use [`diagnostic-reasoning`](../diagnostic-reasoning/SKILL.md) within the assigned scope.
 3. For a preference, preserve the user's words, scope and source.
    One explicit correction needs no repetition threshold; a temporary request stays task-local and inferred habits remain qualified.
