@@ -56,6 +56,17 @@ python3 editor.py export
 before and after: {"draft": "alpha", "exported": "alpha"}
 ```
 
+### Bounded success-classification walkthrough
+
+Applying learning disposition to the evidenced retry success above yields a reusable candidate: retain a draft through timeouts, then clear it only after acknowledged save, without changing export.
+The supplied report and before/after observations suffice for this decision; no further historical retrieval is needed.
+Instruction-body support is the retained rejection reason, activation support is the later brief's retrieval of that report, execution support is the worker's choice to preserve the draft, and structural support is the repaired editor behavior observed across timeout, success and export.
+These observations support those contributions, not an isolated causal ranking; their relative causal weight remains unknown without independent evidence.
+The disposition is duplicate at the existing synthetic report owner: retain its rejection reason and outcome rather than add another standing rule or skill.
+For the later related retry task, that retained fact selects draft preservation instead of autosave-before-retry; the current artifact check and observed timeout/success/export results above supply the caller-visible outcome and valid neighbor.
+This is a same-worker classification walkthrough of the supplied synthetic evidence, not another execution trial or proof of long-term learning.
+A lone successful save without timeout observations would leave the preservation lesson insufficiently evidenced, while a fresh unrelated edit still needs no recall.
+
 To repeat the semantic exercise, use a disposable home, generate a normal brief, provide a scoped correction and rejected-design record, and follow its skill pointer into an ordinary report.
 Generate a later related brief with that report and the current artifact, then record the retained fact, changed decision and caller-visible result, including a valid neighbor.
 Judge those semantic results directly; the behavior suite supplies no automated relevance or learning oracle.
