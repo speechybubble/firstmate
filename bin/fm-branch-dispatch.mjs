@@ -90,7 +90,10 @@ if (command === "scope") {
     else if (arg === "--afk") afk = true;
     else usage();
   }
-  process.stdout.write(scopeLines(dispatch.scopeForUnreadWake(stateDir(), heartbeat, afk), heartbeat));
+  const scope = await dispatch.scopeForUnreadWakeWithHolds(
+    stateDir(), heartbeat, root, process.env.FM_HOME || process.env.FM_ROOT_OVERRIDE || root, afk,
+  );
+  process.stdout.write(scopeLines(scope, heartbeat));
 } else if (command === "offer") {
   let afk = false;
   for (const arg of args) {
@@ -98,7 +101,11 @@ if (command === "scope") {
     else usage();
   }
   const message = readFileSync(0, "utf8").split(/\r?\n/)[0] ?? "";
-  const verdict = dispatch.branchOfferForWake(stateDir(), message, afk, true);
+  const scope = await dispatch.scopeForUnreadWakeWithHolds(
+    stateDir(), /^heartbeat($|:)/.test(message), root,
+    process.env.FM_HOME || process.env.FM_ROOT_OVERRIDE || root, afk, !afk,
+  );
+  const verdict = dispatch.branchOfferForWake(stateDir(), message, afk, true, scope);
   process.stdout.write(`eligible=${verdict.eligible ? 1 : 0}\n${scopeLines(verdict.scope, verdict.heartbeat)}`);
 } else if (command === "wake-prompt") {
   let report = "";

@@ -14,7 +14,7 @@ git init -q "$P"
 for script in fm-codex-stop-watch.sh fm-codex-watch-lib.sh fm-primary-scope-lib.sh fm-gate-refuse-lib.sh fm-session-lock-lib.sh fm-cursor-lib.sh fm-lock.sh fm-treehouse-slot-lib.sh fm-wake-lib.sh fm-timeout-lib.sh; do
   cp "$ROOT/bin/$script" "$P/bin/"
 done
-cp "$ROOT/bin/fm-supervision-lib.sh" "$P/bin/"
+cp "$ROOT/bin/fm-supervision-lib.sh" "$ROOT/bin/fm-supervision-engine-lib.sh" "$P/bin/"
 ln -s /bin/bash "$TMP_ROOT/native/codex"
 cat > "$P/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
@@ -95,6 +95,62 @@ hook
 SH
 "$TMP_ROOT/native/codex" "$TMP_ROOT/scenarios"
 pass 'Codex owner coalesces, observes late rows, preserves exact-ack custody and fails visibly outside the queue lock'
+
+cat > "$P/bin/fm-supervision-host.sh" <<'SH'
+#!/usr/bin/env bash
+[ "$1" = park ] && [ "$FM_SUPERVISION_HOST_PRIMARY" = codex ] || exit 90
+printf 'host\n' >> "$STATE/hosts"
+case "$(cat "$STATE/host-mode")" in
+  boundary) printf 'supervision-host: cycle boundary - end the turn\n' ;;
+  outcome)
+    . "$FM_HOME/bin/fm-wake-lib.sh"
+    fm_wake_append check outcome 'check: branch outcome'
+    printf 'supervision-host: outcome 1 for task [captain]: review required\n'
+    ;;
+  failed) exit 7 ;;
+  lost)
+    printf '99999999\n' > "$STATE/.lock"
+    printf 'supervision-host: cycle boundary\n'
+    ;;
+esac
+SH
+chmod +x "$P/bin/fm-supervision-host.sh"
+cat > "$TMP_ROOT/host-scenarios" <<'SH'
+set -eu
+printf '%s\n' "$$" > "$STATE/.lock"
+rm -f "$STATE/steal" "$STATE/.wake-queue" "$STATE/.codex-watch-delivered" "$STATE/deliveries"
+touch "$STATE/host-task.meta"
+payload='{"hook_event_name":"Stop","session_id":"01a0ed98-600a-7c81-98d6-56affd853dec"}'
+hook() { printf '%s\n' "$payload" | "$FM_HOME/bin/fm-codex-stop-watch.sh"; }
+printf 'claude\n' > "$FM_HOME/config/supervision-host"
+printf 'boundary\n' > "$STATE/host-mode"
+hook
+grep -q 'supervision-host: cycle boundary' "$STATE/deliveries"
+[ ! -e "$STATE/.codex-watch-delivered" ]
+printf 'outcome\n' > "$STATE/host-mode"
+hook
+grep -q 'review required' "$STATE/deliveries"
+[ -s "$STATE/.wake-queue" ]
+seq=$(jq .seq "$STATE/.codex-watch-delivered")
+printf 'boundary\n' > "$STATE/host-mode"
+hook
+[ "$(jq .seq "$STATE/.codex-watch-delivered")" = "$seq" ]
+[ "$(grep -c '^queue ' "$STATE/deliveries")" = 3 ]
+printf 'failed\n' > "$STATE/host-mode"
+if hook; then exit 21; fi
+[ -s "$STATE/.codex-watch-error" ]
+[ "$(grep -c '^queue ' "$STATE/deliveries")" = 3 ]
+touch "$FM_HOME/config/supervision-host-off"
+hook
+[ "$(wc -l < "$STATE/hosts" | tr -d ' ')" = 4 ]
+rm "$FM_HOME/config/supervision-host-off"
+printf 'lost\n' > "$STATE/host-mode"
+hook
+[ "$(grep -c '^queue ' "$STATE/deliveries")" = 3 ]
+rm "$FM_HOME/config/supervision-host" "$STATE/host-task.meta"
+SH
+"$TMP_ROOT/native/codex" "$TMP_ROOT/host-scenarios"
+pass 'Codex Stop honors host selection, delivers boundaries and outcomes, and suppresses lost-owner handoffs'
 
 # Force a real concurrent Stop while the preceding queue CLI still owns the
 # old hook lock. The native CLI is stubbed; drain/ack and lock ownership are real.

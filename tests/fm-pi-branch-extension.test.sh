@@ -2366,7 +2366,7 @@ const contract = (args) => {
 
 await fire("session_start", {});
 contract(["enter"]);
-writeFileSync(`${home}/state/.wake-queue`, "1\t1\tcheck\tmain-only\tcheck: task-d.check.sh: PR merged\n");
+writeFileSync(`${home}/state/.wake-queue`, "1\t1\tcheck\tmain-only\tcheck: task-d.check.sh: PR merged\n2\t2\tsignal\tbranch-driver.status\tsignal: branch-driver.status\n");
 contract(["archive"]);
 const offer = makeOffer("check: task-d.check.sh: PR merged", [], false, true, true);
 bus.emit("fm-branch-supervision:dispatch", offer);
@@ -5981,6 +5981,18 @@ for (const heartbeat of [false, true]) {
   if (JSON.stringify(scope.eligibleSeqs) !== '["3"]' ||
       JSON.stringify(scope.needsDecisionKeys) !== '["held-task.turn-ended","sess:fm-held-task"]') {
     throw new Error(`backlog hold failed to preserve independent routing: ${JSON.stringify(scope)}`);
+  }
+}
+for (const posture of [[], ["--afk"]]) {
+  for (const command of ["scope", "offer"]) {
+    const output = execFileSync(process.execPath, [`${root}/bin/fm-branch-dispatch.mjs`, command, ...posture], {
+      encoding: "utf8", input: "signal: routine.turn-ended\n",
+    });
+    const fields = Object.fromEntries(output.trim().split("\n").map((line) => line.split("=")));
+    if (fields.status !== "safe" || fields.rows !== "3" || fields.tasks !== "routine" ||
+        (command === "offer" && fields.eligible !== "1")) {
+      throw new Error(`CLI ${command} ${posture} failed independent hold routing: ${output}`);
+    }
   }
 }
 chmodSync(`${home}/data/backlog.md`, 0);

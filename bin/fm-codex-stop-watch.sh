@@ -98,9 +98,20 @@ fm_codex_watch_owner_valid || exit 0
 # shellcheck source=/dev/null
 [ ! -f "$CONFIG/x-mode.env" ] || . "$CONFIG/x-mode.env"
 OUT=$(mktemp "${TMPDIR:-/tmp}/fm-codex-stop.XXXXXX") || fail 'cannot create output file'
+HOST_NOTICE=
+. "$SCRIPT_DIR/fm-supervision-engine-lib.sh"
+if fm_supervision_host_enabled "$CONFIG" codex; then
+  FM_SUPERVISION_HOST_PRIMARY=codex "$SCRIPT_DIR/fm-supervision-host.sh" park > "$OUT" 2>&1
+  RC=$?
+  fm_codex_watch_owner_valid || exit 0
+  [ "$RC" -eq 0 ] || fail "supervision host exited $RC: $(tail -c 1024 "$OUT")"
+  grep -q '^supervision-host stood down:' "$OUT" && exit 0
+  HOST_NOTICE=$(grep -E '^(signal:|stale:|check:|heartbeat($|:)|supervision-host:)' "$OUT")
+  [ -n "$HOST_NOTICE" ] || fail 'supervision host exited without a handoff'
+fi
 fm_codex_watch_pending
 RC=$?
-if [ "$RC" -ne 0 ]; then
+if [ "$RC" -ne 0 ] && [ -z "$HOST_NOTICE" ]; then
   [ "$RC" -eq 1 ] || fail 'queue snapshot unavailable after bounded acquisition'
   "$SCRIPT_DIR/fm-watch-arm.sh" > "$OUT" 2>&1
   RC=$?
@@ -113,14 +124,19 @@ if [ "$RC" -ne 0 ]; then
   [ "$RC" -ne 1 ] || exit 0
   [ "$RC" -eq 0 ] || fail 'queue snapshot unavailable after bounded acquisition'
 fi
+[ "$RC" -eq 0 ] || [ "$RC" -eq 1 ] || fail 'queue snapshot unavailable after bounded acquisition'
 SEQ=$FM_CODEX_PENDING_SEQ
-MESSAGE='Firstmate Codex watcher: durable events await handling. Run bin/fm-wake-drain.sh, semantically handle its emitted events within existing authority and holds, then run the exact printed WAKE_ACK_REQUIRED command. Do not resume held work. The native Stop hook owns the next watcher; do not manually rearm it.'
+MESSAGE='Firstmate Codex watcher: supervision returned. Run bin/fm-wake-drain.sh, semantically handle its emitted events within existing authority and holds, then run any exact printed WAKE_ACK_REQUIRED command. Do not resume held work. The native Stop hook owns the next watcher; end the turn after handling this handoff, and do not manually rearm it.'
+[ -z "$HOST_NOTICE" ] || MESSAGE="$MESSAGE
+$HOST_NOTICE"
 for attempt in 1 2; do
   fm_codex_watch_owner_valid || exit 0
   if fm_run_timed 15 codex queue --thread "$THREAD" --message "$MESSAGE" > "$OUT" 2>&1; then
     fm_codex_watch_owner_valid || exit 0
-    jq --argjson seq "$SEQ" '{thread,native_identity,seq:$seq}' "$OWNER_LOCK/target.json" > "$OWNER_LOCK/delivered" || fail 'watermark write failed'
-    mv "$OWNER_LOCK/delivered" "$STATE/.codex-watch-delivered" || fail 'watermark commit failed'
+    if [ "$SEQ" -gt 0 ]; then
+      jq --argjson seq "$SEQ" '{thread,native_identity,seq:$seq}' "$OWNER_LOCK/target.json" > "$OWNER_LOCK/delivered" || fail 'watermark write failed'
+      mv "$OWNER_LOCK/delivered" "$STATE/.codex-watch-delivered" || fail 'watermark commit failed'
+    fi
     rm -f "$STATE/.codex-watch-error"
     exit 0
   fi

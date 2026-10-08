@@ -1514,6 +1514,9 @@ ${context.command}
         const afk = afkPostureRecordPresent(state);
         const scope = await scopeForUnreadWakeWithHolds(state, heartbeat, fmRoot, fmHome, afk);
         if (!(await actingAsOwner(acceptedGeneration))) throw new Error("supervision session no longer owns the fleet lock");
+        if (acceptedAwayOnly && !afk) {
+          throw new Error("accepted away-only wake is no longer branch-eligible");
+        }
         if (isNeedsDecisionTrigger(message, scope, afk)) {
           throw new Error("the accepted wake now requires a captain decision");
         }

@@ -3040,7 +3040,14 @@ function liveArmPids() {
     .map((arm) => arm.pid);
 }
 
+const legacyCoordinator = { receiver: null, pending: [], nextTokenId: 7, deliveries: new Map() };
+const handoff = `${process.env.FM_HOME}/state/extensions/pi-primary-watch/session-replacement-actionable.json`;
+globalThis.__firstmatePiWatchReplacements = new Map([[handoff, legacyCoordinator]]);
 const mod = await import(pathToFileURL(process.env.PLUGIN).href);
+if (globalThis.__firstmatePiWatchReplacements.get(handoff) !== legacyCoordinator ||
+    legacyCoordinator.nextTokenId !== 7 || legacyCoordinator.nextGenerationId !== 0) {
+  throw new Error("reload did not adopt the legacy coordinator intact");
+}
 
 const startup = makePi();
 mod.default(startup.pi);
