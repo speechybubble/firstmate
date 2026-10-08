@@ -18,6 +18,10 @@ set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# A worker may inherit the supervising home's path overrides. Each case owns
+# its fixture home, and cases testing overrides set them explicitly.
+unset FM_ROOT_OVERRIDE FM_DATA_OVERRIDE FM_STATE_OVERRIDE
+
 TMP_ROOT=$(fm_test_tmproot fm-brief)
 BRIEF_HOME="$TMP_ROOT/home"
 mkdir -p "$BRIEF_HOME/data"
@@ -924,7 +928,65 @@ test_worker_role_scope() {
   pass "fm-brief: scaffolds leave the worker role scope to the launch boundary and keep the secondmate contract"
 }
 
+test_conditional_methods_resolve_from_code_root() {
+  local home code_root variant kind id brief
+  home="$TMP_ROOT/private home"
+  code_root="$TMP_ROOT/tracked code root"
+  mkdir -p "$home/data"
+  ln -s "$ROOT" "$code_root"
+  for variant in default override; do
+    for kind in no-mistakes direct-PR local-only scout; do
+      id="methods-$variant-$kind"
+      if [ "$kind" = scout ]; then
+        if [ "$variant" = override ]; then
+          FM_HOME="$home" FM_ROOT_OVERRIDE="$code_root" \
+            "$ROOT/bin/fm-brief.sh" "$id" arbitrary-project --scout >/dev/null || fail "method scout scaffold failed"
+        else
+          FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" arbitrary-project --scout >/dev/null || fail "method scout scaffold failed"
+        fi
+      else
+        if [ "$variant" = override ]; then
+          FM_HOME="$home" FM_ROOT_OVERRIDE="$code_root" \
+            "$ROOT/bin/fm-brief.sh" "$id" arbitrary-project --mode "$kind" >/dev/null || fail "method $kind scaffold failed"
+        else
+          FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" arbitrary-project --mode "$kind" >/dev/null || fail "method $kind scaffold failed"
+        fi
+      fi
+      brief="$home/data/$id/brief.md"
+      python3 - "$brief" "$kind" "$variant" "$ROOT" "$code_root" <<'PY' || fail "unusable conditional method references"
+from pathlib import Path
+import re
+import sys
+
+brief, kind, variant, root, override = sys.argv[1:]
+text = Path(brief).read_text()
+expected_root = Path(override if variant == "override" else root)
+section = text.split("# Conditional methods\n")[1].split("\n# ", 1)[0]
+links = re.findall(r"\[([^]]+)\]\(<([^>]+)>\)", section)
+assert len(links) == 2, links
+for name, target in links:
+    path = Path(target)
+    assert path.is_absolute() and path.is_file(), target
+    assert path == expected_root / ".agents" / "skills" / name / "SKILL.md", target
+assert text.index("## Firstmate spec") < text.index("# Conditional methods") < text.index("# Setup")
+assert "{TASK}" in text and "{FIRSTMATE_SPEC}" in text
+assert "routine edits stay on their direct path" in section
+if kind != "scout":
+    assert f"Delivery contract: mode={kind}" in text.splitlines()
+else:
+    assert "Delivery contract: mode=" not in text
+PY
+    done
+  done
+  FM_HOME="$home" FM_ROOT_OVERRIDE="$code_root" FM_SECONDMATE_CHARTER='Assigned scope.' \
+    "$ROOT/bin/fm-brief.sh" methods-secondmate --secondmate --no-projects >/dev/null || fail "method charter scaffold failed"
+  assert_no_grep '# Conditional methods' "$home/data/methods-secondmate/brief.md" \
+    "worker methods changed secondmate charter semantics"
+  pass "fm-brief: ship and scout method links use the code root across modes and paths with spaces"
+}
+
 test_worker_role_scope
+test_conditional_methods_resolve_from_code_root
 test_script_parses
 test_no_heredoc_in_command_substitution
 test_help_includes_entire_header

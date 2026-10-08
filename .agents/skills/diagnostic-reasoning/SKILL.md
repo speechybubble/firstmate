@@ -37,11 +37,29 @@ Inspect the failing path and a proven path where the intended behavior is known 
 Compare their inputs, state transitions, dependencies, timing, and control flow to find the earliest meaningful divergence.
 Inspect relevant history, including blame, commits, migrations, and prior implementations, when it can explain why the paths diverged or which invariant was intended.
 Do not treat the most recent nearby change as causal without evidence.
+Separate how the path behaves from why its design was chosen: qualify rationale as explicit evidence, supported inference, or unknown.
+Missing history remains unknown; current code alone does not establish author intent.
 
 Identify the smallest counterfactual that should change the outcome if the leading explanation is true.
 Change one condition at a time where practical, and record whether the symptom appears, disappears, or remains unchanged.
 Seek disconfirming evidence deliberately: name what observation would falsify the leading explanation, run that check when feasible, and retain contradictory results instead of explaining them away.
 Compare the final explanation against the proven path and show why the proposed causal boundary accounts for both the failure and the success.
+Group sibling symptoms only when that causal account explains them; keep unrelated symptoms separate.
+If actor-role skew is a relevant hypothesis, compare the actor census and retain an even-census counterexample before attributing the failure to skew.
+
+## Choose the remedy at the causal owner
+
+For a workflow or instruction-related failure, distinguish the following explanations using the failing path and counterfactual evidence:
+
+- Missing or wrong instruction body: the loaded guidance cannot produce the required behavior.
+- Missed trigger: adequate guidance exists but was not loaded on the relevant path.
+- Execution failure: adequate guidance was loaded and the observed action ignored it.
+- Structural cause: ownership, state, or a boundary allows the error to recur despite adequate guidance.
+
+These explanations can coexist; identify which evidence supports each instead of choosing a label from the symptom alone.
+Repair the narrowest demonstrated owner: the body, discovery trigger, execution/recovery path, or structural boundary.
+Repeated failure alone does not justify another AGENTS rule, a wrapper, or actor rotation.
+When the remedy changes a material interface or ownership boundary, use [caller-first-design](../caller-first-design/SKILL.md) for the compact caller and invariant handoff.
 
 ## Scope and act on the result
 
@@ -51,3 +69,5 @@ Before acting on the report, verify that its claimed cause explains the end-user
 If a load-bearing element is missing, route a focused follow-up investigation instead of treating confidence or implementation detail as proof.
 A diagnosis or implementation-ready recommendation is evidence, not authorization to change code.
 Implementation still requires the captain's request or another existing lifecycle authority, and the reproduction should become the regression test when a fix is authorized.
+Before claiming systematic correction, exercise the original failure, a materially different case of its mechanism, a valid neighbor, and the actual workflow using the correction.
+Report deterministic prevention, detection/recovery, and remaining judgment dependence separately.
