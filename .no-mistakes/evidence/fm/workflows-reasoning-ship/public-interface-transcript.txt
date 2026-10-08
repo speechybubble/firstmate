@@ -1,0 +1,97 @@
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/bin/fm-brief.sh no-mistakes sample-project --mode no-mistakes
+scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/.test-phase/private home/data/no-mistakes/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})
+exit=0
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/bin/fm-brief.sh direct-PR sample-project --mode direct-PR
+scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/.test-phase/private home/data/direct-PR/brief.md (ship, mode=direct-PR; replace {TASK} and {FIRSTMATE_SPEC})
+exit=0
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/bin/fm-brief.sh local-only sample-project --mode local-only
+scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/.test-phase/private home/data/local-only/brief.md (ship, mode=local-only; replace {TASK} and {FIRSTMATE_SPEC})
+exit=0
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/bin/fm-brief.sh scout sample-project --scout
+scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/.test-phase/private home/data/scout/brief.md (scout; replace {TASK} and {FIRSTMATE_SPEC})
+exit=0
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/bin/fm-brief.sh secondmate --secondmate --no-projects
+scaffolded: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/.test-phase/private home/data/secondmate/brief.md (secondmate charter; replace {TASK})
+exit=0
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/bin/fm-brief.sh invalid sample-project --mode no-mistakes-prod-only
+error: no-mistakes-prod-only is a registry policy, not a task mode; classify this task's surface and resolve it to no-mistakes or direct-PR at intake
+exit=1
+
+$ /usr/bin/python3 /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/tests/fixtures/reasoning-workflow/baseline.py {"delay_ms":-3,"attempts":2}
+error: delay_ms must be a finite nonnegative number
+exit=2
+
+Imported baseline.retry_plan({"delay_ms":-3,"attempts":2}) -> RetryPlan(delays_ms=(-3, -3))
+
+$ /usr/bin/python3 /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/tests/fixtures/reasoning-workflow/retry_budget.py {"delay_ms":-3,"attempts":2}
+error: delay_ms must be a finite nonnegative number
+exit=2
+
+Imported retry_budget.retry_plan({"delay_ms":-3,"attempts":2}) -> ValueError: delay_ms must be a finite nonnegative number
+
+$ /usr/bin/python3 /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/tests/fixtures/reasoning-workflow/baseline.py {"delay_ms":0,"attempts":true}
+error: attempts must be a positive integer
+exit=2
+
+Imported baseline.retry_plan({"delay_ms":0,"attempts":true}) -> RetryPlan(delays_ms=(0,))
+
+$ /usr/bin/python3 /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/tests/fixtures/reasoning-workflow/retry_budget.py {"delay_ms":0,"attempts":true}
+error: attempts must be a positive integer
+exit=2
+
+Imported retry_budget.retry_plan({"delay_ms":0,"attempts":true}) -> ValueError: attempts must be a positive integer
+
+$ /usr/bin/python3 /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/tests/fixtures/reasoning-workflow/baseline.py {"delay_ms":NaN,"attempts":2}
+error: delay_ms must be a finite nonnegative number
+exit=2
+
+Imported baseline.retry_plan({"delay_ms":NaN,"attempts":2}) -> RetryPlan(delays_ms=(nan, nan))
+
+$ /usr/bin/python3 /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/tests/fixtures/reasoning-workflow/retry_budget.py {"delay_ms":NaN,"attempts":2}
+error: delay_ms must be a finite nonnegative number
+exit=2
+
+Imported retry_budget.retry_plan({"delay_ms":NaN,"attempts":2}) -> ValueError: delay_ms must be a finite nonnegative number
+
+$ /usr/bin/python3 /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/tests/fixtures/reasoning-workflow/baseline.py {"delay_ms":0,"attempts":3}
+{"delays_ms": [0, 0, 0]}
+exit=0
+
+Imported baseline.retry_plan({"delay_ms":0,"attempts":3}) -> RetryPlan(delays_ms=(0, 0, 0))
+
+$ /usr/bin/python3 /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/tests/fixtures/reasoning-workflow/retry_budget.py {"delay_ms":0,"attempts":3}
+{"delays_ms": [0, 0, 0]}
+exit=0
+
+Imported retry_budget.retry_plan({"delay_ms":0,"attempts":3}) -> _RetryPlan(delays_ms=(0, 0, 0))
+
+$ /usr/bin/python3 /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/tests/fixtures/reasoning-workflow/baseline.py {"delay_ms":12.5,"attempts":2}
+{"delays_ms": [12.5, 12.5]}
+exit=0
+
+Imported baseline.retry_plan({"delay_ms":12.5,"attempts":2}) -> RetryPlan(delays_ms=(12.5, 12.5))
+
+$ /usr/bin/python3 /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/tests/fixtures/reasoning-workflow/retry_budget.py {"delay_ms":12.5,"attempts":2}
+{"delays_ms": [12.5, 12.5]}
+exit=0
+
+Imported retry_budget.retry_plan({"delay_ms":12.5,"attempts":2}) -> _RetryPlan(delays_ms=(12.5, 12.5))
+
+Replay: _RetryPlan(delays_ms=(12.5, 12.5)) == _RetryPlan(delays_ms=(12.5, 12.5)); input unchanged: {'delay_ms': 12.5, 'attempts': 2, 'caller_note': ['unchanged']}; attempted mutation -> FrozenInstanceError
+$ /usr/bin/python3 /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4DQT6VNW412B5EYPVBS09DQ/tests/fixtures/reasoning-workflow/retry_budget.py --help
+usage: retry_budget.py [-h] config
+
+Synthetic retry plan
+
+positional arguments:
+  config      JSON object with delay_ms and attempts
+
+options:
+  -h, --help  show this help message and exit
+exit=0
+

@@ -1,0 +1,60 @@
+FM_TEST_BEGIN 2026-10-08T12:37:13Z tests/fm-brief.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - fm-brief: scaffolds leave the worker role scope to the launch boundary and keep the secondmate contract
+ok - fm-brief: ship and scout method links use the code root across modes and paths with spaces
+ok - fm-brief.sh: bash -n succeeds
+ok - fm-brief.sh: --help renders the complete header
+ok - fm-brief.sh: no-mistakes/direct-PR/local-only briefs generate cleanly
+ok - fm-brief.sh: ship --mode is required and closed-set validated
+ok - fm-brief.sh: the explicit ship mode wins over the registered posture
+ok - fm-brief.sh: --yolo and scout/secondmate --mode are refused, never silently dropped
+ok - fm-brief.sh: faster paths use configured authority without stacked review
+ok - fm-brief.sh: no-mistakes DOD keeps its apostrophe prose and bans --yes outright
+ok - fm-brief.sh: no-mistakes ask-user findings use one event plus a verbatim snapshot
+ok - fm-brief.sh: ship project-memory wording carries the AGENTS.md authoring bar
+ok - fm-brief.sh: --herdr-lab emits the complete hard safety contract
+ok - fm-brief.sh: --herdr-lab uses its quoted Firstmate-owned helper path
+ok - fm-brief.sh: ship and scout scaffolds make omitted Herdr intent fail-visible
+ok - fm-brief.sh: the documented {TASK} and {FIRSTMATE_SPEC} fills cannot corrupt the Herdr safety gate
+ok - fm-brief.sh: Herdr lab contract covers scouts and rejects secondmate misuse
+ok - fm-brief.sh: --no-projects scaffolds a project-less charter and guards misuse
+ok - fm-brief.sh: marked requests avoid generic acknowledgements and preserve material reporting
+ok - fm-brief.sh: relative directory inputs ignore CDPATH, render stable absolute charter paths, or fail loudly
+ok - fm-brief.sh: custom pause verb renders in every scaffold
+ok - fm-brief.sh: ship and scout scaffolds teach validation-round pauses
+ok - fm-brief.sh: investigation and visual-review completions load the shared decision policy
+ok - fm-brief: scout and secondmate code paths still scaffold well-formed briefs
+ok - fm-brief.sh: scout Lavish hosting follows the bootstrap lavish-axi floor
+FM_TEST_END 2026-10-08T12:37:50Z tests/fm-brief.test.sh exit=0 duration_ms=36580 gate_skip=false
+FM_TEST_BEGIN 2026-10-08T12:37:50Z tests/fm-session-lock-ancestry.test.sh family=watcher-wake-lock expected_gate_skip=none
+ok - session-lock: a version-named Claude Code session is identified from its install path and argv[0]
+ok - session-lock: a harness that is pid 1 of its own namespace is examined, not skipped
+ok - session-lock: ordinary script paths under a harness directory are not harness processes
+ok - session-lock: ownership stops at the first non-harness gap above the contiguous run
+ok - session-lock: a live version-named session holding the lock is not mistaken for a stale owner
+ok - session-lock e2e: a version-named session claims the home and arms supervision
+ok - session-lock e2e: a session parented by a harness-named daemon claims the home and arms supervision
+ok - session-lock e2e: a version-named session under a harness-named daemon keeps its own lock
+ok - session-lock fixtures reap the owned daemon, session and hook before home cleanup
+FM_TEST_END 2026-10-08T12:38:09Z tests/fm-session-lock-ancestry.test.sh exit=0 duration_ms=18524 gate_skip=false
+FM_TEST_BEGIN 2026-10-08T12:38:09Z tests/fm-reasoning-workflow.test.sh family=pure-contract-unit expected_gate_skip=none
+test_baseline_attempts_failure_shape (__main__.CallerWorkflow.test_baseline_attempts_failure_shape) ... ok
+test_baseline_mask_and_imported_failure (__main__.CallerWorkflow.test_baseline_mask_and_imported_failure) ... ok
+test_corrected_runtime_attempts_boundary (__main__.CallerWorkflow.test_corrected_runtime_attempts_boundary) ... ok
+test_corrected_runtime_delay_boundary (__main__.CallerWorkflow.test_corrected_runtime_delay_boundary) ... ok
+test_immutable_replay_and_recovery (__main__.CallerWorkflow.test_immutable_replay_and_recovery) ... ok
+test_large_finite_integer_and_cli_help (__main__.CallerWorkflow.test_large_finite_integer_and_cli_help) ... ok
+test_malformed_and_incomplete_config (__main__.CallerWorkflow.test_malformed_and_incomplete_config) ... ok
+test_valid_neighbors_preserved_on_both_callers (__main__.CallerWorkflow.test_valid_neighbors_preserved_on_both_callers) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 7.718s
+
+OK
+ok - reasoning workflow: masking baseline, shared runtime boundary, valid neighbors, immutable replay and recovery
+FM_TEST_END 2026-10-08T12:38:17Z tests/fm-reasoning-workflow.test.sh exit=0 duration_ms=8229 gate_skip=false
+FM_TEST_SUMMARY total=3 failed=0 skipped_gate=0 duration_ms=64480
+FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=2 duration_ms=44809 failed=0
+FM_TEST_SUMMARY_FAMILY family=watcher-wake-lock count=1 duration_ms=18524 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-brief.test.sh duration_ms=36580
+FM_TEST_SLOWEST rank=2 script=tests/fm-session-lock-ancestry.test.sh duration_ms=18524
+FM_TEST_SLOWEST rank=3 script=tests/fm-reasoning-workflow.test.sh duration_ms=8229
