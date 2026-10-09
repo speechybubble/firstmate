@@ -1,0 +1,40 @@
+<!doctype html><meta charset="utf-8"><title>Live Pi terminal capture</title><body style="background:#111;color:#eee"><p>Herdr live Pi terminal — ANSI frame rendered as HTML</p><pre style="font:14px monospace"> /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.v/fleet/state/held.status                 
+                                                                                                                       
+ Run bin/fm-wake-drain.sh first and handle the queued wake. Watcher continuity is extension-owned.                     
+                                                                                                                       
+
+                                                                                                                       
+ <b>$ bin/fm-wake-drain.sh</b> (timeout 120s)                                                                                 
+                                                                                                                       
+ ... (2 earlier lines, ctrl+o to expand)                                                                               
+ WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 16 --recovery-generation           
+ 3692014.1791513927.RnxrPq                                                                                             
+ wake annotation: latest wake-EVENT observed at drain, not current state: held.status: working: held observation while 
+ away; captain hold must remain                                                                                        
+ WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.                            
+                                                                                                                       
+ Took 2.9s                                                                                                             
+                                                                                                                       
+
+                                                                                                                       
+ <b>read</b> <span style="color:#A0A">.v/fleet/state/held.status</span>                                                                                       
+                                                                                                                       
+
+                                                                                                                       
+ <b>$ bin/fm-wake-drain.sh --ack-through 16 --recovery-generation 3692014.1791513927.RnxrPq</b> (timeout 120s)                
+                                                                                                                       
+ (no output)                                                                                                           
+                                                                                                                       
+ Took 0.4s                                                                                                             
+                                                                                                                       
+
+ Read and acknowledged the held diagnostic event. Captain hold left untouched; no task resumed or released.            
+
+ &#x26F5; routine: per your away instructions: Observed the diagnostic update only. No held task was released or resumed,    
+ and no project was modified.                                                                                          
+
+<span style="color:#0AA">&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;</span>
+                                                                                                                       
+<span style="color:#0AA">&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;</span>
+/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N (detached)
+&#x2191;15k &#x2193;1.1k R90k CH95.9% $0.290 (sub) 1.7%/272k (auto)                                              gpt-6-astra &#x2022; medium</pre>

@@ -1,0 +1,41 @@
+/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.v/codex-lab
++ set -u
++ umask 077
++++ dirname bin/fm-codex-stop-watch.sh
+++ cd bin
+++ pwd
++ SCRIPT_DIR=/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/bin
+++ cd /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/bin/..
+++ pwd
++ FM_ROOT=/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N
++ FM_HOME=/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.v/codex-lab
++ STATE=/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.v/codex-lab/state
++ CONFIG=/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.v/codex-lab/config
++ . /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/bin/fm-primary-scope-lib.sh
++ . /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/bin/fm-gate-refuse-lib.sh
+++ FM_GATE_REFUSE_EXIT=3
+++ FM_GATE_LAB_MARKER=.fm-lab-home
+++ FM_GATE_LAB_TOKEN='fm-lab-home v1'
++ . /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/bin/fm-session-lock-lib.sh
+++ _FM_SESSION_LOCK_LIB_DIR=/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/bin
+++ '[' /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/bin '!=' /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/bin/fm-session-lock-lib.sh ']'
+++ . /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/bin/fm-cursor-lib.sh
++++ FM_CURSOR_PROBE_TIMEOUT=10
+++ unset _FM_SESSION_LOCK_LIB_DIR
+++ FM_HARNESS_RE='claude|codex|opencode|grok|kimi|^pi$|^pi-signed$|^omp$'
+++ FM_HARNESS_NAMES=(claude codex opencode grok kimi pi-signed pi omp)
+++ FM_HARNESS_IS_CLAUDE=0
+++ FM_SESSION_LOCK_FOREIGN_OWNER_PID=
+++ FM_LOCK_INSPECT_STATE=unknown
+++ FM_LOCK_INSPECT_PID=
+++ FM_LOCK_INSPECT_LIVE_HARNESS=unknown
+++ cat
++ PAYLOAD='{"hook_event_name":"Stop","session_id":"11111111-1111-1111-1111-111111111111"}'
++ fm_is_gate_agent /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N
++ local anchor=/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N common
++ '[' '' = 1 ']'
++ '[' x = x ']'
++ FM_GATE_REFUSE_REASON=env
++ return 0
++ exit 0
+hook_exit=0

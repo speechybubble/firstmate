@@ -1,0 +1,4 @@
+watcher: none running
+lab_teardown_exit=0
+{"sessions":[{"default":true,"name":"default","running":false,"session_dir":".v/c/herdr","socket_path":".v/c/herdr/herdr.sock"},{"default":false,"name":"proof6","running":false,"session_dir":".v/c/herdr/sessions/proof6","socket_path":".v/c/herdr/sessions/proof6/herdr.sock"}]}
+Protected prerequisite verified by PID, command line and isolated HOME before native stop; no matching worktree watcher processes remained. No Directory not empty warning occurred.

@@ -1,0 +1,40 @@
+ Press ctrl+o to show full startup help and loaded resources.
+
+ Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.
+
+[Extensions]
+  fm-branch-supervision.ts, fm-primary-pi-watch.ts
+
+
+ Reloaded keybindings, extensions, skills, prompts, themes, and context files
+
+
+ FIRSTMATE_OP: v1 watcher: FIRSTMATE WATCHER WAKE: check: rearm-resurface
+
+ Run bin/fm-wake-drain.sh first and handle the queued wake. Watcher continuity is extension-owned.
+
+
+
+ $ bin/fm-wake-drain.sh (timeout 120s)
+
+ WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 0 --recovery-generation
+ 3648028.1791513067.z3eN5A
+
+ Took 0.9s
+
+
+
+ $ bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 3648028.1791513067.z3eN5A (timeout 120s)
+
+ (no output)
+
+ Took 0.4s
+
+
+ Wake drained and acknowledged. Watcher continuity remains extension-owned.
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N (detached)
+↑2.0k ↓98 R2.9k CH89.6% $0.028 (sub) 0.6%/272k (auto)                                              gpt-6-astra • medium

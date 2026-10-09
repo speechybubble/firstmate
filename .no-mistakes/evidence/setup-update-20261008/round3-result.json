@@ -1,0 +1,24 @@
+{
+  "verdict": "blocked; not approved",
+  "versions": {
+    "herdr": "0.9.3",
+    "candidate_pi_package": "1.1.0",
+    "codex": "0.161.0",
+    "node": "22.22.1"
+  },
+  "reproduced": "Guarded prepare failed because isolated protected p3 session was not running.",
+  "bootstrap": "Authorized native herdr server --session p3 exited with local socket name length exceeds capacity of sun_path of sockaddr_un.",
+  "root_cause": "Absolute worktree prefix is 74 bytes. Even XDG_CONFIG_HOME at the worktree root yields a shortest permitted named lab socket of 109 bytes, exceeding Linux pathname socket maximum 107 bytes. Normal nested isolated configuration yields still longer paths.",
+  "reverification": "Guarded prepare still refuses; protected stop tripwire also refuses as expected.",
+  "cleanup": "Bootstrap process exited; no live lab was provisioned, no protected process remained to stop, no production sessions or credentials accessed.",
+  "missing": [
+    "mixed held/routine routing",
+    "post-acceptance fallback",
+    "locked grant rejection",
+    "Pi reload and Codex handoff",
+    "runtime preservation"
+  ],
+  "host_cleanup_warning": "Not reproduced or resolved; host integration could not launch.",
+  "required_resolution": "Provide a shorter absolute worktree namespace or authorize a short external disposable configuration/socket namespace; no guards were bypassed.",
+  "source_changes": false
+}

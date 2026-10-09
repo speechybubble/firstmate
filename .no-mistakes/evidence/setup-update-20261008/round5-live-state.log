@@ -1,0 +1,18 @@
+.pi-watch-extension-loaded sha256:46ffd86edf7d08d8aa3ea6bff120d052c42df2dbf5f83a05de162fe550bb7a03
+3644143
+generation=2 phase=active
+
+.watch.lock/pid 3645996
+
+.watch.lock/fm-home /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.v/fleet
+
+.watch.lock/watcher-path /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/bin/fm-watch.sh
+
+.last-watcher-beat 
+.watch-deliveries.log 3645376	linux-starttime=25359881 cmdline-hex=62617368002f686f6d652f64656e6e692f2e6e6f2d6d697374616b65732f776f726b74726565732f3231653864363762353930622f30314d344634384144434a3544445a48504857424d5a5843344e2f62696e2f666d2d77617463682e736800	check: rearm-resurface
+
+.watch-cycle-exits.log arm_pid=3644157	watcher_pid=3644206	origin=started	started_at=1791512775	ended_at=1791512797	exit_code=143	signal=TERM	reason=signal-exit	beacon_age=6	lock_before=pid:3644206|identity:linux-starttime=25357690 cmdline-hex=62617368002f686f6d652f64656e6e692f2e6e6f2d6d697374616b65732f776f726b74726565732f3231653864363762353930622f30314d344634384144434a3544445a48504857424d5a5843344e2f62696e2f666d2d77617463682e736800	lock_after=pid:none|identity:none	successor=none
+arm_pid=3645155	watcher_pid=3645376	origin=started	started_at=1791512797	ended_at=1791512798	exit_code=0	signal=none	reason=actionable-check	beacon_age=0	lock_before=pid:3645376|identity:linux-starttime=25359881 cmdline-hex=62617368002f686f6d652f64656e6e692f2e6e6f2d6d697374616b65732f776f726b74726565732f3231653864363762353930622f30314d344634384144434a3544445a48504857424d5a5843344e2f62696e2f666d2d77617463682e736800	lock_after=pid:none|identity:none	successor=started:3645996
+
+Live identity: 3645996 bash /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/bin/fm-watch.sh 
+PASS: active generation 2, live owned watcher, fresh heartbeat, preserved disposable data/config

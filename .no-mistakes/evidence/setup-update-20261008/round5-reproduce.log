@@ -1,0 +1,9 @@
+file:///home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/[eval1]:19
+if (!permitted) throw new Error("Pi arm child rejected the marked lab home");
+                      ^
+
+Error: Pi arm child rejected the marked lab home
+    at file:///home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/[eval1]:19:23
+
+Node.js v22.22.1
+not ok - Pi arm child must retain the stock marked-lab layout: expected exit 0, got 1

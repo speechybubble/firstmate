@@ -1,0 +1,21 @@
+FM_TEST_BEGIN 2026-10-09T01:51:15Z tests/selected-reconciliation.test.sh family=unclassified expected_gate_skip=none
+ok - dispatch entry: the host reads branch eligibility, the offer rule, and the wake prompt from the Pi branch's own owner
+
+--- /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.test-local/tmp/fm-supervision-host.D93JQD/away-routine-mixed/host.out ---
+watcher: started pid=3447677 (beacon fresh)
+check: rearm-resurface
+supervision-host: the away session could not take this wake: the triggering wake belongs to main; this wake is yours
+
+--- /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.test-local/tmp/fm-supervision-host.D93JQD/away-routine-mixed/state/.supervision-host.log ---
+1791510707	start	gen=host-3447519-1791510706	primary=claude
+1791510715	to-main	the away session could not take this wake: the triggering wake belongs to main; this wake is yours
+
+--- /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.test-local/tmp/fm-supervision-host.D93JQD/away-routine-mixed/state/.wake-queue ---
+1791510709	1	signal	other.turn-ended	signal: other.turn-ended
+1791510714	2	signal	demo.status	signal: /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.test-local/tmp/fm-supervision-host.D93JQD/away-routine-mixed/state/demo.status
+1791510714	3	signal	demo.status	signal: /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.test-local/tmp/fm-supervision-host.D93JQD/away-routine-mixed/state/demo.status
+not ok - routine-mixed: unrelated routine trigger was not handled
+FM_TEST_END 2026-10-09T01:52:18Z tests/selected-reconciliation.test.sh exit=1 duration_ms=63303 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=1 skipped_gate=0 duration_ms=63440
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=63303 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/selected-reconciliation.test.sh duration_ms=63303

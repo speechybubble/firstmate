@@ -1,0 +1,41 @@
+<!doctype html><meta charset="utf-8"><title>Pi 1.1.0 live Herdr terminal capture</title><style>body{background:#151820;color:#e8ebef}pre{font:14px monospace;white-space:pre}</style><h1>Actual Herdr pane w1:p1 — Pi 1.1.0</h1><pre>
+
+
+ fm_watch_arm_pi
+ watcher: started Pi extension arm child 8; future ordinary re-arms are automatic; call fm_watch_arm_pi again only
+ after a later notification says the cycle is missing, failed, or unhealthy
+
+
+ LAB_READY
+
+
+ FIRSTMATE_OP: v1 watcher: FIRSTMATE WATCHER WAKE: watcher: FAILED - Pi extension could not restore watcher continuity
+ after 5 retries
+ watcher: FAILED - refusing to arm from a disposable validation checkout:
+ /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/bin
+
+ Run bin/fm-wake-drain.sh first and handle the queued wake. Watcher continuity is extension-owned.
+
+
+
+ $ bin/fm-wake-drain.sh (timeout 120s)
+
+ ... (5 earlier lines, ctrl+o to expand)
+ ●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e
+ /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.pi/extensions/fm-primary-turnend-guard.ts
+ -e /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.pi/extensions/fm-primary-pi-watch.ts
+ if the extensions are not loaded.
+ ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ Took 1.3s
+
+
+ Drain ran; no queued wake rows returned. Watcher remains down: disposable-checkout guard blocked arming, leaving 2
+ in-flight tasks without supervision. No held-task rows acknowledged; no repair attempted.
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N (detached)
+↑5.9k ↓239 R21k CH92.1% $0.092 (sub) 1.8%/272k (auto)                                              gpt-6-astra • medium
+</pre>

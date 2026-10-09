@@ -1,0 +1,1 @@
+{"sessions":[{"default":true,"name":"default","running":false,"session_dir":".live/config/herdr","socket_path":".live/config/herdr/herdr.sock"},{"default":false,"name":"p","running":false,"session_dir":".live/config/herdr/sessions/p","socket_path":".live/config/herdr/sessions/p/herdr.sock"}]}

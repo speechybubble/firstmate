@@ -1,0 +1,24 @@
+Herdr herdr 0.9.3
+Pi 1.1.0
+codex-cli 0.161.0
+Local test Node v24.21.0
+
+Namespace: HOME=/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.live/home XDG_CONFIG_HOME=.live/config XDG_RUNTIME_DIR=/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.live/run TMPDIR=/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.live/tmp
+{"sessions":[{"default":true,"name":"default","running":false,"session_dir":".live/config/herdr","socket_path":".live/config/herdr/herdr.sock"},{"default":false,"name":"fm-lab-i","running":true,"session_dir":".live/config/herdr/sessions/fm-lab-i","socket_path":".live/config/herdr/sessions/fm-lab-i/herdr.sock"},{"default":false,"name":"p","running":true,"session_dir":".live/config/herdr/sessions/p","socket_path":".live/config/herdr/sessions/p/herdr.sock"}]}
+
+Protected tripwire:
+{"name":"p","default":false,"running":true,"socket_path":".live/config/herdr/sessions/p/herdr.sock"}
+
+
+Markers:
+.pi-watch-extension-loaded sha256:40aed8f2a696dcf50ba7d60ba5da0d987f3c48529bca77ec82db280b24f16efb
+3616811
+generation=2 phase=active
+
+.pi-branch-extension-loaded 3616811
+
+.branch-eligible-owner fm-branch-eligible-owner-v1
+3616811
+linux-starttime=25299209 cmdline-hex=7069000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+1
+

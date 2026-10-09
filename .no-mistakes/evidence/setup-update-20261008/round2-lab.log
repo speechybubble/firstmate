@@ -1,0 +1,6 @@
+herdr 0.9.3
+fm-herdr-lab: fleet-state tripwire requires exactly one running default session
+prepare_exit=1
+{"sessions":[{"default":true,"name":"default","running":false,"session_dir":"/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.test-round2/config/herdr","socket_path":"/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.test-round2/config/herdr/herdr.sock"}]}
+fm-herdr-lab: refusing protected production session 'default'
+protected_stop_exit=1

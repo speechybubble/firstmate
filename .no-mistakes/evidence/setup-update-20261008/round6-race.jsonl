@@ -1,0 +1,7 @@
+{"time":1791513428709,"armed":true}
+{"time":1791513714016,"offered":"check: rearm-resurface","eligible":false,"awayOnly":false,"alreadyAccepted":false}
+{"time":1791513818161,"offered":"check: rearm-resurface","eligible":true,"awayOnly":true,"alreadyAccepted":false}
+{"time":1791513818485,"accepted":true,"message":"check: rearm-resurface","queue":"1791513737\t13\tcheck\tdiagnostic\tcheck: diagnostic observation only\n1791513738\t14\tsignal\troutine.status\tsignal: routine.status\n"}
+{"time":1791513820937,"settled":"rejected","error":"Error: accepted away-only wake is no longer branch-eligible","queue":"1791513737\t13\tcheck\tdiagnostic\tcheck: diagnostic observation only\n1791513738\t14\tsignal\troutine.status\tsignal: routine.status\n","grant":false}
+{"time":1791513931698,"offered":"signal: /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.v/fleet/state/held.status","eligible":false,"awayOnly":false,"alreadyAccepted":false}
+{"time":1791513997298,"offered":"signal: /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.v/fleet/state/routine.status","eligible":true,"awayOnly":false,"alreadyAccepted":false}

@@ -1,0 +1,41 @@
+/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.live/grants
+held
+=== attended held trigger ===
+eligible=0
+status=safe
+corrupted=0
+rows=2
+tasks=routine
+unscoped=0
+=== attended independent routine trigger ===
+eligible=1
+status=safe
+corrupted=0
+rows=2
+tasks=routine
+unscoped=0
+=== away held trigger ===
+eligible=0
+status=safe
+corrupted=0
+rows=2
+tasks=routine
+unscoped=0
+=== away independent routine trigger ===
+eligible=1
+status=safe
+corrupted=0
+rows=2
+tasks=routine
+unscoped=0
+publication live-grant --tasks held --rows 1: exit=1
+grant absent; unread queue unchanged
+publication live-grant --tasks routine --rows 99: exit=1
+grant absent; unread queue unchanged
+publication stale-owner --tasks routine --rows 2: exit=1
+grant absent; unread queue unchanged
+valid routine grant=2
+routine
+publication live-grant --tasks routine --rows 2: exit=1
+grant absent; unread queue unchanged
+Final queue: both unread rows preserved, including held task without status file

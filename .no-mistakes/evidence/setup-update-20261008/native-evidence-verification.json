@@ -1,0 +1,13 @@
+{
+  "candidate": "10a9f70dd15e6bee2bd7bac78f174e73111a9374",
+  "source_sha256": "ea2ca67925db93718d883cfdb8ce6b2c9f7fea29198014880c11db11cc1863eb",
+  "rollout_sha256": "512f7202da085e2186f506631d4fa8d1e078e3a9bad07a73ce35bccc7934957e",
+  "verified": [
+    "distinct successors bound to one native process/thread",
+    "D2 drain < LATE append < D2 acknowledgement",
+    "five exact acknowledgements exit zero in native rollout",
+    "one recovery checkpoint, empty final queue",
+    "auth removed and production hash pairs equal"
+  ],
+  "execution": "Evidence reconciliation only; authorized outer native execution and earlier Pi run were not repeated."
+}

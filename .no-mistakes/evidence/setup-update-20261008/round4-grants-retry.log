@@ -1,0 +1,22 @@
+/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.live/grants
+held
+=== attended held trigger ===
+node:internal/util:226
+    throw new ERR_NO_TYPESCRIPT();
+          ^
+
+Error [ERR_NO_TYPESCRIPT]: Node.js is not compiled with TypeScript support
+    at assertTypeScript (node:internal/util:226:11)
+    at node:internal/modules/typescript:41:3
+    at node:internal/util:785:15
+    at parseTypeScript (node:internal/modules/typescript:53:17)
+    at processTypeScriptCode (node:internal/modules/typescript:133:42)
+    at stripTypeScriptModuleTypes (node:internal/modules/typescript:163:10)
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:170:30)
+    at defaultGetFormat (node:internal/modules/esm/get_format:245:36)
+    at defaultLoad (node:internal/modules/esm/load:98:16)
+    at ModuleLoader.load (node:internal/modules/esm/loader:815:12) {
+  code: 'ERR_NO_TYPESCRIPT'
+}
+
+Node.js v22.22.1

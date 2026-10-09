@@ -1,0 +1,12 @@
+{
+  "candidatePi": "1.1.0",
+  "herdr": "0.9.3",
+  "node": "v22.22.1",
+  "codexAvailable": "0.161.0",
+  "subscriptionProvider": "openai-codex",
+  "model": "gpt-6-astra",
+  "effort": "medium",
+  "persistedMainConversationRetainsREADY": true,
+  "durableLearningUnchanged": true,
+  "scope": "Disposable records only; production conversations, settings and Fleet were not accessed."
+}

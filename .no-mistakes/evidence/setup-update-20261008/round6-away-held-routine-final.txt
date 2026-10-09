@@ -1,0 +1,120 @@
+ Took 2.8s                                                                                                            │
+                                                                                                                      │
+                                                                                                                      │
+                                                                                                                      │
+ $ bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 3674035.1791513593.VtPDaO (timeout 120s)                │
+                                                                                                                      │
+ (no output)                                                                                                          │
+                                                                                                                      │
+ Took 0.6s                                                                                                            │
+                                                                                                                      │
+                                                                                                                      │
+ Wake drained and acknowledged. No tasks changed; watcher continuity remains extension-owned.                         │
+                                                                                                                      │
+ ⛵ diagnostic: per your away instructions: read the disposable diagnostic check only; no held task resumed and no    │
+ project changed.                                                                                                     │
+                                                                                                                      │
+ ⛵ routine.status: per your away instructions: read the routine diagnostic event only; no held task resumed and no   │
+ project changed.                                                                                                     │
+                                                                                                                      │
+                                                                                                                      │
+ FIRSTMATE_OP: v1 watcher: FIRSTMATE WATCHER WAKE: check: rearm-resurface                                             │
+                                                                                                                      │
+ Run bin/fm-wake-drain.sh first and handle the queued wake. Watcher continuity is extension-owned.                    │
+                                                                                                                      │
+                                                                                                                      │
+                                                                                                                      │
+ $ bin/fm-wake-drain.sh (timeout 120s)                                                                                │
+                                                                                                                      │
+ WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 0 --recovery-generation           │
+ 3684496.1791513711.6rz6Gd                                                                                            │
+                                                                                                                      │
+ Took 3.1s                                                                                                            │
+                                                                                                                      │
+                                                                                                                      │
+                                                                                                                      │
+ $ bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 3684496.1791513711.6rz6Gd (timeout 120s)                │
+                                                                                                                      │
+ (no output)                                                                                                          │
+                                                                                                                      │
+ Took 0.4s                                                                                                            │
+                                                                                                                      │
+                                                                                                                      │
+ Wake drained and acknowledged. No tasks changed; watcher continuity remains extension-owned.                         │
+                                                                                                                      │
+ Reloaded keybindings, extensions, skills, prompts, themes, and context files                                         │
+                                                                                                                      │
+                                                                                                                      │
+ FIRSTMATE_OP: v1 watcher: FIRSTMATE WATCHER WAKE: check: rearm-resurface                                             │
+                                                                                                                      │
+ Run bin/fm-wake-drain.sh first and handle the queued wake. Watcher continuity is extension-owned.                    │
+                                                                                                                      │
+                                                                                                                      │
+                                                                                                                      │
+ $ bin/fm-wake-drain.sh (timeout 120s)                                                                                │
+                                                                                                                      │
+ 1791513737   13   check   diagnostic   check: diagnostic observation only                                            │
+ 1791513738   14   signal   routine.status   signal: routine.status                                                   │
+ WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 14 --recovery-generation          │
+ 3691369.1791513814.yB12Q1                                                                                            │
+ WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.                           │
+                                                                                                                      │
+ Took 2.7s                                                                                                            │
+                                                                                                                      │
+                                                                                                                      │
+                                                                                                                      │
+ read .v/fleet/state/routine.status                                                                                   │
+                                                                                                                      │
+                                                                                                                      │
+                                                                                                                      │
+ $ bin/fm-wake-drain.sh --ack-through 14 --recovery-generation 3691369.1791513814.yB12Q1 (timeout 120s)               │
+                                                                                                                      │
+ (no output)                                                                                                          │
+                                                                                                                      │
+ Took 0.4s                                                                                                            │
+                                                                                                                      │
+                                                                                                                      │
+ Read and acknowledged the diagnostic check and routine event. No tasks changed, resumed, or released.                │
+                                                                                                                      │
+                                                                                                                      │
+ FIRSTMATE_OP: v1 watcher: FIRSTMATE WATCHER WAKE: signal:                                                            │
+ /home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N/.v/fleet/state/held.status
+
+ Run bin/fm-wake-drain.sh first and handle the queued wake. Watcher continuity is extension-owned.
+
+
+
+ $ bin/fm-wake-drain.sh (timeout 120s)
+
+ ... (2 earlier lines, ctrl+o to expand)
+ WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 16 --recovery-generation
+ 3692014.1791513927.RnxrPq
+ wake annotation: latest wake-EVENT observed at drain, not current state: held.status: working: held observation while
+ away; captain hold must remain
+ WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+
+ Took 2.9s
+
+
+
+ read .v/fleet/state/held.status
+
+
+
+ $ bin/fm-wake-drain.sh --ack-through 16 --recovery-generation 3692014.1791513927.RnxrPq (timeout 120s)
+
+ (no output)
+
+ Took 0.4s
+
+
+ Read and acknowledged the held diagnostic event. Captain hold left untouched; no task resumed or released.
+
+ ⛵ routine: per your away instructions: Observed the diagnostic update only. No held task was released or resumed,
+ and no project was modified.
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+/home/denni/.no-mistakes/worktrees/21e8d67b590b/01M4F48ADCJ5DDZHPHWBMZXC4N (detached)
+↑15k ↓1.1k R90k CH95.9% $0.290 (sub) 1.7%/272k (auto)                                              gpt-6-astra • medium
