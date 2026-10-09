@@ -200,6 +200,7 @@ trap suite_cleanup EXIT
 make_home() {  # <name> <attended|away|quiet> [config line]
   local home="$TMP_ROOT/$1"
   mkdir -p "$home/state" "$home/config" "$home/fakebin" "$home/data"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
   # An unreachable backend: the watcher reads no endpoint as dead, so the only
   # wakes are the status appends each case makes.
   printf '#!/usr/bin/env bash\nexit 1\n' > "$home/fakebin/tmux"
@@ -392,7 +393,8 @@ test_dispatch_entry_scopes_rows_and_renders_the_away_tail() {
   local home state out rc
   home="$TMP_ROOT/dispatch"
   state="$home/state"
-  mkdir -p "$state"
+  mkdir -p "$state" "$home/data"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
   printf 'project=demo\nwindow=fm-demo\n' > "$state/demo.meta"
   append_wake "$state" signal demo.status "signal: $state/demo.status"
   append_wake "$state" check merge "check: merge landed: fixture"
@@ -2052,7 +2054,8 @@ test_attended_latch_keeps_closes_on_main_and_records_recovery_off_main() {
 }
 
 test_away_backlog_hold_preserves_trigger_routing() {
-  local home scenario held
+  local home scenario held real_node
+  real_node=$(command -v node)
   command -v tasks-axi >/dev/null 2>&1 || { echo "skip: hold routing regression requires tasks-axi"; return; }
   for scenario in held-only held-mixed routine-mixed; do
     home=$(make_home "away-$scenario" away)
@@ -2064,13 +2067,32 @@ test_away_backlog_hold_preserves_trigger_routing() {
       --reason 'Wait for approval' >/dev/null || fail "hold routing setup failed"
     if [ "$scenario" != held-only ]; then
       printf 'project=demo\nwindow=fm-other\nharness=claude\n' > "$home/state/other.meta"
-      append_wake "$home/state" signal other.turn-ended 'signal: other.turn-ended'
+      # Queue the sibling at dispatch, after the watcher delivers demo's
+      # actual status signal. Prequeueing it instead tests downtime recovery
+      # (check: rearm-resurface), not independent routing of a routine trigger.
+      cat > "$home/fakebin/node" <<SH
+#!/usr/bin/env bash
+case "\$*" in
+  *fm-branch-dispatch.mjs\ offer*)
+    if [ ! -e "\$FM_HOME/sibling-queued" ]; then
+      FM_STATE_OVERRIDE="\$FM_HOME/state" bash -c '
+        . "\$1/bin/fm-wake-lib.sh"
+        fm_wake_append signal other.turn-ended "signal: other.turn-ended"
+      ' _ "$ROOT" || exit 1
+      touch "\$FM_HOME/sibling-queued"
+    fi ;;
+esac
+exec "$real_node" "\$@"
+SH
+      chmod +x "$home/fakebin/node"
     fi
     start_host "$home"
     wait_until 150 watcher_live "$home" || fail "$scenario: watcher never started"
     append_status "$home" 'new event'
     if [ "$scenario" = routine-mixed ]; then
       wait_until 250 handled_at_least "$home" 1 || fail "$scenario: unrelated routine trigger was not handled"
+      assert_re '"wake":"signal: .*demo.status"' "$home/state/branch-outcomes.jsonl" \
+        "routine turn did not handle the original status signal"
       assert_no_grep 'demo.status' "$home/state/.wake-queue" "routine trigger remained unread"
       assert_grep 'other.turn-ended' "$home/state/.wake-queue" "held sibling was consumed"
       [ ! -s "$home/host.rc" ] || fail "routine trigger unnecessarily reached main"
