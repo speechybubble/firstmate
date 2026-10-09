@@ -855,6 +855,7 @@ test_decision_answer_partition_relocates_under_the_record() {
   dir="$TMP_ROOT/partition"; mkdir -p "$dir"
   fb=$(make_stubs "$dir"); log="$dir/send.log"
   home=$(setup_home partition)
+  mkdir -p "$home/data"
   fm_write_meta "$home/state/t1.meta" "window=sess:fm-t1" "kind=ship"
   printf 'needs-decision [key=api-shape]: pick REST or RPC\n' > "$home/state/t1.status"
   printf 'blocked [key=token]: firstmate can refresh the token\n' >> "$home/state/t1.status"

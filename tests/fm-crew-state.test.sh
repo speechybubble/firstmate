@@ -5546,7 +5546,7 @@ test_readable_shell_diagnostic_preserves_unknown() {
   printf '%s' "$shell_snapshot" | jq -e '.tasks[0] | .current_state.state == "unknown" and .lifecycle.state == "held" and (.current_state.detail | contains("no running agent observed"))' >/dev/null \
     || fail 'snapshot lost the held unknown task or diagnostic'
   projection='.tasks[0] | {state:.current_state.state,source:.current_state.source,lifecycle,actions,backlog,hints}'
-  [ "$(printf '%s' "$live_snapshot" | jq -c "$projection")" = "$(printf '%s' "$shell_snapshot" | jq -c "$projection")" ] \
+  [ "$(printf '%s' "$live_snapshot" | jq -Sc "$projection")" = "$(printf '%s' "$shell_snapshot" | jq -Sc "$projection")" ] \
     || fail 'detail-only observation changed snapshot state, holds or actions'
   FM_FAKE_HERDR_HUSK=0
   FM_FAKE_HERDR_PROCESS=unreadable

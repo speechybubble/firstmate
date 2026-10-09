@@ -1533,6 +1533,7 @@ test_branch_ack_commits_secondmate_stall_receipts() {
   local dir state epoch sequence generation receipt
   dir=$(make_case secondmate-branch-stall)
   state="$dir/state"
+  mkdir -p "$dir/data"
   epoch=$(( $(date +%s) - 10 ))
   append_wake "$state" check "secondmate-wake-loop-mate-$epoch-7" \
     "check: secondmate wake-loop stalled: mate=mate row=7 idle=2s" \
@@ -1543,7 +1544,7 @@ test_branch_ack_commits_secondmate_stall_receipts() {
 
   FM_STATE_OVERRIDE="$state" "$GRANT" activate "$$" branch-stall \
     || fail "branch owner activation failed"
-  FM_STATE_OVERRIDE="$state" "$GRANT" publish branch-stall 1 \
+  FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$GRANT" publish branch-stall --tasks mate --rows 1 \
     || fail "branch grant publication failed"
 
   FM_STATE_OVERRIDE="$state" FM_SUPERVISION_ACTOR=branch "$DRAIN" > "$dir/branch.out" 2> "$dir/branch.err" \
@@ -1753,6 +1754,7 @@ test_main_ack_leaves_a_row_that_arrived_after_its_drain_unclaimed() {
   local dir state sequence generation rc
   dir=$(make_case main-ack-leaves-late-row)
   state="$dir/state"
+  mkdir -p "$dir/data"
 
   append_wake "$state" signal "task-a.status" "signal: task-a" || fail "first signal append failed"
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/main.out" 2> "$dir/main.err" \
@@ -1769,7 +1771,7 @@ test_main_ack_leaves_a_row_that_arrived_after_its_drain_unclaimed() {
 
   FM_STATE_OVERRIDE="$state" "$GRANT" activate "$$" late-row || fail "branch owner activation failed"
   rc=0
-  FM_STATE_OVERRIDE="$state" "$GRANT" publish late-row 2 || rc=$?
+  FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$GRANT" publish late-row --tasks task-b --rows 2 || rc=$?
   [ "$rc" -eq 0 ] || fail "an away-session grant could not take a row main never saw: rc=$rc"
   FM_STATE_OVERRIDE="$state" "$GRANT" release late-row || fail "branch grant release failed"
   FM_STATE_OVERRIDE="$state" "$GRANT" deactivate "$$" late-row || fail "branch owner deactivation failed"

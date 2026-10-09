@@ -3119,13 +3119,15 @@ read_out() { "$ROOT/bin/fm-procevent-lavish.sh" read "$READ"; }
 for read_case in unset false true True TRUE ended; do
   read_lifecycle=feedback
   read_ended=$read_case
-  read_label=MESSAGE
+  read_label='CAPTAIN MESSAGE'
+  read_count=captain_message_count
   case "$read_case" in
     unset) read_ended='(unset)' ;;
     false) ;;
     ended) read_lifecycle=ended; read_ended='(unset)'; read_label='SESSION-ENDING MESSAGE' ;;
     *) read_label='SESSION-ENDING MESSAGE' ;;
   esac
+  [ "$read_label" != 'SESSION-ENDING MESSAGE' ] || read_count=session_ending_message_count
   for read_shape in single multipart empty absent; do
     {
       printf 'session:\n  file: /review.html\n  status: %s\n' "$read_lifecycle"
@@ -3162,8 +3164,8 @@ for read_case in unset false true True TRUE ended; do
       fi
       printf '\ndeclared_items: %s\npresented_items: %s\nmalformed_items: 0\ncomplete: yes\n' \
         "$((read_messages + 1))" "$((read_messages + 1))"
-      printf 'lifecycle: %s\nsession_ended: %s\nannotation_count: 1\nsession_ending_message_count: %s\n\n' \
-        "$read_lifecycle" "$read_ended" "$read_messages"
+      printf 'lifecycle: %s\nsession_ended: %s\nannotation_count: 1\n%s: %s\n\n' \
+        "$read_lifecycle" "$read_ended" "$read_count" "$read_messages"
       printf 'ANNOTATIONS\nANNOTATION 1 of 1\nelement_uid: el-a\nelement_selector: section#call\ntag: note\ntext:\n| Element text\nprompt:\n| Typed comment\nEND ANNOTATIONS\n'
       printf 'END LAVISH RESULT (%s of %s)\n' "$((read_messages + 1))" "$((read_messages + 1))"
     )

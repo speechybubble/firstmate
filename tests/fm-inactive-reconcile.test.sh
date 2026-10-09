@@ -192,7 +192,7 @@ test_branch_ack_retires_inactive_outcome_receipt() {
   case "$seq" in ''|*[!0-9]*) fail "the queued inactive-outcome row had no sequence" ;; esac
   FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" "$GRANT" activate "$$" branch-ack \
     || fail "branch owner activation failed"
-  FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" "$GRANT" publish branch-ack "$seq" \
+  FM_HOME="$MAIN" FM_STATE_OVERRIDE="$MAIN/state" "$GRANT" publish branch-ack --tasks child --rows "$seq" \
     || fail "branch grant publication failed"
 
   err="$WORLD/branch-drain.err"
