@@ -49,5 +49,6 @@ fm_codex_watch_pending() {
       | .seq | select(type == "number" and . >= 0)' "$delivered" 2>/dev/null) || previous=0
   fi
   [ "$seq" -gt "$previous" ] || return 1
+  # shellcheck disable=SC2034 # Output consumed by fm-codex-stop-watch.sh.
   FM_CODEX_PENDING_SEQ=$seq
 }

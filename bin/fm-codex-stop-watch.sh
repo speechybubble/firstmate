@@ -76,6 +76,7 @@ OWNER_LOCK="$STATE/.codex-watch.lock"
 fm_lock_acquire_wait_bounded "$OWNER_LOCK" 40 || fail 'previous Stop owner did not release within 40s'
 OWNER_DIR=$(fm_lock_link_owner "$OWNER_LOCK") || exit 1
 OUT=
+# shellcheck disable=SC2329 # Invoked by the EXIT trap below.
 cleanup() {
   [ -z "$OUT" ] || rm -f "$OUT"
   rm -f "$OWNER_DIR/target.json" "$OWNER_DIR/delivered"
@@ -99,6 +100,7 @@ fm_codex_watch_owner_valid || exit 0
 [ ! -f "$CONFIG/x-mode.env" ] || . "$CONFIG/x-mode.env"
 OUT=$(mktemp "${TMPDIR:-/tmp}/fm-codex-stop.XXXXXX") || fail 'cannot create output file'
 HOST_NOTICE=
+# shellcheck source=bin/fm-supervision-engine-lib.sh
 . "$SCRIPT_DIR/fm-supervision-engine-lib.sh"
 if fm_supervision_host_enabled "$CONFIG" codex; then
   FM_SUPERVISION_HOST_PRIMARY=codex "$SCRIPT_DIR/fm-supervision-host.sh" park > "$OUT" 2>&1
@@ -129,7 +131,7 @@ SEQ=$FM_CODEX_PENDING_SEQ
 MESSAGE='Firstmate Codex watcher: supervision returned. Run bin/fm-wake-drain.sh, semantically handle its emitted events within existing authority and holds, then run any exact printed WAKE_ACK_REQUIRED command. Do not resume held work. The native Stop hook owns the next watcher; end the turn after handling this handoff, and do not manually rearm it.'
 [ -z "$HOST_NOTICE" ] || MESSAGE="$MESSAGE
 $HOST_NOTICE"
-for attempt in 1 2; do
+for _attempt in 1 2; do
   fm_codex_watch_owner_valid || exit 0
   if fm_run_timed 15 codex queue --thread "$THREAD" --message "$MESSAGE" > "$OUT" 2>&1; then
     fm_codex_watch_owner_valid || exit 0
