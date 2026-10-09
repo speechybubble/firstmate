@@ -11,7 +11,7 @@ P="$TMP_ROOT/primary"
 mkdir -p "$P/bin" "$P/state" "$P/config" "$TMP_ROOT/native" "$TMP_ROOT/cli" "$TMP_ROOT/codex-home"
 git init -q "$P"
 : > "$P/AGENTS.md"
-for script in fm-codex-stop-watch.sh fm-codex-watch-lib.sh fm-primary-scope-lib.sh fm-gate-refuse-lib.sh fm-session-lock-lib.sh fm-cursor-lib.sh fm-lock.sh fm-treehouse-slot-lib.sh fm-wake-lib.sh fm-timeout-lib.sh; do
+for script in fm-codex-stop-watch.sh fm-codex-watch-lib.sh fm-primary-scope-lib.sh fm-gate-refuse-lib.sh fm-session-lock-lib.sh fm-cursor-lib.sh fm-lock.sh fm-treehouse-slot-lib.sh fm-wake-lib.sh fm-path-lib.sh fm-timeout-lib.sh; do
   cp "$ROOT/bin/$script" "$P/bin/"
 done
 cp "$ROOT/bin/fm-supervision-lib.sh" "$ROOT/bin/fm-supervision-engine-lib.sh" "$P/bin/"

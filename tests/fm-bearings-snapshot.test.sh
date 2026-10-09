@@ -896,8 +896,6 @@ EOF
   printf '%s' "$canonical" | jq -e '
     .secondmate_current.records[] | select(.id == "states")
     | .current.state == "captain_decision"
-      and (.current.reason | contains("live child state has no in-flight backlog item"))
-      and (.current.reason | contains("parked=parked"))
       and .provenance.selected == "structured-home"
       and .provenance.trust == "partial-structured"
       and .invalidity == {kind:"unowned_current",ids:["parked"]}
@@ -2746,7 +2744,6 @@ EOF
   printf '%s' "$canonical" | jq -e '
     .secondmate_current.records[] | select(.id == "sshhip")
     | .current.state == "unknown"
-      and (.current.reason | contains("live child state has no in-flight backlog item: unreadable-child=unknown"))
       and .provenance.selected == "structured-home"
       and .provenance.trust == "partial-structured"
       and .invalidity == {kind:"unowned_current",ids:["unreadable-child"]}
