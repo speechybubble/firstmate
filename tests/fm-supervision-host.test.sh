@@ -2051,6 +2051,43 @@ test_attended_latch_keeps_closes_on_main_and_records_recovery_off_main() {
   pass "host: attended, two engine errors latch the session, main keeps every close unchanged in the cooldown, a failed probe doubles it up to its cap, and a routine probe's recovery stays in the ledger, off main"
 }
 
+test_away_backlog_hold_preserves_trigger_routing() {
+  local home scenario held
+  command -v tasks-axi >/dev/null 2>&1 || { echo "skip: hold routing regression requires tasks-axi"; return; }
+  for scenario in held-only held-mixed routine-mixed; do
+    home=$(make_home "away-$scenario" away)
+    cp "$ROOT/.tasks.toml" "$home/.tasks.toml"
+    printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
+    held=demo
+    [ "$scenario" != routine-mixed ] || held=other
+    FM_HOME="$home" "$ROOT/bin/fm-captain-hold.sh" hold "$held" --title 'Held worker' \
+      --reason 'Wait for approval' >/dev/null || fail "hold routing setup failed"
+    if [ "$scenario" != held-only ]; then
+      printf 'project=demo\nwindow=fm-other\nharness=claude\n' > "$home/state/other.meta"
+      append_wake "$home/state" signal other.turn-ended 'signal: other.turn-ended'
+    fi
+    start_host "$home"
+    wait_until 150 watcher_live "$home" || fail "$scenario: watcher never started"
+    append_status "$home" 'new event'
+    if [ "$scenario" = routine-mixed ]; then
+      wait_until 250 handled_at_least "$home" 1 || fail "$scenario: unrelated routine trigger was not handled"
+      assert_no_grep 'demo.status' "$home/state/.wake-queue" "routine trigger remained unread"
+      assert_grep 'other.turn-ended' "$home/state/.wake-queue" "held sibling was consumed"
+      [ ! -s "$home/host.rc" ] || fail "routine trigger unnecessarily reached main"
+    else
+      wait_until 250 host_exited "$home" || fail "$scenario: held trigger never reached main"
+      assert_grep 'the triggering wake belongs to main' "$home/host.out" "held trigger handoff missing"
+      assert_grep 'demo.status' "$home/state/.wake-queue" "held trigger was consumed"
+      [ "$(engine_calls "$home")" -eq 0 ] || fail "held trigger dispatched unrelated work"
+      if [ "$scenario" = held-mixed ]; then
+        assert_grep 'other.turn-ended' "$home/state/.wake-queue" "unrelated row was consumed"
+      fi
+    fi
+    stop_home_processes "$home"
+  done
+  pass "host: away backlog holds preserve main handoffs and independent routine routing"
+}
+
 test_away_wake_is_handled_on_the_engine_and_never_reaches_main() {
   local home lock_pid session first second pid watcher
   home=$(make_home away-handled away)
@@ -3002,6 +3039,7 @@ test_attended_wake_carries_the_dialog_mirror
 test_dialog_bearing_files_are_owner_only
 test_undelivered_dialog_is_fed_again_on_the_next_turn
 test_attended_wake_with_an_unreadable_mirror_reaches_main
+test_away_backlog_hold_preserves_trigger_routing
 test_away_wake_is_handled_on_the_engine_and_never_reaches_main
 test_away_turn_without_a_report_hands_the_wake_to_main
 test_return_during_an_engine_turn_hands_its_outcomes_to_main

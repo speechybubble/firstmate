@@ -834,14 +834,14 @@ health_record() {  # <engine-error 0|1> <reports>
 }
 
 # Handle one close on the engine, in the posture the record gives when the
-# turn starts (TURN_POSTURE). Returns 0 when the wake is handled (or held
-# nothing the branch may claim), 2 with ATTENDED_WHY set when the turn starts
+# turn starts (TURN_POSTURE). Returns 0 when the wake is handled,
+# 2 with ATTENDED_WHY set when the turn starts
 # attended and the supervision session may not take the close
 # (attended_acceptor, whose offer scan is the turn's scope), else sets HANDLE_WHY and returns 1; sets ENGINE_ERROR
 # when the turn failed on the engine itself. Runs in the host's own shell,
 # never a subshell, because it advances the host's grant and turn state.
 handle_wake() {  # <reason-lines>
-  local reason=$1 first scope status corrupted rows tasks unscoped rc turn readback
+  local reason=$1 first scope corrupted rows tasks unscoped rc turn readback
   local receipts usage result errors unacked mirror
   LAST_TURN=
   ENGINE_ERROR=0
@@ -853,14 +853,15 @@ handle_wake() {  # <reason-lines>
     attended_acceptor "$first" || return 2
     scope=$ATTENDED_OFFER
   else
-    set --
-    case "$first" in heartbeat*) set -- --heartbeat ;; esac
-    if ! scope=$(node "$SCRIPT_DIR/fm-branch-dispatch.mjs" scope "$@" --afk 2>/dev/null); then
+    if ! scope=$(printf '%s\n' "$first" | node "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer --afk 2>/dev/null); then
       HANDLE_WHY="branch eligibility could not be computed"
       return 1
     fi
+    if [ "$(printf '%s\n' "$scope" | sed -n 's/^eligible=//p')" != 1 ]; then
+      HANDLE_WHY="the triggering wake belongs to main"
+      return 1
+    fi
   fi
-  status=$(printf '%s\n' "$scope" | sed -n 's/^status=//p')
   corrupted=$(printf '%s\n' "$scope" | sed -n 's/^corrupted=//p')
   rows=$(printf '%s\n' "$scope" | sed -n 's/^rows=//p')
   tasks=$(printf '%s\n' "$scope" | sed -n 's/^tasks=//p')
@@ -868,10 +869,6 @@ handle_wake() {  # <reason-lines>
   if [ "$corrupted" = 1 ]; then
     HANDLE_WHY="a queued wake could not be read or resolved to a task record, so its scope is unknown"
     return 1
-  fi
-  if [ "$status" = empty ] || [ -z "$rows" ]; then
-    log_line "no-op	nothing for the branch to claim	$first"
-    return 0
   fi
   if [ "$GRANT_ACTIVE" -eq 0 ]; then
     if ! "$SCRIPT_DIR/fm-wake-grant.sh" activate "$HOST_PID" "$GEN" >/dev/null 2>&1; then
