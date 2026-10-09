@@ -4,6 +4,9 @@
 The shell entry point owns opt-in. Only the named Herdr helper drives lifecycle.
 No operator message or rearm is sent after initial setup. A bounded injector
 publishes actual durable/status/poll inputs across native completed turns.
+Before running, inspect .codex/hooks.json and its hook commands, then export
+FM_CODEX_TEST_REVIEWED_HOOKS_SHA256 with that reviewed file's SHA-256. The
+UI driver will not trust hooks without this exact-content review attestation.
 """
 import datetime
 import hashlib
@@ -16,6 +19,8 @@ import subprocess
 import sys
 import tempfile
 import time
+
+from codex_native_setup import NativeSetup
 
 ROOT = Path(__file__).resolve().parent.parent
 BASE = Path(tempfile.mkdtemp(prefix="fm-codex-native-", dir=os.environ.get("TMPDIR")))
@@ -155,28 +160,27 @@ try:
                           "-c", 'model_reasoning_effort="medium"', "--no-alt-screen", "-C", str(FM), prompt])
     helper("run", name, "pane", "run", pane, command)
 
-    def native_setup():
-        text = helper("run", name, "pane", "read", pane)
-        if "Do you trust the contents of this directory?" in text:
-            helper("run", name, "pane", "send-keys", pane, "Enter")
-        elif "Hooks need review" in text and "Review hooks" in text:
-            helper("run", name, "pane", "send-keys", pane, "Enter")
-        elif "Press t to trust all" in text:
-            helper("run", name, "pane", "send-text", pane, "t")
-        elif "Press enter to view hooks; esc to close" in text:
-            helper("run", name, "pane", "send-keys", pane, "Escape")
-            return True
-        elif "Update now" in text and "Skip" in text:
-            helper("run", name, "pane", "send-text", pane, "2")
-            helper("run", name, "pane", "send-keys", pane, "Enter")
-        return False
+    setup = NativeSetup()
 
-    wait_for(native_setup, "normal fixture trust review", 90)
-    # Exactly one new fixture session exists. The implementation itself binds
-    # the UUID from the native Stop payload, never by scanning sessions.
-    rollout = wait_for(lambda: next((CH / "sessions").rglob("*.jsonl"), None), "native session")
+    def native_setup():
+        def send(key):
+            method = "send-keys" if key in {"Enter", "Escape"} else "send-text"
+            helper("run", name, "pane", method, pane, key)
+
+        def hooks_reviewed():
+            # Explicit operator review binds to the exact copied fixture hooks.
+            expected = os.environ.get("FM_CODEX_TEST_REVIEWED_HOOKS_SHA256", "")
+            return expected == hashlib.sha256((FM / ".codex/hooks.json").read_bytes()).hexdigest()
+
+        return setup.step(helper("run", name, "pane", "read", pane), send, hooks_reviewed, ready)
 
     def events():
+        global rollout
+        # Exactly one new fixture session exists; Stop binds its own native UUID.
+        if rollout is None:
+            rollout = next((CH / "sessions").rglob("*.jsonl"), None)
+        if rollout is None:
+            return []
         rows = []
         for line in rollout.read_text().splitlines():
             try:
@@ -220,7 +224,7 @@ try:
         result = wait_for(lambda: ready(at), "successor " + event)
         record("successor", event=event, **result)
 
-    record("initial-ready", **wait_for(ready, "parked initial owner"))
+    record("initial-ready", **wait_for(native_setup, "reviewed hooks and parked native owner"))
     finish("D1", publish("D1"))
     (FM / "state/fixture-status.status").write_text("done: fixture event STATUS\n")
     at = datetime.datetime.now(datetime.timezone.utc).isoformat()
