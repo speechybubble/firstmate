@@ -1,0 +1,21 @@
+.
+----------------------------------------------------------------------
+Ran 1 test in 1.018s
+
+OK
+Codex Stop-owned supervision failed: native queue delivery failed: . Durable wakes remain unacknowledged; inspect the native hook and queue delivery.
+ok - Codex owner coalesces, observes late rows, preserves exact-ack custody and fails visibly outside the queue lock
+Codex Stop-owned supervision failed: supervision host exited 7: . Durable wakes remain unacknowledged; inspect the native hook and queue delivery.
+ok - Codex Stop honors host selection, delivers boundaries and outcomes, and suppresses lost-owner handoffs
+overlap deliveries=2 watermark=2 queue_rows=2
+ok - overlapping Stop waits for delivery, handles both real rows and establishes the next owned cycle
+ok - Codex initial snapshot contention released preserves rows, exact ack and successor ownership
+Codex Stop-owned supervision failed: queue snapshot unavailable after bounded acquisition. Durable wakes remain unacknowledged; inspect the native hook and queue delivery.
+ok - Codex initial snapshot contention exhausted preserves rows, exact ack and successor ownership
+ok - Codex returned snapshot contention released preserves rows, exact ack and successor ownership
+Codex Stop-owned supervision failed: queue snapshot unavailable after bounded acquisition. Durable wakes remain unacknowledged; inspect the native hook and queue delivery.
+ok - Codex returned snapshot contention exhausted preserves rows, exact ack and successor ownership
+ok - Codex poll snapshot contention released preserves rows, exact ack and successor ownership
+Codex Stop-owned supervision failed: watcher cycle exited 1: watcher: Codex queue snapshot unavailable after bounded acquisition. Durable wakes remain unacknowledged; inspect the native hook and queue delivery.
+ok - Codex poll snapshot contention exhausted preserves rows, exact ack and successor ownership
+ok - linked child worktree remains excluded

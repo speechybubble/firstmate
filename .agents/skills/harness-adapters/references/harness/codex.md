@@ -23,11 +23,11 @@ The decision persists for the repository, so later worktrees of the same project
 ## Hook trust
 
 A second dialog, "Hooks need review - N hooks are new or changed", appears whenever the machine's `~/.codex/hooks.json` or a project's own `.codex/hooks.json` carries a hook Codex has not persisted trust for.
-It is unanswerable rather than merely inconvenient: its selection starts on "Review hooks", which is neither trusting nor declining, and Firstmate's key plane carries Enter, Escape and Ctrl-C with no arrow navigation.
-Writing Codex's own trust store to pre-accept it would manufacture an operator consent that was never given.
-So crewmate and scout launches disable Codex's hook layer outright (`bin/fm-spawn.sh`'s launch template owns the flag), which is the opposite of `--dangerously-bypass-hook-trust` - that flag RUNS the untrusted hooks.
-A crewmate loses nothing: its turn-end signal is the `-c notify=` program on the same launch, and the Firstmate hooks in a project's `.codex/hooks.json` are primary-session infrastructure that stands down in a child worktree.
-A secondmate is a primary in its own home and keeps its hooks, so an unanswerable modal there is still possible and is the operator's own hook review to settle.
+For version-scoped normal review navigation, see [bounded native Codex evidence](../../../../../docs/verification/runtime-backends.md#codex-parked-turn-ownership-bounded-native-evidence).
+Use it only for the exact fixture or project whose trust review is authorized, then inspect the active counts and verify native execution.
+Writing Codex's trust store would manufacture consent; `--dangerously-bypass-hook-trust` runs untrusted hooks rather than disabling them, so neither substitutes for normal review.
+Crewmate/scout launches still disable project hooks through `bin/fm-spawn.sh`; normal primary hook review does not broaden trust or change worker launch policy.
+Secondmates keep their own primary hooks and require normal review of new or changed entries.
 
 ## Skill popup
 
@@ -48,6 +48,6 @@ The Stop payload includes `cwd`, but the tracked hook does not use it to choose 
 Codex runs the Stop command with process PWD set to the hook-loaded project root, while no `CODEX_PROJECT_DIR`, `CODEX_WORKSPACE_ROOT`, or `CODEX_CWD` root variable is set.
 The tracked hook anchors to `pwd -P`, verifies that root is Firstmate-shaped and hook-bearing, and then invokes the guard with the original payload.
 
-Codex's primary watcher protocol is `../../../bin/fm-watch-checkpoint.sh --seconds "${FM_CODEX_WATCH_CHECKPOINT:-180}"`, not `../../../bin/fm-watch-arm.sh`.
-Codex cannot reason while a foreground tool call is running, so the checkpoint is deliberately foreground and bounded to return control regularly for user messages and queued notifications.
+Codex's watcher protocol, recovery and limits are owned by [the Codex supervision protocol](../../../../../docs/supervision-protocols/codex.md).
+For configured supervision-host behavior, see [the supervision-host contract](../../../../../docs/supervision-host.md).
 Codex's PreToolUse watcher-arm seatbelt blocks directly through its project hook.

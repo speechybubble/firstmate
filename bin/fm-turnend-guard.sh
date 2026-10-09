@@ -66,9 +66,10 @@
 # auto-arm (bin/fm-claude-stop-autoarm.sh), which fires on the same Stop event:
 #   1. a live identity-matched watcher with a fresh beacon - or, in away mode, a
 #      live identity-matched daemon with a fresh beacon - allows immediately;
-#   2. an unhealthy session with a verified live session-lock owner outside its
-#      harness ancestry exits with a read-only diagnostic instead of blocking a
-#      session that cannot repair supervision without stealing ownership;
+#   2. an unhealthy session with a verified live session-lock owner it does not
+#      own under the shared ancestry-or-trusted-id verdict exits with a read-only
+#      diagnostic instead of blocking a session that cannot repair supervision
+#      without stealing ownership;
 #   3. otherwise wait briefly (FM_CLAUDE_AUTOARM_SYNC_WAIT_MS, default 800ms)
 #      for the auto-arm to claim this home (a live OPEN generation claim in the
 #      state/.claude-autoarm-epoch ledger - fm_autoarm_claim_open - or a legacy
@@ -99,6 +100,7 @@ GRACE=${FM_GUARD_GRACE:-300}
 WATCH="$SCRIPT_DIR/fm-watch.sh"
 CLAUDE_MODE=0
 CURSOR_MODE=0
+CODEX_MODE=0
 SYNC_WAIT_MS=${FM_CLAUDE_AUTOARM_SYNC_WAIT_MS:-800}
 EPOCH_FRESH=${FM_CLAUDE_AUTOARM_EPOCH_FRESH:-15}
 BLOCK_BUDGET=${FM_CLAUDE_TURNEND_BLOCK_BUDGET:-3}
@@ -110,7 +112,8 @@ for arg in "$@"; do
   case "$arg" in
     --claude) CLAUDE_MODE=1 ;;
     --cursor) CURSOR_MODE=1 ;;
-    *) echo "usage: $(basename "$0") [--claude|--cursor]" >&2; exit 2 ;;
+    --codex) CODEX_MODE=1 ;;
+    *) echo "usage: $(basename "$0") [--claude|--cursor|--codex]" >&2; exit 2 ;;
   esac
 done
 
@@ -253,8 +256,9 @@ block_stop() {
   exit 2
 }
 
-# A live session outside this process's harness ancestry owns the home lock.
-# This session is read-only and cannot arm or repair supervision without
+# Another verified live session owns the home lock under the shared
+# ancestry-or-trusted-id verdict. This session is read-only and cannot arm or
+# repair supervision without
 # stealing ownership, so blocking its Stop would create an impossible loop.
 # Report the ownership conflict as a diagnostic and let this turn end safely;
 # the owning session remains responsible for restoring the watcher.
@@ -265,6 +269,27 @@ if [ "$CLAUDE_MODE" -eq 1 ] && fm_session_lock_foreign_owner_live "$STATE"; then
 fi
 
 if [ "$CLAUDE_MODE" -eq 0 ]; then
+  if [ "$CODEX_MODE" -eq 1 ]; then
+    # The native async Stop starts concurrently. Wait only for a verified
+    # current-thread owner to establish the ordinary healthy-watcher predicate;
+    # otherwise a premature recovery prompt makes sandboxed tools compete with
+    # the host hook's watcher. This changes neither grace nor the one-block cap.
+    # shellcheck source=bin/fm-session-lock-lib.sh
+    . "$SCRIPT_DIR/fm-session-lock-lib.sh"
+    # shellcheck source=bin/fm-codex-watch-lib.sh
+    . "$SCRIPT_DIR/fm-codex-watch-lib.sh"
+    codex_deadline=$((SECONDS + 10))
+    while [ "$SECONDS" -lt "$codex_deadline" ]; do
+      FM_CODEX_WATCH_OWNER_PID=$(cat "$STATE/.codex-watch.lock/pid" 2>/dev/null || true)
+      if fm_session_lock_owned_by_self "$STATE" \
+        && [ "$(jq -r .thread "$STATE/.codex-watch.lock/target.json" 2>/dev/null)" = "$SESSION_ID" ] \
+        && fm_codex_watch_owner_valid \
+        && fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME"; then
+        allow_supervised_stop
+      fi
+      sleep 0.1
+    done
+  fi
   block_stop
 fi
 
