@@ -29,7 +29,7 @@ Today it runs beside a Claude, Cursor, OpenCode, omp, Grok, or Codex primary: aw
 - Attended (no away record: no `state/.afk-contract`, or quiet mode's) on Claude and Cursor, the engine takes the wakes the Pi branch would take and never wakes main for a routine outcome; see [Postures](#postures).
   Every other close reaches main exactly as the plain watcher arm delivers it.
 - Attended on OpenCode, omp, Grok, and Codex, the host is a pass-through: every close reaches main as without the host.
-- Away (an away record exists), the host hands each close to the engine.
+- Away (an away record exists), the host applies the [away offer and handoff rules](#away).
   Main stays parked unless the host hands the wake back.
 - `/afk` launches no away daemon on a home of those harnesses that runs the host, because the host is the away session there.
 - `/quiet` enters nothing where the attended host runs, and elsewhere launches the daemon; see [Quiet mode](#quiet-mode).
@@ -71,7 +71,7 @@ The host's header owns the output contract they read.
 | OpenCode | the TUI plugin, `.opencode/plugins/fm-primary-watch-arm.js`, which restarts its own successor after each close | a `watcher` prompt through `promptAsync` |
 | omp | the watch extension, `.omp/extensions/fm-primary-omp-watch.ts`, which restarts its own successor after each close | the extension's `watcher` follow-up |
 | Grok | the model's tracked background call, rendered as `bin/fm-supervision-host.sh park` at session start | the background task's completion notification |
-| Codex | the foreground checkpoint, `bin/fm-watch-checkpoint.sh`, in the watcher's place | the checkpoint's own output |
+| Codex | the native Stop owner, `bin/fm-codex-stop-watch.sh` | a native queued notification carrying the host handoff |
 
 Hook, plugin, extension, and checkpoint owners pass their harness as the primary pin.
 Grok's model-owned call relies on primary detection.
@@ -130,7 +130,8 @@ The engine turn runs beside a captain who is present, so its guarded actions tak
 
 ### Away
 
-Every close goes to the engine; captain outcomes remain in the store until the return drain presents them (see [Captain outcomes](#captain-outcomes)).
+Every close is checked against the shared offer rule before the engine may take it, including the original trigger's [durable backlog hold](pi-supervision-branch.md#durable-backlog-holds); an ineligible trigger returns to main even when unrelated rows remain eligible.
+Captain outcomes remain in the store until the return drain presents them (see [Captain outcomes](#captain-outcomes)).
 Every turn that starts attended meets the attended rule again at its start, and the offer's scan is the scope the turn claims: a close accepted away whose turn starts attended, because the captain returned in between, or an attended close whose task turned main-only (a decision appeared) while the successor started, reaches main unchanged and leaves that successor cycle running, with the handoff that turn had confirmed handed back to downtime.
 A captain who leaves while an attended turn runs turns its captain outcomes into away outcomes: they wait for the return too.
 
@@ -153,7 +154,7 @@ A captain message typed while an engine turn is already running reaches the engi
 A captain prompt whose hook write fails is not mirrored, so the engine may judge the next attended wake without it; Claude and Cursor have no later source for it.
 
 Claude and Cursor have writers, proven against the real harness to record the session's dialog from its first captain prompt, so only they run the attended posture.
-Codex has no writer yet: a supervising Codex main stays inside one turn across its foreground checkpoints, so a captain message typed then fires no prompt or Stop hook, and only a reader of its transcript could record it.
+Codex has no verified dialog writer yet; its native Stop integration does not enable attended engine handling.
 Grok and OpenCode have no writer, because their session takes the fleet lock during its first turn, so that turn's captain prompt could never be recorded.
 omp has no verified writer, because no omp was available to prove one against.
 
@@ -270,8 +271,8 @@ So it never stops the owner's host or watcher or releases its leases.
 
 ### A host that dies without a close
 
-The host's owner retries it.
-Grok's model and Codex's checkpoint see it as a failed cycle and start the next one.
+The host's owner handles the failed cycle through its harness-specific recovery path.
+Grok's model starts the next cycle; Codex's native owner leaves a failure advisory for the next guard invocation rather than opening a turn itself (see [Codex recovery limits](supervision-protocols/codex.md)).
 Before it arms, the next host does two things:
 
 - It stops, by recorded identity, whatever its predecessor left running, including the engine descendants a killed turn recorded.
@@ -298,7 +299,7 @@ Main drains and acknowledges, and the owner starts the next park:
 
 | Primary | When the next park starts |
 |---|---|
-| Claude and Cursor | At the next turn end. |
+| Claude, Cursor, and Codex | At the next turn end. |
 | OpenCode and omp | At once. |
 | Grok | At the model's re-arm. |
 
@@ -310,17 +311,9 @@ One short main turn per boundary is the cost of never losing the park silently.
 
 ### Codex checkpoint bound
 
-Codex has no asynchronous wake, so its checkpoint's own bound is the park.
-The checkpoint passes it as the boundary and reports the boundary as its ordinary quiet line (`checkpoint: no actionable wake within <n>s`).
-
-| Posture | Checkpoint bound |
-|---|---|
-| Attended | `FM_CODEX_WATCH_CHECKPOINT` (default 180 seconds). |
-| Away record exists | Raised to `FM_CODEX_WATCH_CHECKPOINT_AWAY` (default 3,600) if longer, then capped at 27,000 seconds so a parked main is not woken every few minutes. |
-
-Because that bound is not a harness timeout, the checkpoint also sets `FM_SUPERVISION_HOST_PARK_LIMIT`.
-That setting lets an engine turn that starts before the boundary finish after it.
-A captain message typed during the park waits for the checkpoint to return, at most the bound plus one engine turn, unless the captain interrupts it.
+Ordinary Codex parks use the native Stop owner and the host boundary above, not a foreground checkpoint.
+Optional foreground recovery retains its own posture-dependent bound and quiet-return contract, owned by the [checkpoint header](../bin/fm-watch-checkpoint.sh).
+The [Codex protocol](supervision-protocols/codex.md) owns when that recovery is appropriate and the native owner's lifetime limits.
 
 ## Engine conversations
 
@@ -413,7 +406,8 @@ Each arm owner's own suite covers its host mode against a stub host.
 | `tests/fm-cursor-primary.test.sh` | The Cursor arm owner's host mode against a stub host. |
 | `tests/fm-pi-watch-extension.test.sh` | The OpenCode plugin's host mode against a stub host. |
 | `tests/fm-omp-harness.test.sh` | The omp arm owner's host mode against a stub host. |
-| `tests/fm-watch-checkpoint.test.sh` | The Codex checkpoint's host mode against a stub host. |
+| `tests/fm-codex-stop-watch.test.sh` | The native Codex owner's host selection, queued handoff, boundary, and failure behavior against a stub host. |
+| `tests/fm-watch-checkpoint.test.sh` | The optional Codex recovery checkpoint's host mode against a stub host. |
 | `tests/fm-supervision-instructions.test.sh` | The rendered protocol, including Grok's arm command. |
 | `tests/fm-host-mirror.test.sh` | The dialog mirror's writers through the tracked Claude and Cursor registrations, the home gate, the feed, and the verified-writer list. |
 | `tests/fm-afk-launch.test.sh` | The home gate on each primary, the `/afk` daemon refusal, and `/quiet` on a home that runs the host: the statement, the paused statement, each named missing part, the quiet daemon fallback that carries its recorded mode, a failed quiet start that archives its quiet record, and the refusal under a live away record until the return. |

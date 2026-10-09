@@ -106,7 +106,7 @@ The no-acceptor fallback and the alarms still reach main in that posture.
 
 #### Durable backlog holds
 
-The Pi dispatcher and pre-drain recheck read the authoritative backlog-hold predicate off-thread.
+The shared dispatcher used by Pi and the supervision host, and Pi's pre-drain recheck, read the authoritative backlog-hold predicate off-thread.
 An explicit backlog hold keeps that task's signal and stale rows on main in either posture, including when no worker status file exists; an indeterminate hold read fails routing closed.
 Grant publication rechecks candidate tasks under their task-control locks and retains every lock through publication.
 A hold that wins this boundary returns the wake to main without granting or consuming any rows.
@@ -284,6 +284,7 @@ Instead, that row is excluded from the eligible set.
 Whatever else is currently eligible still reaches the branch, and the main-owned row stays queued for main's own drain.
 If the original signal or stale trigger now names a decision-owned task while attended, or an explicitly backlog-held task in either posture, the branch rejects settlement before publishing a row grant.
 The watcher then delivers that trigger to main even when routine rows remain eligible or no worker status file exists.
+An offer accepted only under away posture also returns to main if that posture ends before publication, regardless of unrelated eligible rows.
 [`watcher-continuity.md`](watcher-continuity.md#per-actor-acknowledgement) owns the consume-side guarantee that neither actor can present or acknowledge the other's claim.
 
 Heartbeat keeps its own all-or-nothing recheck over the rows it can claim: it takes every branch-ownable unread row or none of them.

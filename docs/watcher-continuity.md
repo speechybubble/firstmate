@@ -210,7 +210,7 @@ No adapter starts a replacement with shell `&`.
 - No PreToolUse hook denies fleet commands based on watcher status.
 - A genuine auto-arm failure describes the automatic mechanism as broken and never directs a routine manual background arm.
 - Terminal arm-output classification (`started`, `attached`, or `FAILED`) remains defense in depth for the manual recovery path.
-- Codex uses bounded foreground checkpoints only for recovery or the optional supervision host; its native Stop owner handles ordinary parked turns.
+- Codex's ordinary and recovery paths, including their limits, are owned by the [Codex protocol](supervision-protocols/codex.md); optional host integration is described under [host arm owners](supervision-host.md#arm-owners).
 - Grok retains its tracked background-task notification protocol.
 
 No adapter starts a replacement with a fire-and-forget shell `&` from a model command.
