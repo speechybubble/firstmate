@@ -79,6 +79,49 @@ export const Type = {
 JS
 }
 
+test_pi_extension_preserves_marked_lab_environment() {
+  local repo home plugin
+  repo="$TMP_ROOT/pi-marked-lab-root"
+  home="$TMP_ROOT/pi-marked-lab-home"
+  install_pi_watch_extension_fixture "$repo"
+  printf '{"type":"module"}\n' > "$repo/package.json"
+  bash "$ROOT/bin/fm-lab-home.sh" create "$home" >/dev/null
+  plugin="$repo/.pi/extensions/fm-primary-pi-watch.ts"
+  cat > "$repo/bin/fm-watch-arm.sh" <<'SH'
+#!/usr/bin/env bash
+source "$GUARD_LIB"
+fm_refuse_if_gate_agent
+printf 'permitted\n' > "$FM_HOME/state/arm-result"
+SH
+  chmod +x "$repo/bin/fm-watch-arm.sh"
+  env -u FM_ROOT_OVERRIDE -u FM_CONFIG_OVERRIDE -u FM_STATE_OVERRIDE \
+    FM_GATE_REFUSE_BYPASS=0 NO_MISTAKES_GATE=1 \
+    GUARD_LIB="$ROOT/bin/fm-gate-refuse-lib.sh" PLUGIN="$plugin" FM_HOME="$home" \
+    node --input-type=module <<'EOF'
+import { existsSync, writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+let handler;
+const events = {};
+const pi = {
+  on(name, fn) { events[name] = fn; },
+  registerCommand(name, options) { if (name === "fm-watch-arm-pi") handler = options.handler; },
+  registerTool() {},
+  sendUserMessage: async () => {},
+};
+writeFileSync(`${process.env.FM_HOME}/state/.lock`, `${process.pid}\n`);
+(await import(pathToFileURL(process.env.PLUGIN).href)).default(pi);
+await handler("", { ui: { notify() {} } });
+for (let i = 0; i < 100 && !existsSync(`${process.env.FM_HOME}/state/arm-result`); i++) {
+  await new Promise(resolve => setTimeout(resolve, 20));
+}
+const permitted = existsSync(`${process.env.FM_HOME}/state/arm-result`);
+await events.session_shutdown?.({}, {});
+if (!permitted) throw new Error("Pi arm child rejected the marked lab home");
+EOF
+  expect_code 0 "$?" "Pi arm child must retain the stock marked-lab layout"
+  pass "Pi arm child preserves marked-lab containment"
+}
+
 test_pi_extension_reports_external_healthy_watcher() {
   local repo home plugin out status
   repo="$TMP_ROOT/pi-external-healthy-root"
@@ -5206,6 +5249,7 @@ EOF
   pass "OpenCode healthy arm output does not suppress the turn-end guard"
 }
 
+test_pi_extension_preserves_marked_lab_environment
 test_pi_extension_reports_external_healthy_watcher
 test_pi_tool_returns_agent_tool_result
 test_pi_redundant_tool_call_is_owned_noop

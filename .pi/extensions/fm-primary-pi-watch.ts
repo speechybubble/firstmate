@@ -145,7 +145,6 @@ const root = resolve(extensionDir, "../..");
 const fmHome = process.env.FM_HOME || process.env.FM_ROOT_OVERRIDE || root;
 const fmRoot = process.env.FM_ROOT_OVERRIDE || root;
 const state = process.env.FM_STATE_OVERRIDE || `${fmHome}/state`;
-const config = process.env.FM_CONFIG_OVERRIDE || `${fmHome}/config`;
 const armScript = `${fmRoot}/bin/fm-watch-arm.sh`;
 const marker = `${state}/.pi-watch-extension-loaded`;
 const handoffDir = `${state}/extensions/pi-primary-watch`;
@@ -684,7 +683,7 @@ export default function (pi: ExtensionAPI) {
         {
           cwd: fmRoot,
           encoding: "utf8",
-          env: { ...process.env, FM_HOME: fmHome, FM_STATE_OVERRIDE: state, FM_ROOT_OVERRIDE: fmRoot },
+          env: { ...process.env, FM_HOME: fmHome },
         },
       );
       if (result.status === 0) return { ok: true, detail: "" };
@@ -1075,8 +1074,6 @@ export default function (pi: ExtensionAPI) {
     const env = {
       ...process.env,
       FM_HOME: fmHome,
-      FM_ROOT_OVERRIDE: fmRoot,
-      FM_CONFIG_OVERRIDE: config,
       FM_WATCH_ARM_SCRIPT: armScript,
       FM_WATCH_PREDECESSOR_ARM_PID: predecessorArmPid,
     };
