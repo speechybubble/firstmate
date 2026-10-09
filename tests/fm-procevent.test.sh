@@ -3904,7 +3904,10 @@ HKEEP="$TMP_ROOT/orphan-live-owner"; new_home "$HKEEP"
 fm_test_track_procevent_home "$HKEEP"
 orphan_pe "$HORPHAN" register lavish orphan-src -- "$ORPHAN_STUB" "$TMP_ROOT/orphan-dead" >/dev/null
 orphan_pe "$HKEEP" register lavish keep-src -- "$QUIET_STUB" "$TMP_ROOT/orphan-live" >/dev/null
-orphan_pe "$HORPHAN" reconcile >/dev/null
+orphan_pe "$HORPHAN" reconcile >/dev/null &
+ORPHAN_LAUNCHER=$!
+wait "$ORPHAN_LAUNCHER" || fail "the orphan listener launcher failed"
+! kill -0 "$ORPHAN_LAUNCHER" 2>/dev/null || fail "the orphan listener launcher did not exit"
 orphan_pe "$HKEEP" reconcile >/dev/null
 
 wait_for "$HORPHAN/state/procevent/orphan-src.runner" \
@@ -3920,8 +3923,16 @@ ORPHAN_DESCENDANT=$(cat "$TMP_ROOT/orphan-dead.descendant")
 # The reproduction condition itself: the listener is already an orphan in the
 # kernel's sense before anything is asserted about reaping it.
 orphan_ppid=$(ps -o ppid= -p "$ORPHAN_PID" 2>/dev/null | tr -d '[:space:]')
-[ "$orphan_ppid" = 1 ] \
-  || fail "the listener under test was not reparented away from its session (ppid $orphan_ppid)"
+[ -n "$orphan_ppid" ] || fail "the orphan listener disappeared"
+# Init is not necessarily PID 1: WSL and other subreaper hosts adopt orphans.
+# Prove the launcher is gone and no ancestor belongs to the original session.
+orphan_ancestor=$orphan_ppid
+while [ "$orphan_ancestor" -gt 0 ]; do
+  [ "$orphan_ancestor" != "$ORPHAN_LAUNCHER" ] && [ "$orphan_ancestor" != "$$" ] \
+    || fail "the listener under test remains attached to its original session"
+  orphan_ancestor=$(ps -o ppid= -p "$orphan_ancestor" 2>/dev/null | tr -d '[:space:]')
+  [ -n "$orphan_ancestor" ] || fail "could not inspect the orphan listener ancestry"
+done
 kill -0 -"$ORPHAN_PID" 2>/dev/null \
   || fail "the listener's process group was not running"
 kill -0 "$ORPHAN_DESCENDANT" 2>/dev/null \

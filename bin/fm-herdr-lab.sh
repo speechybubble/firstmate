@@ -472,7 +472,9 @@ fm_herdr_lab_provision() { # <session>
   else
     fm_herdr_lab_prepare "$name" || return 1
   fi
-  fm_herdr_lab_raw "$name" server >/dev/null 2>&1 &
+  # Own the external launcher directly: a background shell function can retain
+  # a wrapper on older Bash versions, leaving herdr alive when $! is cancelled.
+  HERDR_SESSION="$name" herdr server --session "$name" >/dev/null 2>&1 &
   server_pid=$!
   attempt=0
   max_attempts=300
