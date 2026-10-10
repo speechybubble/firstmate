@@ -1,0 +1,7 @@
+PATH node: v24.14.0 typescript=strip
+ok - supervision node: the file selects a type-stripping Node, an absent file keeps PATH's node and today's reason, and every unusable selection names one reason
+ok - host: a configured supervision Node runs the offer, the wake prompt, and the host's node -e calls
+ok - host: a configured Node without type stripping keeps every attended close on main with one reason
+ok - host: an unusable configured Node hands every away wake to main with the reason
+ok - host: with no supervision-node file the host runs PATH's node exactly as before
+exit=0

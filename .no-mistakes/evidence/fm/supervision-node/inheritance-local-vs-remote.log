@@ -1,6 +1,6 @@
-== primary config/supervision-node: /tmp/nm-node24/node-v24.14.0-linux-x64/bin/node
+== primary config/supervision-node: /tmp/nm-node24b/node-v24.14.0-linux-x64/bin/node
 == remote home config/supervision-node BEFORE: /remote/machine/own/node
-== remote push (real fm-remote-inherit-push.sh -> fm-remote-inherit.sh over a local ssh shim):
+== remote push (real fm-remote-inherit-push.sh -> fm-remote-inherit.sh over a local ssh shim), generation 1:
 unchanged: config/crew-dispatch.json
 unchanged: config/dispatch-never-send
 unchanged: config/crew-harness
@@ -16,18 +16,24 @@ unchanged: config/keep-ai-trailers
 pushed: config/supervision-host-off
 unchanged: data/captain-shared.md
 rc=0
-== remote home config after push:
-supervision-host-off
-supervision-node
-== remote home config/supervision-node AFTER: /remote/machine/own/node
-== remote supervision-host-off inherited: x
-== local secondmate propagation (propagate_secondmate_inheritance):
-rc=0
-== local home config/supervision-node: /tmp/nm-node24/node-v24.14.0-linux-x64/bin/node
-== local mate host node selection:
-rc=0 FM_SUPERVISION_NODE=/tmp/nm-node24/node-v24.14.0-linux-x64/bin/node
-== remote home host node selection (own path missing on this machine, so refused with reason):
-rc=1 problem=config/supervision-node names /remote/machine/own/node, which is not an executable file
-== primary has NO config/supervision-node; push generation 2:
-rc=0
+== remote home config after push: supervision-host-off supervision-node 
+== remote config/supervision-node AFTER: /remote/machine/own/node
+== remote supervision-host-off inherited: yes
+== adversarial: remote receiver asked directly to put config/supervision-node:
+error: path is not inherited material: config/supervision-node
+rc=1
+== adversarial: remote receiver asked to mark config/supervision-node absent:
+error: path is not inherited material: config/supervision-node
+rc=1
 == remote config/supervision-node still: /remote/machine/own/node
+== primary drops config/supervision-node; push generation 2 (non-unchanged lines):
+push rc=0
+== remote config/supervision-node still: /remote/machine/own/node
+== local secondmate propagation (propagate_secondmate_inheritance), mate had its own /usr/bin/node:
+rc=0
+== local mate config/supervision-node: /tmp/nm-node24b/node-v24.14.0-linux-x64/bin/node
+== local mate host Node selection (fm_supervision_node, PATH node is /usr/bin/node v22):
+rc=0 FM_SUPERVISION_NODE=/tmp/nm-node24b/node-v24.14.0-linux-x64/bin/node (v24.14.0 typescript=strip)
+== primary clears its file; local propagation mirrors the absence:
+local mate file present: no
+rc=0 FM_SUPERVISION_NODE=node (v22.22.1 typescript=false)
