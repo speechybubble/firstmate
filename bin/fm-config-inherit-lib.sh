@@ -28,6 +28,11 @@
 # Primary config/supervision-host-off is the fleet's supervision-host opt-out,
 # so a primary that opts out opts every secondmate home out too, while each
 # home's config/supervision-host engine line stays its own.
+# Primary config/supervision-node selects the type-stripping Node the supervision
+# host runs with (bin/fm-supervision-engine-lib.sh fm_supervision_node), so a
+# local secondmate's host keeps native supervision on every ordinary launch
+# too; it is local-only, so remote routes never carry it
+# (FM_LOCAL_ONLY_INHERITABLE_CONFIG).
 # It also pushes
 # the one primary-authoritative shared captain-preference file,
 # data/captain-shared.md, into each secondmate home's data/ as a read-only copy.
@@ -82,7 +87,7 @@ FM_SHARED_CAPTAIN_MODE="444"
 # The declared inheritable set (space-separated, config-dir-relative item paths).
 # Extend here to inherit more of the primary's local config; override via the
 # environment only in tests. Items must not contain whitespace.
-FM_INHERITABLE_CONFIG="${FM_INHERITABLE_CONFIG:-crew-dispatch.json dispatch-never-send crew-harness backlog-backend backend herdr-presentation-spaces startup-memory-budget trace-context launch-env-allowlist claude-permission-mode lavish-axi-host keep-ai-trailers supervision-host-off}"
+FM_INHERITABLE_CONFIG="${FM_INHERITABLE_CONFIG:-crew-dispatch.json dispatch-never-send crew-harness backlog-backend backend herdr-presentation-spaces startup-memory-budget trace-context launch-env-allowlist claude-permission-mode lavish-axi-host keep-ai-trailers supervision-host-off supervision-node}"
 
 # Items whose value is a home-SESSION enablement decision rather than durable
 # local configuration. They are inherited at the launch convergence point, where
@@ -100,13 +105,31 @@ fm_config_inherit_item_session_scoped() {  # <item>
   return 1
 }
 
-# The complete declared inherited-material set as home-relative paths, one per
-# line, in propagation order: every FM_INHERITABLE_CONFIG item under config/,
-# then the one shared data file. This is what remote senders and receivers
-# derive from, so both ends of a transfer agree by construction.
+# Items whose value names something on the primary's own machine, so they are
+# inherited only by local secondmate homes and never cross a remote route: a
+# remote home runs on another machine, where the same path may not exist, and
+# keeps its own value, or its own absence, for these items.
+FM_LOCAL_ONLY_INHERITABLE_CONFIG="supervision-node"
+
+# True when <item> is local-only in the sense above.
+fm_config_inherit_item_local_only() {  # <item>
+  local item=$1 candidate
+  for candidate in $FM_LOCAL_ONLY_INHERITABLE_CONFIG; do
+    [ "$candidate" = "$item" ] && return 0
+  done
+  return 1
+}
+
+# The declared inherited-material set for remote routes as home-relative paths,
+# one per line, in propagation order: every FM_INHERITABLE_CONFIG item under
+# config/ except the local-only ones, then the one shared data file. This is
+# what remote senders and receivers derive from, so both ends of a transfer
+# agree by construction, and a receiver refuses a local-only item from any
+# sender.
 fm_config_inherit_items() {
   local item
   for item in $FM_INHERITABLE_CONFIG; do
+    fm_config_inherit_item_local_only "$item" && continue
     printf 'config/%s\n' "$item"
   done
   printf '%s\n' "$FM_SHARED_CAPTAIN_REL"

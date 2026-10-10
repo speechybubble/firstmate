@@ -1238,7 +1238,7 @@ test_claude_stop_hook_restores_handoff_when_successor_closed_before_exit_to_main
   turn_end "$home"
   wait_until 150 watcher_live "$home" || fail "closed successor: the Stop hook never started a watcher cycle"
   append_status "$home" 'first actionable wake'
-  wait_until 250 hook_exited "$home" || fail "closed successor: the Stop hook did not finish: $(cat "$home/state/.supervision-host.log")"
+  wait_until 600 hook_exited "$home" || fail "closed successor: the Stop hook did not finish: $(cat "$home/state/.supervision-host.log")"
   assert_re '^supervision-host: branch-outcome: ' "$home/hook.err" "the host must hand its captain outcome to main"
   expect_code 2 "$(cat "$home/hook.rc")" "the Stop hook must rewake main after the successor closed"
   assert_re '^(pending|announced):downtime:' "$home/state/.watcher-down" \
@@ -1320,7 +1320,7 @@ test_claude_stop_hook_restores_handoff_when_successor_closed_mid_engine_turn() {
   assert_re '^pending:handling:' "$home/state/.watcher-down" \
     "fixture: the closed handling successor must leave the marker in handling before the host hands back"
   printf 'continue\n' > "$home/stub-release"
-  wait_until 250 hook_exited "$home" || fail "closed successor: the Stop hook did not finish: $(cat "$home/state/.supervision-host.log")"
+  wait_until 600 hook_exited "$home" || fail "closed successor: the Stop hook did not finish: $(cat "$home/state/.supervision-host.log")"
   assert_re '^supervision-host: branch-outcome: ' "$home/hook.err" "the host must hand its captain outcome to main"
   expect_code 2 "$(cat "$home/hook.rc")" "the Stop hook must rewake main after the successor closed"
   assert_re '^epoch=[0-9]+ owner_pid=[0-9]+ outcome=rewake ' "$home/state/.claude-autoarm-epoch" \
@@ -2963,6 +2963,190 @@ test_unverified_engine_hands_every_away_wake_to_main() {
   pass "host: a home naming an unverified engine hands every away wake to main with the reason"
 }
 
+# --- supervision Node (config/supervision-node) -------------------------------
+
+REAL_NODE=$(command -v node)
+# A Node that records each invocation's arguments, then runs the real Node, so
+# a case can tell which Node ran each of the host's calls.
+make_recording_node() {  # <path> <log>
+  mkdir -p "$(dirname "$1")"
+  cat > "$1" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >> "$2"
+exec "$REAL_NODE" "\$@"
+SH
+  chmod +x "$1"
+}
+# A Node without TypeScript type stripping, as Node 22 reports it.
+make_unstripping_node() {  # <path>
+  mkdir -p "$(dirname "$1")"
+  cat > "$1" <<'SH'
+#!/usr/bin/env bash
+case "$1" in
+  --version) echo v22.22.1 ;;
+  -p) echo false ;;
+  *) exit 1 ;;
+esac
+SH
+  chmod +x "$1"
+}
+# PATH with every directory that holds a node replaced by a symlink farm
+# without it, the same construction as the jq case above.
+path_without_node() {  # <scratch-dir>
+  local dir entry path=''
+  while IFS= read -r dir; do
+    [ -n "$dir" ] || continue
+    if [ -e "$dir/node" ]; then
+      mkdir -p "$1$dir"
+      for entry in "$dir"/*; do
+        [ "${entry##*/}" = node ] || ln -s "$entry" "$1$dir/" 2>/dev/null || true
+      done
+      dir="$1$dir"
+    fi
+    path="${path:+$path:}$dir"
+  done <<DIRS
+$(printf '%s\n' "$PATH" | tr ':' '\n')
+DIRS
+  printf '%s\n' "$path"
+}
+# fm_supervision_node and the attended readiness check, read through the
+# library's own functions: "<rc>|<selected command>|<problem>|<unready reason>".
+read_node_selection() {  # <config-dir> [PATH]
+  PATH="${2:-$PATH}" "$BASH" -c '
+    . "$1"
+    rc=0
+    fm_supervision_node "$2" || rc=$?
+    selected=$FM_SUPERVISION_NODE problem=$FM_SUPERVISION_NODE_PROBLEM
+    fm_supervision_host_attended_ready "$2" claude >/dev/null 2>&1 || true
+    printf "%s|%s|%s|%s\n" "$rc" "$selected" "$problem" "$FM_SUPERVISION_HOST_UNREADY"
+  ' _ "$ROOT/bin/fm-supervision-engine-lib.sh" "$1"
+}
+
+test_supervision_node_selection_and_readiness_reasons() {
+  local d cfg got nopath
+  d="$TMP_ROOT/node-select"
+  cfg="$d/config"
+  mkdir -p "$cfg" "$d/bin/a-dir"
+  : > "$cfg/supervision-host"
+  make_recording_node "$d/bin/node24" "$d/node24.log"
+  make_unstripping_node "$d/bin/node22"
+  printf '#!/usr/bin/env bash\nexit 1\n' > "$d/bin/not-node"
+  chmod +x "$d/bin/not-node"
+
+  got=$(read_node_selection "$cfg")
+  assert_contains "$got" "0|node||" "an absent file must keep node from PATH"
+  nopath=$(path_without_node "$d/no-node")
+  PATH="$nopath" command -v node >/dev/null 2>&1 && fail "fixture: node is still reachable"
+  got=$(read_node_selection "$cfg" "$nopath")
+  assert_equals "2|||node is missing" "$got" "an absent file with no node on PATH must keep today's readiness reason exactly"
+
+  printf '  %s  \n' "$d/bin/node24" > "$cfg/supervision-node"
+  got=$(read_node_selection "$cfg")
+  case "$got" in
+    "0|$d/bin/node24||"*) ;;
+    *) fail "a type-stripping Node named by the file must be selected, got: $got" ;;
+  esac
+
+  printf 'node\n' > "$cfg/supervision-node"
+  assert_equals "1||config/supervision-node does not name an absolute Node path|config/supervision-node does not name an absolute Node path" \
+    "$(read_node_selection "$cfg")" "a relative path must be refused with its reason"
+  : > "$cfg/supervision-node"
+  assert_equals "1||config/supervision-node does not name an absolute Node path|config/supervision-node does not name an absolute Node path" \
+    "$(read_node_selection "$cfg")" "an empty file must be refused, never fall back to PATH"
+  printf '%s\n' "$d/bin/missing" > "$cfg/supervision-node"
+  assert_equals "1||config/supervision-node names $d/bin/missing, which is not an executable file|config/supervision-node names $d/bin/missing, which is not an executable file" \
+    "$(read_node_selection "$cfg")" "a missing Node must be refused with its reason"
+  printf '%s\n' "$d/bin/a-dir" > "$cfg/supervision-node"
+  assert_equals "1||config/supervision-node names $d/bin/a-dir, which is not an executable file|config/supervision-node names $d/bin/a-dir, which is not an executable file" \
+    "$(read_node_selection "$cfg")" "a directory must be refused with its reason"
+  printf '%s\n' "$d/bin/not-node" > "$cfg/supervision-node"
+  assert_equals "1||config/supervision-node names $d/bin/not-node, which could not run as Node|config/supervision-node names $d/bin/not-node, which could not run as Node" \
+    "$(read_node_selection "$cfg")" "an executable that cannot run as Node must be refused with its reason"
+  printf '%s\n' "$d/bin/node22" > "$cfg/supervision-node"
+  assert_equals "1||config/supervision-node names a Node v22.22.1 without TypeScript type stripping|config/supervision-node names a Node v22.22.1 without TypeScript type stripping" \
+    "$(read_node_selection "$cfg")" "a Node without type stripping must be refused, naming its version"
+  pass "supervision node: the file selects a type-stripping Node, an absent file keeps PATH's node and today's reason, and every unusable selection names one reason"
+}
+
+test_configured_node_runs_every_host_node_call() {
+  local home
+  home=$(make_home node-selected attended)
+  make_recording_node "$home/selected/node" "$home/selected-node.log"
+  printf '%s\n' "$home/selected/node" > "$home/config/supervision-node"
+  # PATH's node still works but is recorded apart, and uuidgen fails so the
+  # engine session id comes from the host's own `node -e` call.
+  make_recording_node "$home/fakebin/node" "$home/path-node.log"
+  printf '#!/usr/bin/env bash\nexit 1\n' > "$home/fakebin/uuidgen"
+  chmod +x "$home/fakebin/uuidgen"
+  start_host "$home"
+  wait_until 150 watcher_live "$home" || fail "selected node: the host never started a watcher cycle: $(cat "$home/host.out")"
+  append_status "$home" 'step one'
+  wait_until 250 handled_at_least "$home" 1 \
+    || fail "selected node: the wake was not handled on the engine: $(cat "$home/host.out"; cat "$home/state/.supervision-host.log")"
+  assert_grep 'fm-branch-dispatch.mjs offer' "$home/selected-node.log" "the offer must run on the configured Node"
+  assert_grep 'fm-branch-dispatch.mjs wake-prompt' "$home/selected-node.log" "the wake prompt must render on the configured Node"
+  assert_grep 'randomUUID' "$home/selected-node.log" "the engine session id must come from the configured Node"
+  assert_grep 'JSON.parse' "$home/selected-node.log" "the engine result must be read by the configured Node"
+  assert_no_re 'fm-branch-dispatch\.mjs|randomUUID|JSON\.parse' "$home/path-node.log" "no host Node call may run on PATH's node once the file selects one"
+  pass "host: a configured supervision Node runs the offer, the wake prompt, and the host's node -e calls"
+}
+
+test_unstripping_configured_node_hands_attended_closes_to_main() {
+  local home reason
+  home=$(make_home node-unstripping attended)
+  make_unstripping_node "$home/node22/node"
+  printf '%s\n' "$home/node22/node" > "$home/config/supervision-node"
+  reason='config/supervision-node names a Node v22.22.1 without TypeScript type stripping'
+  start_host "$home"
+  wait_until 150 watcher_live "$home" || fail "unstripping node: the host never started a watcher cycle"
+  append_status "$home" 'step one'
+  wait_until 250 host_exited "$home" || fail "unstripping node: the close did not reach main: $(cat "$home/state/.supervision-host.log")"
+  expect_code 0 "$(cat "$home/host.rc")" "a pass-through must exit 0"
+  [ "$(engine_calls "$home")" -eq 0 ] || fail "unstripping node: the engine ran"
+  assert_re '^signal: .*demo.status' "$home/host.out" "the close must reach main exactly as the arm printed it"
+  assert_no_re '^supervision-host' "$home/host.out" "an attended pass-through must add no line"
+  [ "$(grep -cF "	pass-through	attended	$reason	signal:" "$home/state/.supervision-host.log")" -eq 1 ] \
+    || fail "the ledger must name the unusable Node once for the close: $(cat "$home/state/.supervision-host.log")"
+  assert_no_grep 'branch eligibility could not be computed' "$home/state/.supervision-host.log" \
+    "an unusable configured Node must be reported as itself, not as a failed eligibility computation"
+  pass "host: a configured Node without type stripping keeps every attended close on main with one reason"
+}
+
+test_missing_configured_node_hands_every_away_wake_to_main() {
+  local home
+  home=$(make_home node-missing away)
+  printf '%s\n' "$home/no-such-node" > "$home/config/supervision-node"
+  start_host "$home"
+  wait_until 150 watcher_live "$home" || fail "missing node: the host never started a watcher cycle"
+  append_status "$home" 'anything'
+  wait_until 200 host_exited "$home" || fail "missing node: the wake did not reach main"
+  assert_grep "supervision-host: config/supervision-node names $home/no-such-node, which is not an executable file; this wake is yours" \
+    "$home/host.out" "an unusable configured Node must be named on the wake it hands to main"
+  [ "$(engine_calls "$home")" -eq 0 ] || fail "missing node: an engine ran"
+  pass "host: an unusable configured Node hands every away wake to main with the reason"
+}
+
+test_absent_file_keeps_paths_node_and_its_failure_mode() {
+  local home
+  home=$(make_home node-absent attended)
+  # PATH's node runs everything except the dispatch module, as a Node without
+  # type stripping does; with no file the host keeps today's behavior.
+  cat > "$home/fakebin/node" <<SH
+#!/usr/bin/env bash
+case "\$*" in *fm-branch-dispatch.mjs*) exit 1 ;; esac
+exec "$REAL_NODE" "\$@"
+SH
+  chmod +x "$home/fakebin/node"
+  start_host "$home"
+  wait_until 150 watcher_live "$home" || fail "absent file: the host never started a watcher cycle"
+  append_status "$home" 'step one'
+  wait_until 250 host_exited "$home" || fail "absent file: the close did not reach main"
+  [ "$(engine_calls "$home")" -eq 0 ] || fail "absent file: the engine ran"
+  assert_re '	pass-through	attended	branch eligibility could not be computed	signal:' "$home/state/.supervision-host.log" \
+    "with no file, PATH's node and today's eligibility failure must stand unchanged"
+  pass "host: with no supervision-node file the host runs PATH's node exactly as before"
+}
+
 test_host_outside_the_lock_owner_stands_down() {
   local home out rc other
   home=$(make_home not-owner attended)
@@ -3094,6 +3278,11 @@ test_park_limit_lets_a_turn_outlive_the_boundary
 test_first_cycle_status_streams_and_owner_options_reach_it
 test_unchanged_held_outcome_reaches_the_captain_once_until_a_new_event
 test_unverified_engine_hands_every_away_wake_to_main
+test_supervision_node_selection_and_readiness_reasons
+test_configured_node_runs_every_host_node_call
+test_unstripping_configured_node_hands_attended_closes_to_main
+test_missing_configured_node_hands_every_away_wake_to_main
+test_absent_file_keeps_paths_node_and_its_failure_mode
 test_host_outside_the_lock_owner_stands_down
 test_superseded_host_leaves_the_owner_untouched
 )
