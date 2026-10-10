@@ -213,6 +213,7 @@ Each such unit is bounded: a window's whole current-state read stops at `FM_CREW
 That bound is per read, and one scan record can make up to three reads before its next touch, so keep `FM_CREW_STATE_OBSERVE_TIMEOUT` under roughly two thirds of the grace divided by the reads one record can make (about 66 seconds at the 300-second default grace).
 A slow scan that keeps finishing records therefore stays fresh, while a unit that never finishes still ages the beacon into the guard warning and the stall bound below, because nothing touches the beacon on a timer.
 These touches happen only while the watcher still owns the singleton lock, so a superseded watcher stands down rather than vouching for the home.
+A watcher already delivering a signal batch only withholds the touch instead, so the wake its follower is waiting for is still reported exactly once.
 After each `FM_POLL` of scanning (in whole seconds, at least one) the scan yields to newly arrived status signals or queue rows between records, and a durable cursor (`state/.watch-scan-cursor`) resumes it after the record it last began, so later records are never starved.
 
 A fixed 300-second grace default stops correctly bounding staleness once a home's `FM_POLL` reaches or exceeds it.

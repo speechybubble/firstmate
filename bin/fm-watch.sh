@@ -284,6 +284,7 @@ WATCHER_STALL_BOUND=$(fm_watcher_stall_bound "$POLL")
 # (watcher_progress_beat).
 PROGRESS_BEAT_AGE=$((WATCHER_STALE_GRACE / 3))
 [ "$PROGRESS_BEAT_AGE" -ge 1 ] || PROGRESS_BEAT_AGE=1
+WATCH_SIGNAL_IN_FLIGHT=0
 # Whole seconds the window scan runs before it checks for newly arrived durable
 # work between records (watcher_scan_should_yield): one poll, at least one.
 SCAN_SLICE=${POLL%%.*}
@@ -2737,17 +2738,29 @@ watcher_exit_if_world_gone() {
 # taken only while this process still owns the singleton - and, for a
 # Codex-owned cycle, while that exact native owner still owns the home - so a
 # superseded watcher stands down instead of vouching for a home it no longer
-# supervises. Nothing touches it on a timer: a unit that never finishes leaves
+# supervises. A watcher already delivering a signal batch
+# (WATCH_SIGNAL_IN_FLIGHT) never stands down from a beat: the cycle following
+# it waits for exactly that wake, so losing ownership there only withholds the
+# touch and the batch is still reported once, as on a cycle with no beats; the
+# top-of-cycle checks retire the watcher afterwards. Nothing touches it on a timer: a unit that never finishes leaves
 # the beacon to age into the guard warning, the attached arm's stall bound, and
 # the re-arm's eviction exactly as before.
 watcher_progress_beat() {
   [ "$(fm_path_age "$BEAT")" -ge "$PROGRESS_BEAT_AGE" ] || return 0
-  watcher_exit_if_world_gone
-  [ "$(cat "$WATCH_LOCK/pid" 2>/dev/null || true)" = "$WATCHER_PID" ] || exit 0
-  if [ -n "${FM_CODEX_WATCH_OWNER_PID:-}" ]; then
-    fm_codex_watch_owner_valid || exit 0
+  if [ "$WATCH_SIGNAL_IN_FLIGHT" -eq 1 ]; then
+    watcher_owns_home || return 0
+  else
+    watcher_exit_if_world_gone
+    watcher_owns_home || exit 0
   fi
   touch "$BEAT"
+}
+
+watcher_owns_home() {
+  [ "$(cat "$WATCH_LOCK/pid" 2>/dev/null || true)" = "$WATCHER_PID" ] || return 1
+  if [ -n "${FM_CODEX_WATCH_OWNER_PID:-}" ]; then
+    fm_codex_watch_owner_valid || return 1
+  fi
 }
 
 # The window scan resumes after the record it last began, durably, so a cycle
@@ -3059,6 +3072,7 @@ EOF
   # signature for an already-pending file (last write wins below).
   pending=$(scan_signals)
   if [ -n "$pending" ]; then
+    WATCH_SIGNAL_IN_FLIGHT=1
     sleep "$SIGNAL_GRACE"
     pending=$(printf '%s\n%s' "$pending" "$(scan_signals)")
     watcher_progress_beat
@@ -3177,6 +3191,7 @@ EOF
       fi
       triage_log "absorbed benign $reason"
     fi
+    WATCH_SIGNAL_IN_FLIGHT=0
   fi
 
   # Layer 1 backbone: pane staleness. Two consecutive identical hashes with no busy

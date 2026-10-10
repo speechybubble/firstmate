@@ -17,7 +17,8 @@
 #     surfaced once, and the scan later resumes so paused, held, and retained
 #     neighbors after it are all still covered;
 #   - a watcher that loses the singleton mid-scan stands down without touching
-#     the beacon;
+#     the beacon, while one that loses it mid-signal still delivers that wake
+#     exactly once;
 #   - an arm that follows the slow-scanning watcher keeps following it and
 #     closes with its wake, and a re-arm during the scan attaches instead of
 #     failing.
@@ -425,6 +426,59 @@ test_owner_change_mid_scan_stands_down() {
   pass "a watcher that loses the singleton mid-scan stops at the next record without touching the beacon"
 }
 
+# A superseded watcher can be part-way through delivering a signal: the
+# coalescing linger is past and the batch is being classified, but nothing has
+# been reported yet. A progress beat there must not stand the watcher down,
+# because whoever is following this cycle is waiting for exactly that wake.
+# Losing the singleton mid-delivery only withholds the beacon touch; the wake is
+# still reported once, and the next owner does not report it again.
+test_owner_change_mid_signal_still_delivers_the_wake() {
+  local dir state fakebin out out2 rival old_epoch rc i rows
+  dir=$(make_case owner-change-signal); state="$dir/state"; fakebin="$dir/fakebin"
+  out="$dir/watch.out"; out2="$dir/watch2.out"
+  install_scan_fakes "$fakebin"
+  add_window "$state" d1 "working: part 1"
+  # A distinctive linger, so the test can see the watcher is inside it.
+  start_watcher "$state" "$fakebin" "$out" FM_FAKE_TMUX_CAPTURE_VARY=1 FM_SIGNAL_GRACE=7
+  i=0
+  while [ "$i" -lt 100 ] && [ ! -e "$state/.last-watcher-beat" ]; do sleep 0.1; i=$((i + 1)); done
+  printf 'done: part 1 finished\n' >> "$state/d1.status"
+  i=0
+  while [ "$i" -lt 300 ] && ! pgrep -P "$WATCHER_PID" -f '^sleep 7$' >/dev/null 2>&1; do sleep 0.1; i=$((i + 1)); done
+  [ "$i" -lt 300 ] || { reap_watcher; fail "the watcher never lingered on the signal: $(cat "$out" "$out.err")"; }
+  sleep 300 &
+  rival=$!
+  printf '%s\n' "$rival" > "$state/.watch.lock/pid"
+  # Past the progress-beat age, so the next beat runs its ownership check.
+  old_epoch=$(( $(date +%s) - 100 ))
+  set_beacon_mtime "$old_epoch" "$state/.last-watcher-beat"
+  wait_for_exit "$WATCHER_PID" 300
+  rc=$?
+  kill "$rival" 2>/dev/null || true
+  wait "$rival" 2>/dev/null || true
+  [ "$rc" -eq 0 ] || fail "superseded watcher did not finish its delivery (rc=$rc): $(cat "$out.err")"
+  grep -q '^signal: .*d1\.status' "$out" || fail "superseded watcher dropped the signal it was delivering: out=[$(cat "$out")] err=[$(cat "$out.err")]"
+  [ "$(grep -c '^signal: ' "$out")" -eq 1 ] || fail "the signal was reported more than once: $(cat "$out")"
+  # The coalescing re-scan can list one file twice, so a batch may queue a row
+  # per listing; what must hold is one queued wake key for this one signal.
+  [ "$(awk -F'\t' '{print $3 "\t" $4}' "$state/.wake-queue" 2>/dev/null | sort -u | wc -l | tr -d ' ')" -eq 1 ] \
+    || fail "expected one queued wake key for the signal: $(cat "$state/.wake-queue" 2>/dev/null)"
+  # Handle and acknowledge it, as firstmate would, before the next owner runs.
+  ack_all "$state" || fail "the delivered wake could not be acknowledged"
+  rows=$(line_count "$state/.wake-queue")
+  [ "$(bash -c '. "$1"; fm_path_mtime "$2"' _ "$WAKE_LIB" "$state/.last-watcher-beat")" -eq "$old_epoch" ] \
+    || fail "superseded watcher touched the beacon after losing the singleton"
+  # The next real owner does not report the acknowledged signal again.
+  rm -rf "$state/.watch.lock"
+  start_watcher "$state" "$fakebin" "$out2" FM_FAKE_TMUX_CAPTURE_VARY=1 FM_SIGNAL_GRACE=1
+  sleep 5
+  reap_watcher
+  [ ! -s "$out2" ] || fail "the next owner reported the delivered signal again: $(cat "$out2")"
+  [ "$(line_count "$state/.wake-queue")" -eq "$rows" ] \
+    || fail "the next owner queued the delivered signal again: $(cat "$state/.wake-queue")"
+  pass "a watcher that loses the singleton mid-signal still delivers that wake exactly once"
+}
+
 set_beacon_mtime() {  # <epoch> <file>
   local stamp
   if stamp=$(date -r "$1" +%Y%m%d%H%M.%S 2>/dev/null); then :; else stamp=$(date -d "@$1" +%Y%m%d%H%M.%S); fi
@@ -490,4 +544,5 @@ test_signal_linger_then_slow_read_keeps_beacon_fresh
 test_hung_observation_ages_beacon_then_surfaces
 test_new_work_yields_scan_and_coverage_resumes
 test_owner_change_mid_scan_stands_down
+test_owner_change_mid_signal_still_delivers_the_wake
 test_arm_follows_slow_scan_and_rearm_attaches
