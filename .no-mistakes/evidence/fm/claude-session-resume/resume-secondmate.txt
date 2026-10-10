@@ -1,0 +1,5 @@
+$ fm-control.sh lab48111984e493-mate relaunch --resume-session cec5d29c-bb8d-448d-ab07-8f95e0ab5703
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmlab.rs.Ib0wA6/home
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmlab.rs.Ib0wA6/home
+relaunched lab48111984e493-mate harness=claude from=claude model=sonnet effort=low backend=tmux endpoint=firstmate:fm-lab48111984e493-mate worktree=/tmp/fmlab.rs.Ib0wA6/mate resumed_session=cec5d29c-bb8d-448d-ab07-8f95e0ab5703
+exit=0

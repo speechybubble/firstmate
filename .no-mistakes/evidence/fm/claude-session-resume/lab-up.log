@@ -1,0 +1,25 @@
+lab: /tmp/fmlab.rs.Ib0wA6 (tear down with: bin/fm-live-lab.sh down /tmp/fmlab.rs.Ib0wA6)
+tree: d09ea0325075c8d09cfcdff429ea8f0078daae6b from /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4KK7XGTR2VDDDW0JDN4EMEB
+scaffolded: /tmp/fmlab.rs.Ib0wA6/home/data/lab48111984e493-mate/brief.md (secondmate charter)
+home=/tmp/fmlab.rs.Ib0wA6/mate
+spawned lab48111984e493-mate harness=claude kind=secondmate mode=secondmate yolo=off window=firstmate:fm-lab48111984e493-mate worktree=/tmp/fmlab.rs.Ib0wA6/mate
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+spawned lab48111984e493-worker harness=claude kind=ship mode=local-only yolo=on window=firstmate:fm-lab48111984e493-worker worktree=/tmp/fmlab.rs.Ib0wA6/treehouse/.treehouse/notes-6f24c0/1/notes
+gate: /tmp/fmlab.rs.Ib0wA6/home/data/lab48111984e493-worker/gate (touch, then message the worker to resume)
+primary: claude --setting-sources project,local --model sonnet --effort medium --permission-mode auto
+ok primary: claude pid 1240181 in /tmp/fmlab.rs.Ib0wA6/home
+ok probe: the primary answered LABREADY-48111984e493
+ok trust: /tmp/fmlab.rs.Ib0wA6/home is trusted in the Claude store
+ok mirror: verified writer, check passed, captain=1 main=1
+ok host: supervision host pid 1278426
+ok watcher: live watcher with a fresh beacon
+ok mate: lab48111984e493-mate pid 1173572 in /tmp/fmlab.rs.Ib0wA6/mate
+ok worker: lab48111984e493-worker parked on /tmp/fmlab.rs.Ib0wA6/home/data/lab48111984e493-worker/gate
+ok treehouse: ~/.treehouse unchanged
+ready: /tmp/fmlab.rs.Ib0wA6

@@ -1,0 +1,6 @@
+$ fm-control.sh lab48111984e493-worker relaunch --resume-session 6dc48c1a-4306-415e-97cb-aa7e84a9095c --note x
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmlab.rs.Ib0wA6/home
+error: live Claude process 1348351 carries no FM_TASK_INBOX and is not in task lab48111984e493-worker's endpoint process tree (root pid 1182032), so it is not task lab48111984e493-worker's agent
+error: Claude session 6dc48c1a-4306-415e-97cb-aa7e84a9095c is not owned by this task's agent; refusing before anything is stopped
+error: relaunch of lab48111984e493-worker with --resume-session 6dc48c1a-4306-415e-97cb-aa7e84a9095c refused before its agent was touched
+exit=1

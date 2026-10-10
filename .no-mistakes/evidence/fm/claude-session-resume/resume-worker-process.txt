@@ -1,0 +1,12 @@
+# resumed worker claude process 1387367
+claude --permission-mode auto --add-dir /tmp/fmlab.rs.Ib0wA6/home/state/operational-inbox --add-dir /tmp/fmlab.rs.Ib0wA6/home/state/lab48111984e493-worker.inbox --add-dir /tmp/fmlab.rs.Ib0wA6/home/data/lab48111984e493-worker --add-dir /tmp/fmlab.rs.Ib0wA6/home/.agents/skills --settings {"feedbackDrafts":"off","attribution":{"commit":"","pr":"","sessionUrl":false}} --resume 05f23507-5368-4e5a-aade-8461f93b8a59 --append-system-prompt <task-worker trust contract> --model sonnet --effort low 
+# session record
+{"pid":1387367,"sessionId":"05f23507-5368-4e5a-aade-8461f93b8a59","cwd":"/tmp/fmlab.rs.Ib0wA6/treehouse/.treehouse/notes-6f24c0/1/notes","kind":"interactive"}
+# Fleet env of the resumed process
+FM_TASK_ID=lab48111984e493-worker
+FM_TASK_INBOX=/tmp/fmlab.rs.Ib0wA6/home/state/lab48111984e493-worker.inbox
+FM_BACKEND=tmux
+# busy hooks generation in worktree settings
+g1791660446.1384151.7155
+# busy record
+v1 gen=g1791660446.1384151.7155 seq=1 state=idle source=fm-spawn event=resume-session ts=1791660446

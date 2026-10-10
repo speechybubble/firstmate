@@ -1,0 +1,43 @@
+$ fm-control.sh lab48111984e493-worker exit
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmlab.rs.Ib0wA6/home
+stopped lab48111984e493-worker harness=claude backend=tmux endpoint=firstmate:fm-lab48111984e493-worker worktree=/tmp/fmlab.rs.Ib0wA6/treehouse/.treehouse/notes-6f24c0/1/notes
+exit=0
+# pane command after exit: bash
+$ fm-spawn.sh lab48111984e493-worker --relaunch --harness claude --resume-session 99999999-aaaa-4bbb-8ccc-dddddddddddd
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmlab.rs.Ib0wA6/home
+error: Claude session 99999999-aaaa-4bbb-8ccc-dddddddddddd has no transcript at /home/denni/.claude/projects/-tmp-fmlab-rs-Ib0wA6-treehouse--treehouse-notes-6f24c0-1-notes/99999999-aaaa-4bbb-8ccc-dddddddddddd.jsonl, so it is not a conversation of /tmp/fmlab.rs.Ib0wA6/treehouse/.treehouse/notes-6f24c0/1/notes; refusing to resume
+error: relaunch of lab48111984e493-worker with --resume-session 99999999-aaaa-4bbb-8ccc-dddddddddddd refused; no replacement was launched
+exit=1
+# pane command after refused spawn: bash
+$ fm-spawn.sh lab48111984e493-worker --relaunch --harness claude --resume-session 05f23507-5368-4e5a-aade-8461f93b8a59
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmlab.rs.Ib0wA6/home
+spawned lab48111984e493-worker harness=claude kind=ship mode=local-only yolo=on window=firstmate:fm-lab48111984e493-worker worktree=/tmp/fmlab.rs.Ib0wA6/treehouse/.treehouse/notes-6f24c0/1/notes
+exit=0
+{"pid":1508780,"sessionId":"05f23507-5368-4e5a-aade-8461f93b8a59","cwd":"/tmp/fmlab.rs.Ib0wA6/treehouse/.treehouse/notes-6f24c0/1/notes"}
+ ▐▛███▛█   Claude Code v2.1.296
+▝▜██████▀  Sonnet 5.5 · Claude Max
+ ▝▝   ▝▝   /tmp/fmlab.rs.Ib0wA6/treehouse/.treehouse/notes-6f24c0/1/notes
+❯ : Firstmate operational input waiting: read '/tmp/fmlab.rs.Ib0wA6/home/state/operational-inbox/1791659928-1d20015252f61787.msg' and handle its contents as Firstmate operational input.                                   
+  Read 1 file 
+● Setup: verify isolation, create branch, then post paused status.
+  Ran 1 shell command 
+● Isolated worktree confirmed; gate absent. Posting paused status.
+  Ran 1 shell command 
+● I'm paused. I created the branch fm/lab48111984e493-worker in the isolated worktree, and the worktree path check passed. I haven't implemented count_notes() or its test yet. The gate file
+  /tmp/fmlab.rs.Ib0wA6/home/data/lab48111984e493-worker/gate doesn't exist.
+  I appended a paused status line naming that gate file. I'll wait for a resume message, then check the gate again before writing anything.
+✻ Cooked for 1m 12s · done 5:20 AM
+❯ Captain here, live resume validation. Remember this codeword for later: TIDEGLASS-4417. Reply only with the word noted. Do not touch the gate or any files.                                                               
+● noted
+✻ Cooked for 8s · done 5:22 AM
+❯ What codeword did I ask you to remember earlier? Answer with only the codeword, and do not touch any files.                                                                                                               
+● TIDEGLASS-4417
+✻ Brewed for 12s · done 5:28 AM
+❯ Once more: what codeword did I ask you to remember? Answer with only the codeword.                                                                                                                                        
+● TIDEGLASS-4417
+✻ Sautéed for 4s · done 5:32 AM
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯                                                                                   
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Sonnet 5.5 | ctx: 5% used
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents

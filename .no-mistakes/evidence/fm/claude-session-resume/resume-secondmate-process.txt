@@ -1,0 +1,20 @@
+# resumed second-mate claude process 1447500 (pane root 1171255)
+claude --permission-mode auto --add-dir /tmp/fmlab.rs.Ib0wA6/home/state/lab48111984e493-mate.inbox --settings {"feedbackDrafts":"off","attribution":{"commit":"","pr":"","sessionUrl":false}} --resume cec5d29c-bb8d-448d-ab07-8f95e0ab5703 --model sonnet --effort low 
+# session record
+{"pid":1447500,"sessionId":"cec5d29c-bb8d-448d-ab07-8f95e0ab5703","cwd":"/tmp/fmlab.rs.Ib0wA6/mate","kind":"interactive"}
+# Fleet env of the resumed process
+FM_DATA_OVERRIDE=
+FM_SUPERVISION_MODEL=autoarm
+FM_HOME=/tmp/fmlab.rs.Ib0wA6/mate
+FM_PUBLIC_FOLLOWUP_PRIMARY_HOME=/tmp/fmlab.rs.Ib0wA6/home
+FM_TRACE_CONTEXT=off
+FM_PROJECTS_OVERRIDE=
+FM_CONFIG_OVERRIDE=
+FM_ROOT_OVERRIDE=
+FM_STATE_OVERRIDE=
+FM_TASK_INBOX=/tmp/fmlab.rs.Ib0wA6/home/state/lab48111984e493-mate.inbox
+FM_BACKEND=tmux
+# operational inbox (brief records) after resume
+1791659909-2a425ec886d4f20e.msg
+# charter unchanged
+identical

@@ -1,0 +1,12 @@
+$ fm-control.sh lab48111984e493-worker relaunch --resume-session 05f23507-5368-4e5a-aade-8461f93b8a59 --note cutover restart: live resume validation
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmlab.rs.Ib0wA6/home
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fmlab.rs.Ib0wA6/home
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  2 task(s) in flight, but no live watcher process holds this home lock (last beat: 183s ago).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+relaunched lab48111984e493-worker harness=claude from=claude model=sonnet effort=low backend=tmux endpoint=firstmate:fm-lab48111984e493-worker worktree=/tmp/fmlab.rs.Ib0wA6/treehouse/.treehouse/notes-6f24c0/1/notes resumed_session=05f23507-5368-4e5a-aade-8461f93b8a59
+exit=0
