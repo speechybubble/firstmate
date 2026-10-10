@@ -9,7 +9,8 @@
 # singleton. These real-process cases drive bin/fm-watch.sh against a hermetic
 # fleet whose current-state reader is deliberately slow, and pin:
 #   - a slow scan that keeps finishing records keeps the beacon fresh throughout,
-#     and so does slow triage of many coalesced signals;
+#     and so does slow triage of many coalesced signals, including the linger
+#     that coalesces them;
 #   - a genuinely hung read still ages the beacon past the grace (no ticker
 #     hides it), is ended at its own total bound, and surfaces as not working;
 #   - newly arrived durable work interrupts a long scan between records, is
@@ -231,6 +232,44 @@ test_slow_signal_triage_keeps_beacon_fresh() {
   pass "slow signal triage that keeps finishing per-task reads keeps the guard's beacon fresh past the grace"
 }
 
+# The coalescing linger and the first signalled read are separate bounded
+# units: together they outlive the grace, so a watcher that records progress
+# only after the first read reads as down before triage has done anything wrong.
+test_signal_linger_then_slow_read_keeps_beacon_fresh() {
+  local dir state fakebin out log tlog i samples=0 down=0 ages=
+  dir=$(make_case linger-signal); state="$dir/state"; fakebin="$dir/fakebin"
+  out="$dir/watch.out"; log="$dir/crew-state.log"; tlog="$state/.watch-triage.log"
+  install_scan_fakes "$fakebin"
+  add_window "$state" linger1 "working: starting part 1"
+  add_window "$state" linger2 "working: starting part 2"
+  start_watcher "$state" "$fakebin" "$out" FM_FAKE_CREW_STATE_LOG="$log" \
+    FM_FAKE_CREW_STATE_SLEEP=13 FM_FAKE_TMUX_CAPTURE_VARY=1 FM_SIGNAL_GRACE=9
+  i=0
+  while [ "$i" -lt 100 ] && [ ! -e "$state/.last-watcher-beat" ]; do sleep 0.1; i=$((i + 1)); done
+  sleep 2
+  [ "$(line_count "$log")" -eq 0 ] || { reap_watcher; fail "the window scan read current state: $(cat "$log")"; }
+  printf 'working: building part 1\n' >> "$state/linger1.status"
+  printf 'working: building part 2\n' >> "$state/linger2.status"
+  i=0
+  while [ "$i" -lt 800 ] && ! grep -q 'absorbed benign signal:' "$tlog" 2>/dev/null; do
+    samples=$((samples + 1))
+    if ! guard_healthy "$state"; then
+      down=$((down + 1))
+      ages="$ages $(beacon_age "$state")s"
+    fi
+    sleep 0.25
+    i=$((i + 1))
+  done
+  is_live_non_zombie "$WATCHER_PID" || fail "watcher exited during the linger and slow read: $(cat "$out" "$out.err")"
+  reap_watcher
+  [ "$(line_count "$log")" -eq 2 ] || fail "signal triage did not read each signalled task once: $(cat "$log")"
+  grep -q 'absorbed benign signal:' "$tlog" || fail "the working notes were not absorbed as benign: $(cat "$tlog")"
+  [ "$samples" -gt 10 ] || fail "too few guard samples ($samples)"
+  [ "$down" -eq 0 ] || fail "guard read the signal linger and first read as supervision down in $down of $samples samples (beacon ages:$ages)"
+  [ ! -s "$out" ] || fail "benign slow signal triage woke firstmate: $(cat "$out")"
+  pass "a signal linger followed by a slow first read keeps the guard's beacon fresh"
+}
+
 reap_watcher() {
   kill "$WATCHER_PID" 2>/dev/null || true
   wait_for_exit "$WATCHER_PID" 100 || true
@@ -308,7 +347,7 @@ test_new_work_yields_scan_and_coverage_resumes() {
   prime_status_seen "$state" "$state/other.status"
 
   start_watcher "$state" "$fakebin" "$out" FM_FAKE_CREW_STATE_LOG="$log" \
-    FM_FAKE_TMUX_CAPTURE_LOG="$caplog" FM_FAKE_CREW_STATE_SLEEP=2 FM_POLL=2
+    FM_FAKE_TMUX_CAPTURE_LOG="$caplog" FM_FAKE_CREW_STATE_SLEEP=2 FM_POLL=1.5
   wait_for_lines "$log" 2 300 || { reap_watcher; fail "scan did not start"; }
   printf 'needs-decision: choose the export format\n' >> "$state/other.status"
   wait_for_exit "$WATCHER_PID" 300 || fail "new durable work was held behind the scan"
@@ -317,6 +356,8 @@ test_new_work_yields_scan_and_coverage_resumes() {
     || fail "the decision waited for the whole scan instead of the next record boundary"
   grep -F 'window scan yielded to newly arrived work' "$state/.watch-triage.log" >/dev/null \
     || fail "the scan did not record its yield"
+  ! grep -F 'integer expression expected' "$out.err" >/dev/null \
+    || fail "a fractional poll broke the scan slice: $(cat "$out.err")"
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" 2>/dev/null || fail "drain failed"
   rows=$(grep -c "$(printf '\tsignal\t')" "$drain_out" || true)
   [ "$rows" -eq 1 ] || fail "the decision was queued $rows times, not exactly once: $(cat "$drain_out")"
@@ -441,6 +482,7 @@ test_arm_follows_slow_scan_and_rearm_attaches() {
 
 test_slow_progressing_scan_keeps_beacon_fresh
 test_slow_signal_triage_keeps_beacon_fresh
+test_signal_linger_then_slow_read_keeps_beacon_fresh
 test_hung_observation_ages_beacon_then_surfaces
 test_new_work_yields_scan_and_coverage_resumes
 test_owner_change_mid_scan_stands_down

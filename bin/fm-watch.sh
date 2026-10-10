@@ -284,6 +284,11 @@ WATCHER_STALL_BOUND=$(fm_watcher_stall_bound "$POLL")
 # (watcher_progress_beat).
 PROGRESS_BEAT_AGE=$((WATCHER_STALE_GRACE / 3))
 [ "$PROGRESS_BEAT_AGE" -ge 1 ] || PROGRESS_BEAT_AGE=1
+# Whole seconds the window scan runs before it checks for newly arrived durable
+# work between records (watcher_scan_should_yield): one poll, at least one.
+SCAN_SLICE=${POLL%%.*}
+case "$SCAN_SLICE" in ''|*[!0-9]*) SCAN_SLICE=1 ;; esac
+[ "$SCAN_SLICE" -ge 1 ] || SCAN_SLICE=1
 HEARTBEAT=${FM_HEARTBEAT:-600}        # base seconds between heartbeat scans
 HEARTBEAT_MAX=${FM_HEARTBEAT_MAX:-7200}  # heartbeat backoff cap
 CHECK_INTERVAL=${FM_CHECK_INTERVAL:-300}  # seconds between *.check.sh sweeps
@@ -3054,6 +3059,7 @@ EOF
   if [ -n "$pending" ]; then
     sleep "$SIGNAL_GRACE"
     pending=$(printf '%s\n%s' "$pending" "$(scan_signals)")
+    watcher_progress_beat
     # The final coalesced signal set is the watcher-carried status-change
     # trigger for this home's published summary. Start it before either
     # surfacing or absorbing the signal, but never wait on it: see
@@ -3096,6 +3102,7 @@ EOF
     # shellcheck disable=SC2086  # $files is a space-separated status-path list (ids carry no spaces)
     signal_files_actionable $files
     signal_actionable=$?
+    watcher_progress_beat
     # A decision-owned file's queued row payload is marked "needs-decision:"
     # instead of the ordinary "signal:" below (other files in the same batch
     # keep the ordinary payload). The wake reason line itself, and every
@@ -3182,12 +3189,12 @@ EOF
   while IFS= read -r w; do
     # Each record is a bounded unit: its current-state reads are bounded in
     # total (crew_state_observe in fm-classify-lib.sh) and its pane capture is
-    # interruptible. Record the progress, and once a slice has run for one
-    # POLL hand newly arrived durable work to the top of the cycle
+    # interruptible. Record the progress, and once a slice has run for
+    # SCAN_SLICE hand newly arrived durable work to the top of the cycle
     # rather than holding it behind the rest of the scan.
     watcher_progress_beat
     if [ "$scan_records" -gt 0 ] \
-      && [ "$(( $(date +%s) - scan_slice_start ))" -ge "$POLL" ]; then
+      && [ "$(( $(date +%s) - scan_slice_start ))" -ge "$SCAN_SLICE" ]; then
       if watcher_scan_should_yield; then
         triage_log "window scan yielded to newly arrived work after $scan_records records"
         scan_yielded=1
