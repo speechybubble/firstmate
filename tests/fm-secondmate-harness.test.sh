@@ -459,9 +459,11 @@ test_propagate_lib() {
   printf '/remote/host/node\n' > "$remote_home/config/supervision-node"
   payload="$d/remote-node-payload"
   printf '/opt/node-v24/bin/node\n' > "$payload"
+  payload_size=$(LC_ALL=C wc -c < "$payload" | tr -d ' ')
+  payload_hash=$(fm_inherit_sha256 "$payload")
   rc=0
   out=$(FM_HOME="$remote_home" "$ROOT/bin/fm-remote-inherit.sh" put config/supervision-node \
-    "$(LC_ALL=C wc -c < "$payload" | tr -d ' ')" "$(fm_inherit_sha256 "$payload")" 1 < "$payload" 2>&1) || rc=$?
+    "$payload_size" "$payload_hash" 1 < "$payload" 2>&1) || rc=$?
   [ "$rc" -ne 0 ] || fail "a remote receiver accepted config/supervision-node: $out"
   assert_contains "$out" "path is not inherited material: config/supervision-node" "the remote refusal must name the item"
   empty_hash=$(fm_inherit_sha256 /dev/null)
