@@ -289,6 +289,49 @@ exit 0
         # for a-slow's read to reach its six-second bound.
         self.assertLess(starts["c-slow"] - starts["a-slow"], 4.5)
 
+    def test_paused_child_without_a_run_keeps_its_hold_when_the_overview_stalls(self):
+        # Inventories as the installed CLI prints them for a branch with no run:
+        # other branches' runs in a table, or a repository with no runs at all.
+        inventories = {
+            "other-branch-runs": (
+                "count: 1 of 1 total\\n"
+                "runs[1]{id,branch,status,head,pr}:\\n"
+                '  "01OTHER",fm/other,completed,abcdef12,""\\n'
+            ),
+            "empty-repository": "runs: 0 runs yet in this repository\\n",
+        }
+        for name, inventory in inventories.items():
+            with self.subTest(inventory=name):
+                home = self.home(f"paused-{name}")
+                self.git_task(home, "custody", kind="ship",
+                              status="paused: custody accepted, awaiting release")
+                (home / "data/backlog.md").write_text(
+                    "## In flight\n- [ ] custody - Custody work (repo: fixture) (kind: ship)\n"
+                    "## Queued\n## Done\n"
+                )
+                log = self.root / f"paused-{name}.log"
+                # The status answer already says this branch has no run and carries
+                # the inventory; a separate overview call stalls past the read bound.
+                self.tool("no-mistakes", f'''
+printf '%s\\n' "$*" >> "{log}"
+case "$*" in
+  "axi status")
+    printf 'current_branch: fm/custody\\nruns_on_current_branch: 0\\n{inventory}' ;;
+  axi) sleep 30 ;;
+esac
+exit 0
+''')
+                summary = json.loads(self.output(home, "fm-fleet-snapshot.sh",
+                                                 "--secondmate-home-summary",
+                                                 FM_SNAPSHOT_CREW_STATE_TIMEOUT="5"))
+                calls = log.read_text().splitlines()
+                self.assertIn("axi status", calls)
+                self.assertNotIn("axi", calls)
+                rows = {row["id"]: row for row in summary["endpoints"]}
+                self.assertEqual((rows["custody"]["state"], rows["custody"]["source"]),
+                                 ("paused", "status-log"))
+                self.assertIn("custody", [row["id"] for row in summary["holds"]])
+
     def test_contribution_input_never_reads_archive(self):
         home = self.home("contributions")
         (home / "data/backlog.md").write_text(
