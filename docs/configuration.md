@@ -328,7 +328,7 @@ Only Claude has a verified engine of its own, so a Cursor, OpenCode, omp, Grok, 
 
 ### Supervision Node (config/supervision-node)
 
-The host runs its branch dispatch with Node, and that dispatch loads TypeScript, so the Node it uses must strip types: `process.features.typescript` must not report `false`.
+The host runs its branch dispatch with Node, and that dispatch loads TypeScript, so the Node it uses must strip types: `process.features.typescript` must report a type-stripping mode such as `strip` or `transform`; a Node that reports `false`, `undefined` (Node before 22.10), or nothing does not strip types.
 Without `config/supervision-node` the host uses `node` from `PATH`, exactly as before the file existed.
 A Node without type stripping on `PATH` then fails each branch-eligibility computation, so every close reaches main as it would without the host.
 The optional local, gitignored `config/supervision-node` holds one line: the absolute path of the Node executable the host runs with, for example a Node 24 installation, without changing `PATH` or the system Node for anything else.
