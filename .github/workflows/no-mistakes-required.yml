@@ -6,6 +6,7 @@ on:
     types: [opened, edited, synchronize, reopened]
     branches:
       - main
+      - setup-update-20261008
 
 permissions:
   contents: read
