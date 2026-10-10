@@ -232,9 +232,13 @@ test_slow_signal_triage_keeps_beacon_fresh() {
   pass "slow signal triage that keeps finishing per-task reads keeps the guard's beacon fresh past the grace"
 }
 
-# The coalescing linger and the first signalled read are separate bounded
-# units: together they outlive the grace, so a watcher that records progress
-# only after the first read reads as down before triage has done anything wrong.
+# Between the top-of-cycle touch and the first per-task beat, signal triage
+# runs the pre-check ticks, two signal scans, the coalescing linger,
+# classification, and the first signalled read. Each is bounded, but together
+# they can outlive the grace (on a loaded runner even with a 2s linger and 3s
+# reads), so a watcher that records progress only after the first read reads as
+# down before triage has done anything wrong. A 10s linger plus a 10s read
+# makes that span exceed the grace on any runner.
 test_signal_linger_then_slow_read_keeps_beacon_fresh() {
   local dir state fakebin out log tlog i samples=0 down=0 ages=
   dir=$(make_case linger-signal); state="$dir/state"; fakebin="$dir/fakebin"
@@ -243,7 +247,7 @@ test_signal_linger_then_slow_read_keeps_beacon_fresh() {
   add_window "$state" linger1 "working: starting part 1"
   add_window "$state" linger2 "working: starting part 2"
   start_watcher "$state" "$fakebin" "$out" FM_FAKE_CREW_STATE_LOG="$log" \
-    FM_FAKE_CREW_STATE_SLEEP=13 FM_FAKE_TMUX_CAPTURE_VARY=1 FM_SIGNAL_GRACE=9
+    FM_FAKE_CREW_STATE_SLEEP=10 FM_FAKE_TMUX_CAPTURE_VARY=1 FM_SIGNAL_GRACE=10
   i=0
   while [ "$i" -lt 100 ] && [ ! -e "$state/.last-watcher-beat" ]; do sleep 0.1; i=$((i + 1)); done
   sleep 2
