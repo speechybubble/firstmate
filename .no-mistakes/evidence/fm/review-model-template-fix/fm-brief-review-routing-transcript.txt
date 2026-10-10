@@ -1,0 +1,106 @@
+===== case: native
+--- config:
+# No Mistakes global config
+agent: claude
+log_level: info
+review:
+  agent: pi
+  auto_fix: true
+commands:
+  - name: test
+    run: make test
+agent_config:
+  pi:
+    model: openai-codex/gpt-6-astra
+    effort: medium
+  claude:
+    model: claude-opus-5-5
+    effort: medium
+--- generated brief, no-mistakes driving block:
+You drive no-mistakes by responding to its gates, not by implementing fixes.
+Follow the guidance no-mistakes itself provides for the mechanics: it loads when you invoke /no-mistakes, and `no-mistakes axi run --help` plus the `help` lines in each `axi` response are authoritative and version-matched to the installed binary.
+Model routing: the No Mistakes pipeline uses the native `claude` agent configured in `<tmp>/native/nm/config.yaml` with model `claude-opus-5-5` and effort `medium`. Start validation WITHOUT `--model` or `--effort`: those flags pin Pi profiles only and conflict with a native agent. Never fall back to a Pi, `openai-codex`, or other provider profile, and never rewrite shared global settings.
+If the run reports a `pi_profile`, or an agent or model other than the configured `claude` agent and model, stop and report the mismatch to firstmate before driving it further.
+When starting no-mistakes, pass `--intent` as only this brief's `## Captain's intent` subsection body, not its heading, plus any later words the captain actually said.
+
+===== case: dflt
+--- config:
+# No Mistakes global config
+agent: claude
+log_level: info
+review:
+  agent: pi
+  auto_fix: true
+commands:
+  - name: test
+    run: make test
+agent_config:
+  pi:
+    model: openai-codex/gpt-6-astra
+    effort: medium
+  claude:
+    model: claude-opus-5-5
+    effort: medium
+--- generated brief, no-mistakes driving block:
+You drive no-mistakes by responding to its gates, not by implementing fixes.
+Follow the guidance no-mistakes itself provides for the mechanics: it loads when you invoke /no-mistakes, and `no-mistakes axi run --help` plus the `help` lines in each `axi` response are authoritative and version-matched to the installed binary.
+Model routing: the No Mistakes pipeline uses the native `claude` agent configured in `<tmp>/dflt/home/.no-mistakes/config.yaml` with model `claude-opus-5-5` and effort `medium`. Start validation WITHOUT `--model` or `--effort`: those flags pin Pi profiles only and conflict with a native agent. Never fall back to a Pi, `openai-codex`, or other provider profile, and never rewrite shared global settings.
+If the run reports a `pi_profile`, or an agent or model other than the configured `claude` agent and model, stop and report the mismatch to firstmate before driving it further.
+When starting no-mistakes, pass `--intent` as only this brief's `## Captain's intent` subsection body, not its heading, plus any later words the captain actually said.
+
+===== case: pi
+--- config:
+agent: "pi"
+agent_config:
+  pi:
+    model: openai-codex/gpt-6-astra
+--- generated brief, no-mistakes driving block:
+You drive no-mistakes by responding to its gates, not by implementing fixes.
+Follow the guidance no-mistakes itself provides for the mechanics: it loads when you invoke /no-mistakes, and `no-mistakes axi run --help` plus the `help` lines in each `axi` response are authoritative and version-matched to the installed binary.
+Model routing: the No Mistakes pipeline agent configured in `<tmp>/pi/nm/config.yaml` is Pi, so validation pins an immutable Pi profile. Require the installed `no-mistakes axi run --help` to support `--model` and `--effort` and the configured pipeline agents to be Pi-only; if either precondition fails, report the version/configuration mismatch to firstmate before starting the pipeline, and never temporarily rewrite shared global settings.
+Start an ordinary validation with `--model openai-codex/gpt-6-astra --effort medium`; use `--model openai-codex/gpt-6-astra --effort high` for a difficult validation. Follow firstmate's classification in the task specification; if none is recorded, assess the work before starting and record whether the review is ordinary or difficult. A difficult pin applies to every duty in that run, including reviewer and fixer.
+Confirm that the returned `pi_profile` matches the requested model and effort. Reattach to that run with selection flags omitted; its pin is immutable. When starting a new rerun, explicitly supply the same model and medium/high effort again because an unflagged rerun uses current global defaults.
+When starting no-mistakes, pass `--intent` as only this brief's `## Captain's intent` subsection body, not its heading, plus any later words the captain actually said.
+
+===== case: missing
+--- config:
+(no config file)
+--- generated brief, no-mistakes driving block:
+You drive no-mistakes by responding to its gates, not by implementing fixes.
+Follow the guidance no-mistakes itself provides for the mechanics: it loads when you invoke /no-mistakes, and `no-mistakes axi run --help` plus the `help` lines in each `axi` response are authoritative and version-matched to the installed binary.
+Model routing: firstmate could not read the No Mistakes pipeline agent from `<tmp>/missing/nm/config.yaml` when writing this brief. Before starting the pipeline, report that configuration gap to firstmate; never guess with `--model`, `--effort`, or any provider profile, and never rewrite shared global settings.
+When starting no-mistakes, pass `--intent` as only this brief's `## Captain's intent` subsection body, not its heading, plus any later words the captain actually said.
+
+===== case: inj
+--- config:
+agent: claude
+agent_config:
+  claude:
+    model: "x`rm -rf ~`$(id)"
+    effort: medium
+--- generated brief, no-mistakes driving block:
+You drive no-mistakes by responding to its gates, not by implementing fixes.
+Follow the guidance no-mistakes itself provides for the mechanics: it loads when you invoke /no-mistakes, and `no-mistakes axi run --help` plus the `help` lines in each `axi` response are authoritative and version-matched to the installed binary.
+Model routing: the No Mistakes pipeline uses the native `claude` agent configured in `<tmp>/inj/nm/config.yaml` with effort `medium`. Start validation WITHOUT `--model` or `--effort`: those flags pin Pi profiles only and conflict with a native agent. Never fall back to a Pi, `openai-codex`, or other provider profile, and never rewrite shared global settings.
+If the run reports a `pi_profile`, or an agent or model other than the configured `claude` agent and model, stop and report the mismatch to firstmate before driving it further.
+When starting no-mistakes, pass `--intent` as only this brief's `## Captain's intent` subsection body, not its heading, plus any later words the captain actually said.
+
+===== case: inj2
+--- config:
+agent: claude; touch /tmp/pwned
+--- generated brief, no-mistakes driving block:
+You drive no-mistakes by responding to its gates, not by implementing fixes.
+Follow the guidance no-mistakes itself provides for the mechanics: it loads when you invoke /no-mistakes, and `no-mistakes axi run --help` plus the `help` lines in each `axi` response are authoritative and version-matched to the installed binary.
+Model routing: firstmate could not read the No Mistakes pipeline agent from `<tmp>/inj2/nm/config.yaml` when writing this brief. Before starting the pipeline, report that configuration gap to firstmate; never guess with `--model`, `--effort`, or any provider profile, and never rewrite shared global settings.
+When starting no-mistakes, pass `--intent` as only this brief's `## Captain's intent` subsection body, not its heading, plus any later words the captain actually said.
+
+===== case: pinomodel
+--- config:
+agent: pi
+--- generated brief, no-mistakes driving block:
+You drive no-mistakes by responding to its gates, not by implementing fixes.
+Follow the guidance no-mistakes itself provides for the mechanics: it loads when you invoke /no-mistakes, and `no-mistakes axi run --help` plus the `help` lines in each `axi` response are authoritative and version-matched to the installed binary.
+Model routing: the No Mistakes pipeline agent configured in `<tmp>/pinomodel/nm/config.yaml` is Pi, but `agent_config.pi.model` is not readable there. Before starting the pipeline, report that configuration gap to firstmate; never guess a provider profile and never rewrite shared global settings.
+When starting no-mistakes, pass `--intent` as only this brief's `## Captain's intent` subsection body, not its heading, plus any later words the captain actually said.
+
+/tmp/pwned exists? no
