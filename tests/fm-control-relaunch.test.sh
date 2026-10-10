@@ -1387,7 +1387,9 @@ test_prepublication_failure_keeps_concurrent_durable_metadata() {
     run_control "$dir" rl30 relaunch --harness codex --note "preserve concurrent metadata" \
       > "$dir/control.out" &
   control_pid=$!
-  while [ ! -e "$dir/cwd-race-ready" ] && [ "$i" -lt 200 ]; do
+  # Each poll forks /bin/sleep, so 1500 polls bound the wait at well over 15 s;
+  # a loaded host measured 214-232 polls (3.9-4.9 s) to reach the check.
+  while [ ! -e "$dir/cwd-race-ready" ] && [ "$i" -lt 1500 ]; do
     /bin/sleep 0.01
     i=$((i + 1))
   done
