@@ -698,9 +698,11 @@ fm_dod_named_head_reachable_outside_worktree() {  # <worktree> <project> <mode> 
 # the claim is refused; stdout then holds a one-line reason and no other
 # output. <state> <id> <meta> supply pr=,
 # pr_head=, and the merge-notified marker; <meta> may be a captured copy
-# (bin/fm-fleet-snapshot.sh), so the marker is read from <state>.
-fm_dod_accept_ship_done() {  # <kind> <mode> <worktree> <project> <line> [<state> <id> <meta>]
-  local kind=$1 mode=$2 wt=$3 project=$4 line=$5 state=${6:-} id=${7:-} meta=${8:-} url sha gerrit
+# (bin/fm-fleet-snapshot.sh), so the marker is read from <state>. With <reads>
+# set to local, a claim the gate could settle only through a live forge or
+# no-mistakes read is neither accepted nor refused: 2, with the reason on stdout.
+fm_dod_accept_ship_done() {  # <kind> <mode> <worktree> <project> <line> [<state> <id> <meta> [<reads>]]
+  local kind=$1 mode=$2 wt=$3 project=$4 line=$5 state=${6:-} id=${7:-} meta=${8:-} reads=${9:-} url sha gerrit
   fm_dod_should_gate_ship_done "$kind" "$mode" "$line" || return 0
   if url=$(fm_dod_pr_url_from_done_note "$(status_line_note "$line")") \
     && fm_dod_recorded_pr_on_forge "$state" "$id" "$meta" "$mode" "$url"; then
@@ -725,6 +727,10 @@ fm_dod_accept_ship_done() {  # <kind> <mode> <worktree> <project> <line> [<state
     return 1
   fi
   if [ "$gerrit" = 1 ]; then
+    if [ "$reads" = local ]; then
+      printf '%s\n' "ungated history claim: $url is not this task's recorded change, and only a live read can verify its published head"
+      return 2
+    fi
     case "$mode" in
       no-mistakes|'')
         fm_dod_nm_custody_returned "$wt" || return 1 ;;

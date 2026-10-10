@@ -214,8 +214,24 @@ exit 0
         (home / "AGENTS.md").symlink_to(ROOT / "AGENTS.md")
         (home / "bin").mkdir()
         retained = [f"slow-done-{i:02}" for i in range(8)]
+        # A ship done the named-head gate does not apply to stays done; one it
+        # refuses from local git reads is blocked; one only a live forge read
+        # could settle is an ungated history claim, never a plain done.
+        unpublished = retained[4:6]
+        gerrit_url = "https://review.example.invalid/c/fixture/+/42"
+        unverified = retained[6]
+        heads = {}
         for task_id in retained:
-            self.git_task(home, task_id, kind="ship", status=f"done: finished {task_id}")
+            status = f"done: finished {task_id}"
+            if task_id == unverified:
+                status = f"done: PR {gerrit_url} published for review"
+            worktree = self.git_task(home, task_id, kind="ship", status=status)
+            if task_id in unpublished:
+                with (home / f"state/{task_id}.meta").open("a") as meta:
+                    meta.write("mode=local-only\n")
+            heads[task_id] = subprocess.run(
+                ["git", "-C", str(worktree), "rev-parse", "HEAD"], env=self.env,
+                check=True, capture_output=True, text=True).stdout.strip()
         self.git_task(home, "active", kind="ship", busy="busy", status="working: current work")
         self.git_task(home, "held", kind="ship", status="needs-decision [key=route]: choose a route")
         (home / "data/backlog.md").write_text(
@@ -256,9 +272,20 @@ exit 0
         self.assertEqual(sorted(rows), retained)
         for task_id in retained:
             self.assertEqual(rows[task_id]["lifecycle"]["state"], "completed_retained")
-            self.assertEqual(rows[task_id]["current_state"]["state"], "done")
-            self.assertEqual(rows[task_id]["current_state"]["source"], "status-log")
-            self.assertEqual(rows[task_id]["current_state"]["detail"], f"finished {task_id}")
+            current = rows[task_id]["current_state"]
+            self.assertEqual(current["source"], "status-log")
+            if task_id in unpublished:
+                self.assertEqual(current["state"], "blocked")
+                self.assertEqual(current["detail"],
+                                 f"named head {heads[task_id]} is unreachable outside the worker copy")
+            elif task_id == unverified:
+                self.assertEqual(current["state"], "unknown")
+                self.assertTrue(current["detail"].startswith(
+                    f"PR {gerrit_url} published for review · ungated history claim: "),
+                    current["detail"])
+            else:
+                self.assertEqual(current["state"], "done")
+                self.assertEqual(current["detail"], f"finished {task_id}")
         self.assertEqual([row["id"] for row in summary["active_children"]], ["active"])
         self.assertIn("held", [row["id"] for row in summary["decisions_open"]])
         self.assertEqual(sorted(row["id"] for row in summary["endpoints"]), ["active", "held"])

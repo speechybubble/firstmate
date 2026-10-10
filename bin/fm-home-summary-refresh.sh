@@ -16,9 +16,9 @@
 # A home-local refresh lock serializes concurrent triggers so an older in-flight
 # summary cannot overwrite one computed after a later status change.
 # FM_HOME_SUMMARY_IF_IDLE=1 (the watcher's mode) steps aside for an in-flight
-# publication instead of queuing behind it, yet still publishes itself if that
-# holder exits without replacing the ledger before this refresh's own deadline
-# is one second away. The shared
+# publication instead of queuing behind it. If that holder exits without
+# replacing the ledger before this refresh's own deadline is one second away,
+# exactly one takeover worker then publishes under a fresh full deadline. The shared
 # timeout owner bounds the complete refresh with FM_HOME_SUMMARY_TIMEOUT
 # (default 60 seconds). No reader can observe temporary output through the
 # ledger path.
@@ -44,6 +44,9 @@ REFRESH_LOCK="$STATE/.home-summary-refresh.lock"
 ERROR_LOG_MAX_BYTES=${FM_HOME_SUMMARY_ERROR_LOG_MAX_BYTES:-65536}
 HOME_SUMMARY_TIMEOUT=${FM_HOME_SUMMARY_TIMEOUT:-60}
 HOME_SUMMARY_IF_IDLE=${FM_HOME_SUMMARY_IF_IDLE:-0}
+HOME_SUMMARY_TAKEOVER=${FM_HOME_SUMMARY_TAKEOVER:-0}
+HOME_SUMMARY_TAKEOVER_RC=75
+HOME_SUMMARY_TAKEOVER_DUE=0
 BEST_EFFORT=0
 HOME_SUMMARY_MODE=parent
 HOME_SUMMARY_ERROR=
@@ -81,6 +84,10 @@ case "$HOME_SUMMARY_IF_IDLE" in
   0|1) ;;
   *) HOME_SUMMARY_IF_IDLE=0 ;;
 esac
+case "$HOME_SUMMARY_TAKEOVER" in
+  0|1) ;;
+  *) HOME_SUMMARY_TAKEOVER=0 ;;
+esac
 
 if [ "$HOME_SUMMARY_MODE" != parent ]; then
   # shellcheck source=bin/fm-wake-lib.sh
@@ -112,19 +119,23 @@ home_summary_ledger_identity() {
 
 # An idle-only refresh steps aside for an in-flight publication, but its request
 # is not dropped: when that holder exits without replacing the ledger (a failed
-# or deadline-killed refresh), this refresh takes the lock and publishes. It
-# watches only while its own deadline still leaves a second to spare, so it
-# never runs into that deadline queued behind a live holder.
+# or deadline-killed refresh), this worker marks a takeover due and the parent
+# starts one fresh worker, so the takeover never inherits this worker's spent
+# budget. It watches only while its own deadline still leaves a second to
+# spare, so it never runs into that deadline queued behind a live holder. The
+# takeover worker itself only tries the lock once and never watches.
 home_summary_acquire_if_idle() {
   local ledger_before
   fm_lock_try_acquire "$REFRESH_LOCK" && return 0
+  [ "$HOME_SUMMARY_TAKEOVER" -eq 0 ] || return 1
   ledger_before=$(home_summary_ledger_identity)
   while [ "$SECONDS" -lt $((HOME_SUMMARY_TIMEOUT - 1)) ]; do
     sleep 0.2
     [ "$(home_summary_ledger_identity)" = "$ledger_before" ] || return 1
     if fm_lock_try_acquire "$REFRESH_LOCK"; then
-      [ "$(home_summary_ledger_identity)" = "$ledger_before" ] && return 0
       fm_lock_release "$REFRESH_LOCK"
+      [ "$(home_summary_ledger_identity)" = "$ledger_before" ] \
+        && HOME_SUMMARY_TAKEOVER_DUE=1
       return 1
     fi
   done
@@ -252,10 +263,26 @@ if [ "$HOME_SUMMARY_MODE" = parent ]; then
   if fm_run_timed "$HOME_SUMMARY_TIMEOUT" env \
     FM_HOME_SUMMARY_WORKER_BEST_EFFORT="$BEST_EFFORT" \
     FM_HOME_SUMMARY_IF_IDLE="$HOME_SUMMARY_IF_IDLE" \
+    FM_HOME_SUMMARY_TAKEOVER=0 \
     "$SCRIPT_DIR/fm-home-summary-refresh.sh" --_worker; then
     exit 0
   else
     refresh_rc=$?
+  fi
+  if [ "$refresh_rc" -eq "$HOME_SUMMARY_TAKEOVER_RC" ]; then
+    attempt_stamp=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null) || attempt_stamp=
+    if fm_run_timed "$HOME_SUMMARY_TIMEOUT" env \
+      FM_HOME_SUMMARY_WORKER_BEST_EFFORT="$BEST_EFFORT" \
+      FM_HOME_SUMMARY_IF_IDLE=1 \
+      FM_HOME_SUMMARY_TAKEOVER=1 \
+      "$SCRIPT_DIR/fm-home-summary-refresh.sh" --_worker; then
+      exit 0
+    else
+      refresh_rc=$?
+    fi
+    case "$refresh_rc" in
+      126|127) exit 0 ;;
+    esac
   fi
   if [ "$BEST_EFFORT" -eq 1 ]; then
     if [ "$refresh_rc" -eq 124 ]; then
@@ -277,6 +304,7 @@ if [ "$HOME_SUMMARY_MODE" = parent ]; then
 fi
 
 if home_summary_refresh_once; then
+  [ "$HOME_SUMMARY_TAKEOVER_DUE" -eq 0 ] || exit "$HOME_SUMMARY_TAKEOVER_RC"
   exit 0
 else
   refresh_rc=$?

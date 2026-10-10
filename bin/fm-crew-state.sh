@@ -166,7 +166,9 @@
 #
 # FM_CREW_STATE_HISTORY_ONLY=1 stops after step 3's status-log resolution and
 # never reads a run-step or pane: a recognized declaration is reported with
-# source status-log, anything else as unknown · none. The fleet snapshot uses it
+# source status-log, anything else as unknown · none. A ship `done:` still
+# passes the named-head gate through local reads only; a claim only a forge
+# read could settle reads unknown as an ungated history claim. The fleet snapshot uses it
 # only for tasks whose structured history records completion.
 #
 # Read-only and side-effect free. Always exits 0 on a successful read regardless
@@ -279,12 +281,15 @@ fi
 # and its reason rather than a wedge-suspect idle.
 # A ship `done:` is not current-state done while bin/fm-dod-lib.sh refuses the
 # named-head reachability gate: that claim is blocked so a disposable copy is
-# not treated as finished-and-safe.
-emit_ship_status_done() {  # [extra-detail]
-  local extra=${1:-} reason
-  if reason=$(fm_dod_accept_ship_done "$KIND" "$(meta_value mode)" "$WT" "$(meta_value project)" "$LOG_LINE" "$STATE" "$ID" "$META"); then
-    emit "done" status-log "$(status_line_note "$LOG_LINE")${extra:+${SEP}$extra}"
-  fi
+# not treated as finished-and-safe. With <reads> local (the history-only read) a
+# claim only a live read could settle is unknown, its detail naming it ungated.
+emit_ship_status_done() {  # [extra-detail] [reads]
+  local extra=${1:-} reads=${2:-} reason rc=0
+  reason=$(fm_dod_accept_ship_done "$KIND" "$(meta_value mode)" "$WT" "$(meta_value project)" "$LOG_LINE" "$STATE" "$ID" "$META" "$reads") || rc=$?
+  case "$rc" in
+    0) emit "done" status-log "$(status_line_note "$LOG_LINE")${extra:+${SEP}$extra}" ;;
+    2) emit unknown status-log "$(status_line_note "$LOG_LINE")${SEP}$reason" ;;
+  esac
   emit blocked status-log "$reason"
 }
 
@@ -308,6 +313,7 @@ LOG_VERB=$(status_line_verb "$LOG_LINE")
 
 # --- history-only read for completed work (header: FM_CREW_STATE_HISTORY_ONLY)
 if [ "${FM_CREW_STATE_HISTORY_ONLY:-0}" = 1 ]; then
+  [ "$LOG_VERB" != "done" ] || emit_ship_status_done "" local
   if [ -n "$LOG_VERB" ] && [ "$(map_log_state "$LOG_LINE")" != unknown ]; then
     emit "$(map_log_state "$LOG_LINE")" status-log "$(status_line_note "$LOG_LINE")"
   fi
