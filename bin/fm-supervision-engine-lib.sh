@@ -155,7 +155,7 @@ EOF
 # process.features.typescript reports type stripping; anything else returns 1
 # with FM_SUPERVISION_NODE_PROBLEM naming why, so the host hands every close to
 # main instead of running a Node that cannot load the dispatch module. The
-# file is per home and the primary's copy is inherited by secondmate homes
+# file is per home and the primary's copy is inherited by local secondmate homes
 # (bin/fm-config-inherit-lib.sh); docs/configuration.md owns its contract.
 fm_supervision_node() {
   local file="$1/supervision-node" path shown version features
