@@ -21,6 +21,11 @@
 # which exits 0 when that home runs the host for that primary and 1
 # otherwise, printing nothing (2 on a usage error).
 #
+# THE HOST NODE (config/supervision-node). docs/configuration.md "Supervision
+# Node" owns the file; fm_supervision_node implements the selection and the
+# type-stripping check, and the host runs every Node call it makes with the
+# selected command.
+#
 # ONE ENGINE TURN (fm_supervision_engine_turn). One prompt to one engine
 # conversation, bounded, from the tracked code root, with the environment the
 # caller exported (the host exports the branch actor, the lease holder pid,
@@ -141,13 +146,66 @@ EOF
   return 0
 }
 
+# fm_supervision_node <config-dir>: choose the Node the supervision host runs
+# its branch dispatch (bin/fm-branch-dispatch.mjs, which loads TypeScript) and
+# its `node -e` helpers with, setting FM_SUPERVISION_NODE to the command.
+# Absent config/supervision-node keeps the plain `node` on PATH, exactly as
+# before the file existed: 0 when one is found, 2 when none is. A present file
+# must name, on its first line, the absolute path of an executable Node whose
+# process.features.typescript reports type stripping; anything else returns 1
+# with FM_SUPERVISION_NODE_PROBLEM naming why, so the host hands every close to
+# main instead of running a Node that cannot load the dispatch module. The
+# file is per home and the primary's copy is inherited by secondmate homes
+# (bin/fm-config-inherit-lib.sh); docs/configuration.md owns its contract.
+fm_supervision_node() {
+  local file="$1/supervision-node" path shown version features
+  FM_SUPERVISION_NODE=
+  FM_SUPERVISION_NODE_PROBLEM=
+  if [ ! -e "$file" ] && [ ! -L "$file" ]; then
+    command -v node >/dev/null 2>&1 || return 2
+    FM_SUPERVISION_NODE=node
+    return 0
+  fi
+  path=$(sed -n '1{s/^[[:space:]]*//;s/[[:space:]]*$//;p;}' "$file" 2>/dev/null)
+  case "$path" in
+    *[![:print:]]*) shown= ;;
+    *) shown=" $path" ;;
+  esac
+  case "$path" in
+    /*) ;;
+    *)
+      FM_SUPERVISION_NODE_PROBLEM="config/supervision-node does not name an absolute Node path"
+      return 1
+      ;;
+  esac
+  if [ ! -f "$path" ] || [ ! -x "$path" ]; then
+    FM_SUPERVISION_NODE_PROBLEM="config/supervision-node names$shown, which is not an executable file"
+    return 1
+  fi
+  if ! features=$("$path" -p 'process.features.typescript' 2>/dev/null); then
+    FM_SUPERVISION_NODE_PROBLEM="config/supervision-node names$shown, which could not run as Node"
+    return 1
+  fi
+  case "$features" in
+    ''|false|undefined)
+      version=$("$path" --version 2>/dev/null | sed -n '1p')
+      case "$version" in *[![:print:]]*) version= ;; esac
+      FM_SUPERVISION_NODE_PROBLEM="config/supervision-node names a Node${version:+ $version} without TypeScript type stripping"
+      return 1
+      ;;
+  esac
+  FM_SUPERVISION_NODE=$path
+}
+
 # fm_supervision_host_attended_ready <config-dir> <primary-harness>
-# 0 when the attended host's configured engine, executable, node, jq, turn
-# bound (perl, timeout, or gtimeout), and primary's mirror writer are ready;
-# otherwise 1, with FM_SUPERVISION_HOST_UNREADY naming why. The host's
-# attended acceptor runs it on every attended close; the mirror's contents are
-# checked later, by the feed that renders the wake.
+# 0 when the attended host's configured engine, executable, node
+# (fm_supervision_node), jq, turn bound (perl, timeout, or gtimeout), and
+# primary's mirror writer are ready; otherwise 1, with
+# FM_SUPERVISION_HOST_UNREADY naming why. The host's attended acceptor runs it
+# on every attended close; the mirror's contents are checked later, by the feed
+# that renders the wake.
 fm_supervision_host_attended_ready() {
+  local node_rc=0
   FM_SUPERVISION_HOST_UNREADY=
   if ! fm_supervision_host_config "$1" "$2"; then
     FM_SUPERVISION_HOST_UNREADY="the home does not run the supervision host"
@@ -155,8 +213,12 @@ fm_supervision_host_attended_ready() {
     FM_SUPERVISION_HOST_UNREADY="no supervision engine"
   elif ! fm_supervision_engine_bin "$FM_SUPERVISION_ENGINE" >/dev/null 2>&1; then
     FM_SUPERVISION_HOST_UNREADY="the $FM_SUPERVISION_ENGINE engine executable is missing"
-  elif ! command -v node >/dev/null 2>&1; then
-    FM_SUPERVISION_HOST_UNREADY="node is missing"
+  elif node_rc=0; fm_supervision_node "$1" || node_rc=$?; [ "$node_rc" -ne 0 ]; then
+    if [ "$node_rc" -eq 2 ]; then
+      FM_SUPERVISION_HOST_UNREADY="node is missing"
+    else
+      FM_SUPERVISION_HOST_UNREADY=$FM_SUPERVISION_NODE_PROBLEM
+    fi
   elif ! command -v jq >/dev/null 2>&1; then
     FM_SUPERVISION_HOST_UNREADY="jq is missing"
   elif ! command -v perl >/dev/null 2>&1 && ! command -v timeout >/dev/null 2>&1 \
@@ -424,7 +486,7 @@ fm_supervision_engine_result() {
   case "$1" in
     claude)
       # shellcheck disable=SC2016 # A literal Node program; ${...} is JavaScript.
-      node -e '
+      "${FM_SUPERVISION_NODE:-node}" -e '
         const fs = require("node:fs");
         let j;
         try { j = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); } catch { process.exit(1); }

@@ -15,8 +15,8 @@
 #   B) Inheritance. The primary pushes a declared, extensible set of LOCAL
 #      (gitignored) config items - config/crew-dispatch.json, config/crew-harness,
 #      config/backlog-backend, config/backend, config/herdr-presentation-spaces,
-#      config/startup-memory-budget, config/trace-context, and
-#      config/supervision-host-off -
+#      config/startup-memory-budget, config/trace-context,
+#      config/supervision-host-off, and config/supervision-node -
 #      down into each secondmate home's config/, so the secondmate's OWN crewmates,
 #      dispatch profiles, backlog backend, runtime-backend default, Herdr
 #      presentation choice, startup-memory budget, and trace context inherit the
@@ -429,6 +429,18 @@ test_propagate_lib() {
   [ "$(cat "$d/home2/config/supervision-host" 2>/dev/null)" = 'default haiku' ] \
     || fail "a secondmate's own supervision-host engine line was changed by convergence"
   rm -f "$src/supervision-host"
+
+  # 5c. the supervision host's Node selection is inherited and
+  # primary-authoritative, so a secondmate's host runs with the primary's Node on
+  # every ordinary launch; clearing the primary's file clears the mate's.
+  printf '/opt/node-v24/bin/node\n' > "$src/supervision-node"
+  printf '/usr/bin/node\n' > "$d/home2/config/supervision-node"
+  propagate_inheritable_config "$src" "$d/home2/config"
+  [ "$(cat "$d/home2/config/supervision-node" 2>/dev/null)" = /opt/node-v24/bin/node ] \
+    || fail "a primary's supervision-node was not inherited over the secondmate's own"
+  rm -f "$src/supervision-node"
+  propagate_inheritable_config "$src" "$d/home2/config"
+  [ -e "$d/home2/config/supervision-node" ] && fail "clearing the primary's supervision-node was not mirrored downstream"
 
   # 6. nothing to propagate -> destination dir is never created (a true no-op)
   rm -rf "$d/src3" "$d/dest3"

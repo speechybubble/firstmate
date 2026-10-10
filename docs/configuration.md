@@ -326,15 +326,25 @@ Grok's arm command is rendered at session start, so a change to its host mode ta
 
 Only Claude has a verified engine of its own, so a Cursor, OpenCode, omp, Grok, or Codex home names `claude` in the file.
 
+### Supervision Node (config/supervision-node)
+
+The host runs its branch dispatch with Node, and that dispatch loads TypeScript, so the Node it uses must strip types: `process.features.typescript` must not report `false`.
+Without `config/supervision-node` the host uses `node` from `PATH`, exactly as before the file existed.
+A Node without type stripping on `PATH` then fails each branch-eligibility computation, so every close reaches main as it would without the host.
+The optional local, gitignored `config/supervision-node` holds one line: the absolute path of the Node executable the host runs with, for example a Node 24 installation, without changing `PATH` or the system Node for anything else.
+When the file names a path that is not absolute, not an executable file, not runnable as Node, or a Node without type stripping, the host takes no wake: every close reaches main, an attended close's log names the problem, and each away-posture wake includes a line naming it.
+`fm_supervision_node` in `bin/fm-supervision-engine-lib.sh` implements this selection and check.
+
 ### Failures, when changes apply, and inheritance
 
 An unverified engine, a primary without a verified engine, or a malformed line leaves the host without an engine.
 It takes no wake, so every wake reaches main as it would without the host.
 Each away-posture wake includes a line naming the problem.
-The running host reads both files at every wake, so an engine change or an opt-out takes effect at the next wake without a restart.
+The running host reads these files at every wake, so an engine change or an opt-out takes effect at the next wake without a restart.
 
 The opt-out is inherited into secondmate homes: a primary that opts out also opts its secondmates out, and clearing it restores each mate's own host setting at its next spawn or convergence.
 The primary-authoritative propagation contract, including removal of a mate's local opt-out when the primary has none, is owned by [`secondmate-provisioning`](../.agents/skills/secondmate-provisioning/SKILL.md).
+`config/supervision-node` is inherited into secondmate homes under the same primary-authoritative propagation, so a mate's host runs with the primary's Node selection on every ordinary launch and relaunch.
 `config/supervision-host` is local to each home and not inherited, because each home's engine and model are its own choice.
 While the home runs the host, main's lease-checked commands also take the per-task lease lock, so a claim by the host's engine cannot race a mutation main already started (`bin/fm-lease-lib.sh`).
 
@@ -1317,7 +1327,7 @@ Required tools come in two parts: a universal toolchain every home needs regardl
 
 Every home requires:
 
-- node and git.
+- node and git; the supervision host's Node must also strip TypeScript types (see [Supervision Node](#supervision-node-configsupervision-node)).
 - gh, with GitHub authentication through `gh auth login`.
 - no-mistakes v1.46.0 or newer.
 - Compatible gh-axi.
