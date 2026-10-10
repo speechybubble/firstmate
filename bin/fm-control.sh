@@ -800,6 +800,7 @@ RELAUNCH_META_PUBLISHED=0
 RELAUNCH_AGENT_CONFIRMED=0
 RELAUNCH_TX=
 RELAUNCH_BRIEF=
+RELAUNCH_SPAWN_ARGS=()
 PRIOR_HARNESS=$HARNESS
 PRIOR_RECORDED_HARNESS=$RECORDED_HARNESS
 CONFIG_HARNESS=
@@ -841,6 +842,11 @@ journal_write() {  # <phase> [extra-line]...
   return 1
 }
 
+relaunch_resume_recovery_hint() {
+  [ "$RESUME_SESSION_SET" = 1 ] || return 0
+  echo "error: to resume the exact Claude session $RESUME_SESSION once no live process owns it, run: $SCRIPT_DIR/fm-spawn.sh ${RELAUNCH_SPAWN_ARGS[*]}; a plain relaunch would start a fresh session and lose that conversation" >&2
+}
+
 relaunch_rollback() {
   local state
   [ "$RELAUNCH_ACTIVE" = 1 ] || return 0
@@ -869,6 +875,7 @@ relaunch_rollback() {
         dead)
           journal_write "failed:$RELAUNCH_PHASE" "rollback=prior-record-kept-agent-dead" || true
           echo "error: $ID's agent stopped but relaunch did not reach replacement launch; no agent is running, and its work plus progress note are preserved at $WT" >&2
+          relaunch_resume_recovery_hint
           ;;
         *)
           # The old agent was NOT proven stopped, so no replacement is coming
@@ -898,9 +905,11 @@ relaunch_rollback() {
         # worse inaccuracy.
         journal_write "failed:$RELAUNCH_PHASE" "rollback=none-new-record-kept" || true
         echo "error: $ID was relaunched on $TARGET_HARNESS but no running agent could be confirmed; its work is preserved at $WT" >&2
+        relaunch_resume_recovery_hint
       else
         journal_write "failed:$RELAUNCH_PHASE" "rollback=prior-record-kept" || true
         echo "error: $ID's agent was stopped but the replacement did not launch; no agent is running, and its work plus the recorded progress note are preserved at $WT" >&2
+        relaunch_resume_recovery_hint
       fi
       ;;
   esac
@@ -1097,7 +1106,6 @@ record_note() {
 
 do_relaunch() {
   local exit_result state note_line resume_home resume_root
-  local -a spawn_args
 
   require_state_verified_backend relaunch
   resolve_relaunch_profile
@@ -1143,6 +1151,10 @@ do_relaunch() {
       || die "relaunch of $ID with --resume-session $RESUME_SESSION refused before its agent was touched"
     CHECKPOINT_LINES+=("resume_session=$RESUME_SESSION")
   fi
+  RELAUNCH_SPAWN_ARGS=("$ID" --relaunch --harness "$TARGET_HARNESS")
+  [ "$TARGET_MODEL" = default ] || RELAUNCH_SPAWN_ARGS+=(--model "$TARGET_MODEL")
+  [ "$TARGET_EFFORT" = default ] || RELAUNCH_SPAWN_ARGS+=(--effort "$TARGET_EFFORT")
+  [ "$RESUME_SESSION_SET" = 0 ] || RELAUNCH_SPAWN_ARGS+=(--resume-session "$RESUME_SESSION")
   cp -p "$META" "$META_PRIOR" || die "could not preserve task $ID's durable record before relaunching"
   RELAUNCH_ACTIVE=1
   journal_write checkpoint "${CHECKPOINT_LINES[@]}" "$note_line"
@@ -1158,12 +1170,8 @@ do_relaunch() {
   # per-task harness wiring before arming the new one, so nothing to do here.
   RELAUNCH_TX="${BASHPID:-$$}.$(date -u +%Y%m%dT%H%M%SZ).$RANDOM"
   journal_write launching "${CHECKPOINT_LINES[@]}" "$note_line" "relaunch_tx=$RELAUNCH_TX"
-  spawn_args=("$ID" --relaunch --harness "$TARGET_HARNESS")
-  [ "$TARGET_MODEL" = default ] || spawn_args+=(--model "$TARGET_MODEL")
-  [ "$TARGET_EFFORT" = default ] || spawn_args+=(--effort "$TARGET_EFFORT")
-  [ "$RESUME_SESSION_SET" = 0 ] || spawn_args+=(--resume-session "$RESUME_SESSION")
   if FM_CONTROL_RELAUNCH_TX="$RELAUNCH_TX" \
-      "$SCRIPT_DIR/fm-spawn.sh" "${spawn_args[@]}" >/dev/null; then
+      "$SCRIPT_DIR/fm-spawn.sh" "${RELAUNCH_SPAWN_ARGS[@]}" >/dev/null; then
     RELAUNCH_META_PUBLISHED=1
     # $T was resolved from the record before the launch. When the recorded
     # endpoint was gone, the launch owner created a fresh one and republished

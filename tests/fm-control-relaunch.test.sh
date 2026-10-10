@@ -2936,6 +2936,39 @@ test_resume_session_spawn_resumes_a_released_session() {
   pass "fm-spawn --relaunch --resume-session: an already-stopped task resumes its released session"
 }
 
+test_resume_session_post_stop_failure_names_the_exact_session_recovery() {
+  local dir out rc failure launch
+  command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
+  for failure in stop-transport launch-refused; do
+    dir=$(new_case "resume-post-stop-$failure" rps1)
+    add_ship_task "$dir" rps1 claude
+    claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+    claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rps1)"
+    if [ "$failure" = stop-transport ]; then
+      out=$(FM_FAKE_EXIT_TRANSPORT_FAIL_AFTER_STOP=1 \
+        run_control "$dir" rps1 relaunch --resume-session "$RESUME_UUID" --note "cutover restart"); rc=$?
+    else
+      # The endpoint's shell left the worktree, so the launch owner refuses
+      # only after the verified agent has been stopped.
+      printf '%s' "$dir/proj" > "$dir/fake/cwd"
+      out=$(run_control "$dir" rps1 relaunch --resume-session "$RESUME_UUID" --note "cutover restart"); rc=$?
+    fi
+    expect_code 1 "$rc" "a $failure failure after the stop should fail closed"$'\n'"$out"
+    assert_contains "$out" "no agent is running" "the $failure failure should report the stopped agent"
+    assert_contains "$out" "run: $ROOT/bin/fm-spawn.sh rps1 --relaunch --harness claude --resume-session $RESUME_UUID;" \
+      "the $failure failure must name the exact-session recovery command"
+    assert_contains "$out" "a plain relaunch would start a fresh session" \
+      "the $failure failure must warn that a plain relaunch loses the conversation"
+    assert_no_grep " --resume " "$dir/fake/literal" "the $failure failure must not have resumed anything"
+  done
+  printf '%s' "$dir/wt" > "$dir/fake/cwd"
+  out=$(run_spawn "$dir" rps1 --relaunch --harness claude --resume-session "$RESUME_UUID"); rc=$?
+  expect_code 0 "$rc" "the named recovery command should resume the released session"$'\n'"$out"
+  launch=$(resume_launch_line "$dir")
+  assert_contains "$launch" "--resume '$RESUME_UUID'" "the recovery must resume the exact session"
+  pass "fm-control relaunch --resume-session: a failure after the stop names the exact-session recovery command, which resumes it"
+}
+
 test_herdr_claude_relaunch_without_resume_session_stays_fresh() {
   local dir out rc=0 command
   herdr_case_or_skip resume-claude-fresh rcf1 || {
@@ -3026,6 +3059,7 @@ test_resume_session_relaunch_resumes_a_legacy_worker_bound_by_endpoint_and_task_
 test_resume_session_refusals_happen_before_the_agent_stops
 test_resume_session_spawn_refuses_a_session_still_owned_and_never_falls_back
 test_resume_session_spawn_resumes_a_released_session
+test_resume_session_post_stop_failure_names_the_exact_session_recovery
 test_herdr_resume_session_binds_a_legacy_secondmate_through_the_pane_shell
 test_herdr_claude_relaunch_without_resume_session_stays_fresh
 test_herdr_reclaim_adopts_a_pane_that_outlived_its_server

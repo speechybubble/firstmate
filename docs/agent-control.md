@@ -95,6 +95,7 @@ A relaunch does take one session reference when the endpoint's own runtime recor
    The owner is the task's agent when its environment's `FM_TASK_INBOX` names the task's inbox, or, for an agent launched before that export existed, when it runs inside the task endpoint's pane process tree with, for a ship or scout, `FM_TASK_ID` equal to the task id and any `FM_HOME` it carries equal to the task's firstmate home, and for a secondmate, `FM_HOME` equal to its own home; an unreadable environment refuses.
    After the stop, the launch owner requires that no live process still owns the id, then launches `claude --resume <session-id>` with every other launch flag, the worker trust statement or secondmate environment, the inbox export, the endpoint, and fresh busy wiring, but with no launch brief and an idle busy record.
    Any failed check refuses; nothing chooses an id for the caller, and a requested resume never becomes a fresh session.
+   If anything fails after the stop, the rollback error names the exact-session recovery command, `bin/fm-spawn.sh <id> --relaunch --harness claude --resume-session <session-id>` (plus the transaction's `--model` and `--effort` when set), which resumes the same conversation once no live process owns the id; a plain `relaunch` would start a fresh session instead.
    A ship or scout still records its `--note`, which a resumed agent does not reread.
    `fm_control_claude_session_verify` in [`bin/fm-control-lib.sh`](../bin/fm-control-lib.sh) owns the checks.
 
