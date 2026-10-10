@@ -49,7 +49,9 @@ relaunch_cleanup() {
   for d in "${TASK_TMPS[@]:-}"; do
     [ -n "$d" ] && rm -rf "$d"
   done
-  rm -rf "$TMP_ROOT"
+  # A relaunch leaves read-only per-task git hook directories, which a plain
+  # rm -rf cannot empty.
+  fm_test_remove_tree "$TMP_ROOT"
 }
 trap relaunch_cleanup EXIT
 
