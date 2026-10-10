@@ -1,0 +1,41 @@
+# S4: legacy second mate (pre-FM_TASK_INBOX launch, FM_HOME only, in its pane; private real tmux server)
+agent pid 3565435 session 046bc655-f17c-489b-9668-1536ebdadc3c; Fleet env of the running agent:
+FM_HOME=/tmp/fmlive-s.jwRD/smhome
+pane root pid: 3564933, agent ppid: 3564933
+$ fm-control.sh rsm1 relaunch --resume-session 046bc655-f17c-489b-9668-1536ebdadc3c
+warning: secondmate rsm1 sync skipped before launch: primary default-branch commit cannot be resolved
+relaunched rsm1 harness=claude from=claude model=default effort=default backend=tmux endpoint=fmlive:fm-rsm1 worktree=/tmp/fmlive-s.jwRD/smhome resumed_session=046bc655-f17c-489b-9668-1536ebdadc3c
+rc=0
+-> old agent 3565435 alive: no
+-> live session records:
+{"pid":3573102,"sessionId":"046bc655-f17c-489b-9668-1536ebdadc3c","cwd":"/tmp/fmlive-s.jwRD/smhome","procStart":"39773895","kind":"interactive"}
+-> stand-in log:
+=== start pid=3565435 session=046bc655-f17c-489b-9668-1536ebdadc3c resumed=0 cwd=/tmp/fmlive-s.jwRD/smhome
+argv: [--dangerously-skip-permissions]
+FM_HOME=/tmp/fmlive-s.jwRD/smhome
+input pid=3565435: /exit
+=== exit pid=3565435
+=== start pid=3573102 session=046bc655-f17c-489b-9668-1536ebdadc3c resumed=1 cwd=/tmp/fmlive-s.jwRD/smhome
+argv: [--dangerously-skip-permissions] [--add-dir] [/tmp/fmlive-s.jwRD/home/state/rsm1.inbox] [--settings] [{"feedbackDrafts":"off","attribution":{"commit":"","pr":"","sessionUrl":false}}] [--resume] [046bc655-f17c-489b-9668-1536ebdadc3c]
+FM_CONFIG_OVERRIDE=
+FM_DATA_OVERRIDE=
+FM_HOME=/tmp/fmlive-s.jwRD/smhome
+FM_PROJECTS_OVERRIDE=
+FM_PUBLIC_FOLLOWUP_PRIMARY_HOME=/tmp/fmlive-s.jwRD/home
+FM_ROOT_OVERRIDE=
+FM_STATE_OVERRIDE=
+FM_SUPERVISION_MODEL=autoarm
+FM_TASK_INBOX=/tmp/fmlive-s.jwRD/home/state/rsm1.inbox
+FM_TRACE_CONTEXT=off
+-> transcript:
+{"type":"system","sessionId":"046bc655-f17c-489b-9668-1536ebdadc3c","pid":3565435,"resumed":0}
+{"type":"user","sessionId":"046bc655-f17c-489b-9668-1536ebdadc3c","text":"/exit"}
+{"type":"system","sessionId":"046bc655-f17c-489b-9668-1536ebdadc3c","pid":3573102,"resumed":1}
+-> charter untouched: # charter
+-> meta kind: kind=secondmate
+-> operational inbox (no launch-brief doorbell): 0 messages
+-> pane:
+╭──────────────────────────────╮
+│                              │
+╰──────────────────────────────╯
+  session 046bc655-f17c-489b-9668-1536ebdadc3c

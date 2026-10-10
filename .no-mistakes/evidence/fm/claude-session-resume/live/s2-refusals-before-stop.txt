@@ -1,0 +1,84 @@
+# S2: refusals before any stop (task agent pid 3309802, its session 0de44d36-3348-496d-a713-8ab7ddb11d17)
+
+## malformed id
+$ fm-control.sh live1 relaunch --resume-session NOT-A-UUID --note 'cutover restart'
+error: --resume-session 'NOT-A-UUID' is not a well-formed Claude session id (lowercase 8-4-4-4-12 hex)
+rc=1
+-> task agent pid 3309802 still alive: yes
+-> /exit sent to agent: no
+-> replacement launched: no
+-> state/live1.meta unchanged: yes
+
+## missing: well-formed id with no transcript and no owner
+$ fm-control.sh live1 relaunch --resume-session 99999999-aaaa-4bbb-8ccc-dddddddddddd --note 'cutover restart'
+error: Claude session 99999999-aaaa-4bbb-8ccc-dddddddddddd has no transcript at /tmp/fmlive-a.LBOf/user-home/.claude/projects/-tmp-fmlive-a-LBOf-wt/99999999-aaaa-4bbb-8ccc-dddddddddddd.jsonl, so it is not a conversation of /tmp/fmlive-a.LBOf/wt; refusing to resume
+error: relaunch of live1 with --resume-session 99999999-aaaa-4bbb-8ccc-dddddddddddd refused before its agent was touched
+rc=1
+-> task agent pid 3309802 still alive: yes
+-> /exit sent to agent: no
+-> replacement launched: no
+-> state/live1.meta unchanged: yes
+
+## mismatched: transcript in the worktree, but the running agent is on another conversation
+$ fm-control.sh live1 relaunch --resume-session 12345678-1234-4234-8234-123456789abc --note 'cutover restart'
+error: no live Claude process records session 12345678-1234-4234-8234-123456789abc under /tmp/fmlive-a.LBOf/user-home/.claude/sessions, so it cannot be proven to be this task's running conversation; refusing before anything is stopped
+error: relaunch of live1 with --resume-session 12345678-1234-4234-8234-123456789abc refused before its agent was touched
+rc=1
+-> task agent pid 3309802 still alive: yes
+-> /exit sent to agent: no
+-> replacement launched: no
+-> state/live1.meta unchanged: yes
+
+## foreign same-worktree interactive claude (outside the endpoint tree, no Fleet env) owns the id
+$ fm-control.sh live1 relaunch --resume-session 26d7ac84-f634-4167-bed2-a120c6e8a678 --note 'cutover restart'
+error: live Claude process 3413910 carries no FM_TASK_INBOX and is not in task live1's endpoint process tree (root pid 3294194), so it is not task live1's agent
+error: Claude session 26d7ac84-f634-4167-bed2-a120c6e8a678 is not owned by this task's agent; refusing before anything is stopped
+error: relaunch of live1 with --resume-session 26d7ac84-f634-4167-bed2-a120c6e8a678 refused before its agent was touched
+rc=1
+-> task agent pid 3309802 still alive: yes
+-> /exit sent to agent: no
+-> replacement launched: no
+-> state/live1.meta unchanged: yes
+
+## foreign same-worktree claude spoofing FM_TASK_ID=live1 outside the endpoint tree owns the id
+$ fm-control.sh live1 relaunch --resume-session b55b1a96-bfb1-4147-81bb-a32f930a7c30 --note 'cutover restart'
+error: live Claude process 3415542 carries no FM_TASK_INBOX and is not in task live1's endpoint process tree (root pid 3294194), so it is not task live1's agent
+error: Claude session b55b1a96-bfb1-4147-81bb-a32f930a7c30 is not owned by this task's agent; refusing before anything is stopped
+error: relaunch of live1 with --resume-session b55b1a96-bfb1-4147-81bb-a32f930a7c30 refused before its agent was touched
+rc=1
+-> task agent pid 3309802 still alive: yes
+-> /exit sent to agent: no
+-> replacement launched: no
+-> state/live1.meta unchanged: yes
+
+## another task's agent (FM_TASK_INBOX of task 'other') owns the id
+$ fm-control.sh live1 relaunch --resume-session 6e83fb3c-ff94-4f93-9916-0696858445b9 --note 'cutover restart'
+error: live Claude process 3416904 belongs to the task whose inbox is '/tmp/fmlive-a.LBOf/home/state/other.inbox', not task live1 (inbox /tmp/fmlive-a.LBOf/home/state/live1.inbox)
+error: Claude session 6e83fb3c-ff94-4f93-9916-0696858445b9 is not owned by this task's agent; refusing before anything is stopped
+error: relaunch of live1 with --resume-session 6e83fb3c-ff94-4f93-9916-0696858445b9 refused before its agent was touched
+rc=1
+-> task agent pid 3309802 still alive: yes
+-> /exit sent to agent: no
+-> replacement launched: no
+-> state/live1.meta unchanged: yes
+
+## already owned: a second live process also holds the task agent's own session
+$ fm-control.sh live1 relaunch --resume-session 0de44d36-3348-496d-a713-8ab7ddb11d17 --note 'cutover restart'
+error: Claude session 0de44d36-3348-496d-a713-8ab7ddb11d17 is owned by more than one live process (3309802 3418631 ); refusing before anything is stopped
+error: relaunch of live1 with --resume-session 0de44d36-3348-496d-a713-8ab7ddb11d17 refused before its agent was touched
+rc=1
+-> task agent pid 3309802 still alive: yes
+-> /exit sent to agent: no
+-> replacement launched: no
+-> state/live1.meta unchanged: yes
+
+--- live session records at end:
+{"pid":3309802,"sessionId":"0de44d36-3348-496d-a713-8ab7ddb11d17","cwd":"/tmp/fmlive-a.LBOf/wt","procStart":"39727978","kind":"interactive"}
+{"pid":3413910,"sessionId":"26d7ac84-f634-4167-bed2-a120c6e8a678","cwd":"/tmp/fmlive-a.LBOf/wt","procStart":"39746025","kind":"interactive"}
+{"pid":3415542,"sessionId":"b55b1a96-bfb1-4147-81bb-a32f930a7c30","cwd":"/tmp/fmlive-a.LBOf/wt","procStart":"39746327","kind":"interactive"}
+{"pid":3416904,"sessionId":"6e83fb3c-ff94-4f93-9916-0696858445b9","cwd":"/tmp/fmlive-a.LBOf/wt","procStart":"39746629","kind":"interactive"}
+{"pid":3418631,"sessionId":"0de44d36-3348-496d-a713-8ab7ddb11d17","cwd":"/tmp/fmlive-a.LBOf/wt","procStart":"39746918","kind":"interactive"}
+Terminated                 sleep infinity 2> /dev/null < /dev/null | env -u FM_TASK_INBOX -u FM_TASK_ID -u FM_HOME HOME=$R/user-home CLAUDE_CONFIG_DIR= FAKE_CLAUDE_LOG=$R/foreign.log "$@" > /dev/null 2>&1
+Terminated                 sleep infinity 2> /dev/null < /dev/null | env -u FM_TASK_INBOX -u FM_TASK_ID -u FM_HOME HOME=$R/user-home CLAUDE_CONFIG_DIR= FAKE_CLAUDE_LOG=$R/foreign.log "$@" > /dev/null 2>&1
+Terminated                 sleep infinity 2> /dev/null < /dev/null | env -u FM_TASK_INBOX -u FM_TASK_ID -u FM_HOME HOME=$R/user-home CLAUDE_CONFIG_DIR= FAKE_CLAUDE_LOG=$R/foreign.log "$@" > /dev/null 2>&1
+Terminated                 sleep infinity 2> /dev/null < /dev/null | env -u FM_TASK_INBOX -u FM_TASK_ID -u FM_HOME HOME=$R/user-home CLAUDE_CONFIG_DIR= FAKE_CLAUDE_LOG=$R/foreign.log "$@" > /dev/null 2>&1

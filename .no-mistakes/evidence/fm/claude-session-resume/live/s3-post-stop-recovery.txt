@@ -1,0 +1,45 @@
+# S3: a failure after the stop names the exact-session recovery (agent pid 3309802, session 0de44d36-3348-496d-a713-8ab7ddb11d17)
+(fixture: on /exit the stand-in leaves a detached child owning the session record for ~8s, so fm-spawn's 'released' check fails after the stop)
+$ fm-control.sh live1 relaunch --resume-session 0de44d36-3348-496d-a713-8ab7ddb11d17 --note 'cutover restart'
+error: Claude session 0de44d36-3348-496d-a713-8ab7ddb11d17 is still owned by live process(es) 3538483 - resuming it would put a second process on one conversation; refusing to launch
+error: relaunch of live1 with --resume-session 0de44d36-3348-496d-a713-8ab7ddb11d17 refused; no replacement was launched
+error: the replacement agent for live1 could not be launched on claude
+error: live1's agent was stopped but the replacement did not launch; no agent is running, and its work plus the recorded progress note are preserved at /tmp/fmlive-a.LBOf/wt
+error: to resume the exact Claude session 0de44d36-3348-496d-a713-8ab7ddb11d17 once no live process owns it, run: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4KFZ4WBJQG05TP10ZPQYHWR/bin/fm-spawn.sh live1 --relaunch --harness claude --resume-session 0de44d36-3348-496d-a713-8ab7ddb11d17; a plain relaunch would start a fresh session and lose that conversation
+rc=1
+-> agent pid 3309802 alive: no
+-> any replacement started after the stop: no
+-> named recovery command: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4KFZ4WBJQG05TP10ZPQYHWR/bin/fm-spawn.sh live1 --relaunch --harness claude --resume-session 0de44d36-3348-496d-a713-8ab7ddb11d17
+
+## running the named command while the lingering owner still holds the session
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4KFZ4WBJQG05TP10ZPQYHWR/bin/fm-spawn.sh live1 --relaunch --harness claude --resume-session 0de44d36-3348-496d-a713-8ab7ddb11d17
+error: Claude session 0de44d36-3348-496d-a713-8ab7ddb11d17 is still owned by live process(es) 3538483 - resuming it would put a second process on one conversation; refusing to launch
+error: relaunch of live1 with --resume-session 0de44d36-3348-496d-a713-8ab7ddb11d17 refused; no replacement was launched
+rc=1
+-> replacement started: no
+
+## waiting for the session to be released, then running the same named command
+live session records: 0
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4KFZ4WBJQG05TP10ZPQYHWR/bin/fm-spawn.sh live1 --relaunch --harness claude --resume-session 0de44d36-3348-496d-a713-8ab7ddb11d17
+spawned live1 harness=claude kind=ship mode=no-mistakes yolo=off window=fmlive:fm-live1 worktree=/tmp/fmlive-a.LBOf/wt
+rc=0
+-> live session records:
+{"pid":3550389,"sessionId":"0de44d36-3348-496d-a713-8ab7ddb11d17","cwd":"/tmp/fmlive-a.LBOf/wt","procStart":"39769876","kind":"interactive"}
+-> last incarnation in stand-in log:
+=== start pid=3550389 session=0de44d36-3348-496d-a713-8ab7ddb11d17 resumed=1 cwd=/tmp/fmlive-a.LBOf/wt
+argv: [--dangerously-skip-permissions] [--add-dir] [/tmp/fmlive-a.LBOf/home/state/operational-inbox] [--add-dir] [/tmp/fmlive-a.LBOf/home/state/live1.inbox] [--add-dir] [/tmp/fmlive-a.LBOf/home/data/live1] [--add-dir] [/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4KFZ4WBJQG05TP10ZPQYHWR/.agents/skills] [--settings] [{"feedbackDrafts":"off","attribution":{"commit":"","pr":"","sessionUrl":false}}] [--resume] [0de44d36-3348-496d-a713-8ab7ddb11d17] 
+-> transcript (same file, all incarnations):
+{"type":"system","sessionId":"0de44d36-3348-496d-a713-8ab7ddb11d17","pid":3299031,"resumed":0}
+{"type":"user","sessionId":"0de44d36-3348-496d-a713-8ab7ddb11d17","text":"/exit"}
+{"type":"system","sessionId":"0de44d36-3348-496d-a713-8ab7ddb11d17","pid":3309802,"resumed":1}
+{"type":"system","sessionId":"0de44d36-3348-496d-a713-8ab7ddb11d17","pid":3330008,"resumed":1}
+{"type":"system","sessionId":"0de44d36-3348-496d-a713-8ab7ddb11d17","pid":3418631,"resumed":1}
+{"type":"user","sessionId":"0de44d36-3348-496d-a713-8ab7ddb11d17","text":"/exit"}
+{"type":"system","sessionId":"0de44d36-3348-496d-a713-8ab7ddb11d17","pid":3550389,"resumed":1}
+-> worktree status:
+?? wip.txt
+-> pane:
+╭──────────────────────────────╮
+│                              │
+╰──────────────────────────────╯
+  session 0de44d36-3348-496d-a713-8ab7ddb11d17
