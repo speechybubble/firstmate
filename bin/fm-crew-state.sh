@@ -164,6 +164,11 @@
 #      classified by step 4. Backends with no classifier keep reading a failed
 #      capture as gone. The fallback's own comment owns the per-verdict rules.
 #
+# FM_CREW_STATE_HISTORY_ONLY=1 stops after step 3's status-log resolution and
+# never reads a run-step or pane: a recognized declaration is reported with
+# source status-log, anything else as unknown · none. The fleet snapshot uses it
+# only for tasks whose structured history records completion.
+#
 # Read-only and side-effect free. Always exits 0 on a successful read regardless
 # of state; exit 2 only on a usage error (no id).
 set -u
@@ -300,6 +305,14 @@ map_log_state() {  # <line>
 
 LOG_LINE=$(status_current_line "$LOG" "$KIND")
 LOG_VERB=$(status_line_verb "$LOG_LINE")
+
+# --- history-only read for completed work (header: FM_CREW_STATE_HISTORY_ONLY)
+if [ "${FM_CREW_STATE_HISTORY_ONLY:-0}" = 1 ]; then
+  if [ -n "$LOG_VERB" ] && [ "$(map_log_state "$LOG_LINE")" != unknown ]; then
+    emit "$(map_log_state "$LOG_LINE")" status-log "$(status_line_note "$LOG_LINE")"
+  fi
+  emit unknown none "completed task: live state not read"
+fi
 
 # --- remote secondmate: the true source is the remote endpoint ---------------
 # A remote mate's recorded worktree and backend target live on its own host, so

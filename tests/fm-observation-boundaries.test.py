@@ -188,6 +188,107 @@ exec "''' + shutil.which("jq") + '''" "$@"
         self.assertEqual(tasks["active"]["lifecycle"]["state"], "current")
         self.assertEqual(tasks["held"]["lifecycle"]["state"], "held")
 
+    def git_task(self, home, task_id, **kwargs):
+        """A task whose copy is a git branch, so its live read asks no-mistakes."""
+        worktree = self.task(home, task_id, **kwargs)
+        git = ["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+               "-C", str(worktree)]
+        for args in (["init", "-q", "-b", "main"], ["commit", "-q", "--allow-empty", "-m", "base"],
+                     ["checkout", "-q", "-b", f"fm/{task_id}"]):
+            subprocess.run(git + args, env=self.env, check=True, capture_output=True)
+        return worktree
+
+    def slow_no_mistakes(self, log):
+        """Record each no-mistakes call's start and directory, then stall slow copies."""
+        self.tool("no-mistakes", f'''
+printf '%s\\t%s\\n' "$(python3 -c 'import time; print(time.time())')" "$PWD" >> "{log}"
+case "$PWD" in
+  *slow*) sleep "${{FM_TEST_NM_DELAY:-0}}" ;;
+esac
+exit 0
+''')
+
+    def test_completed_work_skips_live_reads_and_publishes_within_bound(self):
+        home = self.home("accumulated")
+        (home / ".fm-secondmate-home").write_text("accumulated\n")
+        (home / "AGENTS.md").symlink_to(ROOT / "AGENTS.md")
+        (home / "bin").mkdir()
+        retained = [f"slow-done-{i:02}" for i in range(8)]
+        for task_id in retained:
+            self.git_task(home, task_id, kind="ship", status=f"done: finished {task_id}")
+        self.git_task(home, "active", kind="ship", busy="busy", status="working: current work")
+        self.git_task(home, "held", kind="ship", status="needs-decision [key=route]: choose a route")
+        (home / "data/backlog.md").write_text(
+            "## In flight\n- [ ] active - Active work (repo: fixture) (kind: ship)\n"
+            "- [ ] held - Held call (repo: fixture) (kind: ship) (hold: choose a route) (hold-kind: captain)\n"
+            "## Queued\n"
+            "## Done\n" + "".join(f"- [x] {task_id} - Finished (kind: ship)\n" for task_id in retained[:6])
+        )
+        (home / "data/done-archive.md").write_text(
+            "## Archived 2026-09-29\n" + "".join(
+                f"- [x] {task_id} - Finished (kind: ship)\n" for task_id in retained[6:]
+            )
+        )
+        # A ledger left behind by another home (a lab clone sharing this state
+        # directory) must be replaced by the first successful refresh.
+        (home / "state/home-summary.json").write_text(json.dumps({
+            "schema": "fm-secondmate-home-summary.v1",
+            "home": str(self.root / "lab-clone"),
+            "generated": "2026-10-09T11:40:00Z",
+        }) + "\n")
+        log = self.root / "nm-calls.log"
+        self.slow_no_mistakes(log)
+        # Every live read of a completed copy would stall to the per-read bound,
+        # so reading them serially in pairs could not finish inside the deadline.
+        result = self.command(home, "fm-home-summary-refresh.sh",
+                              FM_TEST_NM_DELAY="30", FM_SNAPSHOT_CREW_STATE_TIMEOUT="5",
+                              FM_SNAPSHOT_LOCAL_READ_CONCURRENCY="2",
+                              FM_HOME_SUMMARY_TIMEOUT="20")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = log.read_text() if log.exists() else ""
+        self.assertIn("/active/", calls)
+        for task_id in retained:
+            self.assertNotIn(f"/{task_id}/", calls)
+        summary = json.loads((home / "state/home-summary.json").read_text())
+        self.assertEqual(summary["home"], str(home))
+        self.assertEqual(summary["counts"]["completed_retained"], len(retained))
+        rows = {row["id"]: row for row in summary["completed_retained"]}
+        self.assertEqual(sorted(rows), retained)
+        for task_id in retained:
+            self.assertEqual(rows[task_id]["lifecycle"]["state"], "completed_retained")
+            self.assertEqual(rows[task_id]["current_state"]["state"], "done")
+            self.assertEqual(rows[task_id]["current_state"]["source"], "status-log")
+            self.assertEqual(rows[task_id]["current_state"]["detail"], f"finished {task_id}")
+        self.assertEqual([row["id"] for row in summary["active_children"]], ["active"])
+        self.assertIn("held", [row["id"] for row in summary["decisions_open"]])
+        self.assertEqual(sorted(row["id"] for row in summary["endpoints"]), ["active", "held"])
+
+    def test_one_slow_read_does_not_hold_a_whole_batch(self):
+        home = self.home("window")
+        for task_id in ("a-slow", "b-fast", "c-slow"):
+            self.git_task(home, task_id, kind="ship", busy="busy", status="working: current work")
+        (home / "data/backlog.md").write_text(
+            "## In flight\n" + "".join(
+                f"- [ ] {task_id} - Work (repo: fixture) (kind: ship)\n"
+                for task_id in ("a-slow", "b-fast", "c-slow")
+            ) + "## Queued\n## Done\n"
+        )
+        log = self.root / "window-calls.log"
+        self.slow_no_mistakes(log)
+        self.output(home, "fm-fleet-snapshot.sh", "--secondmate-home-summary",
+                    FM_TEST_NM_DELAY="30", FM_SNAPSHOT_CREW_STATE_TIMEOUT="6",
+                    FM_SNAPSHOT_LOCAL_READ_CONCURRENCY="2")
+        starts = {}
+        for line in log.read_text().splitlines():
+            stamp, directory = line.split("\t", 1)
+            for task_id in ("a-slow", "c-slow"):
+                if f"/{task_id}/" in directory + "/":
+                    starts.setdefault(task_id, float(stamp))
+        self.assertEqual(sorted(starts), ["a-slow", "c-slow"], log.read_text())
+        # With two slots, c-slow takes the slot b-fast frees; it must not wait
+        # for a-slow's read to reach its six-second bound.
+        self.assertLess(starts["c-slow"] - starts["a-slow"], 4.5)
+
     def test_contribution_input_never_reads_archive(self):
         home = self.home("contributions")
         (home / "data/backlog.md").write_text(
