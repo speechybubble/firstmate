@@ -14,7 +14,11 @@
 # ledger. After a failed, interrupted, or killed refresh, the ledger path holds
 # either the prior complete document or the new complete document, never torn output.
 # A home-local refresh lock serializes concurrent triggers so an older in-flight
-# summary cannot overwrite one computed after a later status change. The shared
+# summary cannot overwrite one computed after a later status change.
+# FM_HOME_SUMMARY_IF_IDLE=1 (the watcher's mode) steps aside for an in-flight
+# publication instead of queuing behind it, yet still publishes itself if that
+# holder exits without replacing the ledger before this refresh's own deadline
+# is one second away. The shared
 # timeout owner bounds the complete refresh with FM_HOME_SUMMARY_TIMEOUT
 # (default 60 seconds). No reader can observe temporary output through the
 # ledger path.
@@ -99,6 +103,34 @@ home_summary_fail() {
   return 1
 }
 
+# The ledger's inode changes on every publication because each one renames a
+# fresh temporary file over it; an absent ledger reads as empty.
+home_summary_ledger_identity() {
+  [ -e "$LEDGER" ] || return 0
+  ls -di -- "$LEDGER" 2>/dev/null | awk '{print $1}'
+}
+
+# An idle-only refresh steps aside for an in-flight publication, but its request
+# is not dropped: when that holder exits without replacing the ledger (a failed
+# or deadline-killed refresh), this refresh takes the lock and publishes. It
+# watches only while its own deadline still leaves a second to spare, so it
+# never runs into that deadline queued behind a live holder.
+home_summary_acquire_if_idle() {
+  local ledger_before
+  fm_lock_try_acquire "$REFRESH_LOCK" && return 0
+  ledger_before=$(home_summary_ledger_identity)
+  while [ "$SECONDS" -lt $((HOME_SUMMARY_TIMEOUT - 1)) ]; do
+    sleep 0.2
+    [ "$(home_summary_ledger_identity)" = "$ledger_before" ] || return 1
+    if fm_lock_try_acquire "$REFRESH_LOCK"; then
+      [ "$(home_summary_ledger_identity)" = "$ledger_before" ] && return 0
+      fm_lock_release "$REFRESH_LOCK"
+      return 1
+    fi
+  done
+  return 1
+}
+
 home_summary_refresh_once() {
   local producer_rc producer_error
   if ! mkdir -p "$STATE" 2>/dev/null; then
@@ -110,7 +142,7 @@ home_summary_refresh_once() {
   trap 'exit 130' INT
   trap 'exit 143' TERM
   if [ "$HOME_SUMMARY_IF_IDLE" -eq 1 ]; then
-    fm_lock_try_acquire "$REFRESH_LOCK" || return 0
+    home_summary_acquire_if_idle || return 0
   else
     fm_lock_acquire_wait "$REFRESH_LOCK"
   fi

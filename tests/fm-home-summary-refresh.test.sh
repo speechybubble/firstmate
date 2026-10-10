@@ -915,6 +915,42 @@ wait "$WATCH_PID" >/dev/null 2>&1 || true
 WATCH_PID=
 pass "publication remains single-flight across watcher restart"
 
+# A refresh that steps aside for an in-flight publication must not lose its
+# request when that holder dies without publishing, as a refresh killed at its
+# deadline does. The holder below takes the lock and exits without writing the
+# ledger while an idle-only refresh is already waiting behind it.
+DEFER_HOME="$TMP_ROOT/defer-home"
+mkdir -p "$DEFER_HOME/state" "$DEFER_HOME/data" "$DEFER_HOME/config" \
+  "$DEFER_HOME/projects"
+printf '# Seeded Firstmate home\n' > "$DEFER_HOME/AGENTS.md"
+printf 'defer\n' > "$DEFER_HOME/.fm-secondmate-home"
+printf '## In flight\n\n## Queued\n\n## Done\n' > "$DEFER_HOME/data/backlog.md"
+DEFER_LOCK_MARKER="$TMP_ROOT/defer-lock-held"
+FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$DEFER_HOME" bash -c '
+  . "$1/bin/fm-wake-lib.sh"
+  fm_lock_acquire_wait "$2/state/.home-summary-refresh.lock"
+  : > "$3"
+  sleep 2
+' _ "$ROOT" "$DEFER_HOME" "$DEFER_LOCK_MARKER" &
+LOCK_HOLDER_PID=$!
+i=0
+while [ ! -e "$DEFER_LOCK_MARKER" ] && [ "$i" -lt 100 ]; do
+  kill -0 "$LOCK_HOLDER_PID" 2>/dev/null || break
+  sleep 0.05
+  i=$((i + 1))
+done
+[ -e "$DEFER_LOCK_MARKER" ] || fail "could not hold the publication lock for deferral coverage"
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$DEFER_HOME" \
+  FM_HOME_SUMMARY_IF_IDLE=1 FM_HOME_SUMMARY_TIMEOUT=30 "$WRITER" --best-effort \
+  || fail "a deferred refresh changed the best-effort caller result"
+wait "$LOCK_HOLDER_PID" >/dev/null 2>&1 || true
+LOCK_HOLDER_PID=
+[ -e "$DEFER_HOME/state/home-summary.json" ] \
+  || fail "a refresh that stepped aside dropped its request when the holder died unpublished"
+[ ! -s "$DEFER_HOME/state/.home-summary-refresh.log" ] \
+  || fail "a deferred refresh recorded a failure: $(cat "$DEFER_HOME/state/.home-summary-refresh.log")"
+pass "a refresh that steps aside still publishes when the holder dies unpublished"
+
 # A publication that keeps failing is deliberately non-fatal to its caller, so
 # the only way an operator learns about it is a session start saying so. Seed
 # the home-local failure record a real failing home would have, and require the
