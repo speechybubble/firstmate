@@ -989,11 +989,16 @@ if [ "$KIND" = ship ] && [ -n "$CREW_BRANCH" ] && command -v no-mistakes >/dev/n
     # CLI is not retried. Older CLI surfaces without the table retain the
     # coarse fallback below, but cannot turn a replacement into a vague live
     # verdict when its identity and gate cannot be read.
-    # A status answer that declares no run on this branch already carries the
-    # same runs table the overview prints, so it feeds selection directly
-    # instead of paying a second slow CLI round trip.
+    # Reuse a no-run status only when its inventory is complete. A capped
+    # status lacks the overview's repo identity, which complete run selection
+    # needs to resolve the undisplayed rows from the state database.
     overview_ok=1
-    if printf '%s\n' "$RUN_OUT" | grep -qx 'runs_on_current_branch: 0'; then
+    if printf '%s\n' "$RUN_OUT" | grep -qx 'runs_on_current_branch: 0' \
+      && printf '%s\n' "$RUN_OUT" | awk '
+        /^count: [0-9]+ of [0-9]+ total$/ { if ($2 == $4) complete = 1 }
+        /^runs: 0 runs yet in this repository$/ { complete = 1 }
+        END { exit !complete }
+      '; then
       run_overview=$RUN_OUT
     else
       run_overview=$(fm_nm_run_checked "$WT" "$NM_TIMEOUT" axi) || overview_ok=0

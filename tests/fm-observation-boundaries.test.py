@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import sqlite3
 import subprocess
 import tempfile
 import unittest
@@ -358,6 +359,54 @@ exit 0
                 self.assertEqual((rows["custody"]["state"], rows["custody"]["source"]),
                                  ("paused", "status-log"))
                 self.assertIn("custody", [row["id"] for row in summary["holds"]])
+
+    def test_paused_child_with_capped_status_reads_identity_from_overview(self):
+        home = self.home("paused-capped-status")
+        self.git_task(home, "custody", kind="ship",
+                      status="paused: custody accepted, awaiting release")
+        (home / "data/backlog.md").write_text(
+            "## In flight\n- [ ] custody - Custody work (repo: fixture) (kind: ship)\n"
+            "## Queued\n## Done\n"
+        )
+        # The installed status surface shows ten of eleven other-branch runs
+        # without repo identity. Only the overview can identify the database
+        # repository so selection can prove that this branch has no run.
+        nm_home = self.root / "no-mistakes"
+        nm_home.mkdir()
+        with sqlite3.connect(nm_home / "state.sqlite") as db:
+            db.execute("CREATE TABLE repos (id TEXT, working_path TEXT)")
+            db.execute("CREATE TABLE runs (id TEXT, repo_id TEXT, branch TEXT, "
+                       "status TEXT, head_sha TEXT, created_at INTEGER)")
+            db.execute("INSERT INTO repos VALUES (?, ?)", ("fixture", str(home)))
+            db.executemany("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?)", [
+                (f"OTHER{i}", "fixture", f"fm/other-{i}", "completed", "abcdef12", i)
+                for i in range(11)
+            ])
+        inventory = "count: 10 of 11 total\nruns[10]{id,branch,status,head,pr}:\n" + "".join(
+            f'  OTHER{i},fm/other-{i},completed,abcdef12,""\n'
+            for i in range(10, 0, -1)
+        )
+        status = self.root / "capped-status.txt"
+        status.write_text("current_branch: fm/custody\nruns_on_current_branch: 0\n" + inventory)
+        overview = self.root / "capped-overview.txt"
+        overview.write_text(f"repo: {json.dumps(str(home))}\n" + inventory)
+        log = self.root / "capped-status-calls.log"
+        self.tool("no-mistakes", f"""
+printf '%s\\n' "$*" >> "{log}"
+case "$*" in
+  "axi status") cat "{status}" ;;
+  axi) cat "{overview}" ;;
+esac
+""")
+        summary = json.loads(self.output(home, "fm-fleet-snapshot.sh",
+                                         "--secondmate-home-summary",
+                                         NM_HOME=str(nm_home)))
+        calls = log.read_text().splitlines()
+        self.assertEqual(calls[:2], ["axi status", "axi"])
+        rows = {row["id"]: row for row in summary["endpoints"]}
+        self.assertEqual((rows["custody"]["state"], rows["custody"]["source"]),
+                         ("paused", "status-log"))
+        self.assertIn("custody", [row["id"] for row in summary["holds"]])
 
     def test_contribution_input_never_reads_archive(self):
         home = self.home("contributions")
