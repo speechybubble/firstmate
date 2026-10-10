@@ -1,0 +1,8 @@
+# Live validation evidence: home-summary producer fix (1bed2150 vs base f5bf76fa)
+Fixture: disposable production-shaped home (fixture-build.py), 44 ship tasks: 35 completed (one local-only done whose head is unreachable, one cancelled/failed), 5 active, a captain hold, an external (business) hold, a paused custody hold and a queued captain hold. The seeded ledger belongs to a foreign "lab clone" home. A stub no-mistakes costs 5 s per call to mimic the /mnt/c read cost.
+- live-refresh-base-vs-head.txt: the base refresh exceeds its 60 s deadline and leaves the foreign ledger in place, which is the production symptom. HEAD republishes the current home in 33 s with no failure logged. No completed task is read live (9 vs 44 no-mistakes calls).
+- live-head-summary-excerpt.json: the published summary keeps active children, decisions, holds (captain, external, paused, queued), endpoints and completed_retained rows, including the cancellation.
+- live-head-json-task-rows.json: in `--json`, a local-only done ship whose head is unreachable is still `blocked` by the named-head gate in history-only mode.
+- live-summary-parity-base-vs-head.diff (empty): with fast reads, base and HEAD produce identical summaries once paths and timestamps are normalized.
+- live-takeover-after-deadline-kill.txt: a holder is killed at its deadline unpublished. The watcher-mode idle refresh then runs one takeover under a fresh deadline and publishes the current home. The log has exactly one deadline failure, the holder's.
+- observation-boundaries-test.log, home-summary-refresh-test.log: targeted suites (all pass).

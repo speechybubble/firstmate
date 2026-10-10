@@ -1,0 +1,143 @@
+{
+  "home": "/tmp/fmlive-h/home",
+  "generated": "2026-10-10T09:45:44Z",
+  "counts": {
+    "completed_retained": 35,
+    "active_children": 5,
+    "decisions_open": 4,
+    "holds": 4,
+    "queued": 3,
+    "landed": 20,
+    "endpoints": 9
+  },
+  "active_children": [
+    "active-0",
+    "active-1",
+    "active-2",
+    "active-3",
+    "active-4"
+  ],
+  "decisions_open": [
+    {
+      "id": "captain-held",
+      "hold_kind": null,
+      "hold_reason": null
+    },
+    {
+      "id": "queued-held",
+      "hold_kind": null,
+      "hold_reason": null
+    },
+    {
+      "id": "business-held",
+      "hold_kind": null,
+      "hold_reason": null
+    },
+    {
+      "id": "captain-held",
+      "hold_kind": null,
+      "hold_reason": null
+    }
+  ],
+  "holds": [
+    {
+      "id": "captain-held"
+    },
+    {
+      "id": "business-held"
+    },
+    {
+      "id": "queued-held"
+    },
+    {
+      "id": "paused-1"
+    }
+  ],
+  "endpoints": [
+    {
+      "id": "active-0",
+      "state": "working",
+      "source": "pane"
+    },
+    {
+      "id": "active-1",
+      "state": "working",
+      "source": "pane"
+    },
+    {
+      "id": "active-2",
+      "state": "working",
+      "source": "pane"
+    },
+    {
+      "id": "active-3",
+      "state": "working",
+      "source": "pane"
+    },
+    {
+      "id": "active-4",
+      "state": "working",
+      "source": "pane"
+    },
+    {
+      "id": "business-held",
+      "state": "blocked",
+      "source": "status-log"
+    },
+    {
+      "id": "captain-held",
+      "state": "parked",
+      "source": "status-log"
+    },
+    {
+      "id": "paused-1",
+      "state": "paused",
+      "source": "status-log"
+    },
+    {
+      "id": "queued-held",
+      "state": "working",
+      "source": "status-log"
+    }
+  ],
+  "completed_retained": [
+    {
+      "id": "cancelled-1",
+      "lifecycle": "completed_retained",
+      "state": "failed",
+      "source": "status-log",
+      "detail": "cancelled by captain"
+    },
+    {
+      "id": "done-00",
+      "lifecycle": "completed_retained",
+      "state": "done",
+      "source": "status-log",
+      "detail": "finished done-00"
+    },
+    {
+      "id": "done-01",
+      "lifecycle": "completed_retained",
+      "state": "done",
+      "source": "status-log",
+      "detail": "finished done-01"
+    },
+    {
+      "id": "done-02",
+      "lifecycle": "completed_retained",
+      "state": "done",
+      "source": "status-log",
+      "detail": "finished done-02"
+    }
+  ],
+  "omitted": [
+    {
+      "surface": "completed_retained",
+      "count": 15
+    },
+    {
+      "surface": "landed",
+      "count": 10
+    }
+  ]
+}

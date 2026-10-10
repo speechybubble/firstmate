@@ -1,0 +1,15 @@
+# Same 44-task production-shaped home, foreign lab-clone ledger seeded, each no-mistakes call costs 5 s, default 60 s refresh deadline
+# BASE = f5bf76fa (before fix), HEAD = 1bed2150
+Terminated                 env FM_ROOT_OVERRIDE="$FM_ROOT" FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" FM_DATA_OVERRIDE="$DATA" FM_CONFIG_OVERRIDE="$CONFIG" FM_PROJECTS_OVERRIDE="$PROJECTS" "$SCRIPT_DIR/fm-fleet-snapshot.sh" --secondmate-home-summary > "$HOME_SUMMARY_TMP" 2> "$HOME_SUMMARY_ERR_TMP"
+[BASE] refresh rc=0 elapsed=61s
+[BASE] ledger home: /home/denni/kun-validation/claude-migration-20261009/fleet-LAB-CLONE
+[BASE] ledger generated: 2026-10-09T11:40:00Z
+[BASE] refresh log:
+    [2026-10-10T09:45:42Z] refresh exceeded its 60-second deadline
+[BASE] no-mistakes calls: 44
+[HEAD] refresh rc=0 elapsed=33s
+[HEAD] ledger home: /tmp/fmlive-h/home
+[HEAD] ledger generated: 2026-10-10T09:45:44Z
+[HEAD] refresh log:
+    (empty)
+[HEAD] no-mistakes calls: 9

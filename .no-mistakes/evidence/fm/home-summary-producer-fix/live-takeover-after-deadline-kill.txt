@@ -1,0 +1,16 @@
+# 9-task home, foreign lab-clone ledger seeded. Both refreshes use a 40 s deadline.
+# Holder: every no-mistakes read stalls 90 s (per-call and per-read bounds raised), so it is killed at its deadline unpublished.
+# Idle (watcher-mode FM_HOME_SUMMARY_IF_IDLE=1) refresh starts ~25 s later; its reads take 30 s, more than the ~25 s it has left when the holder dies.
+ledger before: home=/home/denni/kun-validation/claude-migration-20261009/fleet-LAB-CLONE generated=2026-10-09T11:40:00Z
+[idle refresh] started at +25s
+[holder] exited rc=0 at +41s
+[idle refresh] exited rc=0 at +81s
+ledger after: home=/tmp/fmlive-s/home generated=2026-10-10T09:59:38Z
+no-mistakes reads started at (s after t0):
+          4 +5s axi status
+          1 +8s axi status
+          1 +46s axi status
+          3 +47s axi status
+          1 +48s axi status
+refresh log:
+    [2026-10-10T09:58:57Z] refresh exceeded its 40-second deadline

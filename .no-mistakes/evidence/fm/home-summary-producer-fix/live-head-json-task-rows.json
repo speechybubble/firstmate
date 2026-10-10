@@ -1,0 +1,37 @@
+[
+  {
+    "id": "business-held",
+    "lifecycle": "held",
+    "state": "blocked",
+    "source": "status-log",
+    "detail": "waiting on vendor contract"
+  },
+  {
+    "id": "cancelled-1",
+    "lifecycle": "completed_retained",
+    "state": "failed",
+    "source": "status-log",
+    "detail": "cancelled by captain"
+  },
+  {
+    "id": "captain-held",
+    "lifecycle": "held",
+    "state": "parked",
+    "source": "status-log",
+    "detail": "choose a route"
+  },
+  {
+    "id": "done-00",
+    "lifecycle": "completed_retained",
+    "state": "done",
+    "source": "status-log",
+    "detail": "finished done-00"
+  },
+  {
+    "id": "done-unpublished",
+    "lifecycle": "completed_retained",
+    "state": "blocked",
+    "source": "status-log",
+    "detail": "named head 8f2cc994adfc2fbb7d702e7f7f4d171b40298b7b is unreachable outside the worker copy"
+  }
+]
