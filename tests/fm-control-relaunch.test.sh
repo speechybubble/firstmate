@@ -122,6 +122,7 @@ case "${1:-}" in
       case "$a" in
         *cursor_y*) printf '1\n'; exit 0 ;;
         *pane_current_command*) cat "$D/command"; printf '\n'; exit 0 ;;
+        *pane_pid*) [ ! -s "$D/pane-pid" ] || cat "$D/pane-pid"; printf '\n'; exit 0 ;;
         *pane_current_path*)
           if [ -n "${FM_FAKE_CWD_RACE_READY:-}" ]; then
             : > "$FM_FAKE_CWD_RACE_READY"
@@ -2526,13 +2527,35 @@ claude_transcript_fixture() {
     > "$dir/user-home/.claude/projects/$slug/$id.jsonl"
 }
 
-# claude_owner_fixture <case-dir> <cwd> <session-id>: start a stand-in process,
-# orphaned so it is reaped as soon as it stops, and record it the way Claude
-# records a running interactive session. The tmux stub's exit command stops it.
+# claude_owner_fixture <case-dir> <cwd> <session-id> [--in-pane] [NAME=value...]:
+# start a stand-in process, orphaned so it is reaped as soon as it stops, with
+# exactly the given Fleet environment, and record it the way Claude records a
+# running interactive session. --in-pane starts it under a stand-in pane shell
+# whose pid the tmux stub reports as the endpoint's pane_pid. The tmux stub's
+# exit command stops it.
 claude_owner_fixture() {
-  local dir=$1 cwd=$2 id=$3 pid real start stat_line
+  local dir=$1 cwd=$2 id=$3 pid real start stat_line shell_pid in_pane=0
+  shift 3
+  if [ "${1-}" = --in-pane ]; then
+    in_pane=1
+    shift
+  fi
   real=$(cd "$cwd" && pwd -P)
-  pid=$( (/bin/sleep 300 >/dev/null 2>&1 & echo $!) )
+  if [ "$in_pane" = 1 ]; then
+    rm -f "$dir/fake/owner-child"
+    # shellcheck disable=SC2016  # the inner script expands in the pane shell
+    shell_pid=$( (bash -c '"$@" & echo $! > "$0.tmp" && mv "$0.tmp" "$0"; wait' "$dir/fake/owner-child" \
+      env -u FM_TASK_INBOX -u FM_HOME -u FM_TASK_ID "$@" /bin/sleep 300 >/dev/null 2>&1 & echo $!) )
+    OWNER_PIDS+=("$shell_pid")
+    for _ in $(seq 1 100); do
+      [ ! -s "$dir/fake/owner-child" ] || break
+      /bin/sleep 0.02
+    done
+    pid=$(cat "$dir/fake/owner-child")
+    printf '%s' "$shell_pid" > "$dir/fake/pane-pid"
+  else
+    pid=$( (env -u FM_TASK_INBOX -u FM_HOME -u FM_TASK_ID "$@" /bin/sleep 300 >/dev/null 2>&1 & echo $!) )
+  fi
   OWNER_PIDS+=("$pid")
   start=
   if stat_line=$(cat "/proc/$pid/stat" 2>/dev/null); then
@@ -2546,6 +2569,11 @@ claude_owner_fixture() {
   printf '%s\n' "$pid" >> "$dir/fake/owner-pids"
 }
 
+# The inbox path a Fleet launch of <id> exports as FM_TASK_INBOX.
+task_inbox() {  # <case-dir> <id>
+  printf '%s/home/state/%s.inbox' "$1" "$2"
+}
+
 # The literal launch line the stub recorded for the replacement.
 resume_launch_line() {  # <case-dir>
   grep -F -- ' --resume ' "$1/fake/literal" | tail -1
@@ -2557,7 +2585,7 @@ test_resume_session_relaunch_resumes_the_exact_worker_conversation() {
   dir=$(new_case resume-worker rs1)
   add_ship_task "$dir" rs1 claude
   claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
-  claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+  claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rs1)"
   gen_before=$("$ROOT/bin/fm-busy-event.sh" arm "$dir/home/state" rs1)
   printf 'busy_gen=%s\n' "$gen_before" >> "$dir/home/state/rs1.meta"
 
@@ -2615,7 +2643,9 @@ test_resume_session_relaunch_resumes_a_secondmate_with_its_home_environment() {
   printf '%s\n' "fm-rsm1" > "$dir/fake/windows"
   printf '%s' "$dir/smhome" > "$dir/fake/cwd"
   claude_transcript_fixture "$dir" "$dir/smhome" "$RESUME_UUID"
-  claude_owner_fixture "$dir" "$dir/smhome" "$RESUME_UUID"
+  # Launched before the FM_TASK_INBOX export existed, as the live Trelume
+  # secondmate was: bound through its endpoint's process tree and its home.
+  claude_owner_fixture "$dir" "$dir/smhome" "$RESUME_UUID" --in-pane FM_HOME="$dir/smhome"
 
   out=$(run_control "$dir" rsm1 relaunch --resume-session "$RESUME_UUID"); rc=$?
   expect_code 0 "$rc" "a verified secondmate resume should succeed"$'\n'"$out"
@@ -2629,7 +2659,7 @@ test_resume_session_relaunch_resumes_a_secondmate_with_its_home_environment() {
     "a resumed secondmate must not be handed its launch brief again"
   [ "$(cat "$dir/smhome/data/charter.md")" = "# charter" ] || fail "the charter must stay untouched"
   [ "$(meta_field "$dir" rsm1 kind)" = secondmate ] || fail "the record must stay a secondmate"
-  pass "fm-control relaunch --resume-session: a secondmate resumes its exact conversation in its own home environment"
+  pass "fm-control relaunch --resume-session: a legacy secondmate without FM_TASK_INBOX resumes through its endpoint and home"
 }
 
 # Each refusal must happen while the old agent is still running: nothing is
@@ -2644,12 +2674,17 @@ assert_resume_refused_before_stop() {  # <case-dir> <id> <output> <rc> <expected
   assert_absent "$dir/home/state/$id.control-relaunch" "$what must not open a relaunch transaction"
   cmp -s "$dir/home/state/$id.meta" "$dir/meta-before" || fail "$what must leave the task record byte-identical"
   cmp -s "$dir/home/data/$id/brief.md" "$dir/brief-before" || fail "$what must leave the instructions byte-identical"
+  local owner
+  for owner in $(cat "$dir/fake/owner-pids" 2>/dev/null); do
+    kill -0 "$owner" 2>/dev/null || fail "$what must leave the live Claude process $owner running"
+  done
 }
 
 test_resume_session_refusals_happen_before_the_agent_stops() {
   local dir out rc scenario
   command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
-  for scenario in malformed missing mismatched elsewhere no-transcript already-owned not-claude; do
+  for scenario in malformed missing mismatched elsewhere no-transcript already-owned not-claude \
+      foreign-interactive other-task foreign-in-pane-home foreign-in-pane-task; do
     dir=$(new_case "resume-refuse-$scenario" rr1)
     add_ship_task "$dir" rr1 claude
     case "$scenario" in
@@ -2667,22 +2702,22 @@ test_resume_session_refusals_happen_before_the_agent_stops() {
       mismatched)
         # The running agent is on another conversation.
         claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
-        claude_owner_fixture "$dir" "$dir/wt" "$OTHER_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$OTHER_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rr1)"
         want="no live Claude process records session $RESUME_UUID"
         ;;
       elsewhere)
         mkdir -p "$dir/other"
         claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
-        claude_owner_fixture "$dir" "$dir/other" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/other" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rr1)"
         want="not to this task's working directory"
         ;;
       no-transcript)
-        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rr1)"
         want="has no transcript"
         ;;
       already-owned)
         claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
-        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rr1)"
         claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID"
         want="owned by more than one live process"
         ;;
@@ -2690,8 +2725,31 @@ test_resume_session_refusals_happen_before_the_agent_stops() {
         sed -i 's/^harness=claude$/harness=codex/' "$dir/home/state/rr1.meta"
         printf 'codex' > "$dir/fake/command"
         claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
-        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rr1)"
         want="resumes a Claude conversation on Claude"
+        ;;
+      foreign-interactive)
+        # An interactive claude someone opened in the same worktree owns the
+        # id; the task's own agent is a different, running process.
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_HOME="$dir/home"
+        want="not in task rr1's endpoint process tree"
+        ;;
+      other-task)
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rr2)"
+        want="not task rr1"
+        ;;
+      foreign-in-pane-home)
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        mkdir -p "$dir/otherhome"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_HOME="$dir/otherhome"
+        want="not task rr1's home"
+        ;;
+      foreign-in-pane-task)
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_HOME="$dir/home" FM_TASK_ID=rr2
+        want="FM_TASK_ID='rr2'"
         ;;
     esac
     cp -p "$dir/home/state/rr1.meta" "$dir/meta-before"
@@ -2699,7 +2757,7 @@ test_resume_session_refusals_happen_before_the_agent_stops() {
     out=$(run_control "$dir" rr1 relaunch --resume-session "$RESUME_UUID" --note "cutover restart"); rc=$?
     assert_resume_refused_before_stop "$dir" rr1 "$out" "$rc" "$want" "a $scenario session"
   done
-  pass "fm-control relaunch --resume-session: a malformed, missing, mismatched, foreign, transcript-less, doubly owned, or non-Claude session refuses before anything stops"
+  pass "fm-control relaunch --resume-session: a malformed, missing, mismatched, foreign, transcript-less, doubly owned, other-agent-owned, or non-Claude session refuses before anything stops"
 }
 
 test_resume_session_spawn_refuses_a_session_still_owned_and_never_falls_back() {

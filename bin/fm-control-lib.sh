@@ -303,9 +303,11 @@ fm_control_relaunch_resume_flag() {  # <harness> <registered-agent|--verified-se
 # where <config-dir> is $CLAUDE_CONFIG_DIR or ~/.claude (verified Claude Code
 # 2.1.296). The check runs twice:
 #   owned     before the old agent is touched: exactly one live record names
-#             the id, that record's cwd is the task's working directory, and
-#             the transcript exists there. A missing, mismatched, or
-#             second-owned id refuses while nothing has changed.
+#             the id, that record's cwd is the task's working directory, the
+#             transcript exists there, and the recording process is THIS
+#             task's agent (fm_control_claude_session_owner_bound below). A
+#             missing, mismatched, or foreign-owned id refuses while nothing
+#             has changed.
 #   released  after the old agent is proven stopped, immediately before the
 #             launch: no live record names the id any more, so the replacement
 #             can never become a second process on one conversation, and the
@@ -373,9 +375,76 @@ fm_control_claude_session_live_owners() {  # <config-dir> <session-id>
   return 0
 }
 
+# Canonical form of a path whose last component may not exist yet.
+fm_control_claude_path_real() {  # <path>
+  local dir
+  dir=$(cd "$(dirname -- "${1-}")" 2>/dev/null && pwd -P) || return 1
+  printf '%s/%s' "$dir" "$(basename -- "$1")"
+}
+
+# Whether <pid> is <ancestor> or one of its descendants in the process table.
+fm_control_claude_pid_descends_from() {  # <pid> <ancestor>
+  local pid=${1-} ancestor=${2-} hops=0
+  case "$ancestor" in ''|*[!0-9]*) return 1 ;; esac
+  while [ "$hops" -lt 64 ]; do
+    case "$pid" in ''|0|*[!0-9]*) return 1 ;; esac
+    [ "$pid" != "$ancestor" ] || return 0
+    [ "$pid" != 1 ] || return 1
+    pid=$(LC_ALL=C ps -o ppid= -p "$pid" 2>/dev/null | tr -d '[:space:]') || return 1
+    hops=$((hops + 1))
+  done
+  return 1
+}
+
+# Whether the live process <owner-pid> that records the session is THIS task's
+# agent, read from its own environment (<proc-root>/<pid>/environ):
+#   - FM_TASK_INBOX present: it must name this task's inbox, the export every
+#     Fleet launch carries (bin/fm-spawn.sh).
+#   - FM_TASK_INBOX absent (an agent launched before that export existed): the
+#     owner must sit in the process tree of the task's recorded endpoint
+#     (<endpoint-root-pid>, from fm_backend_pane_root_pid), its FM_HOME must be
+#     <task-home>, and a worker's FM_TASK_ID, where present, must be the task id.
+# An unreadable environment proves nothing and refuses, so on a platform
+# without /proc an exact-session resume always refuses before the stop.
+fm_control_claude_session_owner_bound() {  # <owner-pid> <task-id> <kind> <task-inbox> <task-home> <endpoint-root-pid>
+  local pid=${1-} task=${2-} kind=${3-} inbox=${4-} home=${5-} root=${6-} environ value home_real
+  environ=$(tr '\0' '\n' 2>/dev/null < "${FM_PROC_ROOT_OVERRIDE:-/proc}/$pid/environ") || environ=
+  [ -n "$environ" ] || {
+    echo "error: the environment of live Claude process $pid cannot be read, so it cannot be proven to be task $task's agent" >&2
+    return 1
+  }
+  if printf '%s\n' "$environ" | grep -q '^FM_TASK_INBOX='; then
+    value=$(printf '%s\n' "$environ" | sed -n 's/^FM_TASK_INBOX=//p' | tail -n 1)
+    if [ -z "$inbox" ] || [ "$(fm_control_claude_path_real "$value")" != "$(fm_control_claude_path_real "$inbox")" ]; then
+      echo "error: live Claude process $pid belongs to the task whose inbox is '$value', not task $task (inbox $inbox)" >&2
+      return 1
+    fi
+    return 0
+  fi
+  fm_control_claude_pid_descends_from "$pid" "$root" || {
+    echo "error: live Claude process $pid carries no FM_TASK_INBOX and is not in task $task's endpoint process tree (root pid ${root:-unreadable}), so it is not task $task's agent" >&2
+    return 1
+  }
+  value=$(printf '%s\n' "$environ" | sed -n 's/^FM_HOME=//p' | tail -n 1)
+  home_real=$(cd "$home" 2>/dev/null && pwd -P) || home_real=
+  if [ -z "$value" ] || [ -z "$home_real" ] || [ "$(cd "$value" 2>/dev/null && pwd -P)" != "$home_real" ]; then
+    echo "error: live Claude process $pid runs with FM_HOME '${value:-unset}', not task $task's home $home, so it is not task $task's agent" >&2
+    return 1
+  fi
+  if [ "$kind" != secondmate ] && printf '%s\n' "$environ" | grep -q '^FM_TASK_ID='; then
+    value=$(printf '%s\n' "$environ" | sed -n 's/^FM_TASK_ID=//p' | tail -n 1)
+    [ "$value" = "$task" ] || {
+      echo "error: live Claude process $pid is marked FM_TASK_ID='$value', not task $task" >&2
+      return 1
+    }
+  fi
+  return 0
+}
+
 # The refusal-or-success gate described above. Prints the reason on stderr and
-# returns nonzero on any refusal.
-fm_control_claude_session_verify() {  # <owned|released> <config-dir> <session-id> <cwd>
+# returns nonzero on any refusal. The owned phase also takes the task binding
+# fm_control_claude_session_owner_bound checks.
+fm_control_claude_session_verify() {  # <owned|released> <config-dir> <session-id> <cwd> [<task-id> <kind> <task-inbox> <task-home> <endpoint-root-pid>]
   local phase=${1-} config=${2-} id=${3-} cwd=${4-} cwd_real owners rc owner_count owner_pid owner_cwd owner_real transcript
   fm_control_claude_session_id_valid "$id" || {
     echo "error: '$id' is not a well-formed Claude session id (lowercase 8-4-4-4-12 hex); refusing to resume" >&2
@@ -413,6 +482,10 @@ fm_control_claude_session_verify() {  # <owned|released> <config-dir> <session-i
       owner_real=$(cd "$owner_cwd" 2>/dev/null && pwd -P) || owner_real=$owner_cwd
       [ "$owner_real" = "$cwd_real" ] || {
         echo "error: Claude session $id belongs to live process $owner_pid in '$owner_cwd', not to this task's working directory $cwd_real; refusing before anything is stopped" >&2
+        return 1
+      }
+      fm_control_claude_session_owner_bound "$owner_pid" "${5-}" "${6-}" "${7-}" "${8-}" "${9-}" || {
+        echo "error: Claude session $id is not owned by this task's agent; refusing before anything is stopped" >&2
         return 1
       }
       ;;

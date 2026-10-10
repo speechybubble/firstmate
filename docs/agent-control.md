@@ -91,7 +91,8 @@ A relaunch does take one session reference when the endpoint's own runtime recor
    [`docs/herdr-backend.md`](herdr-backend.md#agent-status-authority-and-relaunch) owns the mechanism and measured behavior.
 7. **Resume an exact Claude conversation only on request.**
    `relaunch --resume-session <session-id>` is for a required restart that must keep a Claude agent's conversation, for a worker or a secondmate.
-   Before step 4 stops anything, it requires a Claude-to-Claude relaunch, a well-formed id, exactly one live Claude process whose own session record names that id and the task's working directory, and that conversation's transcript under the working directory's Claude project store.
+   Before step 4 stops anything, it requires a Claude-to-Claude relaunch, a well-formed id, exactly one live Claude process whose own session record names that id and the task's working directory, that process proven to be this task's agent, and that conversation's transcript under the working directory's Claude project store.
+   The owner is the task's agent when its environment's `FM_TASK_INBOX` names the task's inbox, or, for an agent launched before that export existed, when it runs inside the task endpoint's pane process tree with the task's `FM_HOME` (a secondmate's own home) and, for a worker, no conflicting `FM_TASK_ID`; an unreadable environment refuses.
    After the stop, the launch owner requires that no live process still owns the id, then launches `claude --resume <session-id>` with every other launch flag, the worker trust statement or secondmate environment, the inbox export, the endpoint, and fresh busy wiring, but with no launch brief and an idle busy record.
    Any failed check refuses; nothing chooses an id for the caller, and a requested resume never becomes a fresh session.
    A ship or scout still records its `--note`, which a resumed agent does not reread.

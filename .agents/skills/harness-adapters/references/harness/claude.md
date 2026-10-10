@@ -71,7 +71,7 @@ A `--secondmate` launch omits the statement because a secondmate operates under 
 
 A required restart of a Claude worker or secondmate can keep its exact conversation with `fm-control.sh <id> relaunch --resume-session <session-id>`.
 Take the id from the running process's own record, `${CLAUDE_CONFIG_DIR:-~/.claude}/sessions/<pid>.json` (`sessionId`, `cwd`), never from the newest transcript.
-The relaunch proves that record, its working directory, and its transcript before stopping anything, then launches `claude --resume <session-id>` with the task's full Fleet launch wiring and no launch brief; any failure refuses rather than starting a fresh session.
+The relaunch proves that record, its working directory, its transcript, and that its process is this task's agent before stopping anything, then launches `claude --resume <session-id>` with the task's full Fleet launch wiring and no launch brief; any failure refuses rather than starting a fresh session.
 `fm_control_claude_session_verify` in `../../../../../bin/fm-control-lib.sh` owns the checks, and `../../../../../docs/agent-control.md` "Transactional relaunch" owns the operator contract.
 
 ## Primary integration
