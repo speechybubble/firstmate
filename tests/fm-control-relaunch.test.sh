@@ -2669,20 +2669,27 @@ test_resume_session_relaunch_resumes_a_secondmate_with_its_home_environment() {
 }
 
 test_resume_session_relaunch_resumes_a_legacy_worker_bound_by_endpoint_and_task_id() {
-  local dir out rc launch
+  local dir out rc launch home_env
   command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
-  dir=$(new_case resume-legacy-worker rlw1)
-  add_ship_task "$dir" rlw1 claude
-  claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
-  # A ship launched before the FM_TASK_INBOX export existed carries only the
-  # FM_TASK_ID its pane was marked with; its FM_HOME is unset.
-  claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_TASK_ID=rlw1
-  out=$(run_control "$dir" rlw1 relaunch --resume-session "$RESUME_UUID" --note "cutover restart"); rc=$?
-  expect_code 0 "$rc" "a legacy worker bound by its endpoint and task id should resume"$'\n'"$out"
-  launch=$(resume_launch_line "$dir")
-  assert_contains "$launch" "--resume '$RESUME_UUID'" "the legacy worker must resume its exact session"
-  assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
-    "a resumed legacy worker must not be handed the launch brief again"
+  for home_env in absent matching; do
+    dir=$(new_case "resume-legacy-worker-$home_env" rlw1)
+    add_ship_task "$dir" rlw1 claude
+    claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+    # A ship launched before the FM_TASK_INBOX export existed carries only the
+    # FM_TASK_ID its pane was marked with; its FM_HOME is normally unset, and
+    # one it does carry must be the task's home.
+    if [ "$home_env" = absent ]; then
+      claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_TASK_ID=rlw1
+    else
+      claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_TASK_ID=rlw1 FM_HOME="$dir/home"
+    fi
+    out=$(run_control "$dir" rlw1 relaunch --resume-session "$RESUME_UUID" --note "cutover restart"); rc=$?
+    expect_code 0 "$rc" "a legacy worker bound by its endpoint and task id should resume"$'\n'"$out"
+    launch=$(resume_launch_line "$dir")
+    assert_contains "$launch" "--resume '$RESUME_UUID'" "the legacy worker must resume its exact session"
+    assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
+      "a resumed legacy worker must not be handed the launch brief again"
+  done
   pass "fm-control relaunch --resume-session: a legacy worker without FM_TASK_INBOX or FM_HOME resumes through its endpoint and FM_TASK_ID"
 }
 
@@ -2708,7 +2715,7 @@ test_resume_session_refusals_happen_before_the_agent_stops() {
   local dir out rc scenario
   command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
   for scenario in malformed missing mismatched elsewhere no-transcript already-owned not-claude \
-      foreign-interactive other-task in-pane-no-task-id foreign-in-pane-task; do
+      foreign-interactive other-task in-pane-no-task-id foreign-in-pane-task in-pane-wrong-home; do
     dir=$(new_case "resume-refuse-$scenario" rr1)
     add_ship_task "$dir" rr1 claude
     case "$scenario" in
@@ -2773,6 +2780,12 @@ test_resume_session_refusals_happen_before_the_agent_stops() {
         claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
         claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_TASK_ID=rr2
         want="FM_TASK_ID='rr2'"
+        ;;
+      in-pane-wrong-home)
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        mkdir -p "$dir/otherhome"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_TASK_ID=rr1 FM_HOME="$dir/otherhome"
+        want="not task rr1's home"
         ;;
     esac
     cp -p "$dir/home/state/rr1.meta" "$dir/meta-before"
