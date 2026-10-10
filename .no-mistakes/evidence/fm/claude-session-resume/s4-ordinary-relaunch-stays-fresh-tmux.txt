@@ -1,0 +1,7 @@
+## ordinary relaunch without --resume-session stays a fresh session with the launch brief
+$ session before: ef3bb069-cf5f-41a3-8260-949e56d01037
+$ fm-control.sh rs2 relaunch --note 'ordinary restart'
+relaunched rs2 harness=claude from=claude model=default effort=default backend=tmux endpoint=firstmate:fm-rs2 worktree=/tmp/rsl/lab/wt-rs2
+rc=0
+$ session after: e7d39190-b763-47f1-a0b0-fcbc1a532660
+$ new argv has --resume? 0   launch-brief doorbell? 1

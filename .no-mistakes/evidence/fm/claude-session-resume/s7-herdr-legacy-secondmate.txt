@@ -1,0 +1,35 @@
+## real Herdr herdr 0.9.3 lab session fm-lab-rsresume-725633-5169: legacy secondmate (FM_HOME only, no FM_TASK_INBOX)
+$ endpoint fm-lab-rsresume-725633-5169:w1:p2; fm_backend_pane_root_pid herdr -> 726419
+$ agent process tree: systemd(1)---systemd(417)---herdr(725717)---zsh(726419)---claude(727807)
+$ agent 727807 session be43fed4-3ce3-4b81-9bdd-079c82a829b0 env: FM_HOME=/tmp/rsl/hlab/smhome 
+$ foreign Claude 756851 (FM_HOME=smhome, same cwd, launched outside the Herdr pane): systemd(1)---systemd(417)---tmux: server(318832)---bash(756026)---claude(756851)
+
+### refusal: foreign same-home owner outside the Herdr pane shell's tree
+$ fm-control.sh hsm1 relaunch --resume-session 22e232a9-f87c-4065-9e1c-cf110eac44d4
+error: live Claude process 756851 carries no FM_TASK_INBOX and is not in task hsm1's endpoint process tree (root pid 726419), so it is not task hsm1's agent
+error: Claude session 22e232a9-f87c-4065-9e1c-cf110eac44d4 is not owned by this task's agent; refusing before anything is stopped
+error: relaunch of hsm1 with --resume-session 22e232a9-f87c-4065-9e1c-cf110eac44d4 refused before its agent was touched
+rc=1
+$ agent 727807 alive? yes; foreign 756851 alive? yes; herdr agent state: alive
+$ relaunch transaction opened? none; record identical? yes
+
+### exact-session resume through the Herdr pane shell binding
+$ fm-control.sh hsm1 relaunch --resume-session be43fed4-3ce3-4b81-9bdd-079c82a829b0
+warning: secondmate hsm1 sync skipped before launch: primary default-branch commit cannot be resolved
+relaunched hsm1 harness=claude from=claude model=default effort=default backend=herdr endpoint=fm-lab-rsresume-725633-5169:w1:p2 worktree=/tmp/rsl/hlab/smhome resumed_session=be43fed4-3ce3-4b81-9bdd-079c82a829b0
+rc=0
+$ old 727807 alive? no; live record for be43fed4-3ce3-4b81-9bdd-079c82a829b0: {"pid": 768157, "sessionId": "be43fed4-3ce3-4b81-9bdd-079c82a829b0", "cwd": "/tmp/rsl/hlab/smhome", "procStart": "39239496", "kind": "interactive"}
+$ new agent tree: systemd(1)---systemd(417)---herdr(725717)---zsh(726419)---claude(768157)
+$ new agent env: FM_TASK_INBOX=/tmp/rsl/hlab/home/state/hsm1.inbox FM_HOME=/tmp/rsl/hlab/smhome FM_SUPERVISION_MODEL=autoarm 
+$ argv --resume be43fed4-3ce3-4b81-9bdd-079c82a829b0; doorbell=0; worker-contract=0
+$ endpoint reused: window=fm-lab-rsresume-725633-5169:w1:p2; herdr agent state: alive
+$ transcript launches:
+{"pid":727807,"resumed":false,"brief_doorbell":0}
+{"pid":768157,"resumed":true,"brief_doorbell":0}
+$ Herdr pane screen:
+ Claude Code (stand-in)  session be43fed4-3ce3-4b81-9bdd-079c82a829b0  [resumed]
+ cwd: /tmp/rsl/hlab/smhome
+────────────────────────────────────────────────────────────
+❯
+────────────────────────────────────────────────────────────
+  ? for shortcuts

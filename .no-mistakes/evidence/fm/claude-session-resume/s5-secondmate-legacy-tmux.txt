@@ -1,0 +1,37 @@
+(a second Claude with the secondmate's own FM_HOME runs in another tmux window of the secondmate home - same cwd, same home env, outside the endpoint)
+## refusal: foreign same-home Claude outside the secondmate endpoint owns the UUID (task sm1, agent pid 474590)
+$ fm-control.sh sm1 relaunch --resume-session 1f2974d7-4427-4e00-8a1e-55c039095be8
+error: live Claude process 482377 carries no FM_TASK_INBOX and is not in task sm1's endpoint process tree (root pid 473477), so it is not task sm1's agent
+error: Claude session 1f2974d7-4427-4e00-8a1e-55c039095be8 is not owned by this task's agent; refusing before anything is stopped
+error: relaunch of sm1 with --resume-session 1f2974d7-4427-4e00-8a1e-55c039095be8 refused before its agent was touched
+rc=1
+$ task agent 474590 still alive? yes
+$ every prior Claude process still alive with the same session? yes
+$ /exit typed into the pane? 5 /exit lines total in transcripts
+$ relaunch transaction opened? none
+$ task record byte-identical? yes
+$ brief byte-identical? NO
+
+note: 'brief byte-identical? NO' above is a driver artifact - a secondmate has no data/sm1/brief.md (ls: ls: cannot access '/tmp/rsl/lab/home/data/sm1': No such file or directory); its charter is checked below.
+
+## legacy secondmate (FM_HOME only, no FM_TASK_INBOX - production 83520b3 launch shape) resumes over real tmux
+$ session 508d82df-b17e-41ad-92a8-ef93e3979dde pid 474590 env: FM_HOME=/tmp/rsl/lab/smhome 
+$ fm-control.sh sm1 relaunch --resume-session 508d82df-b17e-41ad-92a8-ef93e3979dde
+warning: secondmate sm1 sync skipped before launch: primary default-branch commit cannot be resolved
+relaunched sm1 harness=claude from=claude model=default effort=default backend=tmux endpoint=firstmate:fm-sm1 worktree=/tmp/rsl/lab/smhome resumed_session=508d82df-b17e-41ad-92a8-ef93e3979dde
+rc=0
+$ old pid alive? no; live record: {"pid": 496852, "sessionId": "508d82df-b17e-41ad-92a8-ef93e3979dde", "cwd": "/tmp/rsl/lab/smhome", "procStart": "39194101", "kind": "interactive"}
+$ new agent env:
+FM_SUPERVISION_MODEL=autoarm
+FM_HOME=/tmp/rsl/lab/smhome
+FM_TASK_INBOX=/tmp/rsl/lab/home/state/sm1.inbox
+$ new argv: --resume 508d82df-b17e-41ad-92a8-ef93e3979dde; doorbell=0; worker-contract=0
+$ charter: # charter; git status: ?? .fm-secondmate-home ?? AGENTS.md ?? data/ 
+$ meta kind: kind=secondmate
+$ pane:
+ cwd: /tmp/rsl/lab/smhome
+ > secondmate standing context: watch project Trelume
+────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────
+  ? for shortcuts

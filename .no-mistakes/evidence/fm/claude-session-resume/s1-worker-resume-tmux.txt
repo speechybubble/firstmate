@@ -1,0 +1,64 @@
+## exact-session relaunch over a real private tmux server (task rs1)
+$ session before: 346f23b3-fc99-45b7-88da-efe51314d630  (claude pid 331699)
+$ old agent FM env:
+FM_TASK_ID=rs1
+FM_TASK_INBOX=/tmp/rsl/lab/home/state/rs1.inbox
+FM_HOME=/tmp/rsl/lab/home
+$ git status (before):
+ M README.md
+?? new-file.txt
+$ fm-control.sh rs1 relaunch --resume-session 346f23b3-fc99-45b7-88da-efe51314d630 --note 'cutover restart'
+warning: /tmp/rsl/lab/home/data/rs1/launch-brief.md records no ship branch; defaulting to legacy branch fm/rs1
+warning: /tmp/rsl/lab/home/data/rs1/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+relaunched rs1 harness=claude from=claude model=default effort=default backend=tmux endpoint=firstmate:fm-rs1 worktree=/tmp/rsl/lab/wt-rs1 resumed_session=346f23b3-fc99-45b7-88da-efe51314d630
+rc=0
+$ old pid 331699 alive?
+no
+$ live session records for /tmp/rsl/lab/wt-rs1:
+{"pid": 362452, "sessionId": "346f23b3-fc99-45b7-88da-efe51314d630", "cwd": "/tmp/rsl/lab/wt-rs1", "procStart": "39169766", "kind": "interactive"}
+$ new agent FM env:
+FM_TASK_ID=rs1
+FM_TASK_INBOX=/tmp/rsl/lab/home/state/rs1.inbox
+FM_HOME=/tmp/rsl/lab/home
+$ new agent argv (resume part):
+--resume
+346f23b3-fc99-45b7-88da-efe51314d630
+$ new agent argv contains a launch-brief doorbell?
+0
+$ new agent argv contains worker trust contract (--append-system-prompt)?
+1
+$ transcript 346f23b3-fc99-45b7-88da-efe51314d630.jsonl (one conversation, appended across both processes):
+{"type":"launch","pid":331699,"resumed":false,"restored_user_turns":0,"text":null,"brief_doorbell":1}
+{"type":"user","pid":null,"resumed":null,"restored_user_turns":null,"text":"remember the codeword AZURE-17","brief_doorbell":0}
+{"type":"command","pid":null,"resumed":null,"restored_user_turns":null,"text":"/exit","brief_doorbell":0}
+{"type":"launch","pid":362452,"resumed":true,"restored_user_turns":1,"text":null,"brief_doorbell":0}
+$ transcripts in project dir:
+346f23b3-fc99-45b7-88da-efe51314d630.jsonl
+$ git status (after):
+ M README.md
+?? new-file.txt
+$ pane:
+ Claude Code (stand-in)  session 346f23b3-fc99-45b7-88da-efe51314d630  [resumed]
+ cwd: /tmp/rsl/lab/wt-rs1
+ > remember the codeword AZURE-17
+────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────
+  ? for shortcuts
+$ meta:
+window=firstmate:fm-rs1
+worktree=/tmp/rsl/lab/wt-rs1
+harness=claude
+kind=ship
+busy_gen=g1791650867.359718.6221
+$ busy-state:
+v1 gen=g1791650867.359718.6221 seq=1 state=idle source=fm-spawn event=resume-session ts=1791650867
+$ worktree hooks carry new busy_gen g1791650867.359718.6221:
+1
+$ relaunch journal:
+phase=complete
+resume_session=346f23b3-fc99-45b7-88da-efe51314d630
+exit_result=stopped
+$ after a post-resume prompt, busy-state:
+v1 gen=g1791650867.359718.6221 seq=3 state=idle source=claude-hook event=stop ts=1791650882
+-rw-rw-r-- 1 denni denni 0 02:48:02 /tmp/rsl/lab/home/state/rs1.turn-ended

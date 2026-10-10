@@ -1,0 +1,35 @@
+## post-stop launch-owner check never falls back to a fresh session
+$ fm-control.sh rs1 exit
+stopped rs1 harness=claude backend=tmux endpoint=firstmate:fm-rs1 worktree=/tmp/rsl/lab/wt-rs1
+$ live session records naming 346f23b3-fc99-45b7-88da-efe51314d630 (a foreign claude in another window still holds it):
+{"pid": 431262, "sessionId": "346f23b3-fc99-45b7-88da-efe51314d630", "cwd": "/tmp/rsl/lab/wt-rs1", "procStart": "39181117", "kind": "interactive"}
+$ fm-spawn.sh rs1 --relaunch --resume-session 346f23b3-fc99-45b7-88da-efe51314d630
+error: Claude session 346f23b3-fc99-45b7-88da-efe51314d630 is still owned by live process(es) 431262 - resuming it would put a second process on one conversation; refusing to launch
+error: relaunch of rs1 with --resume-session 346f23b3-fc99-45b7-88da-efe51314d630 refused; no replacement was launched
+rc=1
+$ fm-rs1 pane foreground command: bash
+$ any claude process in wt-rs1 other than the foreign one: 431262 
+$ transcripts in wt-rs1 project dir (no new fresh session file):
+346f23b3-fc99-45b7-88da-efe51314d630.jsonl
+ff1906cd-a601-4445-ba82-5f10fb9d8e4a.jsonl
+$ task record unchanged? yes
+
+(the foreign claude exits, releasing 346f23b3-fc99-45b7-88da-efe51314d630)
+$ fm-spawn.sh rs1 --relaunch --resume-session 346f23b3-fc99-45b7-88da-efe51314d630
+spawned rs1 harness=claude kind=ship mode=no-mistakes yolo=off window=firstmate:fm-rs1 worktree=/tmp/rsl/lab/wt-rs1
+rc=0
+$ live record:
+{"pid": 450559, "sessionId": "346f23b3-fc99-45b7-88da-efe51314d630", "cwd": "/tmp/rsl/lab/wt-rs1", "procStart": "39185027", "kind": "interactive"}
+$ pane:
+ cwd: /tmp/rsl/lab/wt-rs1
+ > remember the codeword AZURE-17
+ > what was the codeword?
+────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────
+  ? for shortcuts
+$ transcript launches:
+{"pid":331699,"resumed":false,"restored_user_turns":0,"brief_doorbell":1}
+{"pid":362452,"resumed":true,"restored_user_turns":1,"brief_doorbell":0}
+{"pid":431262,"resumed":true,"restored_user_turns":2,"brief_doorbell":0}
+{"pid":450559,"resumed":true,"restored_user_turns":2,"brief_doorbell":0}

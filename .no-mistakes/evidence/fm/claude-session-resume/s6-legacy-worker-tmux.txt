@@ -1,0 +1,23 @@
+## legacy worker (production 83520b3 ship shape: FM_TASK_ID only, FM_HOME and FM_TASK_INBOX unset) over real tmux
+(agent inside the task pane but marked FM_TASK_ID=rs9)
+## refusal: in-pane legacy owner with the wrong FM_TASK_ID (task rs3, agent pid 510132)
+$ fm-control.sh rs3 relaunch --resume-session 11538de9-6430-48a7-977b-aba3d53dbece --note n
+error: live Claude process 510132 is marked FM_TASK_ID='rs9', not task rs3, so it is not task rs3's agent
+error: Claude session 11538de9-6430-48a7-977b-aba3d53dbece is not owned by this task's agent; refusing before anything is stopped
+error: relaunch of rs3 with --resume-session 11538de9-6430-48a7-977b-aba3d53dbece refused before its agent was touched
+rc=1
+$ task agent 510132 still alive? yes
+$ every prior Claude process still alive with the same session? yes
+$ /exit typed into the pane? 7 /exit lines total in transcripts
+$ relaunch transaction opened? none
+$ task record byte-identical? yes
+$ brief byte-identical? yes
+
+
+(the same conversation reopened in the task pane, correctly marked; env: FM_TASK_ID=rs3 )
+$ fm-control.sh rs3 relaunch --resume-session 11538de9-6430-48a7-977b-aba3d53dbece --note "cutover restart"
+relaunched rs3 harness=claude from=claude model=default effort=default backend=tmux endpoint=firstmate:fm-rs3 worktree=/tmp/rsl/lab/wt-rs3 resumed_session=11538de9-6430-48a7-977b-aba3d53dbece
+rc=0
+$ old 598332 alive? no; new pid 606565 session 11538de9-6430-48a7-977b-aba3d53dbece
+$ new env: FM_TASK_ID=rs3 FM_TASK_INBOX=/tmp/rsl/lab/home/state/rs3.inbox FM_HOME=/tmp/rsl/lab/home 
+$ --resume in argv: 11538de9-6430-48a7-977b-aba3d53dbece; doorbell in argv: 0

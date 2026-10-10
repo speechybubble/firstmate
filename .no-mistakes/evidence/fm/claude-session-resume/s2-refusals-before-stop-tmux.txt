@@ -1,0 +1,85 @@
+## refusal: foreign interactive claude in the same worktree owns the UUID (task rs1, agent pid 362452)
+$ fm-control.sh rs1 relaunch --resume-session ff1906cd-a601-4445-ba82-5f10fb9d8e4a --note n
+error: live Claude process 408175 carries no FM_TASK_INBOX and is not in task rs1's endpoint process tree (root pid 318885), so it is not task rs1's agent
+error: Claude session ff1906cd-a601-4445-ba82-5f10fb9d8e4a is not owned by this task's agent; refusing before anything is stopped
+error: relaunch of rs1 with --resume-session ff1906cd-a601-4445-ba82-5f10fb9d8e4a refused before its agent was touched
+rc=1
+$ task agent 362452 still alive? yes
+$ every prior Claude process still alive with the same session? yes
+$ /exit typed into the pane? 1 /exit lines total in transcripts
+$ relaunch journal unchanged (no new transaction)? yes
+$ task record byte-identical? yes
+$ brief byte-identical? yes
+
+## refusal: missing: well-formed UUID no live process records (task rs1, agent pid 362452)
+$ fm-control.sh rs1 relaunch --resume-session 0b1c2d3e-4f50-4617-8293-a4b5c6d7e8f9 --note n
+error: Claude session 0b1c2d3e-4f50-4617-8293-a4b5c6d7e8f9 has no transcript at /tmp/rsl/lab/userhome/.claude/projects/-tmp-rsl-lab-wt-rs1/0b1c2d3e-4f50-4617-8293-a4b5c6d7e8f9.jsonl, so it is not a conversation of /tmp/rsl/lab/wt-rs1; refusing to resume
+error: relaunch of rs1 with --resume-session 0b1c2d3e-4f50-4617-8293-a4b5c6d7e8f9 refused before its agent was touched
+rc=1
+$ task agent 362452 still alive? yes
+$ every prior Claude process still alive with the same session? yes
+$ /exit typed into the pane? 1 /exit lines total in transcripts
+$ relaunch journal unchanged (no new transaction)? yes
+$ task record byte-identical? yes
+$ brief byte-identical? yes
+
+## refusal: mismatched: another task's (rs2) live conversation (task rs1, agent pid 362452)
+$ fm-control.sh rs1 relaunch --resume-session ef3bb069-cf5f-41a3-8260-949e56d01037 --note n
+error: Claude session ef3bb069-cf5f-41a3-8260-949e56d01037 has no transcript at /tmp/rsl/lab/userhome/.claude/projects/-tmp-rsl-lab-wt-rs1/ef3bb069-cf5f-41a3-8260-949e56d01037.jsonl, so it is not a conversation of /tmp/rsl/lab/wt-rs1; refusing to resume
+error: relaunch of rs1 with --resume-session ef3bb069-cf5f-41a3-8260-949e56d01037 refused before its agent was touched
+rc=1
+$ task agent 362452 still alive? yes
+$ every prior Claude process still alive with the same session? yes
+$ /exit typed into the pane? 1 /exit lines total in transcripts
+$ relaunch journal unchanged (no new transaction)? yes
+$ task record byte-identical? yes
+$ brief byte-identical? yes
+
+## refusal: malformed UUID (task rs1, agent pid 362452)
+$ fm-control.sh rs1 relaunch --resume-session NOT-A-UUID --note n
+error: --resume-session 'NOT-A-UUID' is not a well-formed Claude session id (lowercase 8-4-4-4-12 hex)
+rc=1
+$ task agent 362452 still alive? yes
+$ every prior Claude process still alive with the same session? yes
+$ /exit typed into the pane? 1 /exit lines total in transcripts
+$ relaunch journal unchanged (no new transaction)? yes
+$ task record byte-identical? yes
+$ brief byte-identical? yes
+
+## refusal: harness switch to codex (task rs1, agent pid 362452)
+$ fm-control.sh rs1 relaunch --resume-session 346f23b3-fc99-45b7-88da-efe51314d630 --harness codex --note n
+error: --resume-session resumes a Claude conversation on Claude, but task rs1 records harness 'claude' and the replacement would run 'codex'; refusing before anything is stopped
+rc=1
+$ task agent 362452 still alive? yes
+$ every prior Claude process still alive with the same session? yes
+$ /exit typed into the pane? 1 /exit lines total in transcripts
+$ relaunch journal unchanged (no new transaction)? yes
+$ task record byte-identical? yes
+$ brief byte-identical? yes
+
+(the foreign interactive claude has exited; its transcript ff1906cd... remains in wt-rs1 with no live owner)
+## refusal: ended conversation of this worktree, no live owner (task rs1, agent pid 362452)
+$ fm-control.sh rs1 relaunch --resume-session ff1906cd-a601-4445-ba82-5f10fb9d8e4a --note n
+error: no live Claude process records session ff1906cd-a601-4445-ba82-5f10fb9d8e4a under /tmp/rsl/lab/userhome/.claude/sessions, so it cannot be proven to be this task's running conversation; refusing before anything is stopped
+error: relaunch of rs1 with --resume-session ff1906cd-a601-4445-ba82-5f10fb9d8e4a refused before its agent was touched
+rc=1
+$ task agent 362452 still alive? yes
+$ every prior Claude process still alive with the same session? yes
+$ /exit typed into the pane? 2 /exit lines total in transcripts
+$ relaunch journal unchanged (no new transaction)? yes
+$ task record byte-identical? yes
+$ brief byte-identical? yes
+
+(a second, foreign claude --resume 346f23b3-fc99-45b7-88da-efe51314d630 was opened in another window of the same worktree)
+## refusal: the task's session is already owned by a second live process (task rs1, agent pid 362452)
+$ fm-control.sh rs1 relaunch --resume-session 346f23b3-fc99-45b7-88da-efe51314d630 --note n
+error: Claude session 346f23b3-fc99-45b7-88da-efe51314d630 is owned by more than one live process (362452 431262 ); refusing before anything is stopped
+error: relaunch of rs1 with --resume-session 346f23b3-fc99-45b7-88da-efe51314d630 refused before its agent was touched
+rc=1
+$ task agent 362452 still alive? yes
+$ every prior Claude process still alive with the same session? yes
+$ /exit typed into the pane? 2 /exit lines total in transcripts
+$ relaunch journal unchanged (no new transaction)? yes
+$ task record byte-identical? yes
+$ brief byte-identical? yes
+
