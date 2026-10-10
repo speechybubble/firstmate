@@ -2471,6 +2471,28 @@ status_span_has_actionable() {  # <status-file> <start-offset>
   status_span_first_actionable_record "$1" "${2:-0}" > /dev/null
 }
 
+# One whole fm-crew-state.sh observation, bounded in total. The reader bounds
+# each of its own no-mistakes and forge calls, but not their sum, and a watcher
+# scan makes one such read per recorded window: unbounded in total, a single
+# slow crew could hold the scan past the watcher's guard grace while it was
+# still progressing. FM_CREW_STATE_OBSERVE_TIMEOUT (whole seconds, default 60)
+# is that total bound and must stay well under the watcher grace. A read that
+# hits it prints nothing, so every caller reads it as an unreadable verdict -
+# never as working - and the wake surfaces rather than being absorbed. A
+# caller that defines triage_log (bin/fm-watch.sh) also gets one line naming it.
+crew_state_observe() {  # <id> -> one verdict line, or nothing
+  local id=$1 bound=${FM_CREW_STATE_OBSERVE_TIMEOUT:-60} line rc=0
+  case "$bound" in ''|*[!0-9]*|0) bound=60 ;; esac
+  line=$(fm_run_timed "$bound" "$FM_CREW_STATE_BIN" "$id" 2>/dev/null) || rc=$?
+  if fm_timed_out "$rc"; then
+    if declare -F triage_log >/dev/null; then
+      triage_log "crew-state observation for $id hit its ${bound}s bound; read as unknown"
+    fi
+    return 0
+  fi
+  printf '%s\n' "$line"
+}
+
 # Classify WHY an idle/stale crew MIGHT be safely absorbed instead of surfaced,
 # from bin/fm-crew-state.sh's one authoritative current-state line
 # ("state: <s> · source: <src> · <detail>"). Prints exactly one token:
@@ -2490,7 +2512,7 @@ status_span_has_actionable() {  # <status-file> <start-offset>
 crew_absorb_class() {  # <id>
   local id=$1 line state src
   [ -n "$id" ] || { printf 'none'; return; }
-  line=$("$FM_CREW_STATE_BIN" "$id" 2>/dev/null) || true
+  line=$(crew_state_observe "$id")
   case "$line" in state:*) ;; *) printf 'none'; return ;; esac
   state=${line#state: }; state=${state%% *}
   if [ "$state" = paused ]; then printf 'paused'; return; fi
@@ -2552,7 +2574,7 @@ FM_GATE_HUMAN_DECISION='ask-user: authority decision'
 crew_gate_awaits_human_decision() {  # <id> -> <run-id> on stdout
   local id=$1 line state src rest part human='' run=''
   [ -n "$id" ] || return 1
-  line=$("$FM_CREW_STATE_BIN" "$id" 2>/dev/null) || true
+  line=$(crew_state_observe "$id")
   case "$line" in state:*) ;; *) return 1 ;; esac
   state=${line#state: }; state=${state%% *}
   [ "$state" = parked ] || return 1

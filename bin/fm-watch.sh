@@ -280,6 +280,14 @@ WATCHER_STALE_GRACE=${FM_WATCHER_STALE_GRACE:-${FM_GUARD_GRACE:-$(fm_poll_derive
 # fm_watcher_stall_bound (bin/fm-wake-lib.sh) owns the derivation, shared with
 # the arm that follows this watcher.
 WATCHER_STALL_BOUND=$(fm_watcher_stall_bound "$POLL")
+# How long the window scan runs before it checks for newly arrived durable work
+# between records (watcher_scan_should_yield). Defaults to one poll.
+SCAN_SLICE_SECS=${FM_WATCH_SCAN_SLICE_SECS:-$POLL}
+case "$SCAN_SLICE_SECS" in ''|*[!0-9]*) SCAN_SLICE_SECS=$POLL ;; esac
+# Beacon age past which a finished unit of scan work refreshes it
+# (watcher_progress_beat).
+PROGRESS_BEAT_AGE=$((WATCHER_STALE_GRACE / 3))
+[ "$PROGRESS_BEAT_AGE" -ge 1 ] || PROGRESS_BEAT_AGE=1
 HEARTBEAT=${FM_HEARTBEAT:-600}        # base seconds between heartbeat scans
 HEARTBEAT_MAX=${FM_HEARTBEAT_MAX:-7200}  # heartbeat backoff cap
 CHECK_INTERVAL=${FM_CHECK_INTERVAL:-300}  # seconds between *.check.sh sweeps
@@ -2687,6 +2695,95 @@ rerecord_device_shifted_pr_poll() {  # <id>
   return 0
 }
 
+# Home-gone exit: a deleted home, state directory, or code root means this
+# watcher's world is gone (a torn-down temporary home or a discarded
+# disposable checkout). Exit with a logged reason rather than writing state
+# into nothing, or into a live home from a checkout that no longer exists.
+# A detached helper this watcher started (home-summary refresh, reconcile)
+# can recreate a deleted state directory before the next poll, so a lock
+# with no holder at all is read as the same teardown: only a fresh watcher
+# ever recreates the lock, and that case is the self-eviction.
+# Scoped to this process alone: no other watcher is signalled.
+watcher_exit_if_world_gone() {
+  if [ "$WATCH_HOME_EXISTED" -eq 1 ] && [ ! -d "$FM_HOME" ]; then
+    echo "watcher: exiting - home no longer exists: $FM_HOME" >&2
+    exit 1
+  elif [ ! -d "$STATE" ]; then
+    echo "watcher: exiting - state directory no longer exists: $STATE" >&2
+    exit 1
+  elif [ ! -e "$WATCH_LOCK/pid" ]; then
+    echo "watcher: exiting - state directory was torn down (singleton lock removed): $STATE" >&2
+    exit 1
+  elif [ ! -d "$SCRIPT_DIR" ]; then
+    echo "watcher: exiting - code root no longer exists: $SCRIPT_DIR" >&2
+    exit 1
+  fi
+}
+
+# Scan progress. One cycle's synchronous work - checks and, above all, the
+# per-window stale scan with its bounded current-state reads - grows with the
+# fleet, so the top-of-cycle beacon touch alone let a slow scan that was still
+# progressing age the beacon past the guard grace. The beacon is therefore also
+# touched after each bounded unit of real progress (a finished check or window
+# record) once it has aged PROGRESS_BEAT_AGE, a third of the grace, so a long
+# scan keeps it well inside the grace while an ordinary quick cycle still beats
+# only at its top. A beat is taken only while this process still owns the
+# singleton - and, for a Codex-owned cycle, while that exact native owner still
+# owns the home - so a superseded watcher stands down instead of vouching for a
+# home it no longer supervises. Nothing touches it on a timer: a unit that never
+# finishes leaves the beacon to age into the guard warning, the attached arm's
+# stall bound, and the re-arm's eviction exactly as before.
+watcher_progress_beat() {
+  watcher_exit_if_world_gone
+  [ "$(cat "$WATCH_LOCK/pid" 2>/dev/null || true)" = "$WATCHER_PID" ] || exit 0
+  [ "$(fm_path_age "$BEAT")" -ge "$PROGRESS_BEAT_AGE" ] || return 0
+  if [ -n "${FM_CODEX_WATCH_OWNER_PID:-}" ]; then
+    fm_codex_watch_owner_valid || exit 0
+  fi
+  touch "$BEAT"
+}
+
+# The window scan resumes after the record it last began, durably, so a cycle
+# that ends early - on a wake, a yield below, or a stall eviction - never starves
+# the records after it: every recorded window is reached within one full
+# rotation. An absent or vanished cursor starts from the first record.
+WATCH_SCAN_CURSOR="$STATE/.watch-scan-cursor"
+recorded_windows_from_cursor() {
+  local cursor
+  cursor=$(cat "$WATCH_SCAN_CURSOR" 2>/dev/null || true)
+  recorded_windows | FM_SCAN_CURSOR=$cursor awk '
+    BEGIN { c = ENVIRON["FM_SCAN_CURSOR"] }
+    length($0) { a[++n] = $0; if (c != "" && $0 == c) k = n }
+    END { for (i = k + 1; i <= n; i++) print a[i]; for (i = 1; i <= k; i++) print a[i] }
+  '
+}
+
+scan_cursor_record() {  # <window>
+  local tmp="$WATCH_SCAN_CURSOR.tmp.$WATCHER_PID"
+  if ! { printf '%s\n' "$1" > "$tmp" && mv -f "$tmp" "$WATCH_SCAN_CURSOR"; } 2>/dev/null; then
+    rm -f "$tmp" 2>/dev/null || true
+  fi
+}
+
+wake_queue_sig() {
+  printf '%s:%s' "$(stat_mtime "$FM_WAKE_QUEUE" || true)" \
+    "$({ wc -c < "$FM_WAKE_QUEUE"; } 2>/dev/null | tr -d '[:space:]')"
+}
+
+# 0 when durable actionable work arrived since this window scan began: a changed
+# status or turn-end signal, a wake-queue append by another producer, or a
+# Codex-owned durable row. The scan then yields to the top of the cycle, which
+# owns surfacing or absorbing each of those exactly as it always has, and the
+# cursor resumes the scan where it stopped.
+watcher_scan_should_yield() {
+  [ -z "$(scan_signals)" ] || return 0
+  [ "$(wake_queue_sig)" = "$SCAN_QUEUE_SIG" ] || return 0
+  if [ -n "${FM_CODEX_WATCH_OWNER_PID:-}" ] && fm_codex_watch_pending; then
+    return 0
+  fi
+  return 1
+}
+
 resurface_after_downtime() {
   # Handling successors already have a predecessor-delivered wake on the way.
   # Re-announcing from this cycle is what turned a lost handshake into an
@@ -2705,28 +2802,7 @@ resurface_after_downtime() {
 }
 
 while :; do
-  # Home-gone exit: a deleted home, state directory, or code root means this
-  # watcher's world is gone (a torn-down temporary home or a discarded
-  # disposable checkout). Exit with a logged reason rather than writing state
-  # into nothing, or into a live home from a checkout that no longer exists.
-  # A detached helper this watcher started (home-summary refresh, reconcile)
-  # can recreate a deleted state directory before the next poll, so a lock
-  # with no holder at all is read as the same teardown: only a fresh watcher
-  # ever recreates the lock, and that case is the self-eviction below.
-  # Scoped to this process alone: no other watcher is signalled.
-  if [ "$WATCH_HOME_EXISTED" -eq 1 ] && [ ! -d "$FM_HOME" ]; then
-    echo "watcher: exiting - home no longer exists: $FM_HOME" >&2
-    exit 1
-  elif [ ! -d "$STATE" ]; then
-    echo "watcher: exiting - state directory no longer exists: $STATE" >&2
-    exit 1
-  elif [ ! -e "$WATCH_LOCK/pid" ]; then
-    echo "watcher: exiting - state directory was torn down (singleton lock removed): $STATE" >&2
-    exit 1
-  elif [ ! -d "$SCRIPT_DIR" ]; then
-    echo "watcher: exiting - code root no longer exists: $SCRIPT_DIR" >&2
-    exit 1
-  fi
+  watcher_exit_if_world_gone
 
   # Self-eviction: if the singleton lock no longer names this process, a second
   # watcher has taken over (e.g. a transient duplicate from a racy arm). Stand
@@ -2837,11 +2913,15 @@ while :; do
   # keeps producing signals - the slow poll (e.g. merge detection) would then
   # never run until the fleet went quiet. Checks are due only every
   # CHECK_INTERVAL, so most cycles skip this block and fall straight through.
+  watcher_progress_beat
   if [ "$(age_of "$STATE/.last-check")" -ge "$CHECK_INTERVAL" ]; then
     rejected_checks=
     contribution_check_output=
     for c in "$STATE"/*.check.sh; do
       [ -e "$c" ] || continue
+      # Each check is bounded by CHECK_TIMEOUT, but a home's checks are not
+      # bounded together; a finished one is progress the beacon records.
+      watcher_progress_beat
       is_pr_poll=0
       if [ "$(basename "$c")" = x-watch.check.sh ]; then
         if fmx_poll_shim_valid "$c" "$FM_HOME" "$FM_ROOT" \
@@ -3095,7 +3175,28 @@ EOF
   # stale hash is surfaced, absorbed, or timed toward escalation once (.stale-*
   # remembers the hash already classified, or the declaration a busy pane's
   # crossed turn bound already handed to the away-mode daemon).
+  SCAN_QUEUE_SIG=$(wake_queue_sig)
+  scan_slice_start=$(date +%s)
+  scan_records=0
+  scan_yielded=0
   while IFS= read -r w; do
+    # Each record is a bounded unit: its current-state reads are bounded in
+    # total (crew_state_observe in fm-classify-lib.sh) and its pane capture is
+    # interruptible. Record the progress, and once a slice has run for
+    # SCAN_SLICE_SECS hand newly arrived durable work to the top of the cycle
+    # rather than holding it behind the rest of the scan.
+    watcher_progress_beat
+    if [ "$scan_records" -gt 0 ] \
+      && [ "$(( $(date +%s) - scan_slice_start ))" -ge "$SCAN_SLICE_SECS" ]; then
+      if watcher_scan_should_yield; then
+        triage_log "window scan yielded to newly arrived work after $scan_records records"
+        scan_yielded=1
+        break
+      fi
+      scan_slice_start=$(date +%s)
+    fi
+    scan_cursor_record "$w"
+    scan_records=$((scan_records + 1))
     kind=$(window_kind "$w")
     task=$(window_to_task "$w" "$STATE")
     # Steering-inbox loss detection runs before the secondmate stale
@@ -3311,7 +3412,7 @@ EOF
         clear_pause_tracking "$key"
       fi
     fi
-  done < <(recorded_windows)
+  done < <(recorded_windows_from_cursor)
 
   # Heartbeat: the watcher runs a cheap fleet-scan at a regular cadence no matter
   # what. Time-based via .last-heartbeat mtime; interval doubles per consecutive
@@ -3353,6 +3454,7 @@ EOF
   fi
 
   # Terminal wait: a bounded native-event wait for push-capable homes (herdr),
-  # else the blind poll sleep. See event_wait_or_sleep.
-  event_wait_or_sleep
+  # else the blind poll sleep. See event_wait_or_sleep. A scan that yielded to
+  # newly arrived work goes straight back to the top to handle it.
+  [ "$scan_yielded" -eq 1 ] || event_wait_or_sleep
 done
