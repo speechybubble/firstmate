@@ -206,7 +206,7 @@ With `state/.afk` absent the daemon lock proves nothing and the strict watcher p
 
 ### Guard grace and the poll cadence
 
-`bin/fm-watch.sh` touches `state/.last-watcher-beat` once per cycle, immediately before its terminal wait (`event_wait_or_sleep`) as well as at the top of the next cycle.
+`bin/fm-watch.sh` touches `state/.last-watcher-beat` at the top of each cycle and immediately before its terminal wait (`event_wait_or_sleep`).
 A healthy watcher's beacon can therefore legitimately age up to `FM_POLL` seconds between touches.
 A cycle's own synchronous work grows with the fleet, so the watcher also touches the beacon after each finished check, per-window scan record, signal linger and classification, or signalled task's current-state read once the beacon has aged a third of its grace.
 Each such unit is bounded: a window's whole current-state read stops at `FM_CREW_STATE_OBSERVE_TIMEOUT`.

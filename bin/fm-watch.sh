@@ -264,14 +264,14 @@ fi
 # turn-ended signature, annotation staleness checks, and guarded bookkeeping writes.
 
 POLL=${FM_POLL:-15}                   # seconds between cycles
-# The liveness beacon is touched once per cycle, immediately before the
-# terminal wait below (event_wait_or_sleep) as well as at the top of the next
-# one, so a healthy cycle's beacon can legitimately age up to POLL seconds
-# between touches. fm_poll_derived_grace (bin/fm-wake-lib.sh, already sourced
-# transitively above) is the single owner of the max(300, poll+60)
-# derivation - see docs/turnend-guard.md "Guard grace and the poll cadence".
-# This recomputes the library default above now that the real configured
-# POLL is known.
+# The liveness beacon is touched at the top of each cycle and immediately
+# before its terminal wait below (event_wait_or_sleep), plus after bounded scan
+# progress within a long cycle (watcher_progress_beat), so a healthy idle
+# beacon can legitimately age up to POLL seconds between touches.
+# fm_poll_derived_grace (bin/fm-wake-lib.sh, already sourced transitively
+# above) is the single owner of the max(300, poll+60) derivation - see
+# docs/turnend-guard.md "Guard grace and the poll cadence". This recomputes the
+# library default above now that the real configured POLL is known.
 WATCHER_STALE_GRACE=${FM_WATCHER_STALE_GRACE:-${FM_GUARD_GRACE:-$(fm_poll_derived_grace "$POLL")}}
 # Hard bound on a live holder's beacon age. Under it a re-arm refuses and asks
 # for inspection (the grace above); at or past it the re-arm evicts the holder
@@ -2730,8 +2730,9 @@ watcher_exit_if_world_gone() {
 # per-window stale scan with its bounded current-state reads - grows with the
 # fleet, so the top-of-cycle beacon touch alone let a slow scan that was still
 # progressing age the beacon past the guard grace. The beacon is therefore also
-# touched after each bounded unit of real progress (a finished check or window
-# record) once it has aged PROGRESS_BEAT_AGE, a third of the grace, so a long
+# touched after each bounded unit of real progress (a finished check, window
+# record, signal linger, classification, or signalled task's current-state
+# read) once it has aged PROGRESS_BEAT_AGE, a third of the grace, so a long
 # scan keeps it well inside the grace while an ordinary quick cycle still beats
 # only at its top and is otherwise untouched: below that age a beat does nothing
 # at all, leaving ownership and teardown to the top-of-cycle checks. A beat is
@@ -2742,9 +2743,10 @@ watcher_exit_if_world_gone() {
 # (WATCH_SIGNAL_IN_FLIGHT) never stands down from a beat: the cycle following
 # it waits for exactly that wake, so losing ownership there only withholds the
 # touch and the batch is still reported once, as on a cycle with no beats; the
-# top-of-cycle checks retire the watcher afterwards. Nothing touches it on a timer: a unit that never finishes leaves
-# the beacon to age into the guard warning, the attached arm's stall bound, and
-# the re-arm's eviction exactly as before.
+# top-of-cycle checks retire the watcher afterwards. Nothing touches it on a
+# timer: a unit that never finishes leaves the beacon to age into the guard
+# warning, the attached arm's stall bound, and the re-arm's eviction exactly as
+# before.
 watcher_progress_beat() {
   [ "$(fm_path_age "$BEAT")" -ge "$PROGRESS_BEAT_AGE" ] || return 0
   if [ "$WATCH_SIGNAL_IN_FLIGHT" -eq 1 ]; then
