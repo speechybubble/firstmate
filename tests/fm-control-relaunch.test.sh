@@ -2554,6 +2554,14 @@ claude_transcript_fixture() {
     > "$dir/user-home/.claude/projects/$slug/$id.jsonl"
 }
 
+# start_orphan <command...>: run <command> in the background with its output
+# discarded and print its pid. Called inside a command substitution, so the
+# process outlives that subshell and is reaped as soon as it stops.
+start_orphan() {
+  "$@" >/dev/null 2>&1 &
+  printf '%s\n' "$!"
+}
+
 # claude_owner_fixture <case-dir> <cwd> <session-id> [--in-pane] [NAME=value...]:
 # start a stand-in process, orphaned so it is reaped as soon as it stops, with
 # exactly the given Fleet environment, and record it the way Claude records a
@@ -2571,8 +2579,8 @@ claude_owner_fixture() {
   if [ "$in_pane" = 1 ]; then
     rm -f "$dir/fake/owner-child"
     # shellcheck disable=SC2016  # the inner script expands in the pane shell
-    shell_pid=$( (bash -c '"$@" & echo $! > "$0.tmp" && mv "$0.tmp" "$0"; wait' "$dir/fake/owner-child" \
-      env -u FM_TASK_INBOX -u FM_HOME -u FM_TASK_ID "$@" /bin/sleep 300 >/dev/null 2>&1 & echo $!) )
+    shell_pid=$(start_orphan bash -c '"$@" & echo $! > "$0.tmp" && mv "$0.tmp" "$0"; wait' "$dir/fake/owner-child" \
+      env -u FM_TASK_INBOX -u FM_HOME -u FM_TASK_ID "$@" /bin/sleep 300)
     OWNER_PIDS+=("$shell_pid")
     for _ in $(seq 1 100); do
       [ ! -s "$dir/fake/owner-child" ] || break
@@ -2581,7 +2589,7 @@ claude_owner_fixture() {
     pid=$(cat "$dir/fake/owner-child")
     printf '%s' "$shell_pid" > "$dir/fake/pane-pid"
   else
-    pid=$( (env -u FM_TASK_INBOX -u FM_HOME -u FM_TASK_ID "$@" /bin/sleep 300 >/dev/null 2>&1 & echo $!) )
+    pid=$(start_orphan env -u FM_TASK_INBOX -u FM_HOME -u FM_TASK_ID "$@" /bin/sleep 300)
   fi
   OWNER_PIDS+=("$pid")
   start=
@@ -2733,9 +2741,10 @@ assert_resume_refused_before_stop() {  # <case-dir> <id> <output> <rc> <expected
   cmp -s "$dir/home/state/$id.meta" "$dir/meta-before" || fail "$what must leave the task record byte-identical"
   cmp -s "$dir/home/data/$id/brief.md" "$dir/brief-before" || fail "$what must leave the instructions byte-identical"
   local owner
-  for owner in $(cat "$dir/fake/owner-pids" 2>/dev/null); do
+  [ ! -e "$dir/fake/owner-pids" ] || while read -r owner; do
+    [ -n "$owner" ] || continue
     kill -0 "$owner" 2>/dev/null || fail "$what must leave the live Claude process $owner running"
-  done
+  done < "$dir/fake/owner-pids"
 }
 
 test_resume_session_refusals_happen_before_the_agent_stops() {
@@ -2912,9 +2921,10 @@ test_herdr_resume_session_binds_a_legacy_secondmate_through_the_pane_shell() {
       assert_no_grep "/exit" "$dir/fake/literal" "the refusal must come before the agent is stopped"
       assert_absent "$dir/home/state/rhs1.control-relaunch" "the refusal must not open a relaunch transaction"
       assert_present "$dir/fake/herdr-agent-live" "the task's agent must be left running"
-      for owner in $(cat "$dir/fake/owner-pids"); do
+      while read -r owner; do
+        [ -n "$owner" ] || continue
         kill -0 "$owner" 2>/dev/null || fail "the foreign Claude process $owner must be left running"
-      done
+      done < "$dir/fake/owner-pids"
     fi
   done
   pass "fm-control relaunch --resume-session: a legacy Herdr secondmate is bound through its pane shell, and an owner outside it refuses before the stop"
