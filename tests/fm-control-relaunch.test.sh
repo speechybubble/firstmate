@@ -2560,8 +2560,7 @@ claude_transcript_fixture() {
 # discarded and print its pid. Called inside a command substitution, so the
 # process outlives that subshell and is reaped as soon as it stops.
 start_orphan() {
-  "$@" >/dev/null 2>&1 &
-  printf '%s\n' "$!"
+  sh -c 'printf "%s\n" "$$"; exec "$@" >/dev/null 2>&1' start_orphan "$@" &
 }
 
 # claude_owner_fixture <case-dir> <cwd> <session-id> [--in-pane] [NAME=value...]:
