@@ -1,0 +1,8 @@
+not ok - fixture: the close did not turn main-only at its turn
+secs=9
+not ok - fixture: the close did not turn main-only at its turn
+secs=8
+not ok - the host must hand its captain outcome to main
+secs=10
+not ok - the host must hand its captain outcome to main
+secs=10

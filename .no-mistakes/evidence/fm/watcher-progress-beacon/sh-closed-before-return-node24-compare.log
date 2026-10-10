@@ -1,0 +1,8 @@
+fmbisect-prefix: not ok - closed successor: the Stop hook did not finish: 1791644379	start	gen=host-1472375-1791644378	primary=claude
+secs=43
+fmbisect-prefix: not ok - closed successor: the Stop hook did not finish: 1791644426	start	gen=host-1484487-1791644423	primary=claude
+secs=87
+01M4K3QMA8JMDBRPZ661KVFHFX: not ok - closed successor: the Stop hook did not finish: 1791644538	start	gen=host-1498512-1791644532	primary=claude
+secs=67
+01M4K3QMA8JMDBRPZ661KVFHFX: ok - host+hook: a successor closed before exit_to_main does not suppress the branch-outcome rewake
+secs=28
