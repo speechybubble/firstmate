@@ -2066,8 +2066,12 @@ case "${1:-} ${2:-}" in
       printf '{"result":{"type":"pane_process_info","process_info":{"pane_id":"%s","shell_pid":4242,"foreground_processes":[]}}}\n' \
         "$(cat "$D/herdr-pane")"
     else
-      printf '{"result":{"type":"pane_process_info","process_info":{"pane_id":"%s","shell_pid":4242,"foreground_processes":[{"pid":4243,"name":"claude","argv":["claude"],"cmdline":"claude"}]}}}\n' \
-        "$(cat "$D/herdr-pane")"
+      # A stand-in pane shell from claude_owner_fixture --in-pane is the pane's
+      # real top shell when the case has one.
+      shell_pid=4242
+      [ ! -s "$D/pane-pid" ] || shell_pid=$(cat "$D/pane-pid")
+      printf '{"result":{"type":"pane_process_info","process_info":{"pane_id":"%s","shell_pid":%s,"foreground_processes":[{"pid":4243,"name":"claude","argv":["claude"],"cmdline":"claude"}]}}}\n' \
+        "$(cat "$D/herdr-pane")" "$shell_pid"
     fi
     exit 0 ;;
   'pane send-text')
@@ -2081,11 +2085,32 @@ case "${1:-} ${2:-}" in
     case "$payload" in
       ". '"*"'") staged=${payload#". '"}; staged=${staged%"'"}; [ ! -f "$staged" ] || payload=$(cat "$staged") ;;
     esac
+    printf '%s\n' "$payload" >> "$D/literal"
     case "$payload" in
-      *'encode launch-brief'* | *'Firstmate operational input waiting: read'*)
+      /exit)
+        # The live agent exits, and with it any stand-in Claude process that
+        # owns a session record (claude_owner_fixture).
+        rm -f "$D/herdr-agent-live"
+        if [ -s "$D/owner-pids" ]; then
+          while read -r owner; do
+            kill "$owner" 2>/dev/null
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              kill -0 "$owner" 2>/dev/null || break
+              /bin/sleep 0.05
+            done
+          done < "$D/owner-pids"
+          : > "$D/owner-pids"
+        fi
+        ;;
+      *'encode launch-brief'* | *'Firstmate operational input waiting: read'* | *' --resume '*)
         printf '%s\n' "$payload" > "$D/launched-command"
         : > "$D/herdr-agent-live" ;;
     esac
+    exit 0 ;;
+  'pane read')
+    # An empty Claude composer box, so a typed control command cannot
+    # concatenate onto pending text.
+    printf '╭────╮\n│    │\n╰────╯\n'
     exit 0 ;;
   'workspace list')
     printf '{"result":{"workspaces":[]}}\n'
@@ -2819,6 +2844,80 @@ test_resume_session_spawn_refuses_a_session_still_owned_and_never_falls_back() {
   pass "fm-spawn --relaunch --resume-session: refuses a session another process still owns and never launches fresh"
 }
 
+# A legacy Herdr secondmate (no FM_TASK_INBOX) is bound through the pane shell
+# Herdr's `pane process-info` names, the cutover's path for the live Trelume
+# secondmate: an owner inside that shell's tree resumes, and one outside it is
+# refused before anything is stopped.
+test_herdr_resume_session_binds_a_legacy_secondmate_through_the_pane_shell() {
+  local dir out rc owner placement
+  for placement in in-pane outside; do
+    herdr_case_or_skip "resume-herdr-sm-$placement" rhs1 || {
+      echo "skip - herdr relaunch needs jq (the herdr adapter parses JSON with it)"
+      return 0
+    }
+    dir=$HERDR_CASE_DIR
+    rm -f "$dir/fake/herdr-stopped"
+    : > "$dir/fake/herdr-agent-live"
+    : > "$dir/fake/literal"
+    mkdir -p "$dir/home/config"
+    printf 'claude\n' > "$dir/home/config/secondmate-harness"
+    fm_git_worktree "$dir/smproj" "$dir/smhome" sm-branch
+    mkdir -p "$dir/smhome/state" "$dir/smhome/data" "$dir/smhome/bin"
+    printf 'rhs1\n' > "$dir/smhome/.fm-secondmate-home"
+    printf '# charter\n' > "$dir/smhome/data/charter.md"
+    printf '# agents\n' > "$dir/smhome/AGENTS.md"
+    {
+      echo "window=fmlab:%7"
+      echo "endpoint_task_id=rhs1"
+      echo "worktree=$dir/smhome"
+      echo "project=$dir/smhome"
+      echo "harness=claude"
+      echo "kind=secondmate"
+      echo "mode=secondmate"
+      echo "yolo=off"
+      echo "model=default"
+      echo "effort=default"
+      echo "home=$dir/smhome"
+      echo "projects="
+      echo "backend=herdr"
+      echo "herdr_session=fmlab"
+      echo "herdr_workspace_id=ws1"
+      echo "herdr_tab_id=tab1"
+      echo "herdr_pane_id=%7"
+    } > "$dir/home/state/rhs1.meta"
+    printf '%s' "$dir/smhome" > "$dir/fake/cwd"
+    claude_transcript_fixture "$dir" "$dir/smhome" "$RESUME_UUID"
+    if [ "$placement" = in-pane ]; then
+      claude_owner_fixture "$dir" "$dir/smhome" "$RESUME_UUID" --in-pane FM_HOME="$dir/smhome"
+    else
+      # The pane's shell is a different process tree from the owner's.
+      claude_owner_fixture "$dir" "$dir/smhome" "$OTHER_UUID" --in-pane FM_HOME="$dir/smhome"
+      : > "$dir/fake/owner-pids"
+      claude_owner_fixture "$dir" "$dir/smhome" "$RESUME_UUID" FM_HOME="$dir/smhome"
+    fi
+
+    out=$(run_control "$dir" rhs1 relaunch --resume-session "$RESUME_UUID"); rc=$?
+    if [ "$placement" = in-pane ]; then
+      expect_code 0 "$rc" "a legacy Herdr secondmate inside its pane shell's tree should resume"$'\n'"$out"
+      assert_grep "/exit" "$dir/fake/literal" "the previous agent should have been exited"
+      assert_contains "$(cat "$dir/fake/launched-command")" "--resume '$RESUME_UUID'" \
+        "the Herdr secondmate must resume its exact session"
+      assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
+        "a resumed Herdr secondmate must not be handed its launch brief again"
+    else
+      expect_code 1 "$rc" "an owner outside the Herdr pane shell's tree must refuse"$'\n'"$out"
+      assert_contains "$out" "not in task rhs1's endpoint process tree" "the refusal should say why"
+      assert_no_grep "/exit" "$dir/fake/literal" "the refusal must come before the agent is stopped"
+      assert_absent "$dir/home/state/rhs1.control-relaunch" "the refusal must not open a relaunch transaction"
+      assert_present "$dir/fake/herdr-agent-live" "the task's agent must be left running"
+      for owner in $(cat "$dir/fake/owner-pids"); do
+        kill -0 "$owner" 2>/dev/null || fail "the foreign Claude process $owner must be left running"
+      done
+    fi
+  done
+  pass "fm-control relaunch --resume-session: a legacy Herdr secondmate is bound through its pane shell, and an owner outside it refuses before the stop"
+}
+
 test_resume_session_spawn_resumes_a_released_session() {
   local dir out rc launch
   command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
@@ -2925,6 +3024,7 @@ test_resume_session_relaunch_resumes_a_legacy_worker_bound_by_endpoint_and_task_
 test_resume_session_refusals_happen_before_the_agent_stops
 test_resume_session_spawn_refuses_a_session_still_owned_and_never_falls_back
 test_resume_session_spawn_resumes_a_released_session
+test_herdr_resume_session_binds_a_legacy_secondmate_through_the_pane_shell
 test_herdr_claude_relaunch_without_resume_session_stays_fresh
 test_herdr_reclaim_adopts_a_pane_that_outlived_its_server
 test_herdr_exit_reports_already_stopped_when_the_pane_outlived_its_server
