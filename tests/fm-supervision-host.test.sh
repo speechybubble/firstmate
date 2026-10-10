@@ -3038,7 +3038,7 @@ test_supervision_node_selection_and_readiness_reasons() {
   nopath=$(path_without_node "$d/no-node")
   PATH="$nopath" command -v node >/dev/null 2>&1 && fail "fixture: node is still reachable"
   got=$(read_node_selection "$cfg" "$nopath")
-  assert_equals "2||||node is missing" "$got" "an absent file with no node on PATH must keep today's readiness reason exactly"
+  assert_equals "2|||node is missing" "$got" "an absent file with no node on PATH must keep today's readiness reason exactly"
 
   printf '  %s  \n' "$d/bin/node24" > "$cfg/supervision-node"
   got=$(read_node_selection "$cfg")
