@@ -19,7 +19,7 @@
 # publication instead of queuing behind it. If that holder exits without
 # replacing the ledger before this refresh's own deadline is one second away,
 # exactly one takeover worker then publishes under a fresh full deadline. The shared
-# timeout owner bounds the complete refresh with FM_HOME_SUMMARY_TIMEOUT
+# timeout owner bounds each refresh worker with FM_HOME_SUMMARY_TIMEOUT
 # (default 60 seconds). No reader can observe temporary output through the
 # ledger path.
 #
