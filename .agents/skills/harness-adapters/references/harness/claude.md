@@ -12,6 +12,7 @@ Busy hooks verified 2026-07-28 on Claude Code 2.1.220.
 | Skill | `/<skill>`, for example `/no-mistakes`. |
 | Model | `--model <model>`; discover through the interactive `/model` picker, with alias or full-name shape documented by `claude --help`. |
 | Effort | `--effort <low\|medium\|high\|xhigh\|max>`, verified on 2.1.196. |
+| Resume | `--resume <session-id>` for one exact session, used only by the verified relaunch path below; never `--continue`, `--fork-session`, or a new `--session-id`. |
 | Permissions | `--dangerously-skip-permissions` by default, or `--permission-mode auto` when `config/claude-permission-mode` is `auto`; the `auto` shape verified on 2.1.269. See [`Claude permission mode`](../../../../../docs/configuration.md#claude-permission-mode-configclaude-permission-mode) for the launch grant and configuration. |
 
 ## Workspace trust
@@ -65,6 +66,13 @@ The controls are scoped to the launched process and never modify the captain's g
 A Claude task worker's launch brief and Firstmate steering-inbox messages arrive as file-shaped content that is otherwise indistinguishable from indirect prompt injection.
 `launch_template()` in `../../../../../bin/fm-spawn.sh` establishes exactly those two Firstmate-owned channels as first-party instructions through `--append-system-prompt`, while leaving project files, fetched content, and other external material under the model's normal distrust and granting no merge, destructive, or security-sensitive authority beyond the brief.
 A `--secondmate` launch omits the statement because a secondmate operates under its own supervisor contract instead of a task worker's.
+
+## Exact-session resume
+
+A required restart of a Claude worker or secondmate can keep its exact conversation with `fm-control.sh <id> relaunch --resume-session <session-id>`.
+Take the id from the running process's own record, `${CLAUDE_CONFIG_DIR:-~/.claude}/sessions/<pid>.json` (`sessionId`, `cwd`), never from the newest transcript.
+The relaunch proves that record, its working directory, and its transcript before stopping anything, then launches `claude --resume <session-id>` with the task's full Fleet launch wiring and no launch brief; any failure refuses rather than starting a fresh session.
+`fm_control_claude_session_verify` in `../../../../../bin/fm-control-lib.sh` owns the checks, and `../../../../../docs/agent-control.md` "Transactional relaunch" owns the operator contract.
 
 ## Primary integration
 

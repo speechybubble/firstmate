@@ -61,7 +61,7 @@ Removing a worktree, closing an endpoint, or discarding work stays with [`bin/fm
 **`resume` is not a verb.**
 It is not deterministic across the verified adapters: codex, grok, gemini, and devin resume only from a session id printed at exit, opencode continues the most recent session for the cwd, and claude, pi, pi-signed, omp, kimi, and agy have no verified general pane-resume contract.
 `relaunch` uses the brief on disk - not a harness-private session - as the durable instruction when the backend can prove the old agent stopped and the composer is empty; Devin on Herdr currently fails that composer check and refuses.
-A relaunch does take one session reference when the endpoint's own runtime recorded it - see [the relaunch transaction](#transactional-relaunch) - but that is a relaunch input, not a caller-facing verb.
+A relaunch does take one session reference when the endpoint's own runtime recorded it, and a Claude relaunch can resume one exact verified conversation through `--resume-session` - see [the relaunch transaction](#transactional-relaunch) - but both are relaunch inputs, not a caller-facing verb.
 
 ## Transactional relaunch
 
@@ -89,6 +89,13 @@ A relaunch does take one session reference when the endpoint's own runtime recor
    The endpoint's runtime may bind pane status to one session identity; the launch owner preserves it only when that runtime records a reference the replacement adapter can consume, and otherwise launches the ordinary fresh session.
    This reference is a launch input, never authority to send, close, or act on the pane.
    [`docs/herdr-backend.md`](herdr-backend.md#agent-status-authority-and-relaunch) owns the mechanism and measured behavior.
+7. **Resume an exact Claude conversation only on request.**
+   `relaunch --resume-session <session-id>` is for a required restart that must keep a Claude agent's conversation, for a worker or a secondmate.
+   Before step 4 stops anything, it requires a Claude-to-Claude relaunch, a well-formed id, exactly one live Claude process whose own session record names that id and the task's working directory, and that conversation's transcript under the working directory's Claude project store.
+   After the stop, the launch owner requires that no live process still owns the id, then launches `claude --resume <session-id>` with every other launch flag, the worker trust statement or secondmate environment, the inbox export, the endpoint, and fresh busy wiring, but with no launch brief and an idle busy record.
+   Any failed check refuses; nothing chooses an id for the caller, and a requested resume never becomes a fresh session.
+   A ship or scout still records its `--note`, which a resumed agent does not reread.
+   `fm_control_claude_session_verify` in [`bin/fm-control-lib.sh`](../bin/fm-control-lib.sh) owns the checks.
 
 Switching harness is therefore one ordinary relaunch rather than a separate mechanism.
 
@@ -194,5 +201,5 @@ The empirical basis for each adapter's value is the `harness-adapters` skill's v
 ## Verification
 
 - `tests/fm-control.test.sh` - the adapter contract for its verified-harness lane (adapters outside the lane pin their control mechanics in their own harness suites), the backend capability matrix, exact-id scoping, the closed verb list, the busy, idle, dead, and idempotent lifecycle cases, and marker non-regression, all against a stubbed session provider.
-- `tests/fm-control-relaunch.test.sh` - the relaunch transaction: identity preservation, harness switching, the progress note, checkpoint refusals, rollback after a failed launch, and the endpoint-absence proof both verbs share - the Herdr reclaim of a destroyed endpoint, and tmux refusing one it cannot prove absent.
+- `tests/fm-control-relaunch.test.sh` - the relaunch transaction: identity preservation, harness switching, the progress note, checkpoint refusals, rollback after a failed launch, exact Claude session resume and its pre-stop refusals, and the endpoint-absence proof both verbs share - the Herdr reclaim of a destroyed endpoint, and tmux refusing one it cannot prove absent.
 - `tests/fm-control-herdr-smoke.test.sh` - the second state-verified backend against the real herdr binary, on an isolated throwaway lab session.

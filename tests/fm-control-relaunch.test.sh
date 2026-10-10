@@ -39,9 +39,13 @@ TMP_ROOT=$(fm_test_tmproot fm-control-relaunch)
 mkdir -p "$TMP_ROOT"
 TMP_ROOT=$(cd "$TMP_ROOT" && pwd)
 TASK_TMPS=()
+OWNER_PIDS=()
 
 relaunch_cleanup() {
   local d
+  for d in "${OWNER_PIDS[@]:-}"; do
+    [ -n "$d" ] && kill "$d" 2>/dev/null
+  done
   for d in "${TASK_TMPS[@]:-}"; do
     [ -n "$d" ] && rm -rf "$d"
   done
@@ -79,9 +83,21 @@ case "${1:-}" in
       case "$payload" in
         /exit|/quit)
           printf 'zsh' > "$D/command"
+          # A stand-in Claude process that owns a session record stops with
+          # the agent it models (claude_owner_fixture).
+          if [ -s "$D/owner-pids" ]; then
+            while read -r owner; do
+              kill "$owner" 2>/dev/null
+              for _ in 1 2 3 4 5 6 7 8 9 10; do
+                kill -0 "$owner" 2>/dev/null || break
+                /bin/sleep 0.05
+              done
+            done < "$D/owner-pids"
+            : > "$D/owner-pids"
+          fi
           [ -z "${FM_FAKE_EXIT_TRANSPORT_FAIL_AFTER_STOP:-}" ] || exit 1
           ;;
-        *'encode launch-brief'* | *'Firstmate operational input waiting: read'*)
+        *'encode launch-brief'* | *'Firstmate operational input waiting: read'* | *' --resume '*)
           cat "$D/becomes" > "$D/command"
           [ -z "${FM_FAKE_LAUNCH_TRANSPORT_FAIL_AFTER_START:-}" ] || exit 1
           ;;
@@ -387,6 +403,7 @@ test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint() {
   assert_grep "/exit" "$dir/fake/literal" "the previous agent should have been exited"
   assert_grep "cd -- '$dir/wt'" "$dir/fake/keys" "the replacement launch must enter the recorded worktree"
   assert_grep "Firstmate operational input waiting: read" "$dir/fake/literal" "the replacement should have been launched"
+  assert_no_grep " --resume " "$dir/fake/literal" "an ordinary relaunch must start a fresh session"
   pass "fm-control relaunch: a same-harness relaunch replaces the agent in the same endpoint and worktree"
 }
 
@@ -2488,6 +2505,260 @@ SH
 
 test_exit_and_relaunch_remove_the_dialog_file
 test_exit_removes_the_dialog_file_before_releasing_the_lock
+# --- exact Claude session resume (--resume-session) --------------------------
+#
+# A required restart may have to keep a Claude agent's exact conversation. The
+# session is proven before anything stops, the replacement resumes exactly that
+# session with the task's full launch wiring and no launch brief, and every
+# failure refuses rather than falling back to a fresh session. The session
+# records and transcripts below follow Claude Code's own store layout under the
+# case's throwaway HOME (CLAUDE_CONFIG_DIR is empty in run_control/run_spawn).
+
+RESUME_UUID=0b1c2d3e-4f50-4617-8293-a4b5c6d7e8f9
+OTHER_UUID=11111111-2222-4333-8444-555555555555
+
+# claude_transcript_fixture <case-dir> <cwd> <session-id>
+claude_transcript_fixture() {
+  local dir=$1 cwd=$2 id=$3 slug
+  slug=$(cd "$cwd" && pwd -P | sed 's/[^A-Za-z0-9]/-/g')
+  mkdir -p "$dir/user-home/.claude/projects/$slug"
+  printf '{"type":"user","sessionId":"%s"}\n' "$id" \
+    > "$dir/user-home/.claude/projects/$slug/$id.jsonl"
+}
+
+# claude_owner_fixture <case-dir> <cwd> <session-id>: start a stand-in process,
+# orphaned so it is reaped as soon as it stops, and record it the way Claude
+# records a running interactive session. The tmux stub's exit command stops it.
+claude_owner_fixture() {
+  local dir=$1 cwd=$2 id=$3 pid real start stat_line
+  real=$(cd "$cwd" && pwd -P)
+  pid=$( (/bin/sleep 300 >/dev/null 2>&1 & echo $!) )
+  OWNER_PIDS+=("$pid")
+  start=
+  if stat_line=$(cat "/proc/$pid/stat" 2>/dev/null); then
+    # shellcheck disable=SC2086  # word-split the stat fields deliberately
+    set -- ${stat_line##*) }
+    start=${20-}
+  fi
+  mkdir -p "$dir/user-home/.claude/sessions"
+  printf '{"pid":%s,"sessionId":"%s","cwd":"%s","procStart":"%s","kind":"interactive"}\n' \
+    "$pid" "$id" "$real" "$start" > "$dir/user-home/.claude/sessions/$pid.json"
+  printf '%s\n' "$pid" >> "$dir/fake/owner-pids"
+}
+
+# The literal launch line the stub recorded for the replacement.
+resume_launch_line() {  # <case-dir>
+  grep -F -- ' --resume ' "$1/fake/literal" | tail -1
+}
+
+test_resume_session_relaunch_resumes_the_exact_worker_conversation() {
+  local dir out rc gen_before gen_after launch
+  command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
+  dir=$(new_case resume-worker rs1)
+  add_ship_task "$dir" rs1 claude
+  claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+  claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+  gen_before=$("$ROOT/bin/fm-busy-event.sh" arm "$dir/home/state" rs1)
+  printf 'busy_gen=%s\n' "$gen_before" >> "$dir/home/state/rs1.meta"
+
+  out=$(run_control "$dir" rs1 relaunch --resume-session "$RESUME_UUID" --note "cutover restart"); rc=$?
+  expect_code 0 "$rc" "a verified exact-session relaunch should succeed"$'\n'"$out"
+  assert_contains "$out" "resumed_session=$RESUME_UUID" "the outcome should name the resumed session"
+  assert_grep "/exit" "$dir/fake/literal" "the previous agent should have been exited"
+  launch=$(resume_launch_line "$dir")
+  assert_contains "$launch" "--resume '$RESUME_UUID'" "the replacement must resume the exact verified session"
+  assert_contains "$launch" "--append-system-prompt" "the worker trust contract must stay on the launch"
+  assert_contains "$launch" "FM_TASK_INBOX=" "the task inbox export must stay on the launch"
+  assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
+    "a resumed session must not be handed the launch brief again"
+  [ "$(meta_field "$dir" rs1 window)" = "fmses:fm-rs1" ] || fail "the endpoint must be reused"
+  [ "$(meta_field "$dir" rs1 harness)" = claude ] || fail "the record must stay on claude"
+  gen_after=$(meta_field "$dir" rs1 busy_gen)
+  [ -n "$gen_after" ] && [ "$gen_after" != "$gen_before" ] \
+    || fail "a resume must still arm a fresh busy generation, got '$gen_after'"
+  assert_grep "$gen_after" "$dir/wt/.claude/settings.local.json" \
+    "the worker's busy hooks must carry the new generation"
+  assert_grep "state=idle" "$dir/home/state/rs1.busy-state" \
+    "no turn is submitted on a resume, so the busy record starts idle"
+  [ "$(journal_field "$dir" rs1 resume_session)" = "$RESUME_UUID" ] \
+    || fail "the transaction journal should record the resumed session"
+  [ "$(journal_field "$dir" rs1 phase)" = complete ] || fail "the transaction should complete"
+  pass "fm-control relaunch --resume-session: a worker resumes its exact conversation with full wiring and no brief"
+}
+
+test_resume_session_relaunch_resumes_a_secondmate_with_its_home_environment() {
+  local dir home out rc launch
+  command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
+  dir=$(new_case resume-sm rsm1)
+  home="$dir/home"
+  mkdir -p "$home/config"
+  printf 'claude\n' > "$home/config/secondmate-harness"
+  fm_git_worktree "$dir/proj" "$dir/smhome" sm-branch
+  mkdir -p "$dir/smhome/state" "$dir/smhome/data" "$dir/smhome/bin"
+  printf 'rsm1\n' > "$dir/smhome/.fm-secondmate-home"
+  printf '# charter\n' > "$dir/smhome/data/charter.md"
+  {
+    echo "window=fmses:fm-rsm1"
+    echo "endpoint_task_id=rsm1"
+    echo "worktree=$dir/smhome"
+    echo "project=$dir/smhome"
+    echo "harness=claude"
+    echo "kind=secondmate"
+    echo "mode=secondmate"
+    echo "yolo=off"
+    echo "model=default"
+    echo "effort=default"
+    echo "home=$dir/smhome"
+    echo "projects="
+  } > "$home/state/rsm1.meta"
+  printf '%s\n' "fm-rsm1" > "$dir/fake/windows"
+  printf '%s' "$dir/smhome" > "$dir/fake/cwd"
+  claude_transcript_fixture "$dir" "$dir/smhome" "$RESUME_UUID"
+  claude_owner_fixture "$dir" "$dir/smhome" "$RESUME_UUID"
+
+  out=$(run_control "$dir" rsm1 relaunch --resume-session "$RESUME_UUID"); rc=$?
+  expect_code 0 "$rc" "a verified secondmate resume should succeed"$'\n'"$out"
+  launch=$(resume_launch_line "$dir")
+  assert_contains "$launch" "--resume '$RESUME_UUID'" "the secondmate must resume its exact session"
+  assert_contains "$launch" "FM_HOME='$dir/smhome'" "the secondmate's own home must stay its FM_HOME"
+  assert_contains "$launch" "FM_SUPERVISION_MODEL=autoarm" "the secondmate supervision environment must stay"
+  assert_contains "$launch" "FM_TASK_INBOX=" "the inbox export must stay on the launch"
+  assert_not_contains "$launch" "--append-system-prompt" "a secondmate never receives the task-worker contract"
+  assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
+    "a resumed secondmate must not be handed its launch brief again"
+  [ "$(cat "$dir/smhome/data/charter.md")" = "# charter" ] || fail "the charter must stay untouched"
+  [ "$(meta_field "$dir" rsm1 kind)" = secondmate ] || fail "the record must stay a secondmate"
+  pass "fm-control relaunch --resume-session: a secondmate resumes its exact conversation in its own home environment"
+}
+
+# Each refusal must happen while the old agent is still running: nothing is
+# typed into the pane, no transaction is opened, and the record and the
+# instructions stay byte-identical.
+assert_resume_refused_before_stop() {  # <case-dir> <id> <output> <rc> <expected-text> <what>
+  local dir=$1 id=$2 out=$3 rc=$4 want=$5 what=$6
+  expect_code 1 "$rc" "$what must refuse"$'\n'"$out"
+  assert_contains "$out" "$want" "$what should say why"
+  assert_no_grep "/exit" "$dir/fake/literal" "$what must refuse before the agent is stopped"
+  assert_no_grep " --resume " "$dir/fake/literal" "$what must launch nothing"
+  assert_absent "$dir/home/state/$id.control-relaunch" "$what must not open a relaunch transaction"
+  cmp -s "$dir/home/state/$id.meta" "$dir/meta-before" || fail "$what must leave the task record byte-identical"
+  cmp -s "$dir/home/data/$id/brief.md" "$dir/brief-before" || fail "$what must leave the instructions byte-identical"
+}
+
+test_resume_session_refusals_happen_before_the_agent_stops() {
+  local dir out rc scenario
+  command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
+  for scenario in malformed missing mismatched elsewhere no-transcript already-owned not-claude; do
+    dir=$(new_case "resume-refuse-$scenario" rr1)
+    add_ship_task "$dir" rr1 claude
+    case "$scenario" in
+      malformed)
+        out=$(run_control "$dir" rr1 relaunch --resume-session "NOT-A-UUID" --note n); rc=$?
+        expect_code 1 "$rc" "a malformed session id must refuse"$'\n'"$out"
+        assert_contains "$out" "not a well-formed Claude session id" "a malformed id should say so"
+        assert_no_grep "/exit" "$dir/fake/literal" "a malformed id must refuse before the agent is stopped"
+        continue
+        ;;
+      missing)
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        want="no live Claude process records session $RESUME_UUID"
+        ;;
+      mismatched)
+        # The running agent is on another conversation.
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$OTHER_UUID"
+        want="no live Claude process records session $RESUME_UUID"
+        ;;
+      elsewhere)
+        mkdir -p "$dir/other"
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/other" "$RESUME_UUID"
+        want="not to this task's working directory"
+        ;;
+      no-transcript)
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        want="has no transcript"
+        ;;
+      already-owned)
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        want="owned by more than one live process"
+        ;;
+      not-claude)
+        sed -i 's/^harness=claude$/harness=codex/' "$dir/home/state/rr1.meta"
+        printf 'codex' > "$dir/fake/command"
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        want="resumes a Claude conversation on Claude"
+        ;;
+    esac
+    cp -p "$dir/home/state/rr1.meta" "$dir/meta-before"
+    cp -p "$dir/home/data/rr1/brief.md" "$dir/brief-before"
+    out=$(run_control "$dir" rr1 relaunch --resume-session "$RESUME_UUID" --note "cutover restart"); rc=$?
+    assert_resume_refused_before_stop "$dir" rr1 "$out" "$rc" "$want" "a $scenario session"
+  done
+  pass "fm-control relaunch --resume-session: a malformed, missing, mismatched, foreign, transcript-less, doubly owned, or non-Claude session refuses before anything stops"
+}
+
+test_resume_session_spawn_refuses_a_session_still_owned_and_never_falls_back() {
+  local dir out rc
+  command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
+  dir=$(new_case resume-spawn rsp1)
+  add_ship_task "$dir" rsp1 claude
+  printf 'zsh' > "$dir/fake/command"
+  claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+  # The endpoint's agent stopped, but another live process still owns the
+  # conversation: launching would put two processes on one session.
+  claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+  out=$(run_spawn "$dir" rsp1 --relaunch --resume-session "$RESUME_UUID"); rc=$?
+  expect_code 1 "$rc" "a still-owned session must refuse at launch"$'\n'"$out"
+  assert_contains "$out" "still owned by live process" "the refusal should name the live owner"
+  assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
+    "a refused resume must never fall back to a fresh launch"
+  assert_no_grep " --resume " "$dir/fake/literal" "a refused resume must launch nothing"
+
+  out=$(run_spawn "$dir" rsp2 "$dir/proj" --resume-session "$RESUME_UUID"); rc=$?
+  expect_code 1 "$rc" "a fresh spawn has no conversation to resume"$'\n'"$out"
+  assert_contains "$out" "applies to --relaunch only" "the refusal should say the option is relaunch-only"
+  pass "fm-spawn --relaunch --resume-session: refuses a session another process still owns and never launches fresh"
+}
+
+test_resume_session_spawn_resumes_a_released_session() {
+  local dir out rc launch
+  command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
+  dir=$(new_case resume-released rsr1)
+  add_ship_task "$dir" rsr1 claude
+  printf 'zsh' > "$dir/fake/command"
+  claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+  out=$(run_spawn "$dir" rsr1 --relaunch --resume-session "$RESUME_UUID"); rc=$?
+  expect_code 0 "$rc" "a released session with its transcript should resume"$'\n'"$out"
+  launch=$(resume_launch_line "$dir")
+  assert_contains "$launch" "--resume '$RESUME_UUID'" "the replacement must resume the exact session"
+  assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
+    "a resumed session must not be handed the launch brief again"
+  pass "fm-spawn --relaunch --resume-session: an already-stopped task resumes its released session"
+}
+
+test_herdr_claude_relaunch_without_resume_session_stays_fresh() {
+  local dir out rc=0 command
+  herdr_case_or_skip resume-claude-fresh rcf1 || {
+    echo "skip - herdr relaunch needs jq (the herdr adapter parses JSON with it)"
+    return 0
+  }
+  dir=$HERDR_CASE_DIR
+  rm -f "$dir/fake/herdr-stopped"
+  # A Claude registration in the pane is never a resume source by itself.
+  printf '{"result":{"agent":{"agent":"claude","agent_status":"idle","agent_session":{"kind":"id","value":"%s"}}}}\n' \
+    "$RESUME_UUID" > "$dir/fake/herdr-agent-registration"
+  out=$(run_spawn "$dir" rcf1 --relaunch --harness claude) || rc=$?
+  expect_code 0 "$rc" "an ordinary Herdr Claude relaunch should complete"$'\n'"$out"
+  command=$(cat "$dir/fake/launched-command")
+  assert_not_contains "$command" "--resume" "an ordinary Claude relaunch must start a fresh session"
+  assert_contains "$command" "Firstmate operational input waiting: read" "an ordinary relaunch still delivers the brief"
+  pass "fm-spawn --relaunch: an ordinary Claude relaunch on Herdr stays a fresh session with its brief"
+}
+
 test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint
 test_relaunch_refuses_before_exit_when_the_composer_holds_pending_text
 test_relaunch_refuses_before_exit_when_the_composer_state_is_unproven
@@ -2553,6 +2824,12 @@ test_tmux_refuses_a_session_that_cannot_be_found
 test_tmux_refuses_when_the_server_is_gone
 test_reclaim_refuses_an_unreadable_endpoint
 test_herdr_relaunch_resumes_only_the_registered_pi_session
+test_resume_session_relaunch_resumes_the_exact_worker_conversation
+test_resume_session_relaunch_resumes_a_secondmate_with_its_home_environment
+test_resume_session_refusals_happen_before_the_agent_stops
+test_resume_session_spawn_refuses_a_session_still_owned_and_never_falls_back
+test_resume_session_spawn_resumes_a_released_session
+test_herdr_claude_relaunch_without_resume_session_stays_fresh
 test_herdr_reclaim_adopts_a_pane_that_outlived_its_server
 test_herdr_exit_reports_already_stopped_when_the_pane_outlived_its_server
 test_herdr_rebind_stays_in_the_recorded_session

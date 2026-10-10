@@ -13,9 +13,11 @@
 # here rather than improvised per harness in agent prose.
 #
 # This file owns three capability tables plus their pure artifact-path tables,
-# and ONE named exception to that purity - fm_control_endpoint_absence_verdict,
+# and two named exceptions to that purity - fm_control_endpoint_absence_verdict,
 # the single owner of the per-backend endpoint-absence proof, which does run
-# backend reads. Everything else has no side effects, runs no backend command,
+# backend reads, and the fm_control_claude_session_* checks, which read Claude's
+# own session records before an exact-session resume. Everything else has no
+# side effects, runs no backend command,
 # and reads no state, so sourcing this file is still free and the tables can be
 # read by a test as a pure contract:
 #
@@ -42,7 +44,9 @@
 # `relaunch` uses the brief on disk rather than a harness-private session as
 # its durable instruction. The relaunch-time exception is
 # fm_control_relaunch_resume_flag below: a reference the endpoint's runtime
-# bound as its status authority is returned to a replacement with that adapter.
+# bound as its status authority is returned to a replacement with that adapter,
+# and a Claude session id the caller supplied is resumed only after
+# fm_control_claude_session_verify proved it.
 
 # The complete control-plane verb allowlist, one per line.
 fm_control_verbs() {
@@ -261,12 +265,166 @@ fm_control_exit_command() {  # <harness>
 # relaunch, which is what the adapter tables above (and the absence of a
 # verified resume form for those harnesses) require.
 #
+# Claude is the one adapter resumed from a CALLER-SUPPLIED reference rather than
+# a pane registration: its flag is returned only for the literal source
+# `--verified-session`, which bin/fm-spawn.sh passes solely after
+# fm_control_claude_session_verify below proved that exact session. A
+# registered-agent label never selects it, so an ordinary Claude relaunch stays
+# a fresh session.
+#
 # Prints the flag name only; the caller quotes and appends the reference, since
 # shell quoting belongs to the owner of the launch line (bin/fm-spawn.sh).
-fm_control_relaunch_resume_flag() {  # <harness> <registered-agent>
+fm_control_relaunch_resume_flag() {  # <harness> <registered-agent|--verified-session>
   case "${1-}" in
     pi|pi-signed)
       [ "${2-}" = pi ] && printf -- '--session'
+      ;;
+    claude)
+      [ "${2-}" = --verified-session ] && printf -- '--resume'
+      ;;
+  esac
+  return 0
+}
+
+# --- Claude exact-session resume (relaunch-only) ----------------------------
+#
+# A required restart of a Claude agent may have to keep its conversation, which
+# the brief on disk cannot reproduce. `fm-control.sh <id> relaunch
+# --resume-session <uuid>` carries one exact Claude session id into
+# `fm-spawn.sh --relaunch`, and these functions are the single owner of what
+# makes that id safe to resume. They are the second named exception to this
+# file's purity: they read Claude's own per-process session records and
+# transcript store, and nothing else.
+#
+# Claude Code keeps one record per running interactive process at
+# <config-dir>/sessions/<pid>.json ({"pid", "sessionId", "cwd", "procStart",
+# ...}; procStart is /proc/<pid>/stat field 22) and the conversation at
+# <config-dir>/projects/<cwd with every non-alphanumeric byte as '-'>/<id>.jsonl,
+# where <config-dir> is $CLAUDE_CONFIG_DIR or ~/.claude (verified Claude Code
+# 2.1.296). The check runs twice:
+#   owned     before the old agent is touched: exactly one live record names
+#             the id, that record's cwd is the task's working directory, and
+#             the transcript exists there. A missing, mismatched, or
+#             second-owned id refuses while nothing has changed.
+#   released  after the old agent is proven stopped, immediately before the
+#             launch: no live record names the id any more, so the replacement
+#             can never become a second process on one conversation, and the
+#             transcript is still there.
+# Nothing here ever chooses an id (no newest-file guess, no --continue, no
+# --fork-session), and a refusal never degrades to a fresh session.
+
+fm_control_claude_session_id_valid() {  # <session-id>
+  [[ "${1-}" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
+}
+
+# The Claude store a launch under <worker-account-selection> uses: the pinned
+# root, ~/.claude for a pin naming the ordinary account (which unsets
+# CLAUDE_CONFIG_DIR), and otherwise the forwarded $CLAUDE_CONFIG_DIR or
+# ~/.claude. <worker-account-selection> is fm_worker_account_select's output.
+fm_control_claude_config_dir() {  # [<worker-account-selection>]
+  local selection=${1-} root
+  if [ -n "$selection" ]; then
+    root=${selection#*$'\t'}
+    root=${root%%$'\t'*}
+    printf '%s' "${root:-${HOME:-}/.claude}"
+    return 0
+  fi
+  printf '%s' "${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}"
+}
+
+# Whether the process a session record names is still running: the pid answers,
+# and where /proc exposes it, the process is not an exited zombie and its start
+# time still equals the record's procStart, so a reused pid is not mistaken for
+# the recorded process.
+fm_control_claude_session_pid_live() {  # <pid> [<procStart>]
+  local pid=${1-} start=${2-} proc_root stat_line
+  local -a fields
+  case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+  proc_root=${FM_PROC_ROOT_OVERRIDE:-/proc}
+  kill -0 "$pid" 2>/dev/null || [ -d "$proc_root/$pid" ] || return 1
+  stat_line=$(cat "$proc_root/$pid/stat" 2>/dev/null) || return 0
+  read -r -a fields <<<"${stat_line##*) }"
+  [ "${fields[0]-}" != Z ] || return 1
+  [ -n "$start" ] || return 0
+  [ "${fields[19]-}" = "$start" ]
+}
+
+# One "<pid>\t<cwd>" line per LIVE session record naming <session-id>. Returns
+# 2 when the store cannot be read reliably: jq is missing, or a record that
+# mentions the id cannot be parsed, which could otherwise hide an owner.
+fm_control_claude_session_live_owners() {  # <config-dir> <session-id>
+  local dir=${1-}/sessions id=${2-} record row pid cwd start
+  command -v jq >/dev/null 2>&1 || return 2
+  [ -d "$dir" ] || return 0
+  for record in "$dir"/*.json; do
+    [ -f "$record" ] || continue
+    if ! row=$(jq -r --arg id "$id" \
+        'select(.sessionId == $id) | [(.pid // "" | tostring), (.cwd // ""), (.procStart // "" | tostring)] | @tsv' \
+        "$record" 2>/dev/null); then
+      grep -qF -- "$id" "$record" 2>/dev/null && return 2
+      continue
+    fi
+    [ -n "$row" ] || continue
+    IFS=$'\t' read -r pid cwd start <<<"$row"
+    [ -n "$pid" ] || pid=$(basename "$record" .json)
+    fm_control_claude_session_pid_live "$pid" "$start" || continue
+    printf '%s\t%s\n' "$pid" "$cwd"
+  done
+  return 0
+}
+
+# The refusal-or-success gate described above. Prints the reason on stderr and
+# returns nonzero on any refusal.
+fm_control_claude_session_verify() {  # <owned|released> <config-dir> <session-id> <cwd>
+  local phase=${1-} config=${2-} id=${3-} cwd=${4-} cwd_real owners rc owner_count owner_pid owner_cwd owner_real transcript
+  fm_control_claude_session_id_valid "$id" || {
+    echo "error: '$id' is not a well-formed Claude session id (lowercase 8-4-4-4-12 hex); refusing to resume" >&2
+    return 1
+  }
+  [ -n "$config" ] || { echo "error: no Claude config directory could be resolved; refusing to resume session $id" >&2; return 1; }
+  cwd_real=$(cd "$cwd" 2>/dev/null && pwd -P) || {
+    echo "error: working directory '$cwd' cannot be resolved; refusing to resume session $id" >&2
+    return 1
+  }
+  transcript="$config/projects/$(printf '%s' "$cwd_real" | sed 's/[^A-Za-z0-9]/-/g')/$id.jsonl"
+  if [ ! -f "$transcript" ] || [ -L "$transcript" ] || [ ! -s "$transcript" ]; then
+    echo "error: Claude session $id has no transcript at $transcript, so it is not a conversation of $cwd_real; refusing to resume" >&2
+    return 1
+  fi
+  rc=0
+  owners=$(fm_control_claude_session_live_owners "$config" "$id") || rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "error: Claude's session records under $config/sessions cannot be read reliably (jq missing or a record naming $id is unreadable), so ownership of session $id cannot be proven; refusing to resume" >&2
+    return 1
+  fi
+  owner_count=0
+  [ -z "$owners" ] || owner_count=$(printf '%s\n' "$owners" | wc -l | tr -d ' ')
+  case "$phase" in
+    owned)
+      if [ "$owner_count" -eq 0 ]; then
+        echo "error: no live Claude process records session $id under $config/sessions, so it cannot be proven to be this task's running conversation; refusing before anything is stopped" >&2
+        return 1
+      fi
+      if [ "$owner_count" -gt 1 ]; then
+        echo "error: Claude session $id is owned by more than one live process ($(printf '%s\n' "$owners" | cut -f1 | tr '\n' ' ')); refusing before anything is stopped" >&2
+        return 1
+      fi
+      IFS=$'\t' read -r owner_pid owner_cwd <<<"$owners"
+      owner_real=$(cd "$owner_cwd" 2>/dev/null && pwd -P) || owner_real=$owner_cwd
+      [ "$owner_real" = "$cwd_real" ] || {
+        echo "error: Claude session $id belongs to live process $owner_pid in '$owner_cwd', not to this task's working directory $cwd_real; refusing before anything is stopped" >&2
+        return 1
+      }
+      ;;
+    released)
+      [ "$owner_count" -eq 0 ] || {
+        echo "error: Claude session $id is still owned by live process(es) $(printf '%s\n' "$owners" | cut -f1 | tr '\n' ' ')- resuming it would put a second process on one conversation; refusing to launch" >&2
+        return 1
+      }
+      ;;
+    *)
+      echo "error: internal: unknown Claude session check phase '$phase'" >&2
+      return 1
       ;;
   esac
   return 0
