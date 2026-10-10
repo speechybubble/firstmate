@@ -2597,6 +2597,7 @@ test_resume_session_relaunch_resumes_a_secondmate_with_its_home_environment() {
   mkdir -p "$dir/smhome/state" "$dir/smhome/data" "$dir/smhome/bin"
   printf 'rsm1\n' > "$dir/smhome/.fm-secondmate-home"
   printf '# charter\n' > "$dir/smhome/data/charter.md"
+  printf '# agents\n' > "$dir/smhome/AGENTS.md"
   {
     echo "window=fmses:fm-rsm1"
     echo "endpoint_task_id=rsm1"
