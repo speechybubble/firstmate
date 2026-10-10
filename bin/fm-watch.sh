@@ -2732,16 +2732,18 @@ watcher_exit_if_world_gone() {
 # touched after each bounded unit of real progress (a finished check or window
 # record) once it has aged PROGRESS_BEAT_AGE, a third of the grace, so a long
 # scan keeps it well inside the grace while an ordinary quick cycle still beats
-# only at its top. A beat is taken only while this process still owns the
-# singleton - and, for a Codex-owned cycle, while that exact native owner still
-# owns the home - so a superseded watcher stands down instead of vouching for a
-# home it no longer supervises. Nothing touches it on a timer: a unit that never
-# finishes leaves the beacon to age into the guard warning, the attached arm's
-# stall bound, and the re-arm's eviction exactly as before.
+# only at its top and is otherwise untouched: below that age a beat does nothing
+# at all, leaving ownership and teardown to the top-of-cycle checks. A beat is
+# taken only while this process still owns the singleton - and, for a
+# Codex-owned cycle, while that exact native owner still owns the home - so a
+# superseded watcher stands down instead of vouching for a home it no longer
+# supervises. Nothing touches it on a timer: a unit that never finishes leaves
+# the beacon to age into the guard warning, the attached arm's stall bound, and
+# the re-arm's eviction exactly as before.
 watcher_progress_beat() {
+  [ "$(fm_path_age "$BEAT")" -ge "$PROGRESS_BEAT_AGE" ] || return 0
   watcher_exit_if_world_gone
   [ "$(cat "$WATCH_LOCK/pid" 2>/dev/null || true)" = "$WATCHER_PID" ] || exit 0
-  [ "$(fm_path_age "$BEAT")" -ge "$PROGRESS_BEAT_AGE" ] || return 0
   if [ -n "${FM_CODEX_WATCH_OWNER_PID:-}" ]; then
     fm_codex_watch_owner_valid || exit 0
   fi
