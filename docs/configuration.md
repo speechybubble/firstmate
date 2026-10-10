@@ -344,7 +344,8 @@ The running host reads these files at every wake, so an engine change or an opt-
 
 The opt-out is inherited into secondmate homes: a primary that opts out also opts its secondmates out, and clearing it restores each mate's own host setting at its next spawn or convergence.
 The primary-authoritative propagation contract, including removal of a mate's local opt-out when the primary has none, is owned by [`secondmate-provisioning`](../.agents/skills/secondmate-provisioning/SKILL.md).
-`config/supervision-node` is inherited into secondmate homes under the same primary-authoritative propagation, so a mate's host runs with the primary's Node selection on every ordinary launch and relaunch.
+`config/supervision-node` is inherited into local secondmate homes under the same primary-authoritative propagation, so a mate's host runs with the primary's Node selection on every ordinary launch and relaunch.
+It never crosses a remote route, because it names a path on the primary's machine: a remote secondmate home keeps its own `config/supervision-node`, or its absence and the `node` on its own `PATH`, and propagation neither writes nor removes that file there.
 `config/supervision-host` is local to each home and not inherited, because each home's engine and model are its own choice.
 While the home runs the host, main's lease-checked commands also take the per-task lease lock, so a claim by the host's engine cannot race a mutation main already started (`bin/fm-lease-lib.sh`).
 

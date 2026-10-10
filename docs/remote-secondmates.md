@@ -630,6 +630,7 @@ There is no two-phase journal and no additional tasks-axi release requirement.
 ### Inherited-material transfer
 
 Locked startup convergence and `bin/fm-config-push.sh` transfer only the declared inherited-material allowlist.
+That allowlist leaves out local-only items such as `config/supervision-node`, which name paths on the primary's machine; a remote home keeps its own copy or absence ([configuration](configuration.md#failures-when-changes-apply-and-inheritance)).
 Changed live routes receive a marked instruction to re-read the transferred files.
 The primary records that remote nudge before delivery and retries it during locked startup convergence after a failed send.
 Local secondmates retain their generation-specific local pointer contract.
