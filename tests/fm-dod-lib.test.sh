@@ -444,10 +444,6 @@ test_fenced_and_indented_captain_lines_are_not_intent
 test_pr_based_dod_draft_check_uses_gh_axi
 test_promotion_keeps_the_recorded_base_branch
 
-# The launch role is the generated text a worker receives. It must keep the
-# skill name, so a session that registers the skill loads it by name, and must
-# name the skill file as the fallback for a session where the name does not
-# resolve.
 # Both no-mistakes forges share one driving block, so review routing must follow
 # the installed pipeline agent on gerrit exactly as it does on a pull request.
 test_no_mistakes_review_routing_follows_installed_agent_on_every_forge() {
@@ -479,6 +475,10 @@ test_no_mistakes_review_routing_follows_installed_agent_on_every_forge() {
   pass "no-mistakes review routing follows the installed agent on every forge"
 }
 
+# The launch role is the generated text a worker receives. It must keep the
+# skill name, so a session that registers the skill loads it by name, and must
+# name the skill file as the fallback for a session where the name does not
+# resolve.
 test_worker_role_names_skill_and_fallback_file() {
   local role_file path
   role_file="$TMP_ROOT/worker-role.txt"
