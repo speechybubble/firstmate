@@ -2727,7 +2727,7 @@ EOF
   return 0
 }
 signal_crew_provably_working() {  # <file> ...
-  local f base dir task seen=""
+  local f base dir task seen="" working
   for f in "$@"; do
     base=${f##*/}
     dir=${f%/*}
@@ -2747,7 +2747,11 @@ signal_crew_provably_working() {  # <file> ...
     esac
     case " $seen " in *" $task "*) continue ;; esac
     seen="$seen $task"
-    crew_is_provably_working "$task" || return 1
+    if crew_is_provably_working "$task"; then working=1; else working=0; fi
+    if declare -F watcher_progress_beat >/dev/null; then
+      watcher_progress_beat
+    fi
+    [ "$working" -eq 1 ] || return 1
   done
   [ -n "$seen" ] || return 1
   return 0

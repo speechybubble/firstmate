@@ -8,7 +8,8 @@
 # progressing: guards reported supervision down and a re-arm refused the live
 # singleton. These real-process cases drive bin/fm-watch.sh against a hermetic
 # fleet whose current-state reader is deliberately slow, and pin:
-#   - a slow scan that keeps finishing records keeps the beacon fresh throughout;
+#   - a slow scan that keeps finishing records keeps the beacon fresh throughout,
+#     and so does slow triage of many coalesced signals;
 #   - a genuinely hung read still ages the beacon past the grace (no ticker
 #     hides it), is ended at its own total bound, and surfaces as not working;
 #   - newly arrived durable work interrupts a long scan between records, is
@@ -38,8 +39,9 @@ TMP_ROOT=$(fm_test_tmproot fm-watch-scan-progress-tests)
 GRACE=20
 
 # Replace make_case's fakes: a tmux that logs which target each capture read,
-# and a current-state reader that logs each read, sleeps per read, and hangs
-# for the ids named in FM_FAKE_CREW_STATE_HANG.
+# (or, with FM_FAKE_TMUX_CAPTURE_VARY, renders a fresh pane every capture so no
+# window ever reads stale), and a current-state reader that logs each read,
+# sleeps per read, and hangs for the ids named in FM_FAKE_CREW_STATE_HANG.
 install_scan_fakes() {  # <fakebin>
   local fakebin=$1
   cat > "$fakebin/tmux" <<'SH'
@@ -54,7 +56,11 @@ case "${1:-}" in
         && printf '%s\n' "$arg" >> "$FM_FAKE_TMUX_CAPTURE_LOG"
       prev=$arg
     done
-    printf 'idle prompt\n'
+    if [ -n "${FM_FAKE_TMUX_CAPTURE_VARY:-}" ]; then
+      printf 'rendering %s\n' "$(date +%s%N)$RANDOM"
+    else
+      printf 'idle prompt\n'
+    fi
     exit 0
     ;;
   display-message) printf '\n'; exit 0 ;;
@@ -182,6 +188,49 @@ test_slow_progressing_scan_keeps_beacon_fresh() {
   pass "a slow scan that keeps finishing records keeps the guard's beacon fresh past the grace"
 }
 
+# --- slow signal triage keeps the beacon fresh ------------------------------
+
+test_slow_signal_triage_keeps_beacon_fresh() {
+  local dir state fakebin out log tlog i n samples=0 down=0 first last ages=
+  dir=$(make_case slow-signal); state="$dir/state"; fakebin="$dir/fakebin"
+  out="$dir/watch.out"; log="$dir/crew-state.log"; tlog="$state/.watch-triage.log"
+  install_scan_fakes "$fakebin"
+  n=8
+  # Panes render on every capture, so the window scan never reads current
+  # state; every read below belongs to the coalesced signal triage.
+  for i in $(seq 1 "$n"); do add_window "$state" "sig$i" "working: starting part $i"; done
+  start_watcher "$state" "$fakebin" "$out" FM_FAKE_CREW_STATE_LOG="$log" \
+    FM_FAKE_CREW_STATE_SLEEP=3 FM_FAKE_TMUX_CAPTURE_VARY=1 FM_SIGNAL_GRACE=2
+  i=0
+  while [ "$i" -lt 100 ] && [ ! -e "$state/.last-watcher-beat" ]; do sleep 0.1; i=$((i + 1)); done
+  sleep 2
+  [ "$(line_count "$log")" -eq 0 ] || { reap_watcher; fail "the window scan read current state: $(cat "$log")"; }
+  for i in $(seq 1 "$n"); do printf 'working: building part %s\n' "$i" >> "$state/sig$i.status"; done
+  i=0
+  while [ "$i" -lt 1200 ] && [ "$(line_count "$log")" -lt "$n" ]; do
+    samples=$((samples + 1))
+    if ! guard_healthy "$state"; then
+      down=$((down + 1))
+      ages="$ages $(beacon_age "$state")s"
+    fi
+    sleep 0.25
+    i=$((i + 1))
+  done
+  i=0
+  while [ "$i" -lt 100 ] && ! grep -q 'absorbed benign signal:' "$tlog" 2>/dev/null; do sleep 0.1; i=$((i + 1)); done
+  first=$(head -1 "$log" 2>/dev/null | awk '{print $2}')
+  last=$(tail -1 "$log" 2>/dev/null | awk '{print $2}')
+  is_live_non_zombie "$WATCHER_PID" || fail "watcher exited during benign slow signal triage: $(cat "$out" "$out.err")"
+  reap_watcher
+  [ "$(line_count "$log")" -eq "$n" ] || fail "signal triage did not read every signalled task once: $(cat "$log")"
+  [ $((last + 3 - first)) -ge "$GRACE" ] || fail "fixture triage finished in $((last + 3 - first))s, inside the ${GRACE}s grace"
+  [ "$samples" -gt 10 ] || fail "too few guard samples ($samples)"
+  [ "$down" -eq 0 ] || fail "guard read progressing signal triage as supervision down in $down of $samples samples (beacon ages:$ages)"
+  grep -q 'absorbed benign signal:' "$tlog" || fail "the working notes were not absorbed as benign: $(cat "$tlog")"
+  [ ! -s "$out" ] || fail "benign slow signal triage woke firstmate: $(cat "$out")"
+  pass "slow signal triage that keeps finishing per-task reads keeps the guard's beacon fresh past the grace"
+}
+
 reap_watcher() {
   kill "$WATCHER_PID" 2>/dev/null || true
   wait_for_exit "$WATCHER_PID" 100 || true
@@ -239,7 +288,7 @@ test_hung_observation_ages_beacon_then_surfaces() {
 # --- new work interrupts a long scan; neighbors are still covered -----------
 
 test_new_work_yields_scan_and_coverage_resumes() {
-  local dir state fakebin out log caplog drain_out i start end task rows
+  local dir state fakebin out log caplog drain_out i task rows
   dir=$(make_case yield-scan); state="$dir/state"; fakebin="$dir/fakebin"
   out="$dir/watch.out"; log="$dir/crew-state.log"; caplog="$dir/capture.log"; drain_out="$dir/drain.out"
   install_scan_fakes "$fakebin"
@@ -384,6 +433,7 @@ test_arm_follows_slow_scan_and_rearm_attaches() {
 }
 
 test_slow_progressing_scan_keeps_beacon_fresh
+test_slow_signal_triage_keeps_beacon_fresh
 test_hung_observation_ages_beacon_then_surfaces
 test_new_work_yields_scan_and_coverage_resumes
 test_owner_change_mid_scan_stands_down

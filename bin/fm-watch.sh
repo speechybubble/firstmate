@@ -749,7 +749,11 @@ signal_turnend_panes_churned() {  # <file> ...
   done
   for ((i = 0; i < ${#signal_tasks[@]}; i++)); do
     task=${signal_tasks[$i]}
-    crew_is_provably_working "$task" && continue
+    if crew_is_provably_working "$task"; then
+      watcher_progress_beat
+      continue
+    fi
+    watcher_progress_beat
     task_index=${signal_indexes[$i]}
     churn_indexes+=("$task_index")
   done
