@@ -280,10 +280,6 @@ WATCHER_STALE_GRACE=${FM_WATCHER_STALE_GRACE:-${FM_GUARD_GRACE:-$(fm_poll_derive
 # fm_watcher_stall_bound (bin/fm-wake-lib.sh) owns the derivation, shared with
 # the arm that follows this watcher.
 WATCHER_STALL_BOUND=$(fm_watcher_stall_bound "$POLL")
-# How long the window scan runs before it checks for newly arrived durable work
-# between records (watcher_scan_should_yield). Defaults to one poll.
-SCAN_SLICE_SECS=${FM_WATCH_SCAN_SLICE_SECS:-$POLL}
-case "$SCAN_SLICE_SECS" in ''|*[!0-9]*) SCAN_SLICE_SECS=$POLL ;; esac
 # Beacon age past which a finished unit of scan work refreshes it
 # (watcher_progress_beat).
 PROGRESS_BEAT_AGE=$((WATCHER_STALE_GRACE / 3))
@@ -3186,12 +3182,12 @@ EOF
   while IFS= read -r w; do
     # Each record is a bounded unit: its current-state reads are bounded in
     # total (crew_state_observe in fm-classify-lib.sh) and its pane capture is
-    # interruptible. Record the progress, and once a slice has run for
-    # SCAN_SLICE_SECS hand newly arrived durable work to the top of the cycle
+    # interruptible. Record the progress, and once a slice has run for one
+    # POLL hand newly arrived durable work to the top of the cycle
     # rather than holding it behind the rest of the scan.
     watcher_progress_beat
     if [ "$scan_records" -gt 0 ] \
-      && [ "$(( $(date +%s) - scan_slice_start ))" -ge "$SCAN_SLICE_SECS" ]; then
+      && [ "$(( $(date +%s) - scan_slice_start ))" -ge "$POLL" ]; then
       if watcher_scan_should_yield; then
         triage_log "window scan yielded to newly arrived work after $scan_records records"
         scan_yielded=1

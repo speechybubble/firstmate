@@ -277,8 +277,12 @@ test_hung_observation_ages_beacon_then_surfaces() {
   start_watcher "$state" "$fakebin" "$out" FM_FAKE_CREW_STATE_LOG="$log" \
     FM_FAKE_CREW_STATE_HANG=a-hang FM_CREW_STATE_OBSERVE_TIMEOUT=$((GRACE + 4))
   wait_for_lines "$log" 3 100 || { reap_watcher; fail "later records were not covered after the hang: $(cat "$log")"; }
-  grep -q '^b-next ' "$log" && grep -q '^c-last ' "$log" \
-    || { reap_watcher; fail "the resumed scan skipped a later record: $(cat "$log")"; }
+  if grep -q '^b-next ' "$log" && grep -q '^c-last ' "$log"; then
+    :
+  else
+    reap_watcher
+    fail "the resumed scan skipped a later record: $(cat "$log")"
+  fi
   [ "$(sed -n 2p "$log" | awk '{print $1}')" = b-next ] \
     || { reap_watcher; fail "the resumed scan restarted at the hung record: $(cat "$log")"; }
   reap_watcher
@@ -304,7 +308,7 @@ test_new_work_yields_scan_and_coverage_resumes() {
   prime_status_seen "$state" "$state/other.status"
 
   start_watcher "$state" "$fakebin" "$out" FM_FAKE_CREW_STATE_LOG="$log" \
-    FM_FAKE_TMUX_CAPTURE_LOG="$caplog" FM_FAKE_CREW_STATE_SLEEP=2 FM_WATCH_SCAN_SLICE_SECS=2
+    FM_FAKE_TMUX_CAPTURE_LOG="$caplog" FM_FAKE_CREW_STATE_SLEEP=2 FM_POLL=2
   wait_for_lines "$log" 2 300 || { reap_watcher; fail "scan did not start"; }
   printf 'needs-decision: choose the export format\n' >> "$state/other.status"
   wait_for_exit "$WATCHER_PID" 300 || fail "new durable work was held behind the scan"
@@ -322,7 +326,7 @@ test_new_work_yields_scan_and_coverage_resumes() {
   # resumes until every neighbor, including the ones after the yield, is read.
   : > "$out"
   start_watcher "$state" "$fakebin" "$out" FM_FAKE_CREW_STATE_LOG="$log" \
-    FM_FAKE_TMUX_CAPTURE_LOG="$caplog" FM_FAKE_CREW_STATE_SLEEP=1 FM_WATCH_SCAN_SLICE_SECS=2
+    FM_FAKE_TMUX_CAPTURE_LOG="$caplog" FM_FAKE_CREW_STATE_SLEEP=1 FM_POLL=2
   i=0
   while [ "$i" -lt 900 ]; do
     rows=0
@@ -336,8 +340,11 @@ test_new_work_yields_scan_and_coverage_resumes() {
   is_live_non_zombie "$WATCHER_PID" || fail "re-armed watcher exited: $(cat "$out")"
   reap_watcher
   [ "$rows" -eq 8 ] || fail "only $rows of 8 neighbors were covered: $(sort -u "$caplog" | tr '\n' ' ')"
-  grep -q '^w5-paused ' "$log" && grep -q '^w6-held ' "$log" \
-    || fail "paused or held neighbor was not reconciled: $(cat "$log")"
+  if grep -q '^w5-paused ' "$log" && grep -q '^w6-held ' "$log"; then
+    :
+  else
+    fail "paused or held neighbor was not reconciled: $(cat "$log")"
+  fi
   ! grep -q '^w7-retained ' "$log" || fail "the retained neighbor paid a current-state read"
   [ ! -s "$out" ] || fail "the acknowledged decision was delivered again: $(cat "$out")"
   pass "new work interrupts a long scan once, and paused, held, retained, and later neighbors are still covered"
@@ -395,7 +402,7 @@ test_arm_follows_slow_scan_and_rearm_attaches() {
       FM_SECONDMATE_LIVENESS_SECS=99999999 FM_STALE_ESCALATE_SECS=999 \
       FM_WATCHER_STALE_GRACE="$GRACE" FM_GUARD_GRACE="$GRACE" FM_WATCHER_STALL_BOUND=600 \
       FM_FAKE_TMUX_WINDOWS="$(windows_of "$state")" FM_FAKE_CREW_STATE_LOG="$log" \
-      FM_FAKE_CREW_STATE_SLEEP=3 FM_WATCH_SCAN_SLICE_SECS=600 \
+      FM_FAKE_CREW_STATE_SLEEP=3 \
       FM_ARM_ATTACH_POLL=0.1 FM_ARM_CONFIRM_TIMEOUT=30 "$@"
   }
   arm_env "$WATCH_ARM" > "$armout" &
