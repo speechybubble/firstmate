@@ -1,0 +1,33 @@
+== primary config/supervision-node: /tmp/nm-node24/node-v24.14.0-linux-x64/bin/node
+== remote home config/supervision-node BEFORE: /remote/machine/own/node
+== remote push (real fm-remote-inherit-push.sh -> fm-remote-inherit.sh over a local ssh shim):
+unchanged: config/crew-dispatch.json
+unchanged: config/dispatch-never-send
+unchanged: config/crew-harness
+unchanged: config/backlog-backend
+unchanged: config/backend
+unchanged: config/herdr-presentation-spaces
+unchanged: config/startup-memory-budget
+unchanged: config/trace-context
+unchanged: config/launch-env-allowlist
+unchanged: config/claude-permission-mode
+unchanged: config/lavish-axi-host
+unchanged: config/keep-ai-trailers
+pushed: config/supervision-host-off
+unchanged: data/captain-shared.md
+rc=0
+== remote home config after push:
+supervision-host-off
+supervision-node
+== remote home config/supervision-node AFTER: /remote/machine/own/node
+== remote supervision-host-off inherited: x
+== local secondmate propagation (propagate_secondmate_inheritance):
+rc=0
+== local home config/supervision-node: /tmp/nm-node24/node-v24.14.0-linux-x64/bin/node
+== local mate host node selection:
+rc=0 FM_SUPERVISION_NODE=/tmp/nm-node24/node-v24.14.0-linux-x64/bin/node
+== remote home host node selection (own path missing on this machine, so refused with reason):
+rc=1 problem=config/supervision-node names /remote/machine/own/node, which is not an executable file
+== primary has NO config/supervision-node; push generation 2:
+rc=0
+== remote config/supervision-node still: /remote/machine/own/node

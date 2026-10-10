@@ -1,0 +1,12 @@
+PATH node in host env: v22.22.1 typescript=false
+config/supervision-node: /tmp/nm-node24/node-v24.14.0-linux-x64/bin/node -> v24.14.0 typescript=strip
+--- host ledger
+1791659191	start	gen=host-743251-1791659191	primary=claude
+1791659211	handled	turn=host-743251-1791659191.1	posture=attended	rc=0	reports=1	error=0 cost=0.25 conversation_cost=0.25 input=5 cache_read=100 cache_write=10 output=20 turns=3	signal: /tmp/fm-supervision-host.YGmFYE/live-n24/state/demo.status
+engine calls: 1
+ok - LIVE: real Node 24 named by config/supervision-node handles the attended close on the engine while PATH node is v22 without stripping
+--- host ledger
+1791659214	start	gen=host-756448-1791659214	primary=claude
+1791659219	pass-through	attended	branch eligibility could not be computed	signal: /tmp/fm-supervision-host.YGmFYE/live-n22/state/demo.status
+engine calls: 0
+ok - LIVE baseline: without the file, PATH node v22 cannot compute eligibility and the close reaches main (the migration problem)
