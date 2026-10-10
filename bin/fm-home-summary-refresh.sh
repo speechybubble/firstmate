@@ -114,7 +114,11 @@ home_summary_fail() {
 # fresh temporary file over it; an absent ledger reads as empty.
 home_summary_ledger_identity() {
   [ -e "$LEDGER" ] || return 0
-  ls -di -- "$LEDGER" 2>/dev/null | awk '{print $1}'
+  if [ "$(uname)" = Darwin ]; then
+    /usr/bin/stat -f %i "$LEDGER" 2>/dev/null
+  else
+    stat -c %i "$LEDGER" 2>/dev/null
+  fi
 }
 
 # An idle-only refresh steps aside for an in-flight publication, but its request
