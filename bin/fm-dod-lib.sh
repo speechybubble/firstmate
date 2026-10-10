@@ -67,6 +67,8 @@
 # report, read back from the forge; a lane that deliberately holds a draft
 # declares a paused wait instead. bin/fm-pr-check.sh refuses to arm merge
 # monitoring on a draft through the same reading bin/fm-pr-merge.sh uses.
+# Its no-mistakes model routing comes from fm_nm_review_routing below, which
+# reads the installed No Mistakes pipeline agent when the block is rendered.
 # This file is the one owner of the no-mistakes `--intent` contract: only the
 # brief's `## Captain's intent` subsection plus later captain words, never
 # `## Firstmate spec` and never the worker's own tradeoffs.
@@ -325,6 +327,78 @@ fm_ask_user_escalation_block() {  # <data-dir> <task-id>
 EOF
 }
 
+# _fm_nm_config_value <file> <dotted.key.path> prints one scalar from the
+# block-style YAML No Mistakes writes, or nothing when the key is absent or its
+# value is not a plain token. Values reach a brief verbatim, so anything outside
+# a conservative identifier charset is treated as unreadable rather than quoted.
+_fm_nm_config_value() {  # <file> <dotted.key.path>
+  [ -r "$1" ] || return 0
+  awk -v want="$2" '
+    /^[[:space:]]*(#|$)/ { next }
+    {
+      line = $0
+      match(line, /^ */); indent = RLENGTH
+      rest = substr(line, indent + 1)
+      if (rest !~ /^[A-Za-z0-9_.-]+:/) next
+      key = rest; sub(/:.*/, "", key)
+      val = rest; sub(/^[^:]*:[[:space:]]*/, "", val)
+      sub(/[[:space:]]+#.*$/, "", val); sub(/[[:space:]]+$/, "", val)
+      if (val ~ /^".*"$/ || val ~ /^\047.*\047$/) val = substr(val, 2, length(val) - 2)
+      while (depth > 0 && indents[depth] >= indent) depth--
+      depth++; keys[depth] = key; indents[depth] = indent
+      path = keys[1]; for (k = 2; k <= depth; k++) path = path "." keys[k]
+      if (path == want) {
+        if (val ~ /^[A-Za-z0-9_.\/:@+-]+$/) print val
+        exit
+      }
+    }' "$1"
+}
+
+# fm_nm_review_routing prints the no-mistakes model-routing instructions for the
+# pipeline agent installed when the brief is written. The global No Mistakes
+# config (`${NM_HOME:-~/.no-mistakes}/config.yaml`) is the authority: `agent:`
+# names the pipeline agent and `agent_config.<agent>` its model and effort.
+# `no-mistakes axi run --help` documents `--model`/`--effort` as Pi-profile pins
+# that require Pi-only agents, so a native agent is started without them and a Pi
+# agent keeps the explicit pin. An unreadable agent stops the worker before the
+# pipeline instead of guessing a provider. Firstmate only reads this file.
+# shellcheck disable=SC2016  # the backticks are literal Markdown in the rendered brief
+fm_nm_review_routing() {
+  local cfg agent model effort selection
+  cfg="${NM_HOME:-$HOME/.no-mistakes}/config.yaml"
+  agent=$(_fm_nm_config_value "$cfg" agent)
+  case "$agent" in
+    '')
+      printf 'Model routing: firstmate could not read the No Mistakes pipeline agent from `%s` when writing this brief. Before starting the pipeline, report that configuration gap to firstmate; never guess with `--model`, `--effort`, or any provider profile, and never rewrite shared global settings.\n' "$cfg"
+      ;;
+    pi)
+      model=$(_fm_nm_config_value "$cfg" agent_config.pi.model)
+      if [ -z "$model" ]; then
+        printf 'Model routing: the No Mistakes pipeline agent configured in `%s` is Pi, but `agent_config.pi.model` is not readable there. Before starting the pipeline, report that configuration gap to firstmate; never guess a provider profile and never rewrite shared global settings.\n' "$cfg"
+        return 0
+      fi
+      printf 'Model routing: the No Mistakes pipeline agent configured in `%s` is Pi, so validation pins an immutable Pi profile. Require the installed `no-mistakes axi run --help` to support `--model` and `--effort` and the configured pipeline agents to be Pi-only; if either precondition fails, report the version/configuration mismatch to firstmate before starting the pipeline, and never temporarily rewrite shared global settings.\n' "$cfg"
+      printf 'Start an ordinary validation with `--model %s --effort medium`; use `--model %s --effort high` for a difficult validation. Follow firstmate'"'"'s classification in the task specification; if none is recorded, assess the work before starting and record whether the review is ordinary or difficult. A difficult pin applies to every duty in that run, including reviewer and fixer.\n' "$model" "$model"
+      printf 'Confirm that the returned `pi_profile` matches the requested model and effort. Reattach to that run with selection flags omitted; its pin is immutable. When starting a new rerun, explicitly supply the same model and medium/high effort again because an unflagged rerun uses current global defaults.\n'
+      ;;
+    *)
+      model=$(_fm_nm_config_value "$cfg" "agent_config.$agent.model")
+      effort=$(_fm_nm_config_value "$cfg" "agent_config.$agent.effort")
+      selection=
+      if [ -n "$model" ] && [ -n "$effort" ]; then
+        selection=" with model \`$model\` and effort \`$effort\`"
+      elif [ -n "$model" ]; then
+        selection=" with model \`$model\`"
+      elif [ -n "$effort" ]; then
+        selection=" with effort \`$effort\`"
+      fi
+      printf 'Model routing: the No Mistakes pipeline uses the native `%s` agent configured in `%s`%s. Start validation WITHOUT `--model` or `--effort`: those flags pin Pi profiles only and conflict with a native agent. Never fall back to a Pi, `openai-codex`, or other provider profile, and never rewrite shared global settings.\n' \
+        "$agent" "$cfg" "$selection"
+      printf 'If the run reports a `pi_profile`, or an agent or model other than the configured `%s` agent and model, stop and report the mismatch to firstmate before driving it further.\n' "$agent"
+      ;;
+  esac
+}
+
 # The forge-independent middle of the no-mistakes contract: how a worker drives
 # the pipeline, what `--intent` may carry, and the two firstmate-specific rules.
 # Written once; only the two sentences about a green PR depend on the forge,
@@ -355,9 +429,9 @@ ${pr_return_line}Whenever a drive call returns without a gate or an outcome - it
   cat <<EOF
 You drive no-mistakes by responding to its gates, not by implementing fixes.
 Follow the guidance no-mistakes itself provides for the mechanics: it loads when you invoke /no-mistakes, and \`no-mistakes axi run --help\` plus the \`help\` lines in each \`axi\` response are authoritative and version-matched to the installed binary.
-For model and effort routing, require the installed No Mistakes help to support \`--model\` and \`--effort\` and the configured pipeline harness to be Pi-only. If those preconditions fail, report the version/configuration mismatch to firstmate before starting the pipeline; never temporarily rewrite shared global settings.
-Start an ordinary validation with \`--model openai-codex/gpt-6-astra --effort medium\`; use \`--model openai-codex/gpt-6-astra --effort high\` for a difficult validation. Follow firstmate's classification in the task specification; if none is recorded, assess the work before starting and record whether the review is ordinary or difficult. A difficult pin applies to every duty in that run, including reviewer and fixer.
-Confirm that the returned \`pi_profile\` matches the requested model and effort. Reattach to that run with selection flags omitted; its pin is immutable. When starting a new rerun, explicitly supply the same intended Astra model and medium/high effort again because an unflagged rerun uses current global defaults.
+EOF
+  fm_nm_review_routing
+  cat <<EOF
 When starting no-mistakes, pass \`--intent\` as only this brief's \`## Captain's intent\` subsection body, not its heading, plus any later words the captain actually said.
 Preserve the actual words without adding speaker labels or direct address; the subsection heading supplies provenance outside the pipeline input.
 For a legacy brief with no such subsection, include only words on lines marked \`[captain] \`, excluding that metadata prefix; never copy its mixed \`# Task\` wholesale.

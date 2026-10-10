@@ -448,6 +448,37 @@ test_promotion_keeps_the_recorded_base_branch
 # skill name, so a session that registers the skill loads it by name, and must
 # name the skill file as the fallback for a session where the name does not
 # resolve.
+# Both no-mistakes forges share one driving block, so review routing must follow
+# the installed pipeline agent on gerrit exactly as it does on a pull request.
+test_no_mistakes_review_routing_follows_installed_agent_on_every_forge() {
+  local nm out forge
+  nm="$TMP_ROOT/routing-nm"
+  mkdir -p "$nm"
+  for forge in none gerrit; do
+    printf '%s\n' 'agent: claude' 'agent_config:' '  claude:' '    model: claude-opus-5-5' '    effort: medium' > "$nm/config.yaml"
+    out=$(NM_HOME="$nm" fm_dod_block no-mistakes routing-task fm/routing-task "$forge") \
+      || fail "fm_dod_block no-mistakes failed on forge $forge"
+    case "$out" in
+      *"native \`claude\` agent configured in \`$nm/config.yaml\` with model \`claude-opus-5-5\` and effort \`medium\`"*) ;;
+      *) fail "forge $forge: native routing did not name the configured agent and model" ;;
+    esac
+    case "$out" in
+      *"Start an ordinary validation with"*|*"Pi-only"*) fail "forge $forge: native routing still teaches a Pi pin" ;;
+    esac
+    printf '%s\n' 'agent: pi' 'agent_config:' '  pi:' '    model: openai-codex/pinned-test' > "$nm/config.yaml"
+    out=$(NM_HOME="$nm" fm_dod_block no-mistakes routing-task fm/routing-task "$forge") \
+      || fail "fm_dod_block no-mistakes failed on forge $forge"
+    case "$out" in
+      *"\`--model openai-codex/pinned-test --effort medium\`"*) ;;
+      *) fail "forge $forge: Pi routing did not pin the configured Pi model" ;;
+    esac
+    case "$out" in
+      *"Start validation WITHOUT"*) fail "forge $forge: Pi routing rendered native guidance" ;;
+    esac
+  done
+  pass "no-mistakes review routing follows the installed agent on every forge"
+}
+
 test_worker_role_names_skill_and_fallback_file() {
   local role_file path
   role_file="$TMP_ROOT/worker-role.txt"
@@ -463,6 +494,7 @@ test_worker_role_names_skill_and_fallback_file() {
   pass "worker role names the skill and its fallback skill file"
 }
 
+test_no_mistakes_review_routing_follows_installed_agent_on_every_forge
 test_worker_role_names_skill_and_fallback_file
 
 echo "all fm-dod-lib tests passed"
