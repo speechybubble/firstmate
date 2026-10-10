@@ -1,0 +1,8 @@
+agent: claude
+agent_path_override:
+  claude: /home/denni/.local/bin/claude
+agent_config:
+  claude:
+    model: claude-opus-5-5
+    effort: medium
+session_reuse: true

@@ -1,0 +1,5 @@
+agent: claude
+agent_config:
+  claude:
+    model: "x`$(id)`"
+    effort: medium

@@ -1,0 +1,4 @@
+agent: pi
+agent_config:
+  pi:
+    model: openai-codex/gpt-6-astra

