@@ -1096,7 +1096,7 @@ record_note() {
 }
 
 do_relaunch() {
-  local exit_result state note_line resume_home resume_root
+  local exit_result state note_line resume_root
   local -a spawn_args
 
   require_state_verified_backend relaunch
@@ -1134,12 +1134,10 @@ do_relaunch() {
     # back to a fresh session.
     [ "$PRIOR_RECORDED_HARNESS" = claude ] && [ "$TARGET_HARNESS" = claude ] \
       || die "--resume-session resumes a Claude conversation on Claude, but task $ID records harness '$PRIOR_RECORDED_HARNESS' and the replacement would run '$TARGET_HARNESS'; refusing before anything is stopped"
-    resume_home=$FM_HOME
-    [ "$KIND" != secondmate ] || resume_home=$WT
     resume_root=
     [ "$(agent_state)" != alive ] || resume_root=$(fm_backend_pane_root_pid "$BACKEND" "$T") || resume_root=
     fm_control_claude_session_verify owned "$(fm_control_claude_config_dir "$RELAUNCH_ACCOUNT")" "$RESUME_SESSION" "$WT" \
-        "$ID" "$KIND" "$STATE/$ID.inbox" "$resume_home" "$resume_root" \
+        "$ID" "$KIND" "$STATE/$ID.inbox" "$resume_root" \
       || die "relaunch of $ID with --resume-session $RESUME_SESSION refused before its agent was touched"
     CHECKPOINT_LINES+=("resume_session=$RESUME_SESSION")
   fi

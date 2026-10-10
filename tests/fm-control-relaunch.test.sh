@@ -2615,51 +2615,75 @@ test_resume_session_relaunch_resumes_the_exact_worker_conversation() {
 }
 
 test_resume_session_relaunch_resumes_a_secondmate_with_its_home_environment() {
-  local dir home out rc launch
+  local dir home out rc launch binding
   command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
-  dir=$(new_case resume-sm rsm1)
-  home="$dir/home"
-  mkdir -p "$home/config"
-  printf 'claude\n' > "$home/config/secondmate-harness"
-  fm_git_worktree "$dir/proj" "$dir/smhome" sm-branch
-  mkdir -p "$dir/smhome/state" "$dir/smhome/data" "$dir/smhome/bin"
-  printf 'rsm1\n' > "$dir/smhome/.fm-secondmate-home"
-  printf '# charter\n' > "$dir/smhome/data/charter.md"
-  printf '# agents\n' > "$dir/smhome/AGENTS.md"
-  {
-    echo "window=fmses:fm-rsm1"
-    echo "endpoint_task_id=rsm1"
-    echo "worktree=$dir/smhome"
-    echo "project=$dir/smhome"
-    echo "harness=claude"
-    echo "kind=secondmate"
-    echo "mode=secondmate"
-    echo "yolo=off"
-    echo "model=default"
-    echo "effort=default"
-    echo "home=$dir/smhome"
-    echo "projects="
-  } > "$home/state/rsm1.meta"
-  printf '%s\n' "fm-rsm1" > "$dir/fake/windows"
-  printf '%s' "$dir/smhome" > "$dir/fake/cwd"
-  claude_transcript_fixture "$dir" "$dir/smhome" "$RESUME_UUID"
-  # Launched before the FM_TASK_INBOX export existed, as the live Trelume
-  # secondmate was: bound through its endpoint's process tree and its home.
-  claude_owner_fixture "$dir" "$dir/smhome" "$RESUME_UUID" --in-pane FM_HOME="$dir/smhome"
+  for binding in legacy inbox; do
+    dir=$(new_case "resume-sm-$binding" rsm1)
+    home="$dir/home"
+    mkdir -p "$home/config"
+    printf 'claude\n' > "$home/config/secondmate-harness"
+    fm_git_worktree "$dir/proj" "$dir/smhome" sm-branch
+    mkdir -p "$dir/smhome/state" "$dir/smhome/data" "$dir/smhome/bin"
+    printf 'rsm1\n' > "$dir/smhome/.fm-secondmate-home"
+    printf '# charter\n' > "$dir/smhome/data/charter.md"
+    printf '# agents\n' > "$dir/smhome/AGENTS.md"
+    {
+      echo "window=fmses:fm-rsm1"
+      echo "endpoint_task_id=rsm1"
+      echo "worktree=$dir/smhome"
+      echo "project=$dir/smhome"
+      echo "harness=claude"
+      echo "kind=secondmate"
+      echo "mode=secondmate"
+      echo "yolo=off"
+      echo "model=default"
+      echo "effort=default"
+      echo "home=$dir/smhome"
+      echo "projects="
+    } > "$home/state/rsm1.meta"
+    printf '%s\n' "fm-rsm1" > "$dir/fake/windows"
+    printf '%s' "$dir/smhome" > "$dir/fake/cwd"
+    claude_transcript_fixture "$dir" "$dir/smhome" "$RESUME_UUID"
+    if [ "$binding" = legacy ]; then
+      # Launched before the FM_TASK_INBOX export existed, as the live Trelume
+      # secondmate was: bound through its endpoint's process tree and its home.
+      claude_owner_fixture "$dir" "$dir/smhome" "$RESUME_UUID" --in-pane FM_HOME="$dir/smhome"
+    else
+      claude_owner_fixture "$dir" "$dir/smhome" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rsm1)" FM_HOME="$dir/smhome"
+    fi
 
-  out=$(run_control "$dir" rsm1 relaunch --resume-session "$RESUME_UUID"); rc=$?
-  expect_code 0 "$rc" "a verified secondmate resume should succeed"$'\n'"$out"
+    out=$(run_control "$dir" rsm1 relaunch --resume-session "$RESUME_UUID"); rc=$?
+    expect_code 0 "$rc" "a verified secondmate resume should succeed"$'\n'"$out"
+    launch=$(resume_launch_line "$dir")
+    assert_contains "$launch" "--resume '$RESUME_UUID'" "the secondmate must resume its exact session"
+    assert_contains "$launch" "FM_HOME='$dir/smhome'" "the secondmate's own home must stay its FM_HOME"
+    assert_contains "$launch" "FM_SUPERVISION_MODEL=autoarm" "the secondmate supervision environment must stay"
+    assert_contains "$launch" "FM_TASK_INBOX=" "the inbox export must stay on the launch"
+    assert_not_contains "$launch" "--append-system-prompt" "a secondmate never receives the task-worker contract"
+    assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
+      "a resumed secondmate must not be handed its launch brief again"
+    [ "$(cat "$dir/smhome/data/charter.md")" = "# charter" ] || fail "the charter must stay untouched"
+    [ "$(meta_field "$dir" rsm1 kind)" = secondmate ] || fail "the record must stay a secondmate"
+  done
+  pass "fm-control relaunch --resume-session: a secondmate resumes in its own home environment, bound by FM_TASK_INBOX or, launched before it, by its endpoint and home"
+}
+
+test_resume_session_relaunch_resumes_a_legacy_worker_bound_by_endpoint_and_task_id() {
+  local dir out rc launch
+  command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
+  dir=$(new_case resume-legacy-worker rlw1)
+  add_ship_task "$dir" rlw1 claude
+  claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+  # A ship launched before the FM_TASK_INBOX export existed carries only the
+  # FM_TASK_ID its pane was marked with; its FM_HOME is unset.
+  claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_TASK_ID=rlw1
+  out=$(run_control "$dir" rlw1 relaunch --resume-session "$RESUME_UUID" --note "cutover restart"); rc=$?
+  expect_code 0 "$rc" "a legacy worker bound by its endpoint and task id should resume"$'\n'"$out"
   launch=$(resume_launch_line "$dir")
-  assert_contains "$launch" "--resume '$RESUME_UUID'" "the secondmate must resume its exact session"
-  assert_contains "$launch" "FM_HOME='$dir/smhome'" "the secondmate's own home must stay its FM_HOME"
-  assert_contains "$launch" "FM_SUPERVISION_MODEL=autoarm" "the secondmate supervision environment must stay"
-  assert_contains "$launch" "FM_TASK_INBOX=" "the inbox export must stay on the launch"
-  assert_not_contains "$launch" "--append-system-prompt" "a secondmate never receives the task-worker contract"
+  assert_contains "$launch" "--resume '$RESUME_UUID'" "the legacy worker must resume its exact session"
   assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
-    "a resumed secondmate must not be handed its launch brief again"
-  [ "$(cat "$dir/smhome/data/charter.md")" = "# charter" ] || fail "the charter must stay untouched"
-  [ "$(meta_field "$dir" rsm1 kind)" = secondmate ] || fail "the record must stay a secondmate"
-  pass "fm-control relaunch --resume-session: a legacy secondmate without FM_TASK_INBOX resumes through its endpoint and home"
+    "a resumed legacy worker must not be handed the launch brief again"
+  pass "fm-control relaunch --resume-session: a legacy worker without FM_TASK_INBOX or FM_HOME resumes through its endpoint and FM_TASK_ID"
 }
 
 # Each refusal must happen while the old agent is still running: nothing is
@@ -2684,7 +2708,7 @@ test_resume_session_refusals_happen_before_the_agent_stops() {
   local dir out rc scenario
   command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
   for scenario in malformed missing mismatched elsewhere no-transcript already-owned not-claude \
-      foreign-interactive other-task foreign-in-pane-home foreign-in-pane-task; do
+      foreign-interactive other-task in-pane-no-task-id foreign-in-pane-task; do
     dir=$(new_case "resume-refuse-$scenario" rr1)
     add_ship_task "$dir" rr1 claude
     case "$scenario" in
@@ -2732,7 +2756,7 @@ test_resume_session_refusals_happen_before_the_agent_stops() {
         # An interactive claude someone opened in the same worktree owns the
         # id; the task's own agent is a different, running process.
         claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
-        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_HOME="$dir/home"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_TASK_ID=rr1
         want="not in task rr1's endpoint process tree"
         ;;
       other-task)
@@ -2740,15 +2764,14 @@ test_resume_session_refusals_happen_before_the_agent_stops() {
         claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rr2)"
         want="not task rr1"
         ;;
-      foreign-in-pane-home)
+      in-pane-no-task-id)
         claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
-        mkdir -p "$dir/otherhome"
-        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_HOME="$dir/otherhome"
-        want="not task rr1's home"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_HOME="$dir/home"
+        want="FM_TASK_ID='unset'"
         ;;
       foreign-in-pane-task)
         claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
-        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_HOME="$dir/home" FM_TASK_ID=rr2
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_TASK_ID=rr2
         want="FM_TASK_ID='rr2'"
         ;;
     esac
@@ -2885,6 +2908,7 @@ test_reclaim_refuses_an_unreadable_endpoint
 test_herdr_relaunch_resumes_only_the_registered_pi_session
 test_resume_session_relaunch_resumes_the_exact_worker_conversation
 test_resume_session_relaunch_resumes_a_secondmate_with_its_home_environment
+test_resume_session_relaunch_resumes_a_legacy_worker_bound_by_endpoint_and_task_id
 test_resume_session_refusals_happen_before_the_agent_stops
 test_resume_session_spawn_refuses_a_session_still_owned_and_never_falls_back
 test_resume_session_spawn_resumes_a_released_session
