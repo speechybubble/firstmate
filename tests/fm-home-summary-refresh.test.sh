@@ -915,6 +915,76 @@ wait "$WATCH_PID" >/dev/null 2>&1 || true
 WATCH_PID=
 pass "publication remains single-flight across watcher restart"
 
+# A refresh that steps aside for an in-flight publication must not lose its
+# request when that holder dies without publishing, as a refresh killed at its
+# deadline does. The holder below takes the lock and exits without writing the
+# ledger while an idle-only refresh is already waiting behind it.
+DEFER_HOME="$TMP_ROOT/defer-home"
+mkdir -p "$DEFER_HOME/state" "$DEFER_HOME/data" "$DEFER_HOME/config" \
+  "$DEFER_HOME/projects"
+printf '# Seeded Firstmate home\n' > "$DEFER_HOME/AGENTS.md"
+printf 'defer\n' > "$DEFER_HOME/.fm-secondmate-home"
+printf '## In flight\n\n## Queued\n\n## Done\n' > "$DEFER_HOME/data/backlog.md"
+DEFER_LOCK_MARKER="$TMP_ROOT/defer-lock-held"
+FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$DEFER_HOME" bash -c '
+  . "$1/bin/fm-wake-lib.sh"
+  fm_lock_acquire_wait "$2/state/.home-summary-refresh.lock"
+  : > "$3"
+  sleep 2
+' _ "$ROOT" "$DEFER_HOME" "$DEFER_LOCK_MARKER" &
+LOCK_HOLDER_PID=$!
+i=0
+while [ ! -e "$DEFER_LOCK_MARKER" ] && [ "$i" -lt 100 ]; do
+  kill -0 "$LOCK_HOLDER_PID" 2>/dev/null || break
+  sleep 0.05
+  i=$((i + 1))
+done
+[ -e "$DEFER_LOCK_MARKER" ] || fail "could not hold the publication lock for deferral coverage"
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$DEFER_HOME" \
+  FM_HOME_SUMMARY_IF_IDLE=1 FM_HOME_SUMMARY_TIMEOUT=30 "$WRITER" --best-effort \
+  || fail "a deferred refresh changed the best-effort caller result"
+wait "$LOCK_HOLDER_PID" >/dev/null 2>&1 || true
+LOCK_HOLDER_PID=
+[ -e "$DEFER_HOME/state/home-summary.json" ] \
+  || fail "a refresh that stepped aside dropped its request when the holder died unpublished"
+[ ! -s "$DEFER_HOME/state/.home-summary-refresh.log" ] \
+  || fail "a deferred refresh recorded a failure: $(cat "$DEFER_HOME/state/.home-summary-refresh.log")"
+pass "a refresh that steps aside still publishes when the holder dies unpublished"
+
+# The motivating holder is a real refresh killed at its own deadline. The
+# refresh that stepped aside started later, so its own budget is mostly spent
+# by then; the takeover must still get a whole deadline to publish in.
+: > "$HOME_DIR/state/.home-summary-refresh.log"
+KILLED_MARKER="$TMP_ROOT/killed-holder-no-mistakes.pid"
+TAKEOVER_MARKER="$TMP_ROOT/takeover-no-mistakes.pid"
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" \
+  FM_TEST_NM_MARKER="$KILLED_MARKER" FM_TEST_NM_SLEEP=30 \
+  FM_SNAPSHOT_CREW_STATE_TIMEOUT=30 FM_HOME_SUMMARY_TIMEOUT=8 \
+  "$WRITER" --best-effort > "$TMP_ROOT/killed-holder.out" 2> "$TMP_ROOT/killed-holder.err" &
+SLOW_WRITER_PID=$!
+i=0
+while [ ! -s "$KILLED_MARKER" ] && [ "$i" -lt 100 ]; do
+  kill -0 "$SLOW_WRITER_PID" 2>/dev/null || break
+  sleep 0.05
+  i=$((i + 1))
+done
+[ -s "$KILLED_MARKER" ] || fail "the deadline-bound holder did not reach its slow current-state read"
+sleep 2
+PATH="$FAKEBIN:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$HOME_DIR" \
+  FM_SNAPSHOT_NOW=2026-08-28T10:04:00Z FM_SNAPSHOT_NOW_EPOCH=1787911440 \
+  FM_TEST_NM_MARKER="$TAKEOVER_MARKER" FM_TEST_NM_SLEEP=30 \
+  FM_SNAPSHOT_CREW_STATE_TIMEOUT=5 FM_HOME_SUMMARY_TIMEOUT=8 \
+  FM_HOME_SUMMARY_IF_IDLE=1 "$WRITER" --best-effort \
+  || fail "a takeover refresh changed the best-effort caller result"
+wait "$SLOW_WRITER_PID" >/dev/null 2>&1 || true
+SLOW_WRITER_PID=
+jq -e '.generated == "2026-08-28T10:04:00Z"' "$HOME_DIR/state/home-summary.json" >/dev/null \
+  || fail "a refresh that stepped aside did not publish after the holder was killed at its deadline"
+deadline_failures=$(grep -c 'exceeded its 8-second deadline' "$HOME_DIR/state/.home-summary-refresh.log")
+[ "$deadline_failures" = 1 ] \
+  || fail "the takeover recorded its own failure: $(cat "$HOME_DIR/state/.home-summary-refresh.log")"
+pass "a takeover after a holder killed at its deadline publishes under a fresh deadline"
+
 # A publication that keeps failing is deliberately non-fatal to its caller, so
 # the only way an operator learns about it is a session start saying so. Seed
 # the home-local failure record a real failing home would have, and require the

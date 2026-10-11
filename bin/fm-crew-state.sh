@@ -95,7 +95,9 @@
 #      fm_nm_select_run in bin/fm-nm-run-lib.sh owns complete run selection
 #      and ambiguity reporting. The selected run's id-addressed status must
 #      agree on id, branch, and live/terminal class before attribution;
-#      disagreement reports unknown with available candidate ids.
+#      disagreement reports unknown with available candidate ids. The plain
+#      status stands in for that read when it already names the selected run
+#      on this branch with its status, head, and head_sha.
 #      The run-step is AUTHORITATIVE: running/fixing -> working, ci -> working
 #      (the id-addressed detail read carries step words the overview does not),
 #      awaiting_approval/fix_review -> parked (with gate findings), terminal
@@ -163,6 +165,13 @@
 #      unreachable, and an alive endpoint whose scrollback read failed is still
 #      classified by step 4. Backends with no classifier keep reading a failed
 #      capture as gone. The fallback's own comment owns the per-verdict rules.
+#
+# FM_CREW_STATE_HISTORY_ONLY=1 stops after step 3's status-log resolution and
+# never reads a run-step or pane: a recognized declaration is reported with
+# source status-log, anything else as unknown · none. A ship `done:` still
+# passes the named-head gate through local reads only; a claim only a forge
+# read could settle reads unknown as an ungated history claim. The fleet snapshot uses it
+# only for tasks whose structured history records completion.
 #
 # Read-only and side-effect free. Always exits 0 on a successful read regardless
 # of state; exit 2 only on a usage error (no id).
@@ -274,12 +283,15 @@ fi
 # and its reason rather than a wedge-suspect idle.
 # A ship `done:` is not current-state done while bin/fm-dod-lib.sh refuses the
 # named-head reachability gate: that claim is blocked so a disposable copy is
-# not treated as finished-and-safe.
-emit_ship_status_done() {  # [extra-detail]
-  local extra=${1:-} reason
-  if reason=$(fm_dod_accept_ship_done "$KIND" "$(meta_value mode)" "$WT" "$(meta_value project)" "$LOG_LINE" "$STATE" "$ID" "$META"); then
-    emit "done" status-log "$(status_line_note "$LOG_LINE")${extra:+${SEP}$extra}"
-  fi
+# not treated as finished-and-safe. With <reads> local (the history-only read) a
+# claim only a live read could settle is unknown, its detail naming it ungated.
+emit_ship_status_done() {  # [extra-detail] [reads]
+  local extra=${1:-} reads=${2:-} reason rc=0
+  reason=$(fm_dod_accept_ship_done "$KIND" "$(meta_value mode)" "$WT" "$(meta_value project)" "$LOG_LINE" "$STATE" "$ID" "$META" "$reads") || rc=$?
+  case "$rc" in
+    0) emit "done" status-log "$(status_line_note "$LOG_LINE")${extra:+${SEP}$extra}" ;;
+    2) emit unknown status-log "$(status_line_note "$LOG_LINE")${SEP}$reason" ;;
+  esac
   emit blocked status-log "$reason"
 }
 
@@ -300,6 +312,15 @@ map_log_state() {  # <line>
 
 LOG_LINE=$(status_current_line "$LOG" "$KIND")
 LOG_VERB=$(status_line_verb "$LOG_LINE")
+
+# --- history-only read for completed work (header: FM_CREW_STATE_HISTORY_ONLY)
+if [ "${FM_CREW_STATE_HISTORY_ONLY:-0}" = 1 ]; then
+  [ "$LOG_VERB" != "done" ] || emit_ship_status_done "" local
+  if [ -n "$LOG_VERB" ] && [ "$(map_log_state "$LOG_LINE")" != unknown ]; then
+    emit "$(map_log_state "$LOG_LINE")" status-log "$(status_line_note "$LOG_LINE")"
+  fi
+  emit unknown none "completed task: live state not read"
+fi
 
 # --- remote secondmate: the true source is the remote endpoint ---------------
 # A remote mate's recorded worktree and backend target live on its own host, so
@@ -970,8 +991,20 @@ if [ "$KIND" = ship ] && [ -n "$CREW_BRANCH" ] && command -v no-mistakes >/dev/n
     # CLI is not retried. Older CLI surfaces without the table retain the
     # coarse fallback below, but cannot turn a replacement into a vague live
     # verdict when its identity and gate cannot be read.
+    # Reuse a no-run status only when its inventory is complete. A capped
+    # status lacks the overview's repo identity, which complete run selection
+    # needs to resolve the undisplayed rows from the state database.
     overview_ok=1
-    run_overview=$(fm_nm_run_checked "$WT" "$NM_TIMEOUT" axi) || overview_ok=0
+    if printf '%s\n' "$RUN_OUT" | grep -qx 'runs_on_current_branch: 0' \
+      && printf '%s\n' "$RUN_OUT" | awk '
+        /^count: [0-9]+ of [0-9]+ total$/ { if ($2 == $4) complete = 1 }
+        /^runs: 0 runs yet in this repository$/ { complete = 1 }
+        END { exit !complete }
+      '; then
+      run_overview=$RUN_OUT
+    else
+      run_overview=$(fm_nm_run_checked "$WT" "$NM_TIMEOUT" axi) || overview_ok=0
+    fi
     [ -n "$run_overview" ] || emit unknown run-step "run inventory unavailable; run id: $(strip_quotes "$(nm_field id)")"
     run_choice=$(fm_nm_select_run "$CREW_BRANCH" "$run_overview" "$WT" "$NM_TIMEOUT")
     [ "$overview_ok" = 1 ] || emit unknown run-step "run inventory unreadable; run ids: $(strip_quotes "$(nm_field id)"), ${run_choice##*|}"
@@ -985,8 +1018,18 @@ if [ "$KIND" = ship ] && [ -n "$CREW_BRANCH" ] && command -v no-mistakes >/dev/n
         ;;
       selected\|*)
         IFS='|' read -r _ selected_id selected_status candidate_ids <<< "$run_choice"
-        RUN_OUT=$(fm_nm_run_checked "$WT" "$NM_TIMEOUT" axi status --run "$selected_id") \
-          || emit unknown run-step "selected run unreadable; run ids: $candidate_ids"
+        # The plain status already is the selected run's record when it names
+        # that run on this branch with every identity field the checks below
+        # read; an id-addressed re-read would return the same record, so it is
+        # made only when the plain answer is another run or lacks a field.
+        if [ "$(strip_quotes "$(nm_field id)")" != "$selected_id" ] \
+          || [ "$(strip_quotes "$(nm_field branch)")" != "$CREW_BRANCH" ] \
+          || [ -z "$(strip_quotes "$(nm_field status)")" ] \
+          || [ -z "$(strip_quotes "$(nm_field head)")" ] \
+          || [ -z "$(strip_quotes "$(nm_field head_sha)")" ]; then
+          RUN_OUT=$(fm_nm_run_checked "$WT" "$NM_TIMEOUT" axi status --run "$selected_id") \
+            || emit unknown run-step "selected run unreadable; run ids: $candidate_ids"
+        fi
         if [ "$(strip_quotes "$(nm_field id)")" != "$selected_id" ] \
           || [ "$(strip_quotes "$(nm_field branch)")" != "$CREW_BRANCH" ]; then
           emit unknown run-step "selected run unavailable or mismatched; run ids: $candidate_ids"

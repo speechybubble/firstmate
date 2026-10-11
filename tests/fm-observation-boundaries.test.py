@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import sqlite3
 import subprocess
 import tempfile
 import unittest
@@ -187,6 +188,225 @@ exec "''' + shutil.which("jq") + '''" "$@"
             self.assertIn(detail, tasks[task_id]["current_state"]["raw"])
         self.assertEqual(tasks["active"]["lifecycle"]["state"], "current")
         self.assertEqual(tasks["held"]["lifecycle"]["state"], "held")
+
+    def git_task(self, home, task_id, **kwargs):
+        """A task whose copy is a git branch, so its live read asks no-mistakes."""
+        worktree = self.task(home, task_id, **kwargs)
+        git = ["git", "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid",
+               "-C", str(worktree)]
+        for args in (["init", "-q", "-b", "main"], ["commit", "-q", "--allow-empty", "-m", "base"],
+                     ["checkout", "-q", "-b", f"fm/{task_id}"]):
+            subprocess.run(git + args, env=self.env, check=True, capture_output=True)
+        return worktree
+
+    def slow_no_mistakes(self, log):
+        """Record each no-mistakes call's start and directory, then stall slow copies."""
+        self.tool("no-mistakes", f'''
+printf '%s\\t%s\\n' "$(python3 -c 'import time; print(time.time())')" "$PWD" >> "{log}"
+case "$PWD" in
+  *slow*) sleep "${{FM_TEST_NM_DELAY:-0}}" ;;
+esac
+exit 0
+''')
+
+    def test_completed_work_skips_live_reads_and_publishes_within_bound(self):
+        home = self.home("accumulated")
+        (home / ".fm-secondmate-home").write_text("accumulated\n")
+        (home / "AGENTS.md").symlink_to(ROOT / "AGENTS.md")
+        (home / "bin").mkdir()
+        retained = [f"slow-done-{i:02}" for i in range(8)]
+        # A ship done the named-head gate does not apply to stays done; one it
+        # refuses from local git reads is blocked; one only a live forge read
+        # could settle is an ungated history claim, never a plain done.
+        unpublished = retained[4:6]
+        gerrit_url = "https://review.example.invalid/c/fixture/+/42"
+        unverified = retained[6]
+        heads = {}
+        for task_id in retained:
+            status = f"done: finished {task_id}"
+            if task_id == unverified:
+                status = f"done: PR {gerrit_url} published for review"
+            worktree = self.git_task(home, task_id, kind="ship", status=status)
+            if task_id in unpublished:
+                with (home / f"state/{task_id}.meta").open("a") as meta:
+                    meta.write("mode=local-only\n")
+            heads[task_id] = subprocess.run(
+                ["git", "-C", str(worktree), "rev-parse", "HEAD"], env=self.env,
+                check=True, capture_output=True, text=True).stdout.strip()
+        self.git_task(home, "active", kind="ship", busy="busy", status="working: current work")
+        self.git_task(home, "held", kind="ship", status="needs-decision [key=route]: choose a route")
+        (home / "data/backlog.md").write_text(
+            "## In flight\n- [ ] active - Active work (repo: fixture) (kind: ship)\n"
+            "- [ ] held - Held call (repo: fixture) (kind: ship) (hold: choose a route) (hold-kind: captain)\n"
+            "## Queued\n"
+            "## Done\n" + "".join(f"- [x] {task_id} - Finished (kind: ship)\n" for task_id in retained[:6])
+        )
+        (home / "data/done-archive.md").write_text(
+            "## Archived 2026-09-29\n" + "".join(
+                f"- [x] {task_id} - Finished (kind: ship)\n" for task_id in retained[6:]
+            )
+        )
+        # A ledger left behind by another home (a lab clone sharing this state
+        # directory) must be replaced by the first successful refresh.
+        (home / "state/home-summary.json").write_text(json.dumps({
+            "schema": "fm-secondmate-home-summary.v1",
+            "home": str(self.root / "lab-clone"),
+            "generated": "2026-10-09T11:40:00Z",
+        }) + "\n")
+        log = self.root / "nm-calls.log"
+        self.slow_no_mistakes(log)
+        # Every live read of a completed copy would stall to the per-read bound,
+        # so reading them serially in pairs could not finish inside the deadline.
+        result = self.command(home, "fm-home-summary-refresh.sh",
+                              FM_TEST_NM_DELAY="30", FM_SNAPSHOT_CREW_STATE_TIMEOUT="5",
+                              FM_SNAPSHOT_LOCAL_READ_CONCURRENCY="2",
+                              FM_HOME_SUMMARY_TIMEOUT="20")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = log.read_text() if log.exists() else ""
+        self.assertIn("/active/", calls)
+        for task_id in retained:
+            self.assertNotIn(f"/{task_id}/", calls)
+        summary = json.loads((home / "state/home-summary.json").read_text())
+        self.assertEqual(summary["home"], str(home))
+        self.assertEqual(summary["counts"]["completed_retained"], len(retained))
+        rows = {row["id"]: row for row in summary["completed_retained"]}
+        self.assertEqual(sorted(rows), retained)
+        for task_id in retained:
+            self.assertEqual(rows[task_id]["lifecycle"]["state"], "completed_retained")
+            current = rows[task_id]["current_state"]
+            self.assertEqual(current["source"], "status-log")
+            if task_id in unpublished:
+                self.assertEqual(current["state"], "blocked")
+                self.assertEqual(current["detail"],
+                                 f"named head {heads[task_id]} is unreachable outside the worker copy")
+            elif task_id == unverified:
+                self.assertEqual(current["state"], "unknown")
+                self.assertTrue(current["detail"].startswith(
+                    f"PR {gerrit_url} published for review · ungated history claim: "),
+                    current["detail"])
+            else:
+                self.assertEqual(current["state"], "done")
+                self.assertEqual(current["detail"], f"finished {task_id}")
+        self.assertEqual([row["id"] for row in summary["active_children"]], ["active"])
+        self.assertIn("held", [row["id"] for row in summary["decisions_open"]])
+        self.assertEqual(sorted(row["id"] for row in summary["endpoints"]), ["active", "held"])
+
+    def test_one_slow_read_does_not_hold_a_whole_batch(self):
+        home = self.home("window")
+        for task_id in ("a-slow", "b-fast", "c-slow"):
+            self.git_task(home, task_id, kind="ship", busy="busy", status="working: current work")
+        (home / "data/backlog.md").write_text(
+            "## In flight\n" + "".join(
+                f"- [ ] {task_id} - Work (repo: fixture) (kind: ship)\n"
+                for task_id in ("a-slow", "b-fast", "c-slow")
+            ) + "## Queued\n## Done\n"
+        )
+        log = self.root / "window-calls.log"
+        self.slow_no_mistakes(log)
+        self.output(home, "fm-fleet-snapshot.sh", "--secondmate-home-summary",
+                    FM_TEST_NM_DELAY="30", FM_SNAPSHOT_CREW_STATE_TIMEOUT="6",
+                    FM_SNAPSHOT_LOCAL_READ_CONCURRENCY="2")
+        starts = {}
+        for line in log.read_text().splitlines():
+            stamp, directory = line.split("\t", 1)
+            for task_id in ("a-slow", "c-slow"):
+                if f"/{task_id}/" in directory + "/":
+                    starts.setdefault(task_id, float(stamp))
+        self.assertEqual(sorted(starts), ["a-slow", "c-slow"], log.read_text())
+        # With two slots, c-slow takes the slot b-fast frees; it must not wait
+        # for a-slow's read to reach its six-second bound.
+        self.assertLess(starts["c-slow"] - starts["a-slow"], 4.5)
+
+    def test_paused_child_without_a_run_keeps_its_hold_when_the_overview_stalls(self):
+        # Inventories as the installed CLI prints them for a branch with no run:
+        # other branches' runs in a table, or a repository with no runs at all.
+        inventories = {
+            "other-branch-runs": (
+                "count: 1 of 1 total\\n"
+                "runs[1]{id,branch,status,head,pr}:\\n"
+                '  "01OTHER",fm/other,completed,abcdef12,""\\n'
+            ),
+            "empty-repository": "runs: 0 runs yet in this repository\\n",
+        }
+        for name, inventory in inventories.items():
+            with self.subTest(inventory=name):
+                home = self.home(f"paused-{name}")
+                self.git_task(home, "custody", kind="ship",
+                              status="paused: custody accepted, awaiting release")
+                (home / "data/backlog.md").write_text(
+                    "## In flight\n- [ ] custody - Custody work (repo: fixture) (kind: ship)\n"
+                    "## Queued\n## Done\n"
+                )
+                log = self.root / f"paused-{name}.log"
+                # The status answer already says this branch has no run and carries
+                # the inventory; a separate overview call stalls past the read bound.
+                self.tool("no-mistakes", f'''
+printf '%s\\n' "$*" >> "{log}"
+case "$*" in
+  "axi status")
+    printf 'current_branch: fm/custody\\nruns_on_current_branch: 0\\n{inventory}' ;;
+  axi) sleep 30 ;;
+esac
+exit 0
+''')
+                summary = json.loads(self.output(home, "fm-fleet-snapshot.sh",
+                                                 "--secondmate-home-summary",
+                                                 FM_SNAPSHOT_CREW_STATE_TIMEOUT="5"))
+                calls = log.read_text().splitlines()
+                self.assertIn("axi status", calls)
+                self.assertNotIn("axi", calls)
+                rows = {row["id"]: row for row in summary["endpoints"]}
+                self.assertEqual((rows["custody"]["state"], rows["custody"]["source"]),
+                                 ("paused", "status-log"))
+                self.assertIn("custody", [row["id"] for row in summary["holds"]])
+
+    def test_paused_child_with_capped_status_reads_identity_from_overview(self):
+        home = self.home("paused-capped-status")
+        self.git_task(home, "custody", kind="ship",
+                      status="paused: custody accepted, awaiting release")
+        (home / "data/backlog.md").write_text(
+            "## In flight\n- [ ] custody - Custody work (repo: fixture) (kind: ship)\n"
+            "## Queued\n## Done\n"
+        )
+        # The installed status surface shows ten of eleven other-branch runs
+        # without repo identity. Only the overview can identify the database
+        # repository so selection can prove that this branch has no run.
+        nm_home = self.root / "no-mistakes"
+        nm_home.mkdir()
+        with sqlite3.connect(nm_home / "state.sqlite") as db:
+            db.execute("CREATE TABLE repos (id TEXT, working_path TEXT)")
+            db.execute("CREATE TABLE runs (id TEXT, repo_id TEXT, branch TEXT, "
+                       "status TEXT, head_sha TEXT, created_at INTEGER)")
+            db.execute("INSERT INTO repos VALUES (?, ?)", ("fixture", str(home)))
+            db.executemany("INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?)", [
+                (f"OTHER{i}", "fixture", f"fm/other-{i}", "completed", "abcdef12", i)
+                for i in range(11)
+            ])
+        inventory = "count: 10 of 11 total\nruns[10]{id,branch,status,head,pr}:\n" + "".join(
+            f'  OTHER{i},fm/other-{i},completed,abcdef12,""\n'
+            for i in range(10, 0, -1)
+        )
+        status = self.root / "capped-status.txt"
+        status.write_text("current_branch: fm/custody\nruns_on_current_branch: 0\n" + inventory)
+        overview = self.root / "capped-overview.txt"
+        overview.write_text(f"repo: {json.dumps(str(home))}\n" + inventory)
+        log = self.root / "capped-status-calls.log"
+        self.tool("no-mistakes", f"""
+printf '%s\\n' "$*" >> "{log}"
+case "$*" in
+  "axi status") cat "{status}" ;;
+  axi) cat "{overview}" ;;
+esac
+""")
+        summary = json.loads(self.output(home, "fm-fleet-snapshot.sh",
+                                         "--secondmate-home-summary",
+                                         NM_HOME=str(nm_home)))
+        calls = log.read_text().splitlines()
+        self.assertEqual(calls[:2], ["axi status", "axi"])
+        rows = {row["id"]: row for row in summary["endpoints"]}
+        self.assertEqual((rows["custody"]["state"], rows["custody"]["source"]),
+                         ("paused", "status-log"))
+        self.assertIn("custody", [row["id"] for row in summary["holds"]])
 
     def test_contribution_input_never_reads_archive(self):
         home = self.home("contributions")
