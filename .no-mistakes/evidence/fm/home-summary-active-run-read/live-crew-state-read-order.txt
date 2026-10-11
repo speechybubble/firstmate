@@ -1,0 +1,40 @@
+# Live crew-state read order: real no-mistakes v1.84.0, disposable NM_HOME/repo, old=9ef8bb1 vs new=b1a67564
+# Each row: CLI calls the real fm-crew-state.sh made (pass-through logging shim over the real CLI), and its verdict.
+[exec-old] calls: axi status|axi|axi logs --step ci --run 01LIVERUN0000000000000000A --full
+[exec-old] verdict: state: working · source: run-step · validating (running) · run: 01LIVERUN0000000000000000A
+[exec-new] calls: runs --limit 200|axi|axi logs --step ci --run 01LIVERUN0000000000000000A --full
+[exec-new] verdict: state: working · source: run-step · validating (running) · run: 01LIVERUN0000000000000000A
+[exec] verdict byte-identical old vs new
+
+[park-old] calls: axi status|axi
+[park-old] verdict: state: parked · source: run-step · parked at review: 1 finding(s) · ask-user: authority decision · run: 01LIVERUN0000000000000000A
+[park-new] calls: runs --limit 200|axi|axi status
+[park-new] verdict: state: parked · source: run-step · parked at review: 1 finding(s) · ask-user: authority decision · run: 01LIVERUN0000000000000000A
+[park] verdict byte-identical old vs new
+
+[done-old] calls: axi status|axi
+[done-old] verdict: state: done · source: run-step · run passed: PR state unknown (no PR identity) · run: 01LIVERUN0000000000000000A
+[done-new] calls: runs --limit 200|axi status|axi
+[done-new] verdict: state: done · source: run-step · run passed: PR state unknown (no PR identity) · run: 01LIVERUN0000000000000000A
+[done] verdict byte-identical old vs new
+
+[stall-old] calls: axi status
+[stall-old] verdict: state: unknown · source: pane · harness state unavailable (unknown missing)
+[stall-new] calls: runs --limit 200
+[stall-new] verdict: state: unknown · source: pane · harness state unavailable (unknown missing)
+[stall] verdict byte-identical old vs new
+
+[unres-old] calls: axi status|axi|daemon status|axi logs --step ci --run 01LIVERUN0000000000000000A --full
+[unres-old] verdict: state: working · source: run-step · validating (running) · run: 01LIVERUN0000000000000000A
+[unres-new] calls: runs --limit 200|axi|daemon status|axi logs --step ci --run 01LIVERUN0000000000000000A --full
+[unres-new] verdict: state: working · source: run-step · validating (running) · run: 01LIVERUN0000000000000000A
+[unres] verdict byte-identical old vs new
+
+[down-old] calls: axi status|axi|daemon status|axi logs --step ci --run 01LIVERUN0000000000000000A --full
+[down-old] verdict: state: working · source: run-step · validating (running) · run: 01LIVERUN0000000000000000A
+[down-new] calls: runs --limit 200|axi|daemon status|axi logs --step ci --run 01LIVERUN0000000000000000A --full
+[down-new] verdict: state: working · source: run-step · validating (running) · run: 01LIVERUN0000000000000000A
+[down] verdict byte-identical old vs new
+
+# scenario key: exec=run executing in ci; park=run parked at review gate; done=completed run here, running run on fm/other;
+# stall=CLI unresponsive (2s bound); unres=executing run with head unresolvable in worktree; down=same with daemon killed

@@ -1,0 +1,29 @@
+bin: /home/denni/.local/bin/no-mistakes
+description: "Validate your code changes through the no-mistakes pipeline - automated code review, tests, lint, docs, push, PR, and CI - before they reach the configured push target. Use when the user asks to run no-mistakes, gate or ship or validate their changes, push safely, asks you to do a task and then validate it, or invokes /no-mistakes."
+repo: /tmp/nm-live.pWybsu/repo
+current_branch: fm/live
+daemon: running
+active_run:
+  id: "01LIVERUN0000000000000000A"
+  branch: fm/live
+  status: running
+  head: "009793b8"
+  head_sha: "009793b8162fa94ad463ed3104048fad69a56c61"
+  verification_plan: none
+  findings: none
+  steps[9]{step,status,findings,duration_ms}:
+    intent,completed,0,0
+    rebase,completed,0,0
+    review,completed,0,0
+    test,completed,0,0
+    document,completed,0,0
+    lint,completed,0,0
+    push,completed,0,0
+    pr,completed,0,0
+    ci,running,0,0
+  active_steps[1]{step,status,active_for,round_active_for,last_activity,agent_pid,round}:
+    ci,running,0s,"",unknown,"",starting
+count: 1 of 1 total
+runs[1]{id,branch,status,head,pr}:
+  "01LIVERUN0000000000000000A",fm/live,running,"009793b8",""
+help[4]: Run `no-mistakes axi status` to inspect the active run,"Commit post-pipeline follow-up work on top of the existing branch so every pipeline fix commit remains present. Never abort-and-restart, reset, or replace the branch in a way that drops prior gate-fix commits.",The calling agent drives AXI gates but does not replace the configured pipeline agent; run `no-mistakes doctor` if no native agent or ACP runner is available,"How to drive the pipeline: `no-mistakes axi run --help`, or the `/no-mistakes` skill (loaded when you invoke `/no-mistakes`)"
