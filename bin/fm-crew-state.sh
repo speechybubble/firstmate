@@ -95,7 +95,9 @@
 #      fm_nm_select_run in bin/fm-nm-run-lib.sh owns complete run selection
 #      and ambiguity reporting. The selected run's id-addressed status must
 #      agree on id, branch, and live/terminal class before attribution;
-#      disagreement reports unknown with available candidate ids.
+#      disagreement reports unknown with available candidate ids. The plain
+#      status stands in for that read when it already names the selected run
+#      on this branch with its status, head, and head_sha.
 #      The run-step is AUTHORITATIVE: running/fixing -> working, ci -> working
 #      (the id-addressed detail read carries step words the overview does not),
 #      awaiting_approval/fix_review -> parked (with gate findings), terminal
@@ -1016,8 +1018,18 @@ if [ "$KIND" = ship ] && [ -n "$CREW_BRANCH" ] && command -v no-mistakes >/dev/n
         ;;
       selected\|*)
         IFS='|' read -r _ selected_id selected_status candidate_ids <<< "$run_choice"
-        RUN_OUT=$(fm_nm_run_checked "$WT" "$NM_TIMEOUT" axi status --run "$selected_id") \
-          || emit unknown run-step "selected run unreadable; run ids: $candidate_ids"
+        # The plain status already is the selected run's record when it names
+        # that run on this branch with every identity field the checks below
+        # read; an id-addressed re-read would return the same record, so it is
+        # made only when the plain answer is another run or lacks a field.
+        if [ "$(strip_quotes "$(nm_field id)")" != "$selected_id" ] \
+          || [ "$(strip_quotes "$(nm_field branch)")" != "$CREW_BRANCH" ] \
+          || [ -z "$(strip_quotes "$(nm_field status)")" ] \
+          || [ -z "$(strip_quotes "$(nm_field head)")" ] \
+          || [ -z "$(strip_quotes "$(nm_field head_sha)")" ]; then
+          RUN_OUT=$(fm_nm_run_checked "$WT" "$NM_TIMEOUT" axi status --run "$selected_id") \
+            || emit unknown run-step "selected run unreadable; run ids: $candidate_ids"
+        fi
         if [ "$(strip_quotes "$(nm_field id)")" != "$selected_id" ] \
           || [ "$(strip_quotes "$(nm_field branch)")" != "$CREW_BRANCH" ]; then
           emit unknown run-step "selected run unavailable or mismatched; run ids: $candidate_ids"

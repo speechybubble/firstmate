@@ -85,6 +85,7 @@ make_fakebin() {  # <dir> -> echoes fakebin path
   cat > "$fb/no-mistakes" <<'SH'
 #!/usr/bin/env bash
 set -u
+[ -z "${FM_FAKE_NM_CALL_LOG:-}" ] || printf '%s\n' "$*" >> "$FM_FAKE_NM_CALL_LOG"
 case "${1:-}" in
   axi)
     shift
@@ -5482,13 +5483,72 @@ PY
 test_captured_authority_transition() {
   make_competing_runs_case captured-transition running cancelled
   local d=$TMP_ROOT/captured-transition out
-  FM_FAKE_AXI_STATUS=$(captured_axi_status replacement)
+  # The plain status names the other run, so the selected run is re-read by id
+  # and that read is the one that observes the transition.
+  FM_FAKE_AXI_STATUS=$(captured_axi_status replacement fm/competing 01OLD)
   FM_FAKE_AXI_STATUS_RUN=$(captured_axi_status superseded)
   out=$(run_crew_state "$d" competing)
   assert_contains "$out" 'state: unknown' 'captured terminal output cannot validate a live selection'
   assert_contains "$out" '01NEW' 'the changing selected id is preserved'
   assert_contains "$out" '01OLD' 'the other available id is preserved'
   pass 'captured status formats reject a synthetic authority transition'
+}
+
+# Counts the id-addressed re-read through the fake's call log. A plain status
+# that already names the selected run on this branch with status, head, and
+# head_sha is that run's record, so the re-read is skipped and the verdict is
+# byte-identical to the re-read path; any other plain answer keeps the re-read.
+selected_reread_count() {  # <call-log>
+  grep -c '^axi status --run ' "$1" || true
+}
+
+test_selected_plain_status_skips_only_the_redundant_reread() {
+  local spec name inventory shape expected d log skip_out reread_out field out rc=0
+  for spec in working:running:replacement:working held:running:parked:parked \
+    unknown:running:superseded:unknown failed:failed:failed:failed; do
+    IFS=: read -r name inventory shape expected <<< "$spec"
+    make_competing_runs_case "skip-reread-$name" "$inventory" cancelled
+    d=$TMP_ROOT/skip-reread-$name
+    log=$d/nm-calls
+    # Skip path: an unexpected re-read would answer empty and read unknown.
+    FM_FAKE_AXI_STATUS=$(captured_axi_status "$shape")
+    FM_FAKE_AXI_STATUS_RUN=''
+    : > "$log"
+    skip_out=$(FM_FAKE_NM_CALL_LOG=$log run_crew_state "$d" competing)
+    assert_equals 0 "$(selected_reread_count "$log")" "$name: the selected plain status is not re-read"
+    # Re-read path: the same record, reached because the plain answer lacks head_sha.
+    FM_FAKE_AXI_STATUS=$(captured_axi_status "$shape" | sed '/^  head_sha:/d')
+    FM_FAKE_AXI_STATUS_RUN=$(captured_axi_status "$shape")
+    : > "$log"
+    reread_out=$(FM_FAKE_NM_CALL_LOG=$log run_crew_state "$d" competing)
+    assert_equals 1 "$(selected_reread_count "$log")" "$name: a plain status without head_sha is re-read once"
+    assert_equals "$reread_out" "$skip_out" "$name: skipping the re-read leaves the verdict byte-identical"
+    assert_contains "$skip_out" "state: $expected" "$name: the selected record keeps its classification"
+    assert_contains "$skip_out" '01NEW' "$name: the selected record keeps its run id"
+    pass "$name selected plain status skips only the redundant re-read"
+  done
+
+  for name in older-run other-branch status head head_sha id; do
+    (
+      make_competing_runs_case "keep-reread-$name" running cancelled
+      d=$TMP_ROOT/keep-reread-$name
+      log=$d/nm-calls
+      FM_FAKE_AXI_STATUS=$(captured_axi_status replacement)
+      case "$name" in
+        older-run) FM_FAKE_AXI_STATUS=$(captured_axi_status replacement fm/competing 01OLD) ;;
+        other-branch) FM_FAKE_AXI_STATUS=$(captured_axi_status replacement fm/another-task) ;;
+        *) field=$name; FM_FAKE_AXI_STATUS=$(printf '%s\n' "$FM_FAKE_AXI_STATUS" | sed "/^  $field:/d") ;;
+      esac
+      FM_FAKE_AXI_STATUS_RUN=$(captured_axi_status replacement)
+      : > "$log"
+      out=$(FM_FAKE_NM_CALL_LOG=$log run_crew_state "$d" competing)
+      assert_equals 1 "$(selected_reread_count "$log")" "$name: the selected run is still re-read by id"
+      assert_contains "$out" 'state: working' "$name: the re-read record answers"
+      assert_contains "$out" '01NEW' "$name: the re-read keeps the selected id"
+      pass "$name plain status keeps the id-addressed re-read"
+    ) || rc=1
+  done
+  [ "$rc" = 0 ] || fail 'selected run re-read neighbours'
 }
 
 test_captured_completed_history() {
@@ -5606,6 +5666,7 @@ test_readable_shell_diagnostic_preserves_unknown
 test_captured_axi_status_shapes
 test_captured_inventory_replay
 test_captured_authority_transition
+test_selected_plain_status_skips_only_the_redundant_reread
 test_captured_completed_history
 cancellation_failures=0
 for cancellation_test in test_captured_cancelled_review_has_no_verdict \
