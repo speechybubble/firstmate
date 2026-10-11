@@ -1,0 +1,31 @@
+== /home/denni/.treehouse/fleet-61afdc/6/fleet run 01M4MDKWCE22NYYB3GGKTHG2Z1: DIFFER
+  id: "01M4MDKWCE22NYYB3GGKTHG2Z1"
+  branch: fm/claude-session-resume
+  status: running
+  head: 6671806b
+  head_sha: 6671806bcdd85532f6170d5135a1f07b971b1823
+25c25
+<     ci,running,20m35s,20m35s,"1m17s ago: log: issues detected but checks still pending, waiting for all checks to complete...","",starting
+---
+>     ci,running,20m39s,20m39s,"1m21s ago: log: issues detected but checks still pending, waiting for all checks to complete...","",starting
+
+== /home/denni/.treehouse/fleet-61afdc/4/fleet run 01M4JE372VR89H5CSS20ZP52H4: IDENTICAL
+  id: "01M4JE372VR89H5CSS20ZP52H4"
+  branch: fm/review-model-template-fix
+  status: running
+  head: d2dcda6d
+  head_sha: d2dcda6d09faaa19045b3cf430000c936297aefb
+    branch: fm/review-model-template-fix
+    head: c4d36a1ebcffde8bbd81874d01e767dddf203d47
+    status: running
+
+== /home/denni/.treehouse/fleet-61afdc/5/fleet run 01M4K3QMA8JMDBRPZ661KVFHFX: IDENTICAL
+  id: "01M4K3QMA8JMDBRPZ661KVFHFX"
+  branch: fm/watcher-progress-beacon
+  status: failed
+  head: 9bc37fbf
+  head_sha: 9bc37fbf57ae6f8d3bd910375b00663b87bd93d7
+    branch: fm/watcher-progress-beacon
+    head: 3fdb1b7981fb96521e928e2a7d4235a40703eb91
+    status: failed
+

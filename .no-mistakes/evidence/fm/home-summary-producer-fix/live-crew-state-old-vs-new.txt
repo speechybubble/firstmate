@@ -1,0 +1,58 @@
+== claude-session-resume [old] rc=0 15.4s
+state: working · source: run-step · validating (running) · run: 01M4MDKWCE22NYYB3GGKTHG2Z1
+calls:
+axi status
+axi
+axi status --run 01M4MDKWCE22NYYB3GGKTHG2Z1
+axi logs --step ci --run 01M4MDKWCE22NYYB3GGKTHG2Z1 --full
+
+== claude-session-resume [new] rc=0 10.9s
+state: working · source: run-step · validating (running) · run: 01M4MDKWCE22NYYB3GGKTHG2Z1
+calls:
+axi status
+axi
+axi logs --step ci --run 01M4MDKWCE22NYYB3GGKTHG2Z1 --full
+
+== home-summary-producer-fix [old] rc=0 12.0s
+state: working · source: run-step · validating (running) · run: 01M4MFQMWM1RKH5KK3XRBXXT4P
+calls:
+axi status
+axi
+axi status --run 01M4MFQMWM1RKH5KK3XRBXXT4P
+
+== home-summary-producer-fix [new] rc=0 8.5s
+state: working · source: run-step · validating (running) · run: 01M4MFQMWM1RKH5KK3XRBXXT4P
+calls:
+axi status
+axi
+
+== review-model-template-fix [old] rc=0 25.4s
+state: done · source: run-step · checks green: PR ready for review (still monitoring for merge/close): https://github.com/speechybubble/firstmate/pull/9 · run: 01M4JE372VR89H5CSS20ZP52H4
+calls:
+axi status
+axi
+axi status --run 01M4JE372VR89H5CSS20ZP52H4
+daemon status
+axi logs --step ci --run 01M4JE372VR89H5CSS20ZP52H4 --full
+
+== review-model-template-fix [new] rc=0 16.9s
+state: done · source: run-step · checks green: PR ready for review (still monitoring for merge/close): https://github.com/speechybubble/firstmate/pull/9 · run: 01M4JE372VR89H5CSS20ZP52H4
+calls:
+axi status
+axi
+daemon status
+axi logs --step ci --run 01M4JE372VR89H5CSS20ZP52H4 --full
+
+== watcher-progress-beacon [old] rc=0 16.8s
+state: unknown · source: none · backend target gone: fm:fm-watcher-progress-beacon
+calls:
+axi status
+axi
+axi status --run 01M4K3QMA8JMDBRPZ661KVFHFX
+
+== watcher-progress-beacon [new] rc=0 8.2s
+state: unknown · source: none · backend target gone: fm:fm-watcher-progress-beacon
+calls:
+axi status
+axi
+
