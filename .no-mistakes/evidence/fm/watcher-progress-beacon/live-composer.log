@@ -1,0 +1,8 @@
+===== defer_composer =====
+--- .ring-state after 0 of 4 slow scan reads ---
+001.msg	1	1791694062
+--- send log ---
+(end)
+--- wake queue ---
+(end)
+RESULT composer: PASS

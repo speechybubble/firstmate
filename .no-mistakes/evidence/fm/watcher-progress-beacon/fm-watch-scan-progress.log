@@ -5,5 +5,6 @@ ok - a hung read ages the beacon into the guard warning, ends at its bound, surf
 ok - new work interrupts a long scan once, and paused, held, retained, and later neighbors are still covered
 ok - a watcher that loses the singleton mid-scan stops at the next record without touching the beacon
 ok - a watcher that loses the singleton mid-signal still delivers that wake exactly once
+ok - a due doorbell for a window late in a long scan rings within the cycle, ahead of the scan
+ok - unwritable doorbell ladders all surface in one wake after the cycle's scan, never ahead of it
 ok - an arm keeps following a slow-scanning watcher, a re-arm attaches to it, and both close with its wake
-rc=0 secs=348

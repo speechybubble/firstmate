@@ -1,0 +1,31 @@
+===== ownership =====
+--- send log (typed doorbells) ---
+test:fm-zlate : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 'zlate.inbox' steering inbox, read and act on each in numeric order, then mv each into its handled/.
+--- scan reads ---
+slow1 1791694000
+slow2 1791694004
+slow3 1791694008
+zlate 1791694012
+--- ring-state files ---
+-rw-r--r-- 1 denni denni 21 Oct 11 14:46 /tmp/fm-watch-scan-progress-tests.BarCgu/own/state/zlate.inbox/.ring-state
+--- wake queue ---
+--- watch.out ---
+watcher alive
+RESULT ownership: PASS
+===== defer_busy =====
+--- .busy-state after 0 of 4 slow scan reads ---
+001.msg	1
+--- send log ---
+(end)
+--- wake queue ---
+(end)
+RESULT busy: PASS
+===== defer_composer =====
+--- .ring-state after 0 of 4 slow scan reads ---
+001.msg	1	1791694032
+--- send log ---
+test:fm-zlate : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 'zlate.inbox' steering inbox, read and act on each in numeric order, then mv each into its handled/.
+(end)
+--- wake queue ---
+(end)
+RESULT composer: FAIL

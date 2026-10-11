@@ -1,0 +1,9 @@
+### pre-fix watcher (9bc37fbf)
+===== late =====
+not ok - the due doorbell was not rung within the cycle (scan reads so far: 3):
+
+rc=1
+### fixed watcher (HEAD 490121a4)
+===== late =====
+ok - a due doorbell for a window late in a long scan rings within the cycle, ahead of the scan
+rc=0
