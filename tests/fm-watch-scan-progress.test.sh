@@ -18,6 +18,8 @@
 #     neighbors after it are all still covered;
 #   - a due steering-inbox doorbell for a window late in a long scan rings
 #     within the cycle, before the scan reaches that window;
+#   - an unwritable doorbell ladder found ahead of the scan waits for the
+#     cycle's scan slice, so it never starves pane scanning of other windows;
 #   - a watcher that loses the singleton mid-scan stands down without touching
 #     the beacon, while one that loses it mid-signal still delivers that wake
 #     exactly once;
@@ -540,6 +542,41 @@ test_due_doorbell_late_in_scan_rings_within_the_cycle() {
   pass "a due doorbell for a window late in a long scan rings within the cycle, ahead of the scan"
 }
 
+test_inbox_bookkeeping_wake_waits_for_the_scan() {
+  local dir state fakebin out log slog rec i n reads wakes
+  dir=$(make_case inbox-bookkeeping); state="$dir/state"; fakebin="$dir/fakebin"
+  out="$dir/watch.out"; log="$dir/crew-state.log"; slog="$dir/send.log"
+  install_scan_fakes "$fakebin"
+  # The broken inbox's window is recorded first, so the scan would otherwise
+  # reach every other stale window only after its wake.
+  add_window "$state" abroken "working: waiting on review"
+  n=3
+  for i in $(seq 1 "$n"); do add_window "$state" "stale$i" "working: building part $i"; done
+  rec=$(FM_STATE_OVERRIDE="$state" bash -c '. "$1"; fm_task_inbox_write "$2" abroken "please continue"' \
+    _ "$ROOT/bin/fm-task-inbox-lib.sh" "$state")
+  touch -t 202001010000 "$rec"
+  mkdir "$state/abroken.inbox/.ring-state"
+  start_watcher "$state" "$fakebin" "$out" FM_FAKE_CREW_STATE_LOG="$log" \
+    FM_FAKE_TMUX_SEND_LOG="$slog" FM_FAKE_TMUX_WINDOWS="$(windows_of "$state" | sed 's/^test://')" \
+    FM_TASK_INBOX_RING_MAX=99
+  wait_for_exit "$WATCHER_PID" 300 \
+    || { reap_watcher; fail "the watcher never surfaced the unwritable ladder: $(cat "$out" "$out.err")"; }
+  for i in $(seq 1 "$n"); do
+    grep -q "^stale$i " "$log" 2>/dev/null \
+      || fail "the bookkeeping wake preempted the scan of stale$i:"$'\n'"$(cat "$log" 2>/dev/null)"
+  done
+  reads=$(line_count "$log")
+  grep -q "^test:fm-abroken[^ ]* .*'abroken.inbox'" "$slog" 2>/dev/null \
+    || fail "the due doorbell was not rung ahead of the scan:"$'\n'"$(cat "$slog" 2>/dev/null)"
+  grep -qF "$state/abroken.inbox/.ring-state cannot be written" "$out" \
+    || fail "the watcher did not wake with the unwritable-ladder reason after $reads scan reads: $(cat "$out")"
+  wakes=$(grep -cF 'steering-inbox ladder bookkeeping unwritable' "$state/.wake-queue" 2>/dev/null || true)
+  [ "$wakes" = 1 ] \
+    || fail "expected exactly one queued bookkeeping wake, got $wakes:"$'\n'"$(cat "$state/.wake-queue" 2>/dev/null)"
+  [ -f "$rec" ] || fail "the bookkeeping failure lost the instruction"
+  pass "an unwritable doorbell ladder surfaces after the cycle's scan, never ahead of it"
+}
+
 test_arm_follows_slow_scan_and_rearm_attaches() {
   local dir state fakebin armout rearmout log arm rearm i status
   dir=$(make_case arm-follow); state="$dir/state"; fakebin="$dir/fakebin"
@@ -599,4 +636,5 @@ test_new_work_yields_scan_and_coverage_resumes
 test_owner_change_mid_scan_stands_down
 test_owner_change_mid_signal_still_delivers_the_wake
 test_due_doorbell_late_in_scan_rings_within_the_cycle
+test_inbox_bookkeeping_wake_waits_for_the_scan
 test_arm_follows_slow_scan_and_rearm_attaches

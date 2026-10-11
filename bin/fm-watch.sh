@@ -524,6 +524,36 @@ inbox_steer_escalate_unavailable() {  # <window> <task> <record>
   wake "$reason"
 }
 
+# A steering-inbox stale wake: queue it durably, mark the record escalated when
+# asked, then wake firstmate.
+inbox_steer_wake() {  # <window> <task> <record> <reason> <mark-escalated: 0|1>
+  fm_wake_append stale "$1" "$4" || exit 1
+  if [ "$5" = 1 ] && ! fm_task_inbox_record_escalated "$STATE" "$2" "$3"; then
+    echo "error: stale wake was queued for $2 but its inbox escalation marker could not be written" >&2
+    exit 1
+  fi
+  wake "$4"
+}
+
+# Inside inbox_steer_sweep, a bookkeeping-failure wake has no one-shot marker,
+# so waking before the window scan would end every cycle there and starve the
+# scan. The sweep holds the first such wake (inbox_steer_wake arguments) and
+# inbox_steer_surface_deferred raises it after the cycle's scan slice.
+INBOX_STEER_DEFER=0
+INBOX_STEER_DEFERRED=()
+inbox_steer_defer_wake() {  # <inbox_steer_wake arguments>; 0 when held
+  [ "$INBOX_STEER_DEFER" = 1 ] || return 1
+  [ "${#INBOX_STEER_DEFERRED[@]}" -gt 0 ] || INBOX_STEER_DEFERRED=("$@")
+  return 0
+}
+
+inbox_steer_surface_deferred() {
+  local deferred=("${INBOX_STEER_DEFERRED[@]}")
+  INBOX_STEER_DEFERRED=()
+  [ "${#deferred[@]}" -gt 0 ] && [ -f "${deferred[2]}" ] || return 0
+  inbox_steer_wake "${deferred[@]}"
+}
+
 # Steering-inbox loss detection, one cheap check per inbox-bearing recorded
 # task per cycle (inbox_steer_sweep below).
 # bin/fm-task-inbox-lib.sh owns delivery, busy-deferral, retry, and escalation policy.
@@ -533,7 +563,7 @@ inbox_steer_escalate_unavailable() {  # <window> <task> <record>
 # Runs for secondmates too: their pane-staleness exemption is about quiet panes
 # being healthy, while an unacknowledged instruction can still be a stuck steer.
 inbox_steer_check() {  # <window> <task>
-  local w=$1 task=$2 action verb rec count tail40 reason='' ring_rc backend agent_state
+  local w=$1 task=$2 action verb rec count tail40 reason='' ring_rc backend agent_state bookkeeping=0
   action=$(fm_task_inbox_due_action "$STATE" "$task") || return 0
   verb=${action%% *}
   [ "$verb" != quiet ] || return 0
@@ -567,6 +597,7 @@ inbox_steer_check() {  # <window> <task>
     if ! count=$(fm_task_inbox_record_busy "$STATE" "$task" "$rec"); then
       [ -f "$rec" ] || return 0
       reason="stale: $w (steering-inbox busy bookkeeping unwritable: ${rec%/*}/.busy-state cannot be written while $rec stays unhandled; inspect the inbox directory)"
+      bookkeeping=1
     elif [ "$count" -ge "$(fm_task_inbox_busy_max)" ]; then
       reason="stale: $w (unread firstmate instruction: stuck-busy after $count consecutive busy-deferred due doorbells; $rec stays unhandled and no doorbell was typed; inspect the worker)"
     else
@@ -575,6 +606,7 @@ inbox_steer_check() {  # <window> <task>
     verb=escalate
   elif [ "$verb" != retry ] && ! fm_task_inbox_clear_busy "$STATE" "$task"; then
     reason="stale: $w (steering-inbox busy bookkeeping unwritable: ${rec%/*}/.busy-state cannot be reset after a non-busy check; inspect the inbox directory)"
+    bookkeeping=1
     verb=escalate
   fi
   case "$verb" in
@@ -592,8 +624,8 @@ inbox_steer_check() {  # <window> <task>
         fi
         if [ -d "${rec%/*}" ]; then
           reason="stale: $w (steering-inbox ladder bookkeeping unwritable: ${rec%/*}/.ring-state cannot be written while $rec stays unhandled; the doorbell cannot advance toward escalation - inspect the inbox directory)"
-          fm_wake_append stale "$w" "$reason" || exit 1
-          wake "$reason"
+          inbox_steer_defer_wake "$w" "$task" "$rec" "$reason" 0 \
+            || inbox_steer_wake "$w" "$task" "$rec" "$reason" 0
         fi
       fi
       triage_log "steer-inbox delivery attempt: $task ${rec##*/} result=$ring_rc"
@@ -603,8 +635,8 @@ inbox_steer_check() {  # <window> <task>
       fm_task_inbox_ring "$backend" "$w" "$rec" "$(window_label "$w")" || ring_rc=$?
       if ! fm_task_inbox_clear_retry "$STATE" "$task" "$rec" && [ -f "$rec" ]; then
         reason="stale: $w (steering-inbox retry mark unremovable: ${rec%/*}/.retry-ring cannot be removed, so $rec would ring on every poll - inspect the inbox directory)"
-        fm_wake_append stale "$w" "$reason" || exit 1
-        wake "$reason"
+        inbox_steer_defer_wake "$w" "$task" "$rec" "$reason" 0 \
+          || inbox_steer_wake "$w" "$task" "$rec" "$reason" 0
       fi
       triage_log "steer-inbox retry ring: $task ${rec##*/} result=$ring_rc"
       ;;
@@ -614,12 +646,10 @@ inbox_steer_check() {  # <window> <task>
         fm_task_inbox_due_action "$STATE" "$task" >/dev/null || true
         return 0
       fi
-      fm_wake_append stale "$w" "$reason" || exit 1
-      if ! fm_task_inbox_record_escalated "$STATE" "$task" "$rec"; then
-        echo "error: stale wake was queued for $task but its inbox escalation marker could not be written" >&2
-        exit 1
+      if [ "$bookkeeping" = 1 ] && inbox_steer_defer_wake "$w" "$task" "$rec" "$reason" 1; then
+        return 0
       fi
-      wake "$reason"
+      inbox_steer_wake "$w" "$task" "$rec" "$reason" 1
       ;;
   esac
 }
@@ -632,6 +662,8 @@ inbox_steer_check() {  # <window> <task>
 # task, which is the scan's own window-to-task ownership mapping.
 inbox_steer_sweep() {
   local dir task action w
+  INBOX_STEER_DEFERRED=()
+  INBOX_STEER_DEFER=1
   for dir in "$STATE"/*.inbox; do
     [ -d "$dir" ] || continue
     task=${dir##*/}
@@ -644,6 +676,7 @@ inbox_steer_sweep() {
     watcher_progress_beat
     inbox_steer_check "$w" "$task"
   done
+  INBOX_STEER_DEFER=0
 }
 
 # 0 (benign/absorb) if EVERY task in a no-verb "signal:" wake has positive work
@@ -3463,6 +3496,10 @@ EOF
       fi
     fi
   done < <(recorded_windows_from_cursor)
+
+  # A steering-inbox bookkeeping failure the sweep held surfaces only now, so
+  # it never stops this cycle's scan slice from running.
+  inbox_steer_surface_deferred
 
   # Heartbeat: the watcher runs a cheap fleet-scan at a regular cadence no matter
   # what. Time-based via .last-heartbeat mtime; interval doubles per consecutive

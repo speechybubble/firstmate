@@ -1185,13 +1185,13 @@ test_watcher_dead_pane_ignores_stale_busy_state() {
 }
 
 # One per-cycle inbox pass in a fresh process sourcing the production watcher.
-# A fresh beacon keeps its progress beat a no-op outside a running watcher.
+# The progress beat is defined only past the sourced-mode return, so a no-op
+# stands in for it and check.out holds only the pass's own output.
 sweep_check() {  # <case-dir> [capture]
-  touch "$1/state/.last-watcher-beat"
   PATH="$1/fakebin:$PATH" FM_STATE_OVERRIDE="$1/state" FM_SEND_LOG="$1/send.log" \
     FM_FAKE_TMUX_CAPTURE="${2:-$(idle_capture "$1")}" FM_BUSY_REGEX=BUSYTOKEN \
     FM_TASK_INBOX_GRACE_SECS=0 FM_TASK_INBOX_BUSY_MAX=99 \
-    bash -c '. "$1" && inbox_steer_sweep' _ "$WATCH" > "$1/check.out" 2>&1
+    bash -c '. "$1" && watcher_progress_beat() { :; } && inbox_steer_sweep' _ "$WATCH" > "$1/check.out" 2>&1
 }
 
 test_sweep_rings_only_the_window_owner() {
