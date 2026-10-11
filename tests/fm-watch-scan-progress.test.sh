@@ -574,7 +574,7 @@ test_inbox_bookkeeping_wake_waits_for_the_scan() {
   grep -qF "$state/abroken.inbox/.ring-state cannot be written" "$out" \
     || fail "the watcher did not wake with the unwritable-ladder reason after $reads scan reads: $(cat "$out")"
   for task in abroken bbroken; do
-    grep -q "^test:fm-$task[^ ]* .*'$task.inbox'" "$slog" 2>/dev/null \
+    grep -q "^test:fm-${task}[^ ]* .*'$task.inbox'" "$slog" 2>/dev/null \
       || fail "$task's due doorbell was not rung ahead of the scan:"$'\n'"$(cat "$slog" 2>/dev/null)"
     wakes=$(grep -cF "$state/$task.inbox/.ring-state cannot be written" "$state/.wake-queue" 2>/dev/null || true)
     [ "$wakes" = 1 ] \
