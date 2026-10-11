@@ -1196,8 +1196,13 @@ case "$*" in
 esac
 exit 0
 SH
-  # The forge cannot be read, so a passed run's PR state stays unproven.
-  printf '#!/usr/bin/env bash\nexit 1\n' > "$fakebin/gh"
+  # The forge reports pull/13 merged and cannot read any other PR, so a passed
+  # run's PR state stays unproven.
+  cat > "$fakebin/gh" <<'SH'
+#!/usr/bin/env bash
+case "$*" in *number=13*) printf 'state=MERGED\nmerged=true\n'; exit 0 ;; esac
+exit 1
+SH
   chmod +x "$fakebin/no-mistakes" "$fakebin/gh"
   cat > "$home/data/backlog.md" <<'EOF'
 ## In flight
@@ -1206,6 +1211,8 @@ SH
 - [ ] held-failed - Held after a failed run (repo: alpha) (kind: ship) (hold: keep stopped) (hold-kind: captain) (since 2026-07-11)
 - [ ] unproven - Passed with an unreadable PR (repo: alpha) (kind: ship) (since 2026-07-11)
 - [ ] failed-open - Failed with no hold (repo: alpha) (kind: ship) (since 2026-07-11)
+- [ ] merged - Passed with a merged PR (repo: alpha) (kind: ship) (since 2026-07-11)
+- [ ] no-pr - Ready for review without a recorded PR (repo: alpha) (kind: ship) (since 2026-07-11)
 
 ## Queued
 
@@ -1216,12 +1223,15 @@ EOF
   summary_states_child "$home" held-failed failed 'working: validating'
   summary_states_child "$home" unproven passed 'working: validating' https://github.com/o/r/pull/12
   summary_states_child "$home" failed-open failed 'working: validating'
+  summary_states_child "$home" merged passed 'working: validating' https://github.com/o/r/pull/13
+  summary_states_child "$home" no-pr checks-passed 'working: validating'
   out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
   printf '%s' "$out" | jq -e '
     .valid == false
       and .invalidity.kind == "terminal_in_flight"
-      and (.invalidity.ids | sort) == ["failed-open","unproven"]
+      and (.invalidity.ids | sort) == ["failed-open","merged","no-pr","unproven"]
       and (.reason | contains("unproven=done")) and (.reason | contains("failed-open=failed"))
+      and (.reason | contains("merged=done")) and (.reason | contains("no-pr=done"))
       and ([.awaiting_merge[] | {id,pr_url}] == [{id:"ready",pr_url:"https://github.com/o/r/pull/11"}])
       and (.awaiting_merge[0].detail | startswith("checks green: PR ready for review"))
       and ([.held_failed_runs[] | {id,source}] | sort_by(.id))
@@ -1231,10 +1241,10 @@ EOF
       and .counts.awaiting_merge == 1 and .counts.held_failed_runs == 2
   ' >/dev/null || fail "summary did not separate expected terminal states from contradictions: $out"
 
-  # Without the two contradictions the home is valid again, and the accepted
+  # Without the contradictions the home is valid again, and the accepted
   # children stay visible in their own states.
-  rm -f "$home/state/unproven."* "$home/state/failed-open."*
-  sed -i '/^- \[ \] \(unproven\|failed-open\) /d' "$home/data/backlog.md"
+  rm -f "$home/state/unproven."* "$home/state/failed-open."* "$home/state/merged."* "$home/state/no-pr."*
+  sed -i '/^- \[ \] \(unproven\|failed-open\|merged\|no-pr\) /d' "$home/data/backlog.md"
   out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
   printf '%s' "$out" | jq -e '
     .valid == true and .reason == null and .invalidity == {kind:null,ids:[]}

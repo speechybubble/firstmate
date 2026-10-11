@@ -470,16 +470,21 @@ MODEL=$(printf '%s' "$SNAP" | jq \
        | ([.decisions_open[]? | select(.source == "backlog" and .verb == "captain-hold"
             and live_captain_call)]) as $captain_holds
        | ([.holds[]? | select(.source == "backlog")]) as $backlog_holds
+       | ([.active_children[]? | .id + ": " + (.doing // .state)]
+          + [.awaiting_merge[]? | .id + ": awaiting merge " + .pr_url]
+          + [.held_failed_runs[]? | .id + ": held failed run: " + .reason]) as $child_work
        | . + {
            bearings_captain_holds:$captain_holds,
            bearings_holds:(if .current.state == "captain_decision" then $backlog_holds else .holds end),
            bearings_state:(
              if .current.state == "captain_decision" then
                if ($captain_holds | length) > 0 then "captain_decision"
-               elif (.active_children | length) > 0 then "active_child_work"
+               elif ($child_work | length) > 0 then "active_child_work"
                elif ($backlog_holds | length) > 0 then "externally_held"
                else "unknown" end
-             else .current.state end)
+             elif .current.state == "no_active_work" and ($child_work | length) > 0 then "active_child_work"
+             else .current.state end),
+           bearings_child_work:$child_work
          } ]) as $secondmate_views
   | ([ if .secondmate_current.registry.available == false then
          {id:"(registry)",state:"unknown",doing:(.secondmate_current.registry.reason // "Registered secondmate table unavailable"),
@@ -490,7 +495,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
      + [ $secondmate_views[]
        | {id,state:.bearings_state,
           doing:((if .bearings_state == "active_child_work" then
-                    ([.active_children[] | .id + ": " + (.doing // .state)] | join("; "))
+                    (.bearings_child_work | join("; "))
                   elif .bearings_state == "captain_decision" then
                     ([.bearings_captain_holds[] | .summary] | join("; "))
                   elif .bearings_state == "externally_held" then
@@ -522,7 +527,12 @@ MODEL=$(printf '%s' "$SNAP" | jq \
             name:((.name // "") as $name
                   | (if (($name | type) == "string" and ($name | test("[^[:space:]]")))
                      then $name else ($m.id + "/" + .id) end) | trunc(70)),
-            doing:((.doing // .state) | trunc(90))} ]) as $in_flight_all
+            doing:((.doing // .state) | trunc(90))} ]
+     + [ $secondmate_views[] as $m
+         | ($m.awaiting_merge[]? | {id, state:"done", doing:("awaiting merge " + .pr_url)}),
+           ($m.held_failed_runs[]? | {id, state:"failed", doing:("held failed run: " + .reason)})
+         | {id:($m.id + "/" + .id),kind:"secondmate",state,repo:null,
+            name:($m.id + "/" + .id),doing:(.doing | trunc(90))} ]) as $in_flight_all
   | ([ .backlog.records[]
          | . as $record
          | select(.structured and .hold_bucket != null)
