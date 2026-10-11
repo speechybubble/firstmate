@@ -1244,7 +1244,8 @@ EOF
   # Without the contradictions the home is valid again, and the accepted
   # children stay visible in their own states.
   rm -f "$home/state/unproven."* "$home/state/failed-open."* "$home/state/merged."* "$home/state/no-pr."*
-  sed -i '/^- \[ \] \(unproven\|failed-open\|merged\|no-pr\) /d' "$home/data/backlog.md"
+  grep -Ev '^- \[ \] (unproven|failed-open|merged|no-pr) ' "$home/data/backlog.md" > "$home/data/backlog.md.tmp"
+  mv "$home/data/backlog.md.tmp" "$home/data/backlog.md"
   out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
   printf '%s' "$out" | jq -e '
     .valid == true and .reason == null and .invalidity == {kind:null,ids:[]}

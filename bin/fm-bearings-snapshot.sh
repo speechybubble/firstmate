@@ -471,18 +471,24 @@ MODEL=$(printf '%s' "$SNAP" | jq \
             and live_captain_call)]) as $captain_holds
        | ([.holds[]? | select(.source == "backlog")]) as $backlog_holds
        | ([.active_children[]? | .id + ": " + (.doing // .state)]
-          + [.awaiting_merge[]? | .id + ": awaiting merge " + .pr_url]
-          + [.held_failed_runs[]? | .id + ": held failed run: " + .reason]) as $child_work
+          + [.awaiting_merge[]? | .id + ": awaiting merge " + .pr_url]) as $child_work
+       | ((if .current.state == "captain_decision" then $backlog_holds else .holds end) as $holds
+          | $holds + [.held_failed_runs[]?
+              | select(.id as $id | $holds | map(.id) | index($id) | not)
+              | {id,reason:("held failed run: " + .reason)}]) as $holds_view
        | . + {
            bearings_captain_holds:$captain_holds,
-           bearings_holds:(if .current.state == "captain_decision" then $backlog_holds else .holds end),
+           bearings_holds:$holds_view,
            bearings_state:(
              if .current.state == "captain_decision" then
                if ($captain_holds | length) > 0 then "captain_decision"
                elif ($child_work | length) > 0 then "active_child_work"
-               elif ($backlog_holds | length) > 0 then "externally_held"
+               elif ($holds_view | length) > 0 then "externally_held"
                else "unknown" end
-             elif .current.state == "no_active_work" and ($child_work | length) > 0 then "active_child_work"
+             elif .current.state == "no_active_work" then
+               if ($child_work | length) > 0 then "active_child_work"
+               elif ($holds_view | length) > 0 then "externally_held"
+               else "no_active_work" end
              else .current.state end),
            bearings_child_work:$child_work
          } ]) as $secondmate_views

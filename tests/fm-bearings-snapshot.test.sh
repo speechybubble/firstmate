@@ -2479,24 +2479,35 @@ test_nameless_legacy_summary_uses_its_durable_identifier() {
   pass "blank legacy summary names use their durable identifier"
 }
 
-# A home whose only in-flight children are a PR awaiting merge and a held failed
-# run is not idle: the parent record forwards both lists and bearings shows them.
+# A PR awaiting merge is child work and a held failed run is a hold; neither
+# lets a home read as idle. The parent record forwards both lists, and the hold
+# ranking does not depend on whether the home also has a captain decision.
+set_awaiting_held_summary() {  # <remote-home> <jq-filter>
+  jq "$2" "$1/state/home-summary.json" > "$1/state/states-summary.json"
+  mv "$1/state/states-summary.json" "$1/state/home-summary.json"
+}
+
 test_awaiting_merge_and_held_failed_runs_reach_bearings() {
-  local parent remote_home fakebin json canonical
+  local parent fakebin json canonical held
   parent=$(make_home awaiting-merge-held-failed)
-  make_remote_ledger_fleet "$parent" 2
-  remote_home="$TMP_ROOT/remote-ledger-home-1"
+  make_remote_ledger_fleet "$parent" 4
   fakebin=$(make_remote_ledger_ssh "$parent/remote-ssh")
-  jq '
+  held='.held_failed_runs = [{id:"paused",reason:"paused: waiting for release",source:"status",detail:"run failed"}]
+    | .counts.held_failed_runs = 1'
+  set_awaiting_held_summary "$TMP_ROOT/remote-ledger-home-1" '
     .state = "no_active_work" | .decisions_open = [] | .queued = []
     | .awaiting_merge = [{id:"ready",pr_url:"https://github.com/o/r/pull/11",
         detail:"checks green: PR ready for review"}]
-    | .held_failed_runs = [{id:"paused",reason:"paused: waiting for release",
-        source:"status",detail:"run failed"}]
-    | .counts += {decisions_open:0,queued:0,awaiting_merge:1,held_failed_runs:1}
-  ' "$remote_home/state/home-summary.json" > "$remote_home/state/states-summary.json"
-  mv "$remote_home/state/states-summary.json" "$remote_home/state/home-summary.json"
+    | .counts += {decisions_open:0,queued:0,awaiting_merge:1}
+    | '"$held"
   rm -f "$TMP_ROOT/remote-ledger-home-2/state/home-summary.json"
+  set_awaiting_held_summary "$TMP_ROOT/remote-ledger-home-3" '
+    .state = "no_active_work" | .decisions_open = [] | .queued = []
+    | .counts += {decisions_open:0,queued:0} | '"$held"
+  set_awaiting_held_summary "$TMP_ROOT/remote-ledger-home-4" '
+    .decisions_open = [{id:"other",key:"other",verb:"needs-decision",summary:"pick a route",source:"status"}]
+    | .queued = [] | .holds = [{id:"paused",reason:"keep stopped",source:"backlog"}]
+    | .counts += {decisions_open:1,queued:0,holds:1} | '"$held"
 
   canonical=$(FM_HOME="$parent" FM_ROOT_OVERRIDE="$ROOT" FM_SSH_BIN="$fakebin/fake-ssh" \
     FM_TEST_LEDGER_CALL_LOG="$parent/ledger-calls.log" \
@@ -2518,15 +2529,18 @@ test_awaiting_merge_and_held_failed_runs_reach_bearings() {
   printf '%s' "$json" | jq -e '
     (.secondmates[] | select(.id == "ledger-1")
       | .state == "active_child_work"
-        and (.doing | contains("ready: awaiting merge https://github.com/o/r/pull/11"))
-        and (.doing | contains("paused: held failed run: paused: waiting for release"))
-        and .doing != "No active child work")
+        and .doing == "ready: awaiting merge https://github.com/o/r/pull/11")
+    and (.secondmates[] | select(.id == "ledger-3")
+      | .state == "externally_held"
+        and .doing == "paused: held failed run: paused: waiting for release")
+    and (.secondmates[] | select(.id == "ledger-4")
+      | .state == "externally_held" and .doing == "paused: keep stopped")
     and (.in_flight | any(.id == "ledger-1/ready" and .state == "done"
       and .doing == "awaiting merge https://github.com/o/r/pull/11"))
-    and (.in_flight | any(.id == "ledger-1/paused" and .state == "failed"
+    and (.in_flight | any(.id == "ledger-3/paused" and .state == "failed"
       and .doing == "held failed run: paused: waiting for release"))
-  ' >/dev/null || fail "bearings hid a PR awaiting merge or a held failed run: $json"
-  pass "PRs awaiting merge and held failed runs reach the parent record and bearings"
+  ' >/dev/null || fail "bearings misranked a PR awaiting merge or a held failed run: $json"
+  pass "PRs awaiting merge read as child work and held failed runs as holds in bearings"
 }
 
 test_newest_filed_gates_are_selected_before_snapshot_bounds() {
