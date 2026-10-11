@@ -97,7 +97,9 @@
 #      agree on id, branch, and live/terminal class before attribution;
 #      disagreement reports unknown with available candidate ids. The plain
 #      status stands in for that read when it already names the selected run
-#      on this branch with its status, head, and head_sha.
+#      on this branch with its status, head, and head_sha, and the overview's
+#      own `active_run:` record (fm_nm_overview_current_run) stands in for the
+#      plain status when it names this branch's run the same way.
 #      The run-step is AUTHORITATIVE: running/fixing -> working, ci -> working
 #      (the id-addressed detail read carries step words the overview does not),
 #      awaiting_approval/fix_review -> parked (with gate findings), terminal
@@ -981,7 +983,28 @@ SELECTED_RUN_ID=""
 # Scouts and secondmates never drive a no-mistakes validation of their own
 # worktree, so skip the lookup for them and read state from pane/log directly.
 if [ "$KIND" = ship ] && [ -n "$CREW_BRANCH" ] && command -v no-mistakes >/dev/null 2>&1; then
-  RUN_OUT=$(nm_run axi status)
+  # While this branch's newest run is live, the overview carries it as the
+  # same record the plain status prints, and both reads repeat the CLI's
+  # whole branch-sync git inspection, so the overview is read first and the
+  # plain status only when the overview holds no such run. The cheap runs
+  # listing only picks that order; otherwise the plain status stays first, so
+  # a stalled overview never costs a child without a live run its status read.
+  # The listing is the primary bounded call: when it times out the CLI is not
+  # answering, and RUN_OUT stays empty rather than doubling the wait.
+  overview_ok=1
+  overview_read=0
+  run_overview=""
+  RUN_OUT=""
+  probe_rc=0
+  runs_probe=$(fm_nm_run_checked "$WT" "$NM_TIMEOUT" runs --limit "$FM_CREW_STATE_RUNS_LIMIT") || probe_rc=$?
+  if [ "$probe_rc" != 124 ]; then
+    if fm_nm_runs_newest_is_live "$runs_probe" "$CREW_BRANCH"; then
+      overview_read=1
+      run_overview=$(fm_nm_run_checked "$WT" "$NM_TIMEOUT" axi) || overview_ok=0
+      [ "$overview_ok" = 0 ] || RUN_OUT=$(fm_nm_overview_current_run "$run_overview" "$CREW_BRANCH")
+    fi
+    [ -n "$RUN_OUT" ] || RUN_OUT=$(nm_run axi status)
+  fi
   if [ "$(strip_quotes "$(printf '%s\n' "$RUN_OUT" | sed -n 's/^error: //p')")" = "repo not initialized (run 'no-mistakes init' first)" ]; then
     RUN_OUT=""
   fi
@@ -994,7 +1017,6 @@ if [ "$KIND" = ship ] && [ -n "$CREW_BRANCH" ] && command -v no-mistakes >/dev/n
     # Reuse a no-run status only when its inventory is complete. A capped
     # status lacks the overview's repo identity, which complete run selection
     # needs to resolve the undisplayed rows from the state database.
-    overview_ok=1
     if printf '%s\n' "$RUN_OUT" | grep -qx 'runs_on_current_branch: 0' \
       && printf '%s\n' "$RUN_OUT" | awk '
         /^count: [0-9]+ of [0-9]+ total$/ { if ($2 == $4) complete = 1 }
@@ -1002,7 +1024,8 @@ if [ "$KIND" = ship ] && [ -n "$CREW_BRANCH" ] && command -v no-mistakes >/dev/n
         END { exit !complete }
       '; then
       run_overview=$RUN_OUT
-    else
+      overview_ok=1
+    elif [ "$overview_read" = 0 ]; then
       run_overview=$(fm_nm_run_checked "$WT" "$NM_TIMEOUT" axi) || overview_ok=0
     fi
     [ -n "$run_overview" ] || emit unknown run-step "run inventory unavailable; run id: $(strip_quotes "$(nm_field id)")"
