@@ -5554,33 +5554,30 @@ branch_sync:
 }
 
 test_live_run_overview_stands_in_for_the_plain_status() {
-  local spec name shape expected d log inventory first_out status_out out field rc=0
-  for spec in working:replacement:working; do
-    IFS=: read -r name shape expected <<< "$spec"
-    make_competing_runs_case "overview-first-$name" running cancelled
-    d=$TMP_ROOT/overview-first-$name
-    log=$d/nm-calls
-    inventory=$FM_FAKE_AXI_HOME
-    # Overview-first: a plain status read would answer empty and read unknown.
-    FM_FAKE_AXI_HOME=$(overview_with_active_run "$shape")
-    FM_FAKE_AXI_STATUS=''
-    FM_FAKE_AXI_STATUS_RUN=''
-    : > "$log"
-    first_out=$(FM_FAKE_NM_CALL_LOG=$log run_crew_state "$d" competing)
-    assert_equals 0 "$(plain_status_count "$log")" "$name: a live run's overview record is not re-read as the plain status"
-    assert_equals 1 "$(grep -cx 'axi' "$log" || true)" "$name: the overview is read once"
-    # Status-first: the same record from the plain status, with an overview
-    # that carries only the inventory.
-    FM_FAKE_AXI_HOME=$inventory
-    FM_FAKE_AXI_STATUS=$(captured_axi_status "$shape")
-    : > "$log"
-    status_out=$(FM_FAKE_NM_CALL_LOG=$log run_crew_state "$d" competing)
-    assert_equals 1 "$(plain_status_count "$log")" "$name: without the overview record the plain status is read"
-    assert_equals "$status_out" "$first_out" "$name: the overview record leaves the verdict byte-identical"
-    assert_contains "$first_out" "state: $expected" "$name: the overview record keeps its classification"
-    assert_contains "$first_out" '01NEW' "$name: the overview record keeps its run id"
-    pass "$name live run overview stands in for the plain status"
-  done
+  local name=working shape=replacement expected=working d log inventory first_out status_out out field rc=0
+  make_competing_runs_case "overview-first-$name" running cancelled
+  d=$TMP_ROOT/overview-first-$name
+  log=$d/nm-calls
+  inventory=$FM_FAKE_AXI_HOME
+  # Overview-first: a plain status read would answer empty and read unknown.
+  FM_FAKE_AXI_HOME=$(overview_with_active_run "$shape")
+  FM_FAKE_AXI_STATUS=''
+  FM_FAKE_AXI_STATUS_RUN=''
+  : > "$log"
+  first_out=$(FM_FAKE_NM_CALL_LOG=$log run_crew_state "$d" competing)
+  assert_equals 0 "$(plain_status_count "$log")" "$name: a live run's overview record is not re-read as the plain status"
+  assert_equals 1 "$(grep -cx 'axi' "$log" || true)" "$name: the overview is read once"
+  # Status-first: the same record from the plain status, with an overview
+  # that carries only the inventory.
+  FM_FAKE_AXI_HOME=$inventory
+  FM_FAKE_AXI_STATUS=$(captured_axi_status "$shape")
+  : > "$log"
+  status_out=$(FM_FAKE_NM_CALL_LOG=$log run_crew_state "$d" competing)
+  assert_equals 1 "$(plain_status_count "$log")" "$name: without the overview record the plain status is read"
+  assert_equals "$status_out" "$first_out" "$name: the overview record leaves the verdict byte-identical"
+  assert_contains "$first_out" "state: $expected" "$name: the overview record keeps its classification"
+  assert_contains "$first_out" '01NEW' "$name: the overview record keeps its run id"
+  pass "$name live run overview stands in for the plain status"
 
   for name in terminal-newest parked other-branch status head head_sha id; do
     (
