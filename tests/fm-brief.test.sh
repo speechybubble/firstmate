@@ -432,6 +432,59 @@ test_no_mistakes_dod_green_detection() {
   pass "fm-brief.sh: no-mistakes DOD detects a green PR from the drive call, not a status poll"
 }
 
+# Review routing follows the installed No Mistakes pipeline agent: a native
+# agent starts without the Pi-only --model/--effort pins, a Pi agent keeps the
+# pinned profile from its own config, and an unreadable agent stops the worker
+# instead of guessing a provider. The surrounding intent and gate text is shared.
+test_no_mistakes_dod_review_routing() {
+  local home nm id brief
+  home="$TMP_ROOT/routing-home"
+  nm="$TMP_ROOT/routing-nm"
+  mkdir -p "$home/data" "$nm"
+
+  printf '%s\n' 'agent: claude' 'agent_config:' '  pi:' '    model: openai-codex/should-not-render' \
+    '  claude:' '    model: claude-opus-5-5' '    effort: medium  # comment' > "$nm/config.yaml"
+  id="brief-routing-native"
+  NM_HOME="$nm" FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" some-proj --mode no-mistakes >/dev/null 2>&1
+  brief="$home/data/$id/brief.md"
+  assert_present "$brief" "native-agent brief was not scaffolded"
+  assert_grep "uses the native \`claude\` agent configured in \`$nm/config.yaml\` with model \`claude-opus-5-5\` and effort \`medium\`" "$brief" \
+    "native routing must name the configured agent, model, and effort"
+  assert_grep "Start validation WITHOUT \`--model\` or \`--effort\`" "$brief" \
+    "native routing must start without Pi selection flags"
+  assert_grep "Never fall back to a Pi, \`openai-codex\`, or other provider profile" "$brief" \
+    "native routing must forbid a provider fallback"
+  assert_no_grep "should-not-render" "$brief" "native routing leaked the Pi profile model"
+  assert_no_grep "--effort medium\`" "$brief" "native routing still teaches a Pi effort pin"
+  assert_no_grep "Pi-only" "$brief" "native routing still requires a Pi-only pipeline"
+  assert_grep "pass \`--intent\` as only this brief's \`## Captain's intent\`" "$brief" \
+    "native routing must keep the --intent provenance contract"
+  assert_grep "NEVER pass \`--yes\`" "$brief" "native routing must keep the gate-driving rules"
+
+  printf '%s\n' 'agent: pi' 'agent_config:' '  pi:' "    model: 'openai-codex/pinned-test'" > "$nm/config.yaml"
+  id="brief-routing-pi"
+  NM_HOME="$nm" FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" some-proj --mode no-mistakes >/dev/null 2>&1
+  brief="$home/data/$id/brief.md"
+  assert_present "$brief" "Pi-agent brief was not scaffolded"
+  assert_grep "Start an ordinary validation with \`--model openai-codex/pinned-test --effort medium\`" "$brief" \
+    "Pi routing must pin the configured Pi model at medium effort"
+  assert_grep "\`--model openai-codex/pinned-test --effort high\` for a difficult validation" "$brief" \
+    "Pi routing must offer the high-effort pin for difficult validation"
+  assert_grep "Confirm that the returned \`pi_profile\` matches" "$brief" "Pi routing must check the pinned profile"
+  assert_no_grep "native" "$brief" "Pi routing rendered native-agent guidance"
+
+  : > "$nm/config.yaml"
+  id="brief-routing-unknown"
+  NM_HOME="$nm" FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$id" some-proj --mode no-mistakes >/dev/null 2>&1
+  brief="$home/data/$id/brief.md"
+  assert_present "$brief" "unknown-agent brief was not scaffolded"
+  assert_grep "could not read the No Mistakes pipeline agent from \`$nm/config.yaml\`" "$brief" \
+    "unreadable agent must be reported, not guessed"
+  assert_no_grep "Start validation WITHOUT" "$brief" "unreadable agent still rendered native guidance"
+  assert_no_grep "Start an ordinary validation" "$brief" "unreadable agent still rendered a Pi pin"
+  pass "fm-brief.sh: no-mistakes DOD routes review to the installed pipeline agent"
+}
+
 test_ask_user_escalation_format() {
   local home id brief mode other_id other_brief
   home="$TMP_ROOT/ask-user-home"
@@ -1480,6 +1533,7 @@ test_faster_paths_use_configured_authority_without_stacked_review
 test_no_mistakes_dod_wording
 test_no_mistakes_dod_green_detection
 test_pr_based_dod_requires_non_draft
+test_no_mistakes_dod_review_routing
 test_ask_user_escalation_format
 test_ship_project_memory_wording
 test_herdr_lab_contract_is_explicit_and_complete
