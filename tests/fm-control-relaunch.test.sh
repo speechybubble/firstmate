@@ -1494,6 +1494,187 @@ test_prepublication_abort_retires_replacement_wiring_and_busy_state() {
   pass "fm-spawn relaunch: prepublication abort removes replacement state"
 }
 
+# add_claude_secondmate_task <case-dir> <id>: a Claude second mate whose home
+# holds the captain's own private .claude/settings.local.json, which is home
+# configuration rather than per-task wiring (fm-spawn arms none for a mate).
+add_claude_secondmate_task() {
+  local dir=$1 id=$2 home="$1/home" mate="$1/smhome"
+  mkdir -p "$home/config" "$home/data/$id"
+  printf 'claude\n' > "$home/config/secondmate-harness"
+  printf '# secondmate brief\n' > "$home/data/$id/brief.md"
+  fm_git_worktree "$dir/proj" "$mate" sm-branch
+  mkdir -p "$mate/state" "$mate/data" "$mate/bin" "$mate/.claude"
+  printf '%s\n' "$id" > "$mate/.fm-secondmate-home"
+  printf '# agents\n' > "$mate/AGENTS.md"
+  printf '%s\n' '{"permissions":{"deny":["Bash(rm -rf:*)","Read(./.env)"]}}' \
+    > "$mate/.claude/settings.local.json"
+  cp -p "$mate/.claude/settings.local.json" "$dir/mate-settings-before"
+  {
+    echo "window=fmses:fm-$id"
+    echo "endpoint_task_id=$id"
+    echo "worktree=$mate"
+    echo "project=$mate"
+    echo "harness=claude"
+    echo "kind=secondmate"
+    echo "mode=secondmate"
+    echo "yolo=off"
+    echo "model=default"
+    echo "effort=default"
+    echo "home=$mate"
+  } > "$home/state/$id.meta"
+  printf '%s\n' "fm-$id" > "$dir/fake/windows"
+  printf '%s' "$mate" > "$dir/fake/cwd"
+}
+
+test_secondmate_relaunch_keeps_the_home_private_claude_settings() {
+  local dir out rc
+  dir=$(new_case smsettings sm9)
+  add_claude_secondmate_task "$dir" sm9
+  out=$(run_control "$dir" sm9 relaunch); rc=$?
+  expect_code 0 "$rc" "a Claude second mate should relaunch"$'\n'"$out"
+  assert_grep "/exit" "$dir/fake/literal" "the previous agent should have been exited"
+  cmp -s "$dir/mate-settings-before" "$dir/smhome/.claude/settings.local.json" \
+    || fail "a second-mate relaunch must leave its home's private .claude/settings.local.json byte-identical"
+  pass "fm-control relaunch: a second mate's home keeps its private Claude settings across a relaunch"
+}
+
+test_aborted_secondmate_relaunch_keeps_the_home_private_claude_settings() {
+  local dir out rc real_mv meta
+  dir=$(new_case smsettingsabort sm10)
+  add_claude_secondmate_task "$dir" sm10
+  meta="$dir/home/state/sm10.meta"
+  real_mv=$(command -v mv)
+  make_mv_failure_stub "$dir"
+  out=$(FM_REAL_MV="$real_mv" FM_FAKE_META_PUBLISH_MV_FAIL="$meta" \
+    run_control "$dir" sm10 relaunch); rc=$?
+  expect_code 1 "$rc" "a failed metadata publication should fail closed"$'\n'"$out"
+  [ "$(journal_field "$dir" sm10 rollback)" = prior-record-kept ] \
+    || fail "the aborted relaunch should have rolled back its unpublished replacement"
+  cmp -s "$dir/mate-settings-before" "$dir/smhome/.claude/settings.local.json" \
+    || fail "an aborted second-mate relaunch must leave its home's private .claude/settings.local.json byte-identical"
+  pass "fm-control relaunch: an aborted second-mate relaunch keeps its home's private Claude settings"
+}
+
+test_ship_relaunch_still_rearms_its_claude_wiring() {
+  local dir out rc gen
+  dir=$(new_case shipwiring rl40)
+  add_ship_task "$dir" rl40 claude
+  mkdir -p "$dir/wt/.claude"
+  printf 'prior incarnation wiring\n' > "$dir/wt/.claude/settings.local.json"
+  out=$(run_control "$dir" rl40 relaunch --note "fresh hooks"); rc=$?
+  expect_code 0 "$rc" "a ship relaunch should succeed"$'\n'"$out"
+  gen=$(meta_field "$dir" rl40 busy_gen)
+  [ -n "$gen" ] || fail "the relaunch should record a busy generation"
+  assert_no_grep "prior incarnation wiring" "$dir/wt/.claude/settings.local.json" \
+    "a ship's previous Claude wiring must be retired"
+  assert_grep "$gen" "$dir/wt/.claude/settings.local.json" \
+    "a ship's replacement Claude wiring must carry the new busy generation"
+  pass "fm-control relaunch: a ship still retires and re-arms its own Claude wiring"
+}
+
+# set_recorded_profile <case-dir> <id> <model> <effort>
+set_recorded_profile() {
+  sed "s|^model=default\$|model=$3|; s|^effort=default\$|effort=$4|" \
+    "$1/home/state/$2.meta" > "$1/home/state/$2.meta.tmp"
+  mv "$1/home/state/$2.meta.tmp" "$1/home/state/$2.meta"
+}
+
+# launch_line <case-dir>: the replacement claude launch typed into the endpoint.
+launch_line() {
+  grep -F -- '--dangerously-skip-permissions' "$1/fake/literal" | tail -1
+}
+
+test_spawn_relaunch_keeps_the_recorded_model_and_effort() {
+  local dir out rc launch
+  dir=$(new_case spawnprofile rl41)
+  add_ship_task "$dir" rl41 claude
+  set_recorded_profile "$dir" rl41 claude-opus-5-5 medium
+  printf 'zsh' > "$dir/fake/command"
+  out=$(run_spawn "$dir" rl41 --relaunch); rc=$?
+  expect_code 0 "$rc" "fm-spawn --relaunch should succeed"$'\n'"$out"
+  launch=$(launch_line "$dir")
+  printf '%s' "$launch" | grep -Eq -- "--model '?claude-opus-5-5'?( |$)" \
+    || fail "the relaunch must carry the recorded model, got: $launch"
+  printf '%s' "$launch" | grep -Eq -- "--effort '?medium'?( |$)" \
+    || fail "the relaunch must carry the recorded effort, got: $launch"
+  [ "$(meta_field "$dir" rl41 model)" = claude-opus-5-5 ] \
+    || fail "the relaunched record must keep the model, got '$(meta_field "$dir" rl41 model)'"
+  [ "$(meta_field "$dir" rl41 effort)" = medium ] \
+    || fail "the relaunched record must keep the effort, got '$(meta_field "$dir" rl41 effort)'"
+  pass "fm-spawn --relaunch: with no explicit axes it keeps the task's recorded model and effort"
+}
+
+test_spawn_relaunch_explicit_axes_win_and_a_recorded_default_stays_flagless() {
+  local dir out rc launch
+  dir=$(new_case spawnprofilewin rl42)
+  add_ship_task "$dir" rl42 claude
+  set_recorded_profile "$dir" rl42 claude-opus-5-5 medium
+  printf 'zsh' > "$dir/fake/command"
+  out=$(run_spawn "$dir" rl42 --relaunch --model sonnet --effort low); rc=$?
+  expect_code 0 "$rc" "fm-spawn --relaunch with explicit axes should succeed"$'\n'"$out"
+  launch=$(launch_line "$dir")
+  printf '%s' "$launch" | grep -Eq -- "--model '?sonnet'?( |$)" \
+    || fail "an explicit model must win, got: $launch"
+  printf '%s' "$launch" | grep -Eq -- "--effort '?low'?( |$)" \
+    || fail "an explicit effort must win, got: $launch"
+  assert_not_contains "$launch" "claude-opus-5-5" "the recorded model must not also be passed"
+
+  dir=$(new_case spawnprofiledefault rl43)
+  add_ship_task "$dir" rl43 claude
+  printf 'zsh' > "$dir/fake/command"
+  out=$(run_spawn "$dir" rl43 --relaunch); rc=$?
+  expect_code 0 "$rc" "fm-spawn --relaunch of a default profile should succeed"$'\n'"$out"
+  launch=$(launch_line "$dir")
+  [ -n "$launch" ] || fail "the relaunch should have typed a claude launch"
+  assert_not_contains "$launch" "--model" "a recorded default model must stay flagless"
+  assert_not_contains "$launch" "--effort" "a recorded default effort must stay flagless"
+  pass "fm-spawn --relaunch: explicit axes win, and a recorded default launches with no axis flags"
+}
+
+test_spawn_relaunch_onto_an_explicit_harness_carries_no_recorded_axes() {
+  local dir out rc
+  dir=$(new_case spawnprofileswitch rl44)
+  add_ship_task "$dir" rl44 claude
+  set_recorded_profile "$dir" rl44 claude-opus-5-5 medium
+  printf 'zsh' > "$dir/fake/command"
+  printf 'codex' > "$dir/fake/becomes"
+  out=$(run_spawn "$dir" rl44 --relaunch --harness codex); rc=$?
+  expect_code 0 "$rc" "fm-spawn --relaunch onto codex should succeed"$'\n'"$out"
+  [ "$(meta_field "$dir" rl44 harness)" = codex ] || fail "the record should move to codex"
+  [ "$(meta_field "$dir" rl44 model)" = default ] \
+    || fail "a model recorded for claude must not carry to codex, got '$(meta_field "$dir" rl44 model)'"
+  [ "$(meta_field "$dir" rl44 effort)" = default ] \
+    || fail "an effort recorded for claude must not carry to codex, got '$(meta_field "$dir" rl44 effort)'"
+  assert_no_grep "claude-opus-5-5" "$dir/fake/literal" "the recorded claude model must not reach the codex launch"
+  pass "fm-spawn --relaunch: an explicit harness carries none of the recorded axes"
+}
+
+test_control_relaunch_keeps_the_pr_poll_record_authenticatable() {
+  local dir out rc meta last_two
+  dir=$(new_case prpollauth rl45)
+  add_ship_task "$dir" rl45 claude
+  meta="$dir/home/state/rl45.meta"
+  {
+    printf '%s\n' 'pr=https://github.com/example/repo/pull/45'
+    printf '%s\n' 'pr_head=0123456789abcdef0123456789abcdef01234567'
+  } >> "$meta"
+  # shellcheck source=bin/fm-pr-lib.sh
+  ( . "$ROOT/bin/fm-pr-lib.sh"; fm_pr_metadata_identity_parse "$meta" ) \
+    || fail "fixture: the recorded PR binding should authenticate before the relaunch"
+  out=$(run_control "$dir" rl45 relaunch --note "keep the merge poll"); rc=$?
+  expect_code 0 "$rc" "the relaunch should succeed"$'\n'"$out"
+  assert_grep 'control_relaunch_tx=' "$meta" "fixture: a control relaunch should record its transaction"
+  last_two=$(tail -n 2 "$meta" | cut -d= -f1 | tr '\n' ' ')
+  [ "$last_two" = "pr pr_head " ] \
+    || fail "the PR binding must stay the record's last keys after a control relaunch, got '$last_two'"
+  # shellcheck source=bin/fm-pr-lib.sh
+  ( . "$ROOT/bin/fm-pr-lib.sh"
+    fm_pr_metadata_identity_parse "$meta" \
+      && [ "$FM_PR_META_URL" = https://github.com/example/repo/pull/45 ] ) \
+    || fail "the relaunched record must still authenticate the task's PR binding"
+  pass "fm-control relaunch: the relaunched record keeps the PR binding last, so the merge poll still authenticates"
+}
+
 test_journal_records_the_checkpoint_it_proved() {
   local dir head
   dir=$(new_case journal rl14)
@@ -3044,6 +3225,13 @@ test_post_publication_launch_failure_keeps_the_new_record
 test_stop_transport_failure_reconciles_a_dead_agent
 test_complete_journal_failure_rolls_back_from_durable_phase
 test_prepublication_abort_retires_replacement_wiring_and_busy_state
+test_secondmate_relaunch_keeps_the_home_private_claude_settings
+test_aborted_secondmate_relaunch_keeps_the_home_private_claude_settings
+test_ship_relaunch_still_rearms_its_claude_wiring
+test_spawn_relaunch_keeps_the_recorded_model_and_effort
+test_spawn_relaunch_explicit_axes_win_and_a_recorded_default_stays_flagless
+test_spawn_relaunch_onto_an_explicit_harness_carries_no_recorded_axes
+test_control_relaunch_keeps_the_pr_poll_record_authenticatable
 test_journal_records_the_checkpoint_it_proved
 test_secondmate_relaunch_checkpoints_child_work_and_spares_the_charter
 test_secondmate_relaunch_refuses_an_unmarked_home

@@ -620,10 +620,24 @@ fm_control_endpoint_absence_verdict() {  # <backend> <target>
 # clear the previous incarnation's wiring instead of leaving a stale hook
 # pointing at a retired generation. Prints zero or more absolute paths, one per
 # line: worktree-resident hook files and firstmate-owned state tokens only,
-# never a harness's own managed config.
-fm_control_harness_wiring_paths() {  # <harness> <worktree> <state-dir> <id>
-  local harness=${1-} wt=${2-} state=${3-} id=${4-}
+# never a harness's own managed config. For kind secondmate the worktree is the
+# mate's own firstmate home, where bin/fm-spawn.sh arms no wiring and the same
+# paths are that home's private configuration (its .claude/settings.local.json),
+# so only the state-resident paths are printed.
+fm_control_harness_wiring_paths() {  # <harness> <worktree> <state-dir> <id> [<kind>]
+  local harness=${1-} wt=${2-} state=${3-} id=${4-} kind=${5-} path
   [ -n "$wt" ] && [ -n "$state" ] && [ -n "$id" ] || return 1
+  if [ "$kind" = secondmate ]; then
+    while IFS= read -r path; do
+      case "$path" in
+        ''|"$wt"/*) ;;
+        *) printf '%s\n' "$path" ;;
+      esac
+    done <<EOF
+$(fm_control_harness_wiring_paths "$harness" "$wt" "$state" "$id")
+EOF
+    return 0
+  fi
   case "$harness" in
     claude) printf '%s\n' "$wt/.claude/settings.local.json" ;;
     opencode) printf '%s\n' "$wt/.opencode/plugins/fm-busy-state.js" ;;
