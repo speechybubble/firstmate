@@ -1,0 +1,28 @@
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch: a second mate's home keeps its private Claude settings across a relaunch
+RESULT test_secondmate_relaunch_keeps_the_home_private_claude_settings rc=0 secs=24
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch: an aborted second-mate relaunch keeps its home's private Claude settings
+RESULT test_aborted_secondmate_relaunch_keeps_the_home_private_claude_settings rc=0 secs=22
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch: a ship still retires and re-arms its own Claude wiring
+RESULT test_ship_relaunch_still_rearms_its_claude_wiring rc=0 secs=17
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-spawn --relaunch: with no explicit axes it keeps the task's recorded model and effort
+RESULT test_spawn_relaunch_keeps_the_recorded_model_and_effort rc=0 secs=14
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-spawn --relaunch: explicit axes win, and a recorded default launches with no axis flags
+RESULT test_spawn_relaunch_explicit_axes_win_and_a_recorded_default_stays_flagless rc=0 secs=22
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-spawn --relaunch: an explicit harness carries none of the recorded axes
+RESULT test_spawn_relaunch_onto_an_explicit_harness_carries_no_recorded_axes rc=0 secs=14
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch: the relaunched record keeps the PR binding last, so the merge poll still authenticates
+RESULT test_control_relaunch_keeps_the_pr_poll_record_authenticatable rc=0 secs=17

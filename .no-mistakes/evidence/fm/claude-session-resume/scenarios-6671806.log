@@ -1,0 +1,80 @@
+### test_secondmate_relaunch_keeps_the_home_private_claude_settings start 2026-10-11T03:13:36Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch: a second mate's home keeps its private Claude settings across a relaunch
+### test_secondmate_relaunch_keeps_the_home_private_claude_settings rc=0 secs=16
+### test_aborted_secondmate_relaunch_keeps_the_home_private_claude_settings start 2026-10-11T03:13:59Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch: an aborted second-mate relaunch keeps its home's private Claude settings
+### test_aborted_secondmate_relaunch_keeps_the_home_private_claude_settings rc=0 secs=16
+### test_ship_relaunch_still_rearms_its_claude_wiring start 2026-10-11T03:14:15Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch: a ship still retires and re-arms its own Claude wiring
+### test_ship_relaunch_still_rearms_its_claude_wiring rc=0 secs=16
+### test_spawn_relaunch_keeps_the_recorded_model_and_effort start 2026-10-11T03:14:32Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-spawn --relaunch: with no explicit axes it keeps the task's recorded model and effort
+### test_spawn_relaunch_keeps_the_recorded_model_and_effort rc=0 secs=16
+### test_spawn_relaunch_explicit_axes_win_and_a_recorded_default_stays_flagless start 2026-10-11T03:14:48Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-spawn --relaunch: explicit axes win, and a recorded default launches with no axis flags
+### test_spawn_relaunch_explicit_axes_win_and_a_recorded_default_stays_flagless rc=0 secs=22
+### test_spawn_relaunch_onto_an_explicit_harness_carries_no_recorded_axes start 2026-10-11T03:15:10Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-spawn --relaunch: an explicit harness carries none of the recorded axes
+### test_spawn_relaunch_onto_an_explicit_harness_carries_no_recorded_axes rc=0 secs=13
+### test_control_relaunch_keeps_the_pr_poll_record_authenticatable start 2026-10-11T03:15:23Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch: the relaunched record keeps the PR binding last, so the merge poll still authenticates
+### test_control_relaunch_keeps_the_pr_poll_record_authenticatable rc=0 secs=16
+### test_resume_session_relaunch_resumes_the_exact_worker_conversation start 2026-10-11T03:15:44Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch --resume-session: a worker resumes its exact conversation with full wiring and no brief
+### test_resume_session_relaunch_resumes_the_exact_worker_conversation rc=0 secs=19
+### test_resume_session_relaunch_resumes_a_secondmate_with_its_home_environment start 2026-10-11T03:16:03Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch --resume-session: a secondmate resumes in its own home environment, bound by FM_TASK_INBOX or, launched before it, by its endpoint and home
+### test_resume_session_relaunch_resumes_a_secondmate_with_its_home_environment rc=0 secs=32
+### test_resume_session_relaunch_resumes_a_legacy_worker_bound_by_endpoint_and_task_id start 2026-10-11T03:16:35Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch --resume-session: a legacy worker without FM_TASK_INBOX or FM_HOME resumes through its endpoint and FM_TASK_ID
+### test_resume_session_relaunch_resumes_a_legacy_worker_bound_by_endpoint_and_task_id rc=0 secs=24
+### test_resume_session_refusals_happen_before_the_agent_stops start 2026-10-11T03:16:59Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch --resume-session: a malformed, missing, mismatched, foreign, transcript-less, doubly owned, other-agent-owned, or non-Claude session refuses before anything stops
+### test_resume_session_refusals_happen_before_the_agent_stops rc=0 secs=26
+### test_resume_session_spawn_refuses_a_session_still_owned_and_never_falls_back start 2026-10-11T03:17:30Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-spawn --relaunch --resume-session: refuses a session another process still owns and never launches fresh
+### test_resume_session_spawn_refuses_a_session_still_owned_and_never_falls_back rc=0 secs=11
+### test_resume_session_spawn_resumes_a_released_session start 2026-10-11T03:17:41Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-spawn --relaunch --resume-session: an already-stopped task resumes its released session
+### test_resume_session_spawn_resumes_a_released_session rc=0 secs=15
+### test_resume_session_post_stop_failure_names_the_exact_session_recovery start 2026-10-11T03:17:56Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch --resume-session: a failure after the stop names the exact-session recovery command, which resumes it
+### test_resume_session_post_stop_failure_names_the_exact_session_recovery rc=0 secs=19
+### test_herdr_resume_session_binds_a_legacy_secondmate_through_the_pane_shell start 2026-10-11T03:18:15Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch --resume-session: a legacy Herdr secondmate is bound through its pane shell, and an owner outside it refuses before the stop
+### test_herdr_resume_session_binds_a_legacy_secondmate_through_the_pane_shell rc=0 secs=21
+### test_herdr_claude_relaunch_without_resume_session_stays_fresh start 2026-10-11T03:18:36Z
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-spawn --relaunch: an ordinary Claude relaunch on Herdr stays a fresh session with its brief
+### test_herdr_claude_relaunch_without_resume_session_stays_fresh rc=0 secs=16

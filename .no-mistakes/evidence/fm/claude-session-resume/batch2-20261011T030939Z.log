@@ -1,0 +1,36 @@
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch --resume-session: a worker resumes its exact conversation with full wiring and no brief
+RESULT test_resume_session_relaunch_resumes_the_exact_worker_conversation rc=0 secs=18
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch --resume-session: a secondmate resumes in its own home environment, bound by FM_TASK_INBOX or, launched before it, by its endpoint and home
+RESULT test_resume_session_relaunch_resumes_a_secondmate_with_its_home_environment rc=0 secs=23
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch --resume-session: a legacy worker without FM_TASK_INBOX or FM_HOME resumes through its endpoint and FM_TASK_ID
+RESULT test_resume_session_relaunch_resumes_a_legacy_worker_bound_by_endpoint_and_task_id rc=0 secs=23
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch --resume-session: a malformed, missing, mismatched, foreign, transcript-less, doubly owned, other-agent-owned, or non-Claude session refuses before anything stops
+RESULT test_resume_session_refusals_happen_before_the_agent_stops rc=0 secs=29
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-spawn --relaunch --resume-session: refuses a session another process still owns and never launches fresh
+RESULT test_resume_session_spawn_refuses_a_session_still_owned_and_never_falls_back rc=0 secs=12
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-spawn --relaunch --resume-session: an already-stopped task resumes its released session
+RESULT test_resume_session_spawn_resumes_a_released_session rc=0 secs=16
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch --resume-session: a failure after the stop names the exact-session recovery command, which resumes it
+RESULT test_resume_session_post_stop_failure_names_the_exact_session_recovery rc=0 secs=22
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch --resume-session: a legacy Herdr secondmate is bound through its pane shell, and an owner outside it refuses before the stop
+RESULT test_herdr_resume_session_binds_a_legacy_secondmate_through_the_pane_shell rc=0 secs=21
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-spawn --relaunch: an ordinary Claude relaunch on Herdr stays a fresh session with its brief
+RESULT test_herdr_claude_relaunch_without_resume_session_stays_fresh rc=0 secs=16
