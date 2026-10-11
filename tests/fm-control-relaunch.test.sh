@@ -1650,26 +1650,26 @@ test_spawn_relaunch_onto_an_explicit_harness_carries_no_recorded_axes() {
 }
 
 test_control_relaunch_keeps_the_pr_poll_record_authenticatable() {
-  local dir out rc meta last_two
+  local dir out rc record last_two
   dir=$(new_case prpollauth rl45)
   add_ship_task "$dir" rl45 claude
-  meta="$dir/home/state/rl45.meta"
+  record="$dir/home/state/rl45.meta"
   {
     printf '%s\n' 'pr=https://github.com/example/repo/pull/45'
     printf '%s\n' 'pr_head=0123456789abcdef0123456789abcdef01234567'
-  } >> "$meta"
+  } >> "$record"
   # shellcheck source=bin/fm-pr-lib.sh
-  ( . "$ROOT/bin/fm-pr-lib.sh"; fm_pr_metadata_identity_parse "$meta" ) \
+  ( . "$ROOT/bin/fm-pr-lib.sh"; fm_pr_metadata_identity_parse "$record" ) \
     || fail "fixture: the recorded PR binding should authenticate before the relaunch"
   out=$(run_control "$dir" rl45 relaunch --note "keep the merge poll"); rc=$?
   expect_code 0 "$rc" "the relaunch should succeed"$'\n'"$out"
-  assert_grep 'control_relaunch_tx=' "$meta" "fixture: a control relaunch should record its transaction"
-  last_two=$(tail -n 2 "$meta" | cut -d= -f1 | tr '\n' ' ')
+  assert_grep 'control_relaunch_tx=' "$record" "fixture: a control relaunch should record its transaction"
+  last_two=$(tail -n 2 "$record" | cut -d= -f1 | tr '\n' ' ')
   [ "$last_two" = "pr pr_head " ] \
     || fail "the PR binding must stay the record's last keys after a control relaunch, got '$last_two'"
   # shellcheck source=bin/fm-pr-lib.sh
   ( . "$ROOT/bin/fm-pr-lib.sh"
-    fm_pr_metadata_identity_parse "$meta" \
+    fm_pr_metadata_identity_parse "$record" \
       && [ "$FM_PR_META_URL" = https://github.com/example/repo/pull/45 ] ) \
     || fail "the relaunched record must still authenticate the task's PR binding"
   pass "fm-control relaunch: the relaunched record keeps the PR binding last, so the merge poll still authenticates"
