@@ -1,0 +1,40 @@
+ok - process proof reads Linux Herdr argv arrays and rejects malformed executable identities
+ok - exact stale projection closes one exact pane under task then presentation locks
+ok - successful cleanup is idempotent on repeat
+ok - malformed title preserves the candidate
+ok - missing token preserves the candidate
+ok - malformed journal preserves the candidate
+ok - duplicate token preserves the candidate
+ok - duplicate title token preserves the candidate
+ok - zero journal match preserves the candidate
+ok - multiple journal matches preserves the candidate
+ok - cross-home journal preserves the candidate
+ok - v2 workspace binding mismatch preserves the candidate
+ok - v2 tab binding mismatch preserves the candidate
+ok - v2 pane binding mismatch preserves the candidate
+ok - v2 cleanup requires and accepts the exact journal endpoint binding
+ok - current task metadata preserves the candidate
+ok - registered agent preserves the candidate
+ok - unknown agent preserves the candidate
+ok - multiple tabs preserves the candidate
+ok - multiple panes preserves the candidate
+ok - non-idle shell preserves the candidate
+ok - child process or shell job preserves the candidate
+ok - unreadable snapshot preserves the candidate
+ok - unreadable topology check preserves the candidate
+ok - revalidation race preserves the candidate
+ok - active target preserves the candidate
+ok - focus refusal preserves the candidate
+ok - symlinked journal is skipped without blocking while the valid husk is retired
+ok - FIFO journal is skipped without blocking while the valid husk is retired
+ok - invalid task id journal is skipped without blocking while the valid husk is retired
+ok - foreign-home journal reaches the strict home check and is refused
+ok - many journals and candidates scan linearly and leave current tasks untouched
+ok - standalone bootstrap cannot run lock-owned stale projection cleanup
+ok - session start runs cleanup only after acquiring its home lock
+all fm-herdr-session-cleanup tests passed
+
+real	0m57.616s
+user	0m33.719s
+sys	0m39.416s
+exit=0
