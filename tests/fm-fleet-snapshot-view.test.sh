@@ -1152,9 +1152,102 @@ EOF
   pass "home-summary excludes kind=secondmate from unowned_current and terminal_in_flight"
 }
 
+# One ship child per case, each in its own git worktree, and a no-mistakes that
+# answers each worktree's branch from $FM_HOME/nm/<branch>.status, the way the
+# real CLI answers the current branch.
+summary_states_child() {  # <home> <id> <outcome> <status-line> [<pr-url>]
+  local home=$1 id=$2 outcome=$3 line=$4 pr=${5:-} wt head
+  wt=$home/projects/$id
+  mkdir -p "$wt" "$home/nm"
+  git -C "$wt" init -q
+  git -C "$wt" -c user.email=t@e -c user.name=t commit -q --allow-empty -m init
+  git -C "$wt" checkout -q -b "fm/$id"
+  head=$(git -C "$wt" rev-parse HEAD)
+  cat > "$home/nm/fm_$id.status" <<EOF
+run:
+  id: "01$id"
+  branch: fm/$id
+  status: completed
+  head: "$head"
+  head_sha: "$head"
+  pr: "$pr"
+  findings: none
+outcome: $outcome
+EOF
+  printf 'count: 1 of 1 total\nruns[1]{id,branch,status,head,pr}:\n  "01%s",fm/%s,completed,%s,""\n' \
+    "$id" "$id" "${head:0:8}" > "$home/nm/fm_$id.overview"
+  fm_write_meta "$home/state/$id.meta" "window=firstmate:fm-$id" "worktree=$wt" \
+    "project=alpha" "harness=claude" "kind=ship" "mode=no-mistakes" ${pr:+"pr=$pr"}
+  record_claude_idle "$home/state" "$id"
+  printf '%s\n' "$line" > "$home/state/$id.status"
+}
+
+test_home_summary_accepts_awaiting_merge_and_held_failed_runs() {
+  local home fakebin out
+  home=$(make_home summary-states)
+  fakebin=$(make_fakebin "$home")
+  cat > "$fakebin/no-mistakes" <<'SH'
+#!/usr/bin/env bash
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0
+f="$FM_HOME/nm/${branch//\//_}"
+case "$*" in
+  axi) cat "$f.overview" 2>/dev/null ;;
+  "axi status"*) cat "$f.status" 2>/dev/null ;;
+esac
+exit 0
+SH
+  # The forge cannot be read, so a passed run's PR state stays unproven.
+  printf '#!/usr/bin/env bash\nexit 1\n' > "$fakebin/gh"
+  chmod +x "$fakebin/no-mistakes" "$fakebin/gh"
+  cat > "$home/data/backlog.md" <<'EOF'
+## In flight
+- [ ] ready - Ready for merge (repo: alpha) (kind: ship) (since 2026-07-11)
+- [ ] paused-failed - Paused after a failed run (repo: alpha) (kind: ship) (since 2026-07-11)
+- [ ] held-failed - Held after a failed run (repo: alpha) (kind: ship) (hold: keep stopped) (hold-kind: captain) (since 2026-07-11)
+- [ ] unproven - Passed with an unreadable PR (repo: alpha) (kind: ship) (since 2026-07-11)
+- [ ] failed-open - Failed with no hold (repo: alpha) (kind: ship) (since 2026-07-11)
+
+## Queued
+
+## Done
+EOF
+  summary_states_child "$home" ready checks-passed 'working: validating' https://github.com/o/r/pull/11
+  summary_states_child "$home" paused-failed failed 'paused: custody accepted, waiting for release'
+  summary_states_child "$home" held-failed failed 'working: validating'
+  summary_states_child "$home" unproven passed 'working: validating' https://github.com/o/r/pull/12
+  summary_states_child "$home" failed-open failed 'working: validating'
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
+  printf '%s' "$out" | jq -e '
+    .valid == false
+      and .invalidity.kind == "terminal_in_flight"
+      and (.invalidity.ids | sort) == ["failed-open","unproven"]
+      and (.reason | contains("unproven=done")) and (.reason | contains("failed-open=failed"))
+      and ([.awaiting_merge[] | {id,pr_url}] == [{id:"ready",pr_url:"https://github.com/o/r/pull/11"}])
+      and (.awaiting_merge[0].detail | startswith("checks green: PR ready for review"))
+      and ([.held_failed_runs[] | {id,source}] | sort_by(.id))
+          == [{id:"held-failed",source:"backlog"},{id:"paused-failed",source:"status"}]
+      and (.held_failed_runs[] | select(.id == "paused-failed") | .reason)
+          == "paused: custody accepted, waiting for release"
+      and .counts.awaiting_merge == 1 and .counts.held_failed_runs == 2
+  ' >/dev/null || fail "summary did not separate expected terminal states from contradictions: $out"
+
+  # Without the two contradictions the home is valid again, and the accepted
+  # children stay visible in their own states.
+  rm -f "$home/state/unproven."* "$home/state/failed-open."*
+  sed -i '/^- \[ \] \(unproven\|failed-open\) /d' "$home/data/backlog.md"
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
+  printf '%s' "$out" | jq -e '
+    .valid == true and .reason == null and .invalidity == {kind:null,ids:[]}
+      and [.awaiting_merge[].id] == ["ready"]
+      and ([.held_failed_runs[].id] | sort) == ["held-failed","paused-failed"]
+  ' >/dev/null || fail "expected terminal states alone must leave the summary valid: $out"
+  pass "home-summary lists PRs awaiting merge and held failed runs instead of invalidating"
+}
+
 test_empty_fleet_json
 test_fixture_snapshot_json
 test_home_summary_excludes_secondmate_from_child_inventory
+test_home_summary_accepts_awaiting_merge_and_held_failed_runs
 test_undated_captain_hold_phrasing_and_aging
 test_hold_buckets_are_total_and_text_blind
 test_main_inventory_orphan_and_unstructured_disclosure
