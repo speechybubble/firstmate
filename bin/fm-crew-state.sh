@@ -952,6 +952,10 @@ nm_ci_checks_state() {
 # The same reader checks for conflicting run records when the AXI overview
 # cannot identify this branch's run.
 nm_runs_list() {
+  if [ "${probe_rc:-}" = 0 ]; then
+    printf '%s\n' "$runs_probe"
+    return
+  fi
   nm_run runs --limit "$FM_CREW_STATE_RUNS_LIMIT"
 }
 

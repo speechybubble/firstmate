@@ -5507,11 +5507,50 @@ plain_status_count() {  # <call-log>
 }
 
 # The overview as the real CLI (v1.84.0) prints it while this branch's run is
-# active: the plain-status record under `active_run:`, then the run inventory.
-overview_with_active_run() {  # <capture> [branch]
-  printf 'active_run:\n'
-  captured_axi_status "$1" "${2:-fm/competing}" | sed '1d'
+# active: the whole plain status (its run record under `active_run:`, then any
+# branch_sync, gate, and help blocks), then the run inventory with its count.
+overview_with_status() {  # <plain-status>
+  printf '%s\n' "$1" | sed '1s/^run:$/active_run:/'
   printf '%s\n' "$FM_FAKE_AXI_HOME"
+}
+
+overview_with_active_run() {  # <capture> [branch]
+  overview_with_status "$(captured_axi_status "$1" "${2:-fm/competing}")"
+}
+
+# An executing run at a head this copy cannot verify, with the daemon answered
+# down, binds only through the pipeline_owned branch_sync block, so the
+# overview stand-in must carry that block exactly as the plain status does.
+test_live_run_overview_carries_branch_sync() {
+  local d log inventory plain first_out status_out bare_out
+  make_competing_runs_case overview-branch-sync running cancelled
+  d=$TMP_ROOT/overview-branch-sync
+  log=$d/nm-calls
+  inventory=$FM_FAKE_AXI_HOME
+  FM_FAKE_RUN_HEAD=f0f0f0f0
+  FM_FAKE_DAEMON_DOWN=1
+  plain="$(captured_axi_status replacement)
+branch_sync:
+  state: pipeline_owned
+  changed: false"
+  FM_FAKE_AXI_HOME=$(overview_with_status "$plain")
+  FM_FAKE_AXI_STATUS=''
+  FM_FAKE_AXI_STATUS_RUN=''
+  : > "$log"
+  first_out=$(FM_FAKE_NM_CALL_LOG=$log run_crew_state "$d" competing)
+  assert_equals 0 "$(plain_status_count "$log")" 'the overview span with branch_sync is not re-read as the plain status'
+  assert_contains "$first_out" 'state: working' 'the overview branch_sync block binds the pipeline-owned run'
+  FM_FAKE_AXI_HOME=$inventory
+  FM_FAKE_AXI_STATUS=$plain
+  : > "$log"
+  status_out=$(FM_FAKE_NM_CALL_LOG=$log run_crew_state "$d" competing)
+  assert_equals 1 "$(plain_status_count "$log")" 'without the overview span the plain status is read'
+  assert_equals "$status_out" "$first_out" 'the overview span leaves the pipeline-owned verdict byte-identical'
+  FM_FAKE_AXI_HOME=$(overview_with_status "$(captured_axi_status replacement)")
+  FM_FAKE_AXI_STATUS=''
+  bare_out=$(run_crew_state "$d" competing)
+  assert_not_contains "$bare_out" 'state: working' 'an overview record without branch_sync does not bind the pipeline-owned run'
+  pass 'live run overview carries the branch_sync block of the plain status'
 }
 
 test_live_run_overview_stands_in_for_the_plain_status() {
@@ -5749,6 +5788,7 @@ test_captured_inventory_replay
 test_captured_authority_transition
 test_selected_plain_status_skips_only_the_redundant_reread
 test_live_run_overview_stands_in_for_the_plain_status
+(test_live_run_overview_carries_branch_sync) || fail 'live run overview branch_sync'
 test_captured_completed_history
 cancellation_failures=0
 for cancellation_test in test_captured_cancelled_review_has_no_verdict \

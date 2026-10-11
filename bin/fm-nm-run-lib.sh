@@ -309,19 +309,20 @@ PY
 }
 
 # The current branch's active run from captured `axi` overview TOON $1,
-# rendered as the `axi status` record it duplicates: the top-level
-# `active_run:` block with its header renamed `run:`. The real CLI prints that
-# block byte-identical to the plain status of the same executing run
-# (no-mistakes v1.84.0, a run in its ci step). A parked run's plain status adds
-# a top-level gate block that the overview was never shown to carry, so only an
-# executing run (fm_nm_run_is_executing) stands in. Empty when the overview
-# has no such block, or the block does not name branch $2 with id, status,
-# head, and head_sha.
+# rendered as the `axi status` answer it duplicates: the overview span from the
+# top-level `active_run:` line up to the first top-level `count:` line, with
+# that header renamed `run:`. The real CLI prints that span (the run record and
+# its branch_sync, gate, and help blocks, in the plain status's order)
+# byte-identical to the plain status of the same executing run (no-mistakes
+# v1.84.0, a run in its ci step). A parked run's gate block was never shown in
+# the overview, so only an executing run (fm_nm_run_is_executing) stands in.
+# Empty when the overview has no such span, or its run record does not name
+# branch $2 with id, status, head, and head_sha.
 fm_nm_overview_current_run() {  # <axi-overview> <branch>
   local block field
   block=$(printf '%s\n' "$1" | awk '
     /^active_run:[[:space:]]*$/ { if (seen++) exit; inblock = 1; print "run:"; next }
-    inblock && /^[^[:space:]]/ { exit }
+    inblock && /^count:/ { exit }
     inblock { print }
   ')
   [ -n "$block" ] || return 0
