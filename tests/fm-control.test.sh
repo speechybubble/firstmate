@@ -1138,8 +1138,10 @@ test_fm_send_still_marks_the_same_secondmate_task() {
 # Only an adapter whose runtime records an exact per-pane agent session has a
 # relaunch resume form, and only a reference its OWN agent reported may be
 # handed to it: resuming another adapter's reference would inject that agent's
-# conversation into this launch. Every other pair must print nothing so the
-# relaunch stays a fresh session exactly as it does today.
+# conversation into this launch. Claude's form is reached only through a
+# caller-verified exact session, never a pane registration. Every other pair
+# must print nothing so the relaunch stays a fresh session exactly as it does
+# today.
 test_relaunch_resume_flag_is_per_adapter_and_reference_owner() {
   local got harness label want
   # (harness | registered agent label | expected flag) lines, written out
@@ -1151,6 +1153,9 @@ pi-signed||
 pi|codex|
 pi-signed|claude|
 claude|claude|
+claude|--verified-session|--resume
+pi|--verified-session|
+codex|--verified-session|
 codex|codex|
 opencode|opencode|
 omp|omp|

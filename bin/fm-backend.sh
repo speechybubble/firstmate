@@ -1021,6 +1021,25 @@ fm_backend_agent_state() {  # <backend> <target>
   esac
 }
 
+# fm_backend_pane_root_pid: the pid at the root of <target>'s pane process tree
+# (the pane's top shell), printed only by the backends whose
+# fm_backend_agent_state attributes agents to that tree (tmux, herdr); nonzero
+# with nothing printed on any other backend or read failure. A caller must
+# first see `alive` from fm_backend_agent_state, which proves the exact
+# recorded endpoint exists, so tmux's active-window fallback cannot answer for
+# an absent target.
+fm_backend_pane_root_pid() {  # <backend> <target>
+  local backend=$1 target=$2 pid
+  fm_backend_source "$backend" || return 1
+  case "$backend" in
+    tmux) pid=$(tmux display-message -p -t "$target" '#{pane_pid}' 2>/dev/null) || return 1 ;;
+    herdr) pid=$(fm_backend_herdr_pane_shell_pid "$target") || return 1 ;;
+    *) return 1 ;;
+  esac
+  case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+  printf '%s' "$pid"
+}
+
 # Backward-compatible three-state view for existing callers. An
 # authoritatively missing endpoint is confidently not a live agent, while every
 # ambiguous, unreadable, or unverified result stays unknown.
