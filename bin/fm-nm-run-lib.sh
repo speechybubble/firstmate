@@ -314,8 +314,9 @@ PY
 # that header renamed `run:`. The real CLI prints that span (the run record and
 # its branch_sync, gate, and help blocks, in the plain status's order)
 # byte-identical to the plain status of the same executing run (no-mistakes
-# v1.84.0, a run in its ci step). A parked run's gate block was never shown in
-# the overview, so only an executing run (fm_nm_run_is_executing) stands in.
+# v1.84.0, a run in its ci step). A parked run's gate block can appear in the
+# overview in the same position, but by decision only an executing run
+# (fm_nm_run_is_executing) stands in.
 # Empty when the overview has no such span, or its run record does not name
 # branch $2 with id, status, head, and head_sha.
 fm_nm_overview_current_run() {  # <axi-overview> <branch>
