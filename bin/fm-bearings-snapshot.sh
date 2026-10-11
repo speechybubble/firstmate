@@ -25,9 +25,11 @@
 # Contributions project cached coverage and required actors from fm-contributions.sh;
 # only captain rows are exposed, with counts for the other actors and unmeasured homes. It never infers
 # decisions from report or visual-review prose or reimplements snapshot semantics.
-# Underway (in_flight) projects every main live worker plus every active child
-# from every readable secondmate ledger, independently of that home's
-# bearings_state. Each row's name is the durable task title when nonblank and
+# Underway (in_flight) projects every main live worker plus every active child,
+# awaiting_merge child, and held_failed_runs child from every readable
+# secondmate ledger, independently of that home's bearings_state. On the home
+# row, awaiting_merge counts as child work while held_failed_runs rank with the
+# holds, so neither leaves a home reading "No active child work". Each row's name is the durable task title when nonblank and
 # its durable task id otherwise, so renderers always receive a task-identifying
 # label instead of having to substitute run status. A home classified
 # captain_decision because it has an open
