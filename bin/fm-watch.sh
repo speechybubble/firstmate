@@ -524,34 +524,43 @@ inbox_steer_escalate_unavailable() {  # <window> <task> <record>
   wake "$reason"
 }
 
-# A steering-inbox stale wake: queue it durably, mark the record escalated when
-# asked, then wake firstmate.
-inbox_steer_wake() {  # <window> <task> <record> <reason> <mark-escalated: 0|1>
+# A steering-inbox stale wake: queue it durably and mark the record escalated
+# when asked; inbox_steer_wake then wakes firstmate.
+inbox_steer_queue() {  # <window> <task> <record> <reason> <mark-escalated: 0|1>
   fm_wake_append stale "$1" "$4" || exit 1
   if [ "$5" = 1 ] && ! fm_task_inbox_record_escalated "$STATE" "$2" "$3"; then
     echo "error: stale wake was queued for $2 but its inbox escalation marker could not be written" >&2
     exit 1
   fi
+}
+
+inbox_steer_wake() {  # <inbox_steer_queue arguments>
+  inbox_steer_queue "$@"
   wake "$4"
 }
 
 # Inside inbox_steer_sweep, a bookkeeping-failure wake has no one-shot marker,
 # so waking before the window scan would end every cycle there and starve the
-# scan. The sweep holds the first such wake (inbox_steer_wake arguments) and
-# inbox_steer_surface_deferred raises it after the cycle's scan slice.
+# scan. The sweep holds every such wake (inbox_steer_queue arguments, five per
+# wake, in the order found) and inbox_steer_surface_deferred queues each whose
+# record still exists after the cycle's scan slice, then wakes once.
 INBOX_STEER_DEFER=0
 INBOX_STEER_DEFERRED=()
-inbox_steer_defer_wake() {  # <inbox_steer_wake arguments>; 0 when held
+inbox_steer_defer_wake() {  # <inbox_steer_queue arguments>; 0 when held
   [ "$INBOX_STEER_DEFER" = 1 ] || return 1
-  [ "${#INBOX_STEER_DEFERRED[@]}" -gt 0 ] || INBOX_STEER_DEFERRED=("$@")
+  INBOX_STEER_DEFERRED+=("$@")
   return 0
 }
 
 inbox_steer_surface_deferred() {
-  local deferred=("${INBOX_STEER_DEFERRED[@]}")
+  local deferred=("${INBOX_STEER_DEFERRED[@]}") i reason=
   INBOX_STEER_DEFERRED=()
-  [ "${#deferred[@]}" -gt 0 ] && [ -f "${deferred[2]}" ] || return 0
-  inbox_steer_wake "${deferred[@]}"
+  for ((i = 0; i < ${#deferred[@]}; i += 5)); do
+    [ -f "${deferred[i + 2]}" ] || continue
+    inbox_steer_queue "${deferred[@]:i:5}"
+    [ -n "$reason" ] || reason=${deferred[i + 3]}
+  done
+  [ -z "$reason" ] || wake "$reason"
 }
 
 # Steering-inbox loss detection, one cheap check per inbox-bearing recorded
