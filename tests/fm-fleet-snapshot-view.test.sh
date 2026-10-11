@@ -1244,10 +1244,52 @@ EOF
   pass "home-summary lists PRs awaiting merge and held failed runs instead of invalidating"
 }
 
+# A real home's ready-PR read pays several sequential no-mistakes answers. Each
+# one answers within crew-state's own per-call bound, yet together they take
+# longer than ten seconds; the default per-task snapshot bound must leave room
+# for that, or the child folds to unknown and the whole summary is invalid.
+test_home_summary_default_bound_covers_a_slow_ready_pr_read() {
+  local home fakebin out started elapsed
+  home=$(make_home summary-slow-read)
+  fakebin=$(make_fakebin "$home")
+  cat > "$fakebin/no-mistakes" <<'SH'
+#!/usr/bin/env bash
+sleep 4
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0
+f="$FM_HOME/nm/${branch//\//_}"
+case "$*" in
+  axi) cat "$f.overview" 2>/dev/null ;;
+  "axi status"*) cat "$f.status" 2>/dev/null ;;
+esac
+exit 0
+SH
+  printf '#!/usr/bin/env bash\nexit 1\n' > "$fakebin/gh"
+  chmod +x "$fakebin/no-mistakes" "$fakebin/gh"
+  cat > "$home/data/backlog.md" <<'EOF'
+## In flight
+- [ ] slow-ready - Ready for merge behind a slow CLI (repo: alpha) (kind: ship) (since 2026-07-11)
+
+## Queued
+
+## Done
+EOF
+  summary_states_child "$home" slow-ready checks-passed 'working: validating' https://github.com/o/r/pull/21
+  started=$(date +%s)
+  out=$(env -u FM_SNAPSHOT_CREW_STATE_TIMEOUT PATH="$fakebin:$PATH" FM_HOME="$home" \
+    "$SNAPSHOT" --secondmate-home-summary)
+  elapsed=$(( $(date +%s) - started ))
+  [ "$elapsed" -gt 10 ] || fail "fixture read finished in ${elapsed}s, so it no longer exceeds the old ten-second bound"
+  printf '%s' "$out" | jq -e '
+    .valid == true and [.awaiting_merge[].id] == ["slow-ready"]
+  ' >/dev/null || fail "default snapshot bound cut off a slow ready-PR read (${elapsed}s): $out"
+  pass "home-summary default per-task bound covers a slow ready-PR read"
+}
+
 test_empty_fleet_json
 test_fixture_snapshot_json
 test_home_summary_excludes_secondmate_from_child_inventory
 test_home_summary_accepts_awaiting_merge_and_held_failed_runs
+test_home_summary_default_bound_covers_a_slow_ready_pr_read
 test_undated_captain_hold_phrasing_and_aging
 test_hold_buckets_are_total_and_text_blind
 test_main_inventory_orphan_and_unstructured_disclosure
