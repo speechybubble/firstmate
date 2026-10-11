@@ -264,14 +264,14 @@ fi
 # turn-ended signature, annotation staleness checks, and guarded bookkeeping writes.
 
 POLL=${FM_POLL:-15}                   # seconds between cycles
-# The liveness beacon is touched once per cycle, immediately before the
-# terminal wait below (event_wait_or_sleep) as well as at the top of the next
-# one, so a healthy cycle's beacon can legitimately age up to POLL seconds
-# between touches. fm_poll_derived_grace (bin/fm-wake-lib.sh, already sourced
-# transitively above) is the single owner of the max(300, poll+60)
-# derivation - see docs/turnend-guard.md "Guard grace and the poll cadence".
-# This recomputes the library default above now that the real configured
-# POLL is known.
+# The liveness beacon is touched at the top of each cycle and immediately
+# before its terminal wait below (event_wait_or_sleep), plus after bounded scan
+# progress within a long cycle (watcher_progress_beat), so a healthy idle
+# beacon can legitimately age up to POLL seconds between touches.
+# fm_poll_derived_grace (bin/fm-wake-lib.sh, already sourced transitively
+# above) is the single owner of the max(300, poll+60) derivation - see
+# docs/turnend-guard.md "Guard grace and the poll cadence". This recomputes the
+# library default above now that the real configured POLL is known.
 WATCHER_STALE_GRACE=${FM_WATCHER_STALE_GRACE:-${FM_GUARD_GRACE:-$(fm_poll_derived_grace "$POLL")}}
 # Hard bound on a live holder's beacon age. Under it a re-arm refuses and asks
 # for inspection (the grace above); at or past it the re-arm evicts the holder
@@ -280,6 +280,16 @@ WATCHER_STALE_GRACE=${FM_WATCHER_STALE_GRACE:-${FM_GUARD_GRACE:-$(fm_poll_derive
 # fm_watcher_stall_bound (bin/fm-wake-lib.sh) owns the derivation, shared with
 # the arm that follows this watcher.
 WATCHER_STALL_BOUND=$(fm_watcher_stall_bound "$POLL")
+# Beacon age past which a finished unit of scan work refreshes it
+# (watcher_progress_beat).
+PROGRESS_BEAT_AGE=$((WATCHER_STALE_GRACE / 3))
+[ "$PROGRESS_BEAT_AGE" -ge 1 ] || PROGRESS_BEAT_AGE=1
+WATCH_SIGNAL_IN_FLIGHT=0
+# Whole seconds the window scan runs before it checks for newly arrived durable
+# work between records (watcher_scan_should_yield): one poll, at least one.
+SCAN_SLICE=${POLL%%.*}
+case "$SCAN_SLICE" in ''|*[!0-9]*) SCAN_SLICE=1 ;; esac
+[ "$SCAN_SLICE" -ge 1 ] || SCAN_SLICE=1
 HEARTBEAT=${FM_HEARTBEAT:-600}        # base seconds between heartbeat scans
 HEARTBEAT_MAX=${FM_HEARTBEAT_MAX:-7200}  # heartbeat backoff cap
 CHECK_INTERVAL=${FM_CHECK_INTERVAL:-300}  # seconds between *.check.sh sweeps
@@ -514,7 +524,47 @@ inbox_steer_escalate_unavailable() {  # <window> <task> <record>
   wake "$reason"
 }
 
-# Steering-inbox loss detection, one cheap check per recorded window per poll.
+# A steering-inbox stale wake: queue it durably and mark the record escalated
+# when asked; inbox_steer_wake then wakes firstmate.
+inbox_steer_queue() {  # <window> <task> <record> <reason> <mark-escalated: 0|1>
+  fm_wake_append stale "$1" "$4" || exit 1
+  if [ "$5" = 1 ] && ! fm_task_inbox_record_escalated "$STATE" "$2" "$3"; then
+    echo "error: stale wake was queued for $2 but its inbox escalation marker could not be written" >&2
+    exit 1
+  fi
+}
+
+inbox_steer_wake() {  # <inbox_steer_queue arguments>
+  inbox_steer_queue "$@"
+  wake "$4"
+}
+
+# Inside inbox_steer_sweep, a bookkeeping-failure wake has no one-shot marker,
+# so waking before the window scan would end every cycle there and starve the
+# scan. The sweep holds every such wake (inbox_steer_queue arguments, five per
+# wake, in the order found) and inbox_steer_surface_deferred queues each whose
+# record still exists after the cycle's scan slice, then wakes once.
+INBOX_STEER_DEFER=0
+INBOX_STEER_DEFERRED=()
+inbox_steer_defer_wake() {  # <inbox_steer_queue arguments>; 0 when held
+  [ "$INBOX_STEER_DEFER" = 1 ] || return 1
+  INBOX_STEER_DEFERRED+=("$@")
+  return 0
+}
+
+inbox_steer_surface_deferred() {
+  local deferred=("${INBOX_STEER_DEFERRED[@]}") i reason=
+  INBOX_STEER_DEFERRED=()
+  for ((i = 0; i < ${#deferred[@]}; i += 5)); do
+    [ -f "${deferred[i + 2]}" ] || continue
+    inbox_steer_queue "${deferred[@]:i:5}"
+    [ -n "$reason" ] || reason=${deferred[i + 3]}
+  done
+  [ -z "$reason" ] || wake "$reason"
+}
+
+# Steering-inbox loss detection, one cheap check per inbox-bearing recorded
+# task per cycle (inbox_steer_sweep below).
 # bin/fm-task-inbox-lib.sh owns delivery, busy-deferral, retry, and escalation policy.
 # Endpoint and busy checks precede delivery so recovery never types into a busy,
 # dead, or missing worker; the ring helper protects pending composer text.
@@ -522,7 +572,7 @@ inbox_steer_escalate_unavailable() {  # <window> <task> <record>
 # Runs for secondmates too: their pane-staleness exemption is about quiet panes
 # being healthy, while an unacknowledged instruction can still be a stuck steer.
 inbox_steer_check() {  # <window> <task>
-  local w=$1 task=$2 action verb rec count tail40 reason='' ring_rc backend agent_state
+  local w=$1 task=$2 action verb rec count tail40 reason='' ring_rc backend agent_state bookkeeping=0
   action=$(fm_task_inbox_due_action "$STATE" "$task") || return 0
   verb=${action%% *}
   [ "$verb" != quiet ] || return 0
@@ -556,6 +606,7 @@ inbox_steer_check() {  # <window> <task>
     if ! count=$(fm_task_inbox_record_busy "$STATE" "$task" "$rec"); then
       [ -f "$rec" ] || return 0
       reason="stale: $w (steering-inbox busy bookkeeping unwritable: ${rec%/*}/.busy-state cannot be written while $rec stays unhandled; inspect the inbox directory)"
+      bookkeeping=1
     elif [ "$count" -ge "$(fm_task_inbox_busy_max)" ]; then
       reason="stale: $w (unread firstmate instruction: stuck-busy after $count consecutive busy-deferred due doorbells; $rec stays unhandled and no doorbell was typed; inspect the worker)"
     else
@@ -564,6 +615,7 @@ inbox_steer_check() {  # <window> <task>
     verb=escalate
   elif [ "$verb" != retry ] && ! fm_task_inbox_clear_busy "$STATE" "$task"; then
     reason="stale: $w (steering-inbox busy bookkeeping unwritable: ${rec%/*}/.busy-state cannot be reset after a non-busy check; inspect the inbox directory)"
+    bookkeeping=1
     verb=escalate
   fi
   case "$verb" in
@@ -581,8 +633,8 @@ inbox_steer_check() {  # <window> <task>
         fi
         if [ -d "${rec%/*}" ]; then
           reason="stale: $w (steering-inbox ladder bookkeeping unwritable: ${rec%/*}/.ring-state cannot be written while $rec stays unhandled; the doorbell cannot advance toward escalation - inspect the inbox directory)"
-          fm_wake_append stale "$w" "$reason" || exit 1
-          wake "$reason"
+          inbox_steer_defer_wake "$w" "$task" "$rec" "$reason" 0 \
+            || inbox_steer_wake "$w" "$task" "$rec" "$reason" 0
         fi
       fi
       triage_log "steer-inbox delivery attempt: $task ${rec##*/} result=$ring_rc"
@@ -592,8 +644,8 @@ inbox_steer_check() {  # <window> <task>
       fm_task_inbox_ring "$backend" "$w" "$rec" "$(window_label "$w")" || ring_rc=$?
       if ! fm_task_inbox_clear_retry "$STATE" "$task" "$rec" && [ -f "$rec" ]; then
         reason="stale: $w (steering-inbox retry mark unremovable: ${rec%/*}/.retry-ring cannot be removed, so $rec would ring on every poll - inspect the inbox directory)"
-        fm_wake_append stale "$w" "$reason" || exit 1
-        wake "$reason"
+        inbox_steer_defer_wake "$w" "$task" "$rec" "$reason" 0 \
+          || inbox_steer_wake "$w" "$task" "$rec" "$reason" 0
       fi
       triage_log "steer-inbox retry ring: $task ${rec##*/} result=$ring_rc"
       ;;
@@ -603,14 +655,37 @@ inbox_steer_check() {  # <window> <task>
         fm_task_inbox_due_action "$STATE" "$task" >/dev/null || true
         return 0
       fi
-      fm_wake_append stale "$w" "$reason" || exit 1
-      if ! fm_task_inbox_record_escalated "$STATE" "$task" "$rec"; then
-        echo "error: stale wake was queued for $task but its inbox escalation marker could not be written" >&2
-        exit 1
+      if [ "$bookkeeping" = 1 ] && inbox_steer_defer_wake "$w" "$task" "$rec" "$reason" 1; then
+        return 0
       fi
-      wake "$reason"
+      inbox_steer_wake "$w" "$task" "$rec" "$reason" 1
       ;;
   esac
+}
+
+# The per-cycle steering-inbox pass, run ahead of the window scan and
+# independent of its cursor: a long scan is sliced across cycles, so a due
+# doorbell checked only when the scan reached its window could wait for a whole
+# rotation. The due decision is file reads only; only a task with something due
+# pays the window lookup, and it rings only when that window maps back to the
+# task, which is the scan's own window-to-task ownership mapping.
+inbox_steer_sweep() {
+  local dir task action w
+  INBOX_STEER_DEFERRED=()
+  INBOX_STEER_DEFER=1
+  for dir in "$STATE"/*.inbox; do
+    [ -d "$dir" ] || continue
+    task=${dir##*/}
+    task=${task%.inbox}
+    action=$(fm_task_inbox_due_action "$STATE" "$task") || continue
+    [ "$action" != quiet ] || continue
+    [ -f "$STATE/$task.meta" ] || continue
+    w=$(fm_backend_target_of_meta "$STATE/$task.meta")
+    [ -n "$w" ] && [ "$(window_to_task "$w" "$STATE")" = "$task" ] || continue
+    watcher_progress_beat
+    inbox_steer_check "$w" "$task"
+  done
+  INBOX_STEER_DEFER=0
 }
 
 # 0 (benign/absorb) if EVERY task in a no-verb "signal:" wake has positive work
@@ -741,7 +816,11 @@ signal_turnend_panes_churned() {  # <file> ...
   done
   for ((i = 0; i < ${#signal_tasks[@]}; i++)); do
     task=${signal_tasks[$i]}
-    crew_is_provably_working "$task" && continue
+    if crew_is_provably_working "$task"; then
+      watcher_progress_beat
+      continue
+    fi
+    watcher_progress_beat
     task_index=${signal_indexes[$i]}
     churn_indexes+=("$task_index")
   done
@@ -2687,6 +2766,111 @@ rerecord_device_shifted_pr_poll() {  # <id>
   return 0
 }
 
+# Home-gone exit: a deleted home, state directory, or code root means this
+# watcher's world is gone (a torn-down temporary home or a discarded
+# disposable checkout). Exit with a logged reason rather than writing state
+# into nothing, or into a live home from a checkout that no longer exists.
+# A detached helper this watcher started (home-summary refresh, reconcile)
+# can recreate a deleted state directory before the next poll, so a lock
+# with no holder at all is read as the same teardown: only a fresh watcher
+# ever recreates the lock, and that case is the self-eviction.
+# Scoped to this process alone: no other watcher is signalled.
+watcher_exit_if_world_gone() {
+  if [ "$WATCH_HOME_EXISTED" -eq 1 ] && [ ! -d "$FM_HOME" ]; then
+    echo "watcher: exiting - home no longer exists: $FM_HOME" >&2
+    exit 1
+  elif [ ! -d "$STATE" ]; then
+    echo "watcher: exiting - state directory no longer exists: $STATE" >&2
+    exit 1
+  elif [ ! -e "$WATCH_LOCK/pid" ]; then
+    echo "watcher: exiting - state directory was torn down (singleton lock removed): $STATE" >&2
+    exit 1
+  elif [ ! -d "$SCRIPT_DIR" ]; then
+    echo "watcher: exiting - code root no longer exists: $SCRIPT_DIR" >&2
+    exit 1
+  fi
+}
+
+# Scan progress. One cycle's synchronous work - checks and, above all, the
+# per-window stale scan with its bounded current-state reads - grows with the
+# fleet, so the top-of-cycle beacon touch alone let a slow scan that was still
+# progressing age the beacon past the guard grace. The beacon is therefore also
+# touched after each bounded unit of real progress (a finished check, window
+# record, signal linger, classification, or signalled task's current-state
+# read) once it has aged PROGRESS_BEAT_AGE, a third of the grace, so a long
+# scan keeps it well inside the grace while an ordinary quick cycle still beats
+# only at its top and is otherwise untouched: below that age a beat does nothing
+# at all, leaving ownership and teardown to the top-of-cycle checks. A beat is
+# taken only while this process still owns the singleton - and, for a
+# Codex-owned cycle, while that exact native owner still owns the home - so a
+# superseded watcher stands down instead of vouching for a home it no longer
+# supervises. A watcher already delivering a signal batch
+# (WATCH_SIGNAL_IN_FLIGHT) never stands down from a beat: the cycle following
+# it waits for exactly that wake, so losing ownership there only withholds the
+# touch and the batch is still reported once, as on a cycle with no beats; the
+# top-of-cycle checks retire the watcher afterwards. Nothing touches it on a
+# timer: a unit that never finishes leaves the beacon to age into the guard
+# warning, the attached arm's stall bound, and the re-arm's eviction exactly as
+# before.
+watcher_progress_beat() {
+  [ "$(fm_path_age "$BEAT")" -ge "$PROGRESS_BEAT_AGE" ] || return 0
+  if [ "$WATCH_SIGNAL_IN_FLIGHT" -eq 1 ]; then
+    watcher_owns_home || return 0
+  else
+    watcher_exit_if_world_gone
+    watcher_owns_home || exit 0
+  fi
+  touch "$BEAT"
+}
+
+watcher_owns_home() {
+  [ "$(cat "$WATCH_LOCK/pid" 2>/dev/null || true)" = "$WATCHER_PID" ] || return 1
+  if [ -n "${FM_CODEX_WATCH_OWNER_PID:-}" ]; then
+    fm_codex_watch_owner_valid || return 1
+  fi
+}
+
+# The window scan resumes after the record it last began, durably, so a cycle
+# that ends early - on a wake, a yield below, or a stall eviction - never starves
+# the records after it: every recorded window is reached within one full
+# rotation. An absent or vanished cursor starts from the first record.
+WATCH_SCAN_CURSOR="$STATE/.watch-scan-cursor"
+recorded_windows_from_cursor() {
+  local cursor
+  cursor=$(cat "$WATCH_SCAN_CURSOR" 2>/dev/null || true)
+  recorded_windows | FM_SCAN_CURSOR=$cursor awk '
+    BEGIN { c = ENVIRON["FM_SCAN_CURSOR"] }
+    length($0) { a[++n] = $0; if (c != "" && $0 == c) k = n }
+    END { for (i = k + 1; i <= n; i++) print a[i]; for (i = 1; i <= k; i++) print a[i] }
+  '
+}
+
+scan_cursor_record() {  # <window>
+  local tmp="$WATCH_SCAN_CURSOR.tmp.$WATCHER_PID"
+  if ! { printf '%s\n' "$1" > "$tmp" && mv -f "$tmp" "$WATCH_SCAN_CURSOR"; } 2>/dev/null; then
+    rm -f "$tmp" 2>/dev/null || true
+  fi
+}
+
+wake_queue_sig() {
+  printf '%s:%s' "$(stat_mtime "$FM_WAKE_QUEUE" || true)" \
+    "$({ wc -c < "$FM_WAKE_QUEUE"; } 2>/dev/null | tr -d '[:space:]')"
+}
+
+# 0 when durable actionable work arrived since this window scan began: a changed
+# status or turn-end signal, a wake-queue append by another producer, or a
+# Codex-owned durable row. The scan then yields to the top of the cycle, which
+# owns surfacing or absorbing each of those exactly as it always has, and the
+# cursor resumes the scan where it stopped.
+watcher_scan_should_yield() {
+  [ -z "$(scan_signals)" ] || return 0
+  [ "$(wake_queue_sig)" = "$SCAN_QUEUE_SIG" ] || return 0
+  if [ -n "${FM_CODEX_WATCH_OWNER_PID:-}" ] && fm_codex_watch_pending; then
+    return 0
+  fi
+  return 1
+}
+
 resurface_after_downtime() {
   # Handling successors already have a predecessor-delivered wake on the way.
   # Re-announcing from this cycle is what turned a lost handshake into an
@@ -2705,28 +2889,7 @@ resurface_after_downtime() {
 }
 
 while :; do
-  # Home-gone exit: a deleted home, state directory, or code root means this
-  # watcher's world is gone (a torn-down temporary home or a discarded
-  # disposable checkout). Exit with a logged reason rather than writing state
-  # into nothing, or into a live home from a checkout that no longer exists.
-  # A detached helper this watcher started (home-summary refresh, reconcile)
-  # can recreate a deleted state directory before the next poll, so a lock
-  # with no holder at all is read as the same teardown: only a fresh watcher
-  # ever recreates the lock, and that case is the self-eviction below.
-  # Scoped to this process alone: no other watcher is signalled.
-  if [ "$WATCH_HOME_EXISTED" -eq 1 ] && [ ! -d "$FM_HOME" ]; then
-    echo "watcher: exiting - home no longer exists: $FM_HOME" >&2
-    exit 1
-  elif [ ! -d "$STATE" ]; then
-    echo "watcher: exiting - state directory no longer exists: $STATE" >&2
-    exit 1
-  elif [ ! -e "$WATCH_LOCK/pid" ]; then
-    echo "watcher: exiting - state directory was torn down (singleton lock removed): $STATE" >&2
-    exit 1
-  elif [ ! -d "$SCRIPT_DIR" ]; then
-    echo "watcher: exiting - code root no longer exists: $SCRIPT_DIR" >&2
-    exit 1
-  fi
+  watcher_exit_if_world_gone
 
   # Self-eviction: if the singleton lock no longer names this process, a second
   # watcher has taken over (e.g. a transient duplicate from a racy arm). Stand
@@ -2837,11 +3000,15 @@ while :; do
   # keeps producing signals - the slow poll (e.g. merge detection) would then
   # never run until the fleet went quiet. Checks are due only every
   # CHECK_INTERVAL, so most cycles skip this block and fall straight through.
+  watcher_progress_beat
   if [ "$(age_of "$STATE/.last-check")" -ge "$CHECK_INTERVAL" ]; then
     rejected_checks=
     contribution_check_output=
     for c in "$STATE"/*.check.sh; do
       [ -e "$c" ] || continue
+      # Each check is bounded by CHECK_TIMEOUT, but a home's checks are not
+      # bounded together; a finished one is progress the beacon records.
+      watcher_progress_beat
       is_pr_poll=0
       if [ "$(basename "$c")" = x-watch.check.sh ]; then
         if fmx_poll_shim_valid "$c" "$FM_HOME" "$FM_ROOT" \
@@ -2972,8 +3139,10 @@ EOF
   # signature for an already-pending file (last write wins below).
   pending=$(scan_signals)
   if [ -n "$pending" ]; then
+    WATCH_SIGNAL_IN_FLIGHT=1
     sleep "$SIGNAL_GRACE"
     pending=$(printf '%s\n%s' "$pending" "$(scan_signals)")
+    watcher_progress_beat
     # The final coalesced signal set is the watcher-carried status-change
     # trigger for this home's published summary. Start it before either
     # surfacing or absorbing the signal, but never wait on it: see
@@ -3016,6 +3185,7 @@ EOF
     # shellcheck disable=SC2086  # $files is a space-separated status-path list (ids carry no spaces)
     signal_files_actionable $files
     signal_actionable=$?
+    watcher_progress_beat
     # A decision-owned file's queued row payload is marked "needs-decision:"
     # instead of the ordinary "signal:" below (other files in the same batch
     # keep the ordinary payload). The wake reason line itself, and every
@@ -3088,19 +3258,42 @@ EOF
       fi
       triage_log "absorbed benign $reason"
     fi
+    WATCH_SIGNAL_IN_FLIGHT=0
   fi
+
+  # Steering-inbox delivery covers every recorded task, secondmates included,
+  # before the scan below, so it never waits behind the scan cursor.
+  inbox_steer_sweep
 
   # Layer 1 backbone: pane staleness. Two consecutive identical hashes with no busy
   # signature means the crewmate finished, is waiting, or is wedged. Each distinct
   # stale hash is surfaced, absorbed, or timed toward escalation once (.stale-*
   # remembers the hash already classified, or the declaration a busy pane's
   # crossed turn bound already handed to the away-mode daemon).
+  SCAN_QUEUE_SIG=$(wake_queue_sig)
+  scan_slice_start=$(date +%s)
+  scan_records=0
+  scan_yielded=0
   while IFS= read -r w; do
+    # Each record is a bounded unit: its current-state reads are bounded in
+    # total (crew_state_observe in fm-classify-lib.sh) and its pane capture is
+    # interruptible. Record the progress, and once a slice has run for
+    # SCAN_SLICE hand newly arrived durable work to the top of the cycle
+    # rather than holding it behind the rest of the scan.
+    watcher_progress_beat
+    if [ "$scan_records" -gt 0 ] \
+      && [ "$(( $(date +%s) - scan_slice_start ))" -ge "$SCAN_SLICE" ]; then
+      if watcher_scan_should_yield; then
+        triage_log "window scan yielded to newly arrived work after $scan_records records"
+        scan_yielded=1
+        break
+      fi
+      scan_slice_start=$(date +%s)
+    fi
+    scan_cursor_record "$w"
+    scan_records=$((scan_records + 1))
     kind=$(window_kind "$w")
     task=$(window_to_task "$w" "$STATE")
-    # Steering-inbox loss detection runs before the secondmate stale
-    # exemption below, because a mate's steers land in an inbox too.
-    [ -z "$task" ] || inbox_steer_check "$w" "$task"
     key=$(window_key "$w")
     last=$(status_declared_wait_line "$STATE/$task.status")
     if ! status_is_paused_or_captain_held "$last" && [ -e "$STATE/.paused-$key" ]; then
@@ -3311,7 +3504,11 @@ EOF
         clear_pause_tracking "$key"
       fi
     fi
-  done < <(recorded_windows)
+  done < <(recorded_windows_from_cursor)
+
+  # A steering-inbox bookkeeping failure the sweep held surfaces only now, so
+  # it never stops this cycle's scan slice from running.
+  inbox_steer_surface_deferred
 
   # Heartbeat: the watcher runs a cheap fleet-scan at a regular cadence no matter
   # what. Time-based via .last-heartbeat mtime; interval doubles per consecutive
@@ -3353,6 +3550,7 @@ EOF
   fi
 
   # Terminal wait: a bounded native-event wait for push-capable homes (herdr),
-  # else the blind poll sleep. See event_wait_or_sleep.
-  event_wait_or_sleep
+  # else the blind poll sleep. See event_wait_or_sleep. A scan that yielded to
+  # newly arrived work goes straight back to the top to handle it.
+  [ "$scan_yielded" -eq 1 ] || event_wait_or_sleep
 done

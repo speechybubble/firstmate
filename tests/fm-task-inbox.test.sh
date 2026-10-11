@@ -29,6 +29,9 @@
 #   7. A fire-and-forget record stays outside the ladder, but one whose first
 #      ring did not land gets exactly one retry ring and never escalates. The
 #      retry waits while the worker has an open decision of its own.
+#   8. The watcher's per-cycle inbox pass reaches every inbox-bearing task
+#      without the window scan, yet rings only a window that maps back to the
+#      task and keeps the busy and pending-composer deferrals.
 set -u
 
 # shellcheck source=tests/wake-helpers.sh
@@ -1181,6 +1184,64 @@ test_watcher_dead_pane_ignores_stale_busy_state() {
   pass "watcher: dead-pane recovery overrides stale busy state"
 }
 
+# One per-cycle inbox pass in a fresh process sourcing the production watcher.
+# The progress beat is defined only past the sourced-mode return, so a no-op
+# stands in for it and check.out holds only the pass's own output.
+sweep_check() {  # <case-dir> [capture]
+  PATH="$1/fakebin:$PATH" FM_STATE_OVERRIDE="$1/state" FM_SEND_LOG="$1/send.log" \
+    FM_FAKE_TMUX_CAPTURE="${2:-$(idle_capture "$1")}" FM_BUSY_REGEX=BUSYTOKEN \
+    FM_TASK_INBOX_GRACE_SECS=0 FM_TASK_INBOX_BUSY_MAX=99 \
+    bash -c '. "$1" && watcher_progress_beat() { :; } && inbox_steer_sweep' _ "$WATCH" > "$1/check.out" 2>&1
+}
+
+test_sweep_rings_only_the_window_owner() {
+  local dir state rec2 rec3 rec1
+  dir=$(setup_watch_case sweep-owner)
+  state="$dir/state"; : > "$dir/send.log"
+  # t2 records the same window t1 owns; t3 has no recorded window at all.
+  fm_write_meta "$state/t2.meta" "window=sess:fm-t1" "kind=ship" "harness=grok"
+  rec2=$(inbox_lib "$state" fm_task_inbox_write "$state" t2 "for t2")
+  rec3=$(inbox_lib "$state" fm_task_inbox_write "$state" t3 "for t3")
+  age_path "$rec2"; age_path "$rec3"
+  sweep_check "$dir"
+  [ ! -s "$dir/send.log" ] || fail "an unverified window owner was rung:"$'\n'"$(cat "$dir/send.log")"
+  [ ! -e "$state/t2.inbox/.ring-state" ] && [ ! -e "$state/t3.inbox/.ring-state" ] \
+    || fail "an unverified owner consumed a delivery attempt"
+  [ ! -s "$state/.wake-queue" ] || fail "an unverified owner queued a wake: $(cat "$state/.wake-queue")"
+  # The window's verified owner is reached by the same pass.
+  rec1=$(inbox_lib "$state" fm_task_inbox_write "$state" t1 "for t1")
+  age_path "$rec1"
+  sweep_check "$dir"
+  [ "$(grep -c 'Firstmate instruction waiting' "$dir/send.log")" = 1 ] \
+    || fail "the verified owner was not rung exactly once:"$'\n'"$(cat "$dir/send.log")"
+  grep -qF "'t1.inbox'" "$dir/send.log" || fail "the doorbell did not name t1's inbox: $(cat "$dir/send.log")"
+  [ "$(cut -f1 "$state/t1.inbox/.ring-state")" = "${rec1##*/}" ] \
+    || fail "the verified owner's attempt was not recorded"
+  pass "watcher inbox pass: rings a due task only through its verified window, never a shared or unrecorded one"
+}
+
+test_sweep_keeps_busy_and_composer_deferrals() {
+  local dir state rec capture
+  dir=$(busy_case sweep-busy)
+  state="$dir/state"
+  sweep_check "$dir" "$dir/busy.capture"
+  [ ! -s "$dir/send.log" ] || fail "the inbox pass typed into a busy pane"
+  [ "$(cut -f2 "$state/t1.inbox/.busy-state")" = 1 ] || fail "the inbox pass did not record a busy deferral"
+  [ ! -s "$state/.wake-queue" ] || fail "a first busy deferral queued a wake"
+  dir=$(setup_watch_case sweep-composer)
+  state="$dir/state"
+  rec=$(inbox_lib "$state" fm_task_inbox_write "$state" t1 "please continue")
+  age_path "$rec"
+  capture=$(idle_capture "$dir")
+  printf '╭──────────────────╮\n│ captain draft    │\n╰──────────────────╯\n' > "$capture"
+  sweep_check "$dir" "$capture"
+  [ ! -s "$dir/send.log" ] || fail "the inbox pass typed into a pending composer:"$'\n'"$(cat "$dir/send.log")"
+  [ "$(cut -f2 "$state/t1.inbox/.ring-state")" = 1 ] \
+    || fail "a composer-protected skip did not consume one attempt"
+  [ -f "$rec" ] || fail "a composer-protected skip lost the instruction"
+  pass "watcher inbox pass: busy panes and pending composers still defer the doorbell"
+}
+
 test_write_is_durable_and_exact
 test_doorbell_is_a_shell_noop
 test_doorbell_rejects_terminal_controls
@@ -1228,3 +1289,5 @@ test_watcher_retry_keeps_a_newer_mark
 test_watcher_escalates_once_after_budget
 test_watcher_dead_pane_escalates_once_without_ringing
 test_watcher_dead_pane_ignores_stale_busy_state
+test_sweep_rings_only_the_window_owner
+test_sweep_keeps_busy_and_composer_deferrals
