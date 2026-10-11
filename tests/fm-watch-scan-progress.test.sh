@@ -16,6 +16,8 @@
 #   - newly arrived durable work interrupts a long scan between records, is
 #     surfaced once, and the scan later resumes so paused, held, and retained
 #     neighbors after it are all still covered;
+#   - a due steering-inbox doorbell for a window late in a long scan rings
+#     within the cycle, before the scan reaches that window;
 #   - a watcher that loses the singleton mid-scan stands down without touching
 #     the beacon, while one that loses it mid-signal still delivers that wake
 #     exactly once;
@@ -66,6 +68,21 @@ case "${1:-}" in
     exit 0
     ;;
   display-message) printf '\n'; exit 0 ;;
+  send-keys)
+    # Typed text is logged as "<target> <text>" only when a case asks for it.
+    [ -n "${FM_FAKE_TMUX_SEND_LOG:-}" ] || exit 1
+    shift
+    target= literal=0
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -t) target=$2; shift 2 ;;
+        -l) literal=1; shift ;;
+        *) break ;;
+      esac
+    done
+    [ "$literal" = 0 ] || printf '%s %s\n' "$target" "${1:-}" >> "$FM_FAKE_TMUX_SEND_LOG"
+    exit 0
+    ;;
 esac
 exit 1
 SH
@@ -487,6 +504,42 @@ set_beacon_mtime() {  # <epoch> <file>
 
 # --- the arm follows a slow-scanning watcher and a re-arm attaches ----------
 
+# --- a due doorbell does not wait behind a long scan -------------------------
+
+test_due_doorbell_late_in_scan_rings_within_the_cycle() {
+  local dir state fakebin out log slog rec i n reads
+  dir=$(make_case late-doorbell); state="$dir/state"; fakebin="$dir/fakebin"
+  out="$dir/watch.out"; log="$dir/crew-state.log"; slog="$dir/send.log"
+  install_scan_fakes "$fakebin"
+  n=6
+  for i in $(seq 1 "$n"); do add_window "$state" "slow$i" "working: building part $i"; done
+  # Recorded last, so the scan reaches its window only after every slow read.
+  add_window "$state" zlate "working: waiting on review"
+  rec=$(FM_STATE_OVERRIDE="$state" bash -c '. "$1"; fm_task_inbox_write "$2" zlate "please continue"' \
+    _ "$ROOT/bin/fm-task-inbox-lib.sh" "$state")
+  touch -t 202001010000 "$rec"
+  # The inventory lists bare window names, so the doorbell's endpoint check
+  # finds each window present.
+  start_watcher "$state" "$fakebin" "$out" FM_FAKE_CREW_STATE_LOG="$log" FM_FAKE_CREW_STATE_SLEEP=3 \
+    FM_FAKE_TMUX_SEND_LOG="$slog" FM_FAKE_TMUX_WINDOWS="$(windows_of "$state" | sed 's/^test://')" \
+    FM_TASK_INBOX_RING_MAX=99
+  i=0
+  while [ "$i" -lt 150 ] && ! grep -q 'Firstmate instruction waiting' "$slog" 2>/dev/null; do
+    sleep 0.1
+    i=$((i + 1))
+  done
+  reads=$(line_count "$log")
+  is_live_non_zombie "$WATCHER_PID" || fail "watcher exited around a healthy re-ring: $(cat "$out" "$out.err")"
+  reap_watcher
+  grep -q "^test:fm-zlate[^ ]* .*'zlate.inbox'" "$slog" 2>/dev/null \
+    || fail "the due doorbell was not rung within the cycle (scan reads so far: $reads):"$'\n'"$(cat "$slog" 2>/dev/null)"
+  # Non-vacuous: the ring landed before the scan reached the late window.
+  [ "$reads" -lt "$n" ] || fail "the doorbell waited for the scan: $reads of $n slow reads came first"
+  [ -f "$rec" ] || fail "the re-ring lost the instruction"
+  [ ! -s "$out" ] || fail "a healthy re-ring woke firstmate: $(cat "$out")"
+  pass "a due doorbell for a window late in a long scan rings within the cycle, ahead of the scan"
+}
+
 test_arm_follows_slow_scan_and_rearm_attaches() {
   local dir state fakebin armout rearmout log arm rearm i status
   dir=$(make_case arm-follow); state="$dir/state"; fakebin="$dir/fakebin"
@@ -545,4 +598,5 @@ test_hung_observation_ages_beacon_then_surfaces
 test_new_work_yields_scan_and_coverage_resumes
 test_owner_change_mid_scan_stands_down
 test_owner_change_mid_signal_still_delivers_the_wake
+test_due_doorbell_late_in_scan_rings_within_the_cycle
 test_arm_follows_slow_scan_and_rearm_attaches

@@ -524,7 +524,8 @@ inbox_steer_escalate_unavailable() {  # <window> <task> <record>
   wake "$reason"
 }
 
-# Steering-inbox loss detection, one cheap check per recorded window per poll.
+# Steering-inbox loss detection, one cheap check per inbox-bearing recorded
+# task per cycle (inbox_steer_sweep below).
 # bin/fm-task-inbox-lib.sh owns delivery, busy-deferral, retry, and escalation policy.
 # Endpoint and busy checks precede delivery so recovery never types into a busy,
 # dead, or missing worker; the ring helper protects pending composer text.
@@ -621,6 +622,28 @@ inbox_steer_check() {  # <window> <task>
       wake "$reason"
       ;;
   esac
+}
+
+# The per-cycle steering-inbox pass, run ahead of the window scan and
+# independent of its cursor: a long scan is sliced across cycles, so a due
+# doorbell checked only when the scan reached its window could wait for a whole
+# rotation. The due decision is file reads only; only a task with something due
+# pays the window lookup, and it rings only when that window maps back to the
+# task, which is the scan's own window-to-task ownership mapping.
+inbox_steer_sweep() {
+  local dir task action w
+  for dir in "$STATE"/*.inbox; do
+    [ -d "$dir" ] || continue
+    task=${dir##*/}
+    task=${task%.inbox}
+    action=$(fm_task_inbox_due_action "$STATE" "$task") || continue
+    [ "$action" != quiet ] || continue
+    [ -f "$STATE/$task.meta" ] || continue
+    w=$(fm_backend_target_of_meta "$STATE/$task.meta")
+    [ -n "$w" ] && [ "$(window_to_task "$w" "$STATE")" = "$task" ] || continue
+    watcher_progress_beat
+    inbox_steer_check "$w" "$task"
+  done
 }
 
 # 0 (benign/absorb) if EVERY task in a no-verb "signal:" wake has positive work
@@ -3196,6 +3219,10 @@ EOF
     WATCH_SIGNAL_IN_FLIGHT=0
   fi
 
+  # Steering-inbox delivery covers every recorded task, secondmates included,
+  # before the scan below, so it never waits behind the scan cursor.
+  inbox_steer_sweep
+
   # Layer 1 backbone: pane staleness. Two consecutive identical hashes with no busy
   # signature means the crewmate finished, is waiting, or is wedged. Each distinct
   # stale hash is surfaced, absorbed, or timed toward escalation once (.stale-*
@@ -3225,9 +3252,6 @@ EOF
     scan_records=$((scan_records + 1))
     kind=$(window_kind "$w")
     task=$(window_to_task "$w" "$STATE")
-    # Steering-inbox loss detection runs before the secondmate stale
-    # exemption below, because a mate's steers land in an inbox too.
-    [ -z "$task" ] || inbox_steer_check "$w" "$task"
     key=$(window_key "$w")
     last=$(status_declared_wait_line "$STATE/$task.status")
     if ! status_is_paused_or_captain_held "$last" && [ -e "$STATE/.paused-$key" ]; then
