@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Focused safety tests for bin/fm-herdr-session-cleanup.sh.
 # Covers one exact cleanup, every title/journal/topology/agent/process refusal,
-# locked revalidation races, focus refusal, read errors, and repeat idempotence.
+# locked revalidation races, focus refusal, read errors, repeat idempotence,
+# unsafe or invalid journal neighbours, and the linear journal-scan shape.
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -98,6 +99,7 @@ fixture_workspaces() {
   if [ -e "$FIXTURE_DIR/duplicate-token" ]; then
     printf ',{"workspace_id":"w3","label":"└ copy · p:%s","focused":false,"active_tab_id":"w3:t1","tab_count":1,"pane_count":1}' "$TOKEN"
   fi
+  [ ! -e "$FIXTURE_DIR/extra-workspaces" ] || cat "$FIXTURE_DIR/extra-workspaces"
   printf ']'
 }
 
@@ -281,6 +283,105 @@ reset_fixture; : > "$FIXTURE_DIR/error-workspace-get"; assert_preserved "unreada
 reset_fixture; : > "$FIXTURE_DIR/race"; assert_preserved "revalidation race"
 reset_fixture; printf '%s\n' "$TAB" > "$FIXTURE_DIR/active-tab"; assert_preserved "active target"
 reset_fixture; : > "$FIXTURE_DIR/focus-refuse"; assert_preserved "focus refusal"
+
+# Record every strict journal parse so the cases below can prove which files
+# the file guards and the exact-token prefilter let through to it.
+PARSE_LOG="$TMP_ROOT/parses.log"
+eval "fm_herdr_cleanup_test_real_snapshot() $(declare -f fm_backend_herdr_projection_journal_snapshot | tail -n +2)"
+# shellcheck disable=SC2329 # invoked indirectly by the cleanup under test.
+fm_backend_herdr_projection_journal_snapshot() {
+  printf '%s\n' "$1" >> "$PARSE_LOG"
+  fm_herdr_cleanup_test_real_snapshot "$@"
+}
+
+# Runs one cleanup in the background and fails rather than hanging when a
+# journal read blocks (a FIFO opened for reading waits for a writer).
+run_cleanup_bounded() { # <case>
+  local name=$1 pid polls=0
+  : > "$PARSE_LOG"
+  fm_herdr_session_cleanup >/dev/null 2>&1 &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    polls=$((polls + 1))
+    if [ "$polls" -gt 300 ]; then
+      kill "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+      fail "$name blocked the cleanup scan"
+    fi
+    sleep 0.1
+  done
+  wait "$pid" || fail "$name cleanup exited non-zero"
+}
+
+assert_husk_retired_beside() { # <case> <neighbour-path>
+  local name=$1 neighbour=$2
+  run_cleanup_bounded "$name"
+  [ ! -e "$FM_STATE_OVERRIDE/$ID.herdr-presentation" ] || fail "$name kept the valid husk journal"
+  [ "$(wc -l < "$CLOSE_LOG" | tr -d ' ')" = 1 ] || fail "$name did not close the valid husk exactly once"
+  if grep -qxF -- "$neighbour" "$PARSE_LOG"; then
+    fail "$name reached the strict journal parser"
+  fi
+  [ -e "$neighbour" ] || [ -L "$neighbour" ] || fail "$name removed the neighbour"
+  pass "$name is skipped without blocking while the valid husk is retired"
+}
+
+# Each neighbour carries the husk's exact token and would be a second match for
+# the "fm-task" concise label if it were ever read as a journal.
+reset_fixture
+printf 'version=1\ntask_id=fm-task\nprojection_id=%s\n' "$TOKEN" > "$TMP_ROOT/outside.journal"
+ln -s "$TMP_ROOT/outside.journal" "$FM_STATE_OVERRIDE/fm-task.herdr-presentation"
+assert_husk_retired_beside "symlinked journal" "$FM_STATE_OVERRIDE/fm-task.herdr-presentation"
+[ -L "$FM_STATE_OVERRIDE/fm-task.herdr-presentation" ] || fail "symlinked journal was replaced"
+
+reset_fixture
+mkfifo "$FM_STATE_OVERRIDE/fm-task.herdr-presentation"
+assert_husk_retired_beside "FIFO journal" "$FM_STATE_OVERRIDE/fm-task.herdr-presentation"
+[ -p "$FM_STATE_OVERRIDE/fm-task.herdr-presentation" ] || fail "FIFO journal was replaced"
+
+reset_fixture
+INVALID_ID=$(printf '%065d' 0 | tr 0 t)
+printf 'version=1\ntask_id=%s\nprojection_id=%s\n' "$INVALID_ID" "$TOKEN" \
+  > "$FM_STATE_OVERRIDE/$INVALID_ID.herdr-presentation"
+assert_husk_retired_beside "invalid task id journal" "$FM_STATE_OVERRIDE/$INVALID_ID.herdr-presentation"
+
+# A foreign-home journal with the exact token passes the prefilter and is then
+# refused by the unchanged strict home check, not skipped earlier.
+reset_fixture; rm -f "$FM_STATE_OVERRIDE/$ID.herdr-presentation"; write_cross_home_v2
+run_cleanup_bounded "foreign-home journal"
+[ -f "$FM_STATE_OVERRIDE/$ID.herdr-presentation" ] || fail "foreign-home journal was retired"
+[ ! -s "$CLOSE_LOG" ] || fail "foreign-home journal closed the pane"
+grep -qxF -- "$FM_STATE_OVERRIDE/$ID.herdr-presentation" "$PARSE_LOG" \
+  || fail "foreign-home journal was not refused by the strict parser and home check"
+pass "foreign-home journal reaches the strict home check and is refused"
+
+# Scan shape: with many journals and many candidate workspaces, each journal is
+# parsed only for the candidate carrying its token, not once per candidate, and
+# candidates whose task metadata is current take no locks.
+reset_fixture
+SHAPE_COUNT=30
+: > "$FIXTURE_DIR/extra-workspaces"
+shape=1
+while [ "$shape" -le "$SHAPE_COUNT" ]; do
+  shape_token=$(printf 'Tok%019d' "$shape")
+  printf 'version=1\ntask_id=other-%s\nprojection_id=%s\n' "$shape" "$shape_token" \
+    > "$FM_STATE_OVERRIDE/other-$shape.herdr-presentation"
+  : > "$FM_STATE_OVERRIDE/other-$shape.meta"
+  printf ',{"workspace_id":"x%s","label":"└ other-%s · p:%s","focused":false,"active_tab_id":"x%s:t1","tab_count":1,"pane_count":1}' \
+    "$shape" "$shape" "$shape_token" "$shape" >> "$FIXTURE_DIR/extra-workspaces"
+  shape=$((shape + 1))
+done
+run_cleanup_bounded "many journals and candidates"
+[ ! -e "$FM_STATE_OVERRIDE/$ID.herdr-presentation" ] || fail "scan-shape case kept the valid husk journal"
+[ "$(wc -l < "$CLOSE_LOG" | tr -d ' ')" = 1 ] || fail "scan-shape case did not close the valid husk exactly once"
+shape_parses=$(wc -l < "$PARSE_LOG" | tr -d ' ')
+[ "$shape_parses" -le $((4 * (SHAPE_COUNT + 1))) ] \
+  || fail "scan-shape case parsed $shape_parses journals for $((SHAPE_COUNT + 1)) candidates; the scan is not linear"
+[ "$(wc -l < "$LOCK_LOG" | tr -d ' ')" = 2 ] \
+  || fail "scan-shape case took locks for candidates with current task metadata"
+for shape_meta in "$FM_STATE_OVERRIDE"/other-*.herdr-presentation; do
+  [ -f "$shape_meta" ] || fail "scan-shape case retired a journal with current task metadata"
+done
+pass "many journals and candidates scan linearly and leave current tasks untouched"
 
 INTEGRATION_ROOT="$TMP_ROOT/bootstrap-integration"
 mkdir -p "$INTEGRATION_ROOT/home/state" "$INTEGRATION_ROOT/home/data" "$INTEGRATION_ROOT/home/config"
