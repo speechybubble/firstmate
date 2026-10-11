@@ -1649,6 +1649,14 @@ test_spawn_relaunch_onto_an_explicit_harness_carries_no_recorded_axes() {
   pass "fm-spawn --relaunch: an explicit harness carries none of the recorded axes"
 }
 
+# Run the PR poll's strict identity parse on a record in a separate shell, so
+# the library's own variables never mix with the caller's; with a second
+# argument, also require that the parsed PR URL equals it.
+pr_identity_parses() {
+  bash -c '. "$1/bin/fm-pr-lib.sh" && fm_pr_metadata_identity_parse "$2" \
+    && { [ -z "$3" ] || [ "$FM_PR_META_URL" = "$3" ]; }' _ "$ROOT" "$1" "${2:-}"
+}
+
 test_control_relaunch_keeps_the_pr_poll_record_authenticatable() {
   local dir out rc record last_two
   dir=$(new_case prpollauth rl45)
@@ -1658,8 +1666,7 @@ test_control_relaunch_keeps_the_pr_poll_record_authenticatable() {
     printf '%s\n' 'pr=https://github.com/example/repo/pull/45'
     printf '%s\n' 'pr_head=0123456789abcdef0123456789abcdef01234567'
   } >> "$record"
-  # shellcheck source=bin/fm-pr-lib.sh
-  ( . "$ROOT/bin/fm-pr-lib.sh"; fm_pr_metadata_identity_parse "$record" ) \
+  pr_identity_parses "$record" \
     || fail "fixture: the recorded PR binding should authenticate before the relaunch"
   out=$(run_control "$dir" rl45 relaunch --note "keep the merge poll"); rc=$?
   expect_code 0 "$rc" "the relaunch should succeed"$'\n'"$out"
@@ -1667,10 +1674,7 @@ test_control_relaunch_keeps_the_pr_poll_record_authenticatable() {
   last_two=$(tail -n 2 "$record" | cut -d= -f1 | tr '\n' ' ')
   [ "$last_two" = "pr pr_head " ] \
     || fail "the PR binding must stay the record's last keys after a control relaunch, got '$last_two'"
-  # shellcheck source=bin/fm-pr-lib.sh
-  ( . "$ROOT/bin/fm-pr-lib.sh"
-    fm_pr_metadata_identity_parse "$record" \
-      && [ "$FM_PR_META_URL" = https://github.com/example/repo/pull/45 ] ) \
+  pr_identity_parses "$record" https://github.com/example/repo/pull/45 \
     || fail "the relaunched record must still authenticate the task's PR binding"
   pass "fm-control relaunch: the relaunched record keeps the PR binding last, so the merge poll still authenticates"
 }
