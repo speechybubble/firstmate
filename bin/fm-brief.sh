@@ -113,6 +113,10 @@
 # additions of missing knowledge. A correction edits only the wrong text and
 # never runs fm-ensure-agents-md.sh, whose inserted sections and created
 # pointer file are themselves additions.
+# Ship and scout scaffolds conditionally load the code-root task-context skill
+# for relevant task pickup and evidence-backed learning admission, outside # Task
+# so the pointer never becomes captain intent. Secondmate charters use their
+# own supervisor contract instead.
 # Scaffolds carry no role scope: fm-spawn.sh supplies fm_brief_worker_role from
 # fm-dod-lib.sh to every ship/scout launch brief, so this file never becomes a
 # second owner of a contract that must stay current across relaunches.
@@ -510,6 +514,14 @@ fi
 
 REPO=${POS[1]}
 
+# One context/learning entry point for both worker scaffold paths, independent
+# of the active FM_HOME and the project the worker will run in.
+IFS= read -r -d '' TASK_CONTEXT_SECTION <<EOF || true
+# Task context and learning
+When earlier decisions, corrections or domain context can change task pickup, or an explicit preference or correction, verified mistake or evidenced reusable success may warrant a durable lesson, read and follow \`$FM_ROOT/.agents/skills/task-context/SKILL.md\`.
+EOF
+TASK_CONTEXT_SECTION=${TASK_CONTEXT_SECTION%$'\n'}
+
 if [ "$HERDR_LAB" -eq 1 ]; then
 HERDR_LAB_HELPER=$(shell_quote "$FM_ROOT/bin/fm-herdr-lab.sh")
 # shellcheck disable=SC2016  # single quotes are deliberate: these lines are literal brief text whose backtick-wrapped $(...) and "$HERDR_LAB_SESSION" snippets must reach the reading agent verbatim, not expand at scaffold time; only the '"$VAR"' break-outs interpolate.
@@ -604,6 +616,8 @@ You are a crewmate: an autonomous worker agent managed by firstmate. Work on you
 
 $TASK_SECTION
 
+$TASK_CONTEXT_SECTION
+
 $HERDR_SECTION
 
 # Setup
@@ -675,6 +689,8 @@ You are a crewmate: an autonomous worker agent managed by firstmate. Work on you
 
 $TASK_SECTION
 
+$TASK_CONTEXT_SECTION
+
 $HERDR_SECTION
 
 # Setup
@@ -719,6 +735,7 @@ $WAIT_BLOCK$INBOX_SECTION
 # Project memory
 A project's \`AGENTS.md\` or \`CLAUDE.md\` is loaded into every agent session in that project, so edit it only to correct information that is factually wrong - including information your own change made wrong - and never to add knowledge because it is missing.
 A correction edits only the wrong text: do not run \`$FM_ROOT/bin/fm-ensure-agents-md.sh\`, create either file, or add sections, headings, or pointers alongside it.
+For a candidate lesson, use the task-context learning disposition above to choose its owner; a project \`AGENTS.md\` or \`CLAUDE.md\` accepts only the corrections allowed here.
 
 $DOD
 EOF
