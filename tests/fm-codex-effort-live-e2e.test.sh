@@ -44,7 +44,7 @@ done
 
 # shellcheck source=bin/fm-codex-effort-lib.sh
 . "$ROOT/bin/fm-codex-effort-lib.sh"
-CODEX_HOME="$CODEX_SELECT_HOME" fm_codex_effort_snapshot discover "$TMP_ROOT" ||
+CODEX_HOME="$CODEX_SELECT_HOME" fm_codex_effort_snapshot "$TMP_ROOT" ||
   fail "codex $CODEX_VERSION: native account-scoped model discovery unavailable"
 if [ -z "$TEST_MODEL" ]; then
   TEST_MODEL=$(printf '%s' "$FM_CODEX_EFFORT_MODELS" | jq -r '

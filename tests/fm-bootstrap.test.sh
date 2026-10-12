@@ -1139,9 +1139,10 @@ SH
   done <<'ROWS'
 malformed dispatch config is flagged^{"rules":[^exact^CREW_DISPATCH: invalid config/crew-dispatch.json - malformed JSON
 unverified dispatch harness is flagged^{"rules":[{"when":"anything","use":{"harness":"spaceship"}}],"default":{"harness":"codex"}}^exact^CREW_DISPATCH: invalid config/crew-dispatch.json - unverified harness: spaceship
-codex Sol max is uncertain offline^{"rules":[{"when":"big feature","use":{"harness":"codex","model":"gpt-6.1-sol","effort":"max"}}]}^exact^CREW_DISPATCH: unable to verify Codex max offline: this check never fetches models; native account-scoped discovery is required at dispatch
-codex Luna max is uncertain offline^{"rules":[{"when":"big feature","use":{"harness":"codex","model":"gpt-5.6-luna","effort":"max"}}]}^exact^CREW_DISPATCH: unable to verify Codex max offline: this check never fetches models; native account-scoped discovery is required at dispatch
-codex max is not a malformed configuration^{"rules":[{"when":"big feature","use":{"harness":"codex","model":"gpt-5","effort":"max"}}]}^exact^CREW_DISPATCH: unable to verify Codex max offline: this check never fetches models; native account-scoped discovery is required at dispatch
+codex Sol max is silent offline^{"rules":[{"when":"big feature","use":{"harness":"codex","model":"gpt-6.1-sol","effort":"max"}}]}^empty^
+codex Luna max is silent offline^{"rules":[{"when":"big feature","use":{"harness":"codex","model":"gpt-5.6-luna","effort":"max"}}]}^empty^
+codex max is not a malformed configuration^{"rules":[{"when":"big feature","use":{"harness":"codex","model":"gpt-5","effort":"max"}}]}^empty^
+default codex max needs a concrete model^{"default":{"harness":"codex","effort":"max"}}^exact^CREW_DISPATCH: unable to verify Codex max: a concrete --model is required
 unsupported grok max effort is flagged^{"rules":[{"when":"deep current work","use":{"harness":"grok","model":"grok-4","effort":"max"}}]}^exact^CREW_DISPATCH: invalid config/crew-dispatch.json - invalid effort: grok:max
 unsupported grok xhigh effort is flagged^{"rules":[{"when":"deep current work","use":{"harness":"grok","model":"grok-4","effort":"xhigh"}}]}^exact^CREW_DISPATCH: invalid config/crew-dispatch.json - invalid effort: grok:xhigh
 native pi ultra is accepted^{"rules":[],"default":{"harness":"pi","model":"codex-native/gpt-6-astra","effort":"ultra","provider":"codex"}}^empty^

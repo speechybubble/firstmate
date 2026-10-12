@@ -42,7 +42,8 @@
 #   Exit 2 only for a usage or configuration error (unreadable brief, an
 #   existing unreadable rules file, malformed rules, missing jq, or unsupported
 #   or unverified explicit Codex max capability), which is
-#   actionable, never selected around.
+#   actionable, never selected around. Codex max discovery runs in
+#   $FM_HOME/projects/<name> for --project <name>, else in $FM_HOME.
 #
 # Environment:
 #   TYPESAFE_API_KEY is the only resolver-specific environment setting.
@@ -179,7 +180,11 @@ rules_err=$(jq -r --argjson verified_harnesses "$VERIFIED_HARNESSES" --arg provi
   else empty end
 ' "$RULES" 2>/dev/null) || die "malformed rules file: $RULES_PATH (not JSON)"
 [ -z "$rules_err" ] || die "malformed rules file: $RULES_PATH - $rules_err"
-if ! fm_codex_max_profiles "$RULES" discover; then
+# Discover in the directory spawn would use: the named project's root, or the
+# effective home when no project is named, never the caller's working directory.
+CODEX_DISCOVERY_DIRECTORY=$FM_HOME
+[ -z "$PROJECT" ] || CODEX_DISCOVERY_DIRECTORY="${FM_PROJECTS_OVERRIDE:-$FM_HOME/projects}/${PROJECT#projects/}"
+if ! fm_codex_max_profiles "$RULES" "$CODEX_DISCOVERY_DIRECTORY"; then
   die "$FM_CODEX_EFFORT_REASON"
 fi
 
