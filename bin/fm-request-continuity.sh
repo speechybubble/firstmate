@@ -41,7 +41,8 @@
 # A reply is a turn-ending `assistant` entry (stop_reason end_turn) carrying
 # nonempty text; narration before a tool call is not a reply. A later captain
 # entry, or Claude's interruption marker, invalidates a staged reply or
-# acknowledgement; an assistant error entry does the same.
+# acknowledgement; an assistant error entry or Firstmate's own input does the
+# same.
 #
 # Subcommands (hooks read their payload on stdin and never fail the turn):
 #   hook stop           Stop: commit staged outcome acknowledgements followed by
@@ -126,7 +127,8 @@ activate() {  # <session> <transcript>
 # captain input, {"line":N,"kind":"command","id":..,"text":..} for a slash
 # command echo, {"line":N,"kind":"local","parent":..} for local command output,
 # {"line":N,"kind":"reply"} for a turn-ending assistant entry with nonempty
-# text, and {"line":N,"kind":"break"} for an assistant error entry.
+# text, and {"line":N,"kind":"break"} for an assistant error entry or Claude's
+# interruption marker, a harness-written user entry the captain never types.
 # A byte-level prefilter drops tool results and text-free assistant entries
 # before parsing: inside a JSON string a quote is escaped, so these structural
 # key/value spellings only match the entry's own fields. One awk and one jq
@@ -139,10 +141,12 @@ numbered_events() {  # <transcript> <after>
       else keep = index($0, "\"type\":\"assistant\"") && ((index($0, "\"type\":\"text\"") && index($0, "\"stop_reason\":\"end_turn\"")) || index($0, "\"isApiErrorMessage\":true"))
       if (keep) print NR "\t" $0
     }' "$1" | jq -cR '
+    def texts: if type == "string" then . elif type == "array" then [.[] | select(.type == "text") | .text] | join("\n") else "" end;
     (index("\t")) as $i | (.[:$i] | tonumber) as $line
     | (.[$i + 1:] | try fromjson catch null) | select(type == "object")
     | .message as $m
-    | if .type == "user" and (.isMeta != true) and (.isCompactSummary != true)
+    | if .type == "user" and ($m.content | texts | startswith("[Request interrupted by user")) then {line: $line, kind: "break"}
+      elif .type == "user" and (.isMeta != true) and (.isCompactSummary != true)
          and (((.origin // {kind: "human"}) | .kind) == "human") then
         ($m.content) as $c
         | if has("promptSource") | not then
@@ -176,13 +180,6 @@ is_operational() {  # <text>
   fm_operational_doorbell_kind "$1" "$STATE" kind
 }
 
-# Interruption is recorded by Claude as a user text entry with this exact
-# harness-written marker, never typed by the captain.
-is_interruption() {  # <text>
-  case "$1" in '[Request interrupted by user'*) return 0 ;; esac
-  return 1
-}
-
 # Compute the unresolved state into two globals: PENDING holds one JSON line per
 # unresolved request, {"id":..,"text":..,"replyStaged":bool,"attempted":bool},
 # and COMMIT_THROUGH the highest staged outcome acknowledgement that a later
@@ -203,13 +200,13 @@ pending_requests() {  # <session> <transcript>
   # Classify candidate captain entries with the operational-input owner, then
   # hand the stream and the retagged lines to one jq program. A single jq pass
   # extracts every candidate's line and text, so no process runs per entry.
+  # Firstmate's own input is not captain input, and like an interruption it
+  # invalidates a staged reply or acknowledgement.
   local user_lines=() user_texts=() retag="" i=0
   eval "$(printf '%s\n' "$events" | jq -r 'select(.kind == "user") | "user_lines+=(\(.line)); user_texts+=(\(.text | @sh))"' 2>/dev/null)"
   while [ "$i" -lt "${#user_lines[@]}" ]; do
-    if is_interruption "${user_texts[$i]}"; then
+    if is_operational "${user_texts[$i]}"; then
       retag="$retag,\"${user_lines[$i]}\":\"break\""
-    elif is_operational "${user_texts[$i]}"; then
-      retag="$retag,\"${user_lines[$i]}\":\"operational\""
     fi
     i=$((i + 1))
   done

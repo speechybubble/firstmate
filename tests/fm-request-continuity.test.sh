@@ -18,8 +18,8 @@
 #      a slash skill invocation is captain input, while a command Claude Code
 #      answers locally, its output, and a shell-mode echo are not.
 #   6. A staged outcome acknowledgement commits only after a turn-ending reply,
-#      not narration before a tool call; an intervening captain message
-#      invalidates it, and replay is idempotent.
+#      not narration before a tool call; an intervening captain message,
+#      interruption or Firstmate input invalidates it, and replay is idempotent.
 # shellcheck disable=SC2016 # the fake harness's child shell expands FM_HOME.
 set -u
 
@@ -91,6 +91,13 @@ reply() {  # <home> <text> [stop-reason]
 
 narrate() {  # <home> <text>
   reply "$1" "$2" tool_use
+}
+
+# Claude writes its interruption marker as array text with no promptSource.
+interrupt() {  # <home> <uuid> [marker]
+  jq -n -c --arg id "$2" --arg text "${3:-[Request interrupted by user]}" \
+    '{type: "user", uuid: $id, message: {role: "user", content: [{type: "text", text: $text}]}}' \
+    >> "$1/transcript.jsonl"
 }
 
 tool_turn() {  # <home>
@@ -184,7 +191,7 @@ test_dispositions_are_verified_and_reply_is_provisional() {
   tool_turn "$home"
   out=$(as_owner "$home" list)
   case "$out" in *"[u-c] (reply staged)"*) ;; *) fail "narration before a tool call delivered a staged reply: $out" ;; esac
-  say "$home" u-int "[Request interrupted by user]"
+  interrupt "$home" u-int
   reply "$home" "Three workers are running."
   out=$(as_owner "$home" list)
   case "$out" in *u-c*) ;; *) fail "an interrupted reply stage was completed by a later answer: $out" ;; esac
@@ -226,7 +233,7 @@ test_compaction_keeps_input_restorable() {
 }
 
 test_outcome_ack_commits_only_after_reply() {
-  local home="$TMP_ROOT/outcome" seq out
+  local home="$TMP_ROOT/outcome" seq out doorbell
   make_home "$home"
   : > "$home/transcript.jsonl"
   stop_hook "$home" >/dev/null
@@ -249,12 +256,27 @@ test_outcome_ack_commits_only_after_reply() {
   tool_turn "$home"
   stop_hook "$home" >/dev/null
   [ "$(unprocessed_seqs "$home")" = "$seq " ] || fail "narration before a tool call committed the staged acknowledgement"
+  interrupt "$home" u-int "[Request interrupted by user for tool use]"
+  reply "$home" "Stopped."
+  stop_hook "$home" >/dev/null
+  [ "$(unprocessed_seqs "$home")" = "$seq " ] || fail "a reply after an interruption committed the staged acknowledgement"
+  tool_turn "$home"
+  as_owner "$home" outcome-ack --through "$seq" >/dev/null || fail "re-staging after interruption was refused"
+  # shellcheck source=/dev/null
+  . "$ROOT/bin/fm-operational-input.sh"
+  fm_operational_record_write "$home/state" watcher "wake" doorbell || fail "could not write an operational record"
+  say "$home" u-op "$doorbell"
+  reply "$home" "Wake handled."
+  stop_hook "$home" >/dev/null
+  [ "$(unprocessed_seqs "$home")" = "$seq " ] || fail "a reply to Firstmate's own input committed the staged acknowledgement"
+  tool_turn "$home"
+  as_owner "$home" outcome-ack --through "$seq" >/dev/null || fail "re-staging after Firstmate input was refused"
   reply "$home" "The PR https://example.com/pr/9 is green and ready; shall I merge it?"
   stop_hook "$home" >/dev/null
   [ -z "$(unprocessed_seqs "$home")" ] || fail "a reply after the staged acknowledgement did not commit it"
   stop_hook "$home" >/dev/null || fail "replaying the stop after commit failed"
   [ "$(grep -c '"type":"outcome-commit"' "$home/state/request-intake/sess-1.jsonl")" = 1 ] || fail "the commit was not recorded exactly once"
-  pass "a staged outcome acknowledgement commits only after a turn-ending reply, a topic switch invalidates it, and replay is idempotent"
+  pass "a staged outcome acknowledgement commits only after a turn-ending reply, a topic switch, interruption or Firstmate input invalidates it, and replay is idempotent"
 }
 
 test_non_owner_is_inert

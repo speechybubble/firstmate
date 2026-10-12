@@ -618,7 +618,7 @@ For work that outlives the reply, first update the existing backlog records, inc
 The disposition verifies that each linked task can be read through the configured backlog owner; it does not create tasks or change their state.
 For a question or work fully handled in the current reply, disposition `reply` requires no task and stays provisional until a normal, nonempty assistant reply follows.
 The restored context distinguishes a staged reply from input needing disposition, so the model is asked to answer rather than stage repeatedly.
-An intervening captain message, failed, aborted or interrupted response invalidates a provisional reply, so an unrelated later answer cannot clear it.
+An intervening captain message or Firstmate operational input, or a failed, aborted or interrupted response, invalidates a provisional reply, so an unrelated later answer cannot clear it.
 Link corrections, cancellations, priority changes and duplicates to their original task identities after applying them through the existing owner; an unresolved input is never permission to replay work.
 
 Unresolved input is restored to model context independently of the compaction summary, because it is read from the full native record.
