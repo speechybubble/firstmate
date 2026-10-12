@@ -102,16 +102,13 @@ stop_reply_listener() {
 
 # Block until this generation's capture has been applied. A live listener keeps
 # its claim across polls, so start is only launched when nothing owns the source.
-# A runner may still exit after a check (a failed read or a declined relisten
-# leaves the source to reconcile), so ownership is re-checked every second of
-# the wait, standing in for the watcher's reconcile.
 await_reply_result() { # <result-path>
-  local result=$1 handled=${1%.result}.handled i
-  for i in $(seq 0 799); do
+  local result=$1 handled=${1%.result}.handled _
+  if [ "$(reply_owner)" != live ]; then
+    remote_env "$ROOT/bin/fm-procevent.sh" start "$SID" >/dev/null 2>&1 &
+  fi
+  for _ in $(seq 1 800); do
     [ -s "$result" ] && [ -f "$handled" ] && return 0
-    if [ $((i % 20)) -eq 0 ] && [ "$(reply_owner)" != live ]; then
-      remote_env "$ROOT/bin/fm-procevent.sh" start "$SID" >/dev/null 2>&1 &
-    fi
     sleep 0.05
   done
   return 1
