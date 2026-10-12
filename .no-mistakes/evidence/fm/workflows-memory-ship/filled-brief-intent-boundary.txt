@@ -1,0 +1,24 @@
+== no-mistakes
+launch validation: accepted
+placeholders: none
+intent body: [Retain the draft when retrying after a timeout.]
+spec body: [Use the linked rejection report; keep export unchanged.]
+task-context mentions inside # Task: 0
+== direct-PR
+launch validation: accepted
+placeholders: none
+intent body: [Retain the draft when retrying after a timeout.]
+spec body: [Use the linked rejection report; keep export unchanged.]
+task-context mentions inside # Task: 0
+== local-only
+launch validation: accepted
+placeholders: none
+intent body: [Retain the draft when retrying after a timeout.]
+spec body: [Use the linked rejection report; keep export unchanged.]
+task-context mentions inside # Task: 0
+== scout
+launch validation: accepted
+placeholders: none
+intent body: [Retain the draft when retrying after a timeout.]
+spec body: [Use the linked rejection report; keep export unchanged.]
+task-context mentions inside # Task: 0

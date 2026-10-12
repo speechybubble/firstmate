@@ -1,0 +1,2 @@
+working [at=1791795693]: reproducing upload.py timeout attachment loss and prototyping fix + timeout regression test
+done [at=1791795756]: upload.py fix = clear pending only on ack (timeout keeps photo.png); 5-test timeout regression suite fails 4/5 on old code, passes on fix; AGENTS.md preference proposed in report

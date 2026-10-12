@@ -1,0 +1,2 @@
+working [at=1791795780]: prototyping word-count in editor.py
+done [at=1791795860]: word-count prototyped - before: no output/exit 0, after: prints 1; 11/11 tests pass; patch + report in data/tc-wordcount; also found retry() draft-loss bug

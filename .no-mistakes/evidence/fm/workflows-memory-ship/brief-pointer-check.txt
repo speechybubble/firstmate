@@ -1,0 +1,72 @@
+== tc-direct-PR.brief.md
+3:# Task
+4:## Captain's intent
+7:## Firstmate spec
+10:# Task context and learning
+13:# Herdr lifecycle declaration - NOT ENABLED
+18:# Setup
+27:# Rules
+84:# Firstmate instruction inbox
+89:# Project memory
+94:# Definition of done
+10:# Task context and learning
+11-When earlier decisions, corrections or domain context can change task pickup, or an explicit preference or correction, verified mistake or evidenced reusable success may warrant a durable lesson, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMR3F0F03B8JV7APATYZDJ/.agents/skills/task-context/SKILL.md`.
+pointer=/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMR3F0F03B8JV7APATYZDJ/.agents/skills/task-context/SKILL.md
+pointer readable: yes
+92:For a candidate lesson, use the task-context learning disposition above to choose its owner; a project `AGENTS.md` or `CLAUDE.md` accepts only the corrections allowed here.
+== tc-local-only.brief.md
+3:# Task
+4:## Captain's intent
+7:## Firstmate spec
+10:# Task context and learning
+13:# Herdr lifecycle declaration - NOT ENABLED
+18:# Setup
+27:# Rules
+84:# Firstmate instruction inbox
+89:# Project memory
+94:# Definition of done
+10:# Task context and learning
+11-When earlier decisions, corrections or domain context can change task pickup, or an explicit preference or correction, verified mistake or evidenced reusable success may warrant a durable lesson, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMR3F0F03B8JV7APATYZDJ/.agents/skills/task-context/SKILL.md`.
+pointer=/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMR3F0F03B8JV7APATYZDJ/.agents/skills/task-context/SKILL.md
+pointer readable: yes
+92:For a candidate lesson, use the task-context learning disposition above to choose its owner; a project `AGENTS.md` or `CLAUDE.md` accepts only the corrections allowed here.
+== tc-no-mistakes.brief.md
+3:# Task
+4:## Captain's intent
+7:## Firstmate spec
+10:# Task context and learning
+13:# Herdr lifecycle declaration - NOT ENABLED
+18:# Setup
+28:# Rules
+87:# Firstmate instruction inbox
+92:# Project memory
+97:# Definition of done
+10:# Task context and learning
+11-When earlier decisions, corrections or domain context can change task pickup, or an explicit preference or correction, verified mistake or evidenced reusable success may warrant a durable lesson, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMR3F0F03B8JV7APATYZDJ/.agents/skills/task-context/SKILL.md`.
+pointer=/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMR3F0F03B8JV7APATYZDJ/.agents/skills/task-context/SKILL.md
+pointer readable: yes
+95:For a candidate lesson, use the task-context learning disposition above to choose its owner; a project `AGENTS.md` or `CLAUDE.md` accepts only the corrections allowed here.
+== tc-scout.brief.md
+3:# Task
+4:## Captain's intent
+7:## Firstmate spec
+10:# Task context and learning
+13:# Herdr lifecycle declaration - NOT ENABLED
+18:# Setup
+24:# Rules
+75:# Firstmate instruction inbox
+80:# Definition of done
+10:# Task context and learning
+11-When earlier decisions, corrections or domain context can change task pickup, or an explicit preference or correction, verified mistake or evidenced reusable success may warrant a durable lesson, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMR3F0F03B8JV7APATYZDJ/.agents/skills/task-context/SKILL.md`.
+pointer=/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMR3F0F03B8JV7APATYZDJ/.agents/skills/task-context/SKILL.md
+pointer readable: yes
+== tc-sm.brief.md
+3:# Charter
+6:# Routing scope
+9:# Project clones
+12:# Operating model
+21:# The captain and the parent channel
+27:# Requests from the main firstmate
+41:# Firstmate instruction inbox
+46:# Escalation to main firstmate
+65:# Definition of done

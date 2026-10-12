@@ -1,0 +1,2 @@
+working [at=1791795576]: reproducing draft loss on retry timeout; prototyping keep-draft-until-ack fix
+done [at=1791795621]: fix = keep draft until save ack (clear only on success); retry-timeout now keeps draft, retry-success/export unchanged; report at /tmp/fm-lab.el6pxT/data/tc-scout/report.md
