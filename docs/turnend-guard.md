@@ -642,6 +642,7 @@ The tracked `.claude/settings.json` runs it at `SessionStart` and `UserPromptSub
 A slash command is captain input only when the model receives it; a command Claude Code answers itself, such as `/compact`, and shell-mode input are not.
 Main records dispositions with `bin/fm-request-continuity.sh dispose` and lists unresolved input with `bin/fm-request-continuity.sh list`.
 On a Claude-owned home the wake drain's `BRANCH OUTCOMES` section asks for `bin/fm-request-continuity.sh outcome-ack`, which only stages the acknowledgement; the `Stop` hook commits it through `bin/fm-branch-outcome.sh mark-processed` once a normal nonempty reply follows with no captain message between.
+A normal reply is turn-ending assistant text (`stop_reason` `end_turn`); narration written before a tool call is not one.
 A direct `mark-processed` call still acknowledges immediately, and other non-Pi primaries keep that immediate acknowledgement.
 Run `tests/fm-request-continuity.test.sh` for the portable regression, and see [runtime verification](verification/runtime-backends.md#request-continuity-guards) for the live Claude check.
 

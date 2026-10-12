@@ -38,7 +38,8 @@
 # and that is either a submitted prompt (it carries promptSource) or a slash
 # command echo no local command output answers. Commands Claude Code runs
 # itself (/compact, /model) and shell-mode echoes never reach the model.
-# A reply is an `assistant` entry carrying nonempty text. A later captain
+# A reply is a turn-ending `assistant` entry (stop_reason end_turn) carrying
+# nonempty text; narration before a tool call is not a reply. A later captain
 # entry, or Claude's interruption marker, invalidates a staged reply or
 # acknowledgement; an assistant error entry does the same.
 #
@@ -124,8 +125,8 @@ activate() {  # <session> <transcript>
 # line <after>: {"line":N,"kind":"user","id":..,"text":..} for candidate
 # captain input, {"line":N,"kind":"command","id":..,"text":..} for a slash
 # command echo, {"line":N,"kind":"local","parent":..} for local command output,
-# {"line":N,"kind":"reply"} for an assistant entry with nonempty text, and
-# {"line":N,"kind":"break"} for an assistant error entry.
+# {"line":N,"kind":"reply"} for a turn-ending assistant entry with nonempty
+# text, and {"line":N,"kind":"break"} for an assistant error entry.
 # A byte-level prefilter drops tool results and text-free assistant entries
 # before parsing: inside a JSON string a quote is escaped, so these structural
 # key/value spellings only match the entry's own fields. One awk and one jq
@@ -135,7 +136,7 @@ numbered_events() {  # <transcript> <after>
   awk -v after="$2" '
     NR > after {
       if (index($0, "\"type\":\"user\"")) keep = !index($0, "\"type\":\"tool_result\"")
-      else keep = index($0, "\"type\":\"assistant\"") && (index($0, "\"type\":\"text\"") || index($0, "\"isApiErrorMessage\":true"))
+      else keep = index($0, "\"type\":\"assistant\"") && ((index($0, "\"type\":\"text\"") && index($0, "\"stop_reason\":\"end_turn\"")) || index($0, "\"isApiErrorMessage\":true"))
       if (keep) print NR "\t" $0
     }' "$1" | jq -cR '
     (index("\t")) as $i | (.[:$i] | tonumber) as $line
@@ -159,7 +160,7 @@ numbered_events() {  # <transcript> <after>
              text: ([$c[] | if .type == "text" then .text elif .type == "image" then "[attached image]" else empty end] | join("\n"))}
           else empty end
       elif .type == "assistant" and (.isApiErrorMessage == true) then {line: $line, kind: "break"}
-      elif .type == "assistant" and (($m.content | type) == "array") then
+      elif .type == "assistant" and ($m.stop_reason == "end_turn") and (($m.content | type) == "array") then
         ([$m.content[] | select(.type == "text") | .text] | join("\n")) as $t
         | if ($t | test("\\S")) then {line: $line, kind: "reply"} else empty end
       else empty end
@@ -200,32 +201,26 @@ pending_requests() {  # <session> <transcript>
   case "$after" in ''|*[!0-9]*) return 0 ;; esac
   events=$(numbered_events "$transcript" "$after")
   # Classify candidate captain entries with the operational-input owner, then
-  # hand the merged stream to one jq program. numbered_events emits keys in
-  # construction order, so only user lines start with this prefix.
-  local tagged="" line text
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    case "$line" in
-    '{"line":'*',"kind":"user",'*)
-      text=$(printf '%s' "$line" | jq -r '.text')
-      if is_interruption "$text"; then
-        line=$(printf '%s' "$line" | jq -c '{line, kind: "break"}')
-      elif is_operational "$text"; then
-        line=$(printf '%s' "$line" | jq -c '{line, kind: "operational"}')
-      fi
-      ;;
-    esac
-    tagged="$tagged$line"$'\n'
-  done <<EOF
-$events
-EOF
+  # hand the stream and the retagged lines to one jq program. A single jq pass
+  # extracts every candidate's line and text, so no process runs per entry.
+  local user_lines=() user_texts=() retag="" i=0
+  eval "$(printf '%s\n' "$events" | jq -r 'select(.kind == "user") | "user_lines+=(\(.line)); user_texts+=(\(.text | @sh))"' 2>/dev/null)"
+  while [ "$i" -lt "${#user_lines[@]}" ]; do
+    if is_interruption "${user_texts[$i]}"; then
+      retag="$retag,\"${user_lines[$i]}\":\"break\""
+    elif is_operational "${user_texts[$i]}"; then
+      retag="$retag,\"${user_lines[$i]}\":\"operational\""
+    fi
+    i=$((i + 1))
+  done
   local result
-  result=$(jq -n -c --arg events "$tagged" --arg receipts "$receipts" --argjson limit "$TEXT_LIMIT" '
+  result=$(jq -n -c --arg events "$events" --argjson retag "{${retag#,}}" --arg receipts "$receipts" --argjson limit "$TEXT_LIMIT" '
     def lines($s): $s | split("\n") | map(select(length > 0) | (try fromjson catch empty));
     lines($receipts) as $r
     | ([$r[] | select(.type == "start")][0].after // null) as $after
     | if $after == null then {requests: [], commit: 0} else
-      (lines($events) | map(select(.line > $after))) as $raw
+      (lines($events) | map(select(.line > $after)
+                            | if .kind == "user" and $retag[.line | tostring] then {line, kind: $retag[.line | tostring]} else . end)) as $raw
       # A command Claude Code answered locally (/compact, /model, ...) never
       # reached the model; any other command echo is a captain request.
       | ([$raw[] | select(.kind == "local") | .parent] | unique) as $local

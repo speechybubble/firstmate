@@ -12,13 +12,14 @@
 #   3. An omitted request blocks the stop exactly once, stays visible to later
 #      context, and Firstmate's own doorbell input is not captain input.
 #   4. `recorded` requires a readable existing task; `reply` stays provisional
-#      until a normal nonempty reply, and interruption or a later captain
-#      message invalidates it.
+#      until a normal nonempty reply, narration before a tool call is not that
+#      reply, and interruption or a later captain message invalidates it.
 #   5. Compaction keeps unresolved input restorable from the full transcript;
 #      a slash skill invocation is captain input, while a command Claude Code
 #      answers locally, its output, and a shell-mode echo are not.
-#   6. A staged outcome acknowledgement commits only after a reply, an
-#      intervening captain message invalidates it, and replay is idempotent.
+#   6. A staged outcome acknowledgement commits only after a turn-ending reply,
+#      not narration before a tool call; an intervening captain message
+#      invalidates it, and replay is idempotent.
 # shellcheck disable=SC2016 # the fake harness's child shell expands FM_HOME.
 set -u
 
@@ -79,15 +80,22 @@ say() {  # <home> <uuid> <text>
     >> "$1/transcript.jsonl"
 }
 
-reply() {  # <home> <text>
-  jq -n -c --arg text "$2" \
-    '{type: "assistant", message: {role: "assistant", content: [{type: "text", text: $text}]}}' \
+# Claude Code writes one entry per content block, each carrying the message's
+# stop_reason: end_turn for the turn's final text, tool_use for narration and
+# calls before a tool result.
+reply() {  # <home> <text> [stop-reason]
+  jq -n -c --arg text "$2" --arg stop "${3:-end_turn}" \
+    '{type: "assistant", message: {role: "assistant", stop_reason: $stop, content: [{type: "text", text: $text}]}}' \
     >> "$1/transcript.jsonl"
+}
+
+narrate() {  # <home> <text>
+  reply "$1" "$2" tool_use
 }
 
 tool_turn() {  # <home>
   printf '%s\n' \
-    '{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"tu1","name":"Bash","input":{}}]}}' \
+    '{"type":"assistant","message":{"role":"assistant","stop_reason":"tool_use","content":[{"type":"tool_use","id":"tu1","name":"Bash","input":{}}]}}' \
     '{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tu1","content":"ok"}]}}' \
     >> "$1/transcript.jsonl"
 }
@@ -170,11 +178,17 @@ test_dispositions_are_verified_and_reply_is_provisional() {
   case "$out" in *u-a*) fail "a recorded request stayed unresolved: $out" ;; esac
   case "$out" in *"[u-b] (reply staged)"*) ;; *) fail "the staged reply was not shown as provisional: $out" ;; esac
   as_owner "$home" dispose u-c reply --summary "will draft now" >/dev/null || fail "second reply stage refused"
-  # Interruption invalidates the stage, so the later answer cannot clear u-c.
+  # Narration before a tool call is not the reply, and interruption then
+  # invalidates the stage, so the later answer cannot clear u-c.
+  narrate "$home" "Counting the workers now."
+  tool_turn "$home"
+  out=$(as_owner "$home" list)
+  case "$out" in *"[u-c] (reply staged)"*) ;; *) fail "narration before a tool call delivered a staged reply: $out" ;; esac
   say "$home" u-int "[Request interrupted by user]"
   reply "$home" "Three workers are running."
   out=$(as_owner "$home" list)
   case "$out" in *u-c*) ;; *) fail "an interrupted reply stage was completed by a later answer: $out" ;; esac
+  case "$out" in *"(reply staged)"*) fail "interruption did not invalidate the staged replies: $out" ;; esac
   case "$out" in *u-b*) ;; *) fail "the interrupted stage for u-b was cleared by a later answer: $out" ;; esac
   case "$out" in *u-int*) fail "the harness interruption marker was treated as captain input: $out" ;; esac
   tool_turn "$home"
@@ -184,7 +198,7 @@ test_dispositions_are_verified_and_reply_is_provisional() {
   case "$out" in *u-b*) fail "a staged reply followed by a normal reply stayed unresolved: $out" ;; esac
   case "$out" in *u-c*) ;; *) fail "an unstaged request was cleared by an unrelated reply: $out" ;; esac
   out=$(as_owner "$home" dispose u-zz reply --summary "x" 2>&1) && fail "a disposition for unknown input was accepted: $out"
-  pass "recorded links need a readable task; a reply stays provisional until a normal reply, and interruption invalidates it"
+  pass "recorded links need a readable task; a reply stays provisional until a turn-ending reply, and interruption invalidates it"
 }
 
 test_compaction_keeps_input_restorable() {
@@ -231,12 +245,16 @@ test_outcome_ack_commits_only_after_reply() {
   [ "$(unprocessed_seqs "$home")" = "$seq " ] || fail "a topic switch reused the staged acknowledgement"
   tool_turn "$home"
   as_owner "$home" outcome-ack --through "$seq" >/dev/null || fail "re-staging was refused"
+  narrate "$home" "Checking the PR status first."
+  tool_turn "$home"
+  stop_hook "$home" >/dev/null
+  [ "$(unprocessed_seqs "$home")" = "$seq " ] || fail "narration before a tool call committed the staged acknowledgement"
   reply "$home" "The PR https://example.com/pr/9 is green and ready; shall I merge it?"
   stop_hook "$home" >/dev/null
   [ -z "$(unprocessed_seqs "$home")" ] || fail "a reply after the staged acknowledgement did not commit it"
   stop_hook "$home" >/dev/null || fail "replaying the stop after commit failed"
   [ "$(grep -c '"type":"outcome-commit"' "$home/state/request-intake/sess-1.jsonl")" = 1 ] || fail "the commit was not recorded exactly once"
-  pass "a staged outcome acknowledgement commits only after a reply, a topic switch invalidates it, and replay is idempotent"
+  pass "a staged outcome acknowledgement commits only after a turn-ending reply, a topic switch invalidates it, and replay is idempotent"
 }
 
 test_non_owner_is_inert

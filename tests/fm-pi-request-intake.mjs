@@ -180,5 +180,19 @@ console.log("ok - dispatched workers cannot mutate native primary intake receipt
 const reopened = SessionManager.open(manager.getSessionFile());
 assert.deepEqual(reopened.getBranch().filter((entry) => entry.type === "custom").map((entry) => [entry.customType, entry.data]), manager.getBranch().filter((entry) => entry.type === "custom").map((entry) => [entry.customType, entry.data]));
 console.log("ok - durable native receipts survive reopening the same session");
+
+// A reload starts from a non-empty leaf. Navigating to a branch without the
+// intake boundary must keep intake working for input on that branch.
+await session.reload();
+manager.resetLeaf();
+const navigated = "After navigating, summarise the audit plan.";
+const settledBeforeNavigation = events.filter((event) => event === "settled").length;
+await session.prompt(navigated);
+await waitFor(() => !session.isStreaming && events.filter((event) => event === "settled").length >= settledBeforeNavigation + 2, "navigated branch recovery");
+const reloadedTool = session.getToolDefinition("fm_request_disposition");
+const navigatedRequests = JSON.parse((await reloadedTool.execute("navigated", {}, undefined, undefined, ctx)).content[0].text);
+assert.deepEqual(navigatedRequests.map((request) => request.text), [navigated]);
+assert.ok(capturedContext.some((message) => message.customType === "fm-request-intake" && message.content.includes(navigated)));
+console.log("ok - a navigated branch without the intake boundary keeps reconciling its own input");
 session.dispose();
 process.exit(0);

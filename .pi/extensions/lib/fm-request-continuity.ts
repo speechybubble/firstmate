@@ -30,7 +30,6 @@ export function registerRequestContinuity(
 } {
   let generation = 0;
   let sessionId = "";
-  let initialLeaf: string | null = null;
   let stopped = false;
   const human = new Map<string, boolean>();
 
@@ -43,9 +42,10 @@ export function registerRequestContinuity(
   function initialize(ctx: ExtensionContext): boolean {
     if (!ready(ctx)) return false;
     if (!branch(ctx).some((entry) => entry.type === "custom" && entry.customType === START)) {
-      // A first installation does not reinterpret all historical chat as new
-      // work. Resume/reload retains this boundary in the native session tree.
-      pi.appendEntry(START, { version: 1, after: initialLeaf });
+      // A first installation, or a navigation to a branch without a boundary,
+      // does not reinterpret the branch's existing chat as new work. Resume and
+      // reload retain this boundary in the native session tree.
+      pi.appendEntry(START, { version: 1, after: ctx.sessionManager.getLeafId?.() ?? null });
     }
     return true;
   }
@@ -109,19 +109,22 @@ export function registerRequestContinuity(
   function start(ctx: ExtensionContext): void {
     generation++;
     sessionId = ctx.sessionManager?.getSessionId?.() ?? "";
-    initialLeaf = ctx.sessionManager?.getLeafId?.() ?? null;
     stopped = false;
     human.clear();
     if (sessionId && initialize(ctx)) showStatus(ctx);
   }
   pi.on("context", (event, ctx) => {
-    if (!sessionId || !initialize(ctx)) return;
-    const { requests } = pending(ctx);
-    if (!requests.length) return;
-    return { messages: [...event.messages, {
-      role: "custom" as const, customType: "fm-request-intake", content: describe(requests),
-      display: false, timestamp: Date.now(),
-    }] };
+    try {
+      if (!sessionId || !initialize(ctx)) return;
+      const { requests } = pending(ctx);
+      if (!requests.length) return;
+      return { messages: [...event.messages, {
+        role: "custom" as const, customType: "fm-request-intake", content: describe(requests),
+        display: false, timestamp: Date.now(),
+      }] };
+    } catch {
+      return;
+    }
   });
   async function settled(ctx: ExtensionContext): Promise<void> {
     if (!sessionId || !initialize(ctx)) return;
@@ -179,5 +182,11 @@ export function registerRequestContinuity(
       };
     },
   });
-  return { start, initialize, status: showStatus, settled, shutdown: () => { stopped = true; generation++; } };
+  return {
+    start: (ctx) => { try { start(ctx); } catch {} },
+    initialize: (ctx) => { try { return initialize(ctx); } catch { return false; } },
+    status: (ctx) => { try { showStatus(ctx); } catch {} },
+    settled: async (ctx) => { try { await settled(ctx); } catch {} },
+    shutdown: () => { stopped = true; generation++; },
+  };
 }
