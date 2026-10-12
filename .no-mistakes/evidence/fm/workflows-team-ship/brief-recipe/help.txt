@@ -114,6 +114,13 @@ information, including wrong information the task itself introduced - never
 additions of missing knowledge. A correction edits only the wrong text and
 never runs fm-ensure-agents-md.sh, whose inserted sections and created
 pointer file are themselves additions.
+Ship and scout scaffolds conditionally load the code-root task-context skill
+for relevant task pickup and evidence-backed learning admission, outside # Task
+so the pointer never becomes captain intent. Secondmate charters use their
+own supervisor contract instead.
+Ship/scout briefs point eligible experience and explanation tasks at the
+internal product-experience owner in the resolved tracked code root, even
+when FM_HOME and the destination project live elsewhere.
 Scaffolds carry no role scope: fm-spawn.sh supplies fm_brief_worker_role from
 fm-dod-lib.sh to every ship/scout launch brief, so this file never becomes a
 second owner of a contract that must stay current across relaunches.

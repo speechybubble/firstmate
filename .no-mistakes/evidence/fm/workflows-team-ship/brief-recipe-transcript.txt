@@ -1,0 +1,63 @@
+== doctor
+help rc=0
+== ship modes
+ship-no-mistakes rc=0
+Delivery contract: mode=no-mistakes
+1
+1
+1
+2
+When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QVQQA9S6DF2R4N0SHX7CHF/.agents/skills/task-execution/SKILL.md` before execution.
+# Herdr lifecycle declaration - NOT ENABLED
+ship-direct-PR rc=0
+Delivery contract: mode=direct-PR
+1
+1
+1
+2
+When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QVQQA9S6DF2R4N0SHX7CHF/.agents/skills/task-execution/SKILL.md` before execution.
+# Herdr lifecycle declaration - NOT ENABLED
+ship-local-only rc=0
+Delivery contract: mode=local-only
+1
+1
+1
+2
+When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QVQQA9S6DF2R4N0SHX7CHF/.agents/skills/task-execution/SKILL.md` before execution.
+# Herdr lifecycle declaration - NOT ENABLED
+== scout
+scout rc=0
+This is a SCOUT task: the deliverable is a written report, not a PR.
+1
+1
+2
+When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QVQQA9S6DF2R4N0SHX7CHF/.agents/skills/task-execution/SKILL.md` before execution.
+== invalid
+invalid rc=1
+no invalid brief artifact
+error: --mode must be one of no-mistakes, direct-PR, local-only (got 'unsupported')
+== secondmate neighbor
+secondmate rc=0
+0
+secondmate: no Task execution section (expected)
+== herdr-lab ship
+ship-lab rc=0
+When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QVQQA9S6DF2R4N0SHX7CHF/.agents/skills/task-execution/SKILL.md` before execution.
+== cleanup
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/ship-lab.out
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/ship-local-only.out
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/ship-no-mistakes.out
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/revision.txt
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/secondmate.out
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/secondmate.md
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/ship-lab.md
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/ship-no-mistakes.md
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/scout.md
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/ship-direct-PR.out
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/worktree.txt
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/ship-direct-PR.md
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/invalid.exit
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/scout.out
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/invalid.out
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/ship-local-only.md
+/home/denni/.no-mistakes/evidence/01M4QVQQA9S6DF2R4N0SHX7CHF/brief-recipe/help.txt
