@@ -402,7 +402,10 @@ esac
                                          "--secondmate-home-summary",
                                          NM_HOME=str(nm_home)))
         calls = log.read_text().splitlines()
-        self.assertEqual(calls[:2], ["axi status", "axi"])
+        # The runs listing only picks the read order; with no live run here
+        # the plain status still comes first and the overview supplies identity.
+        self.assertEqual([call for call in calls if call.startswith("axi")][:2],
+                         ["axi status", "axi"])
         rows = {row["id"]: row for row in summary["endpoints"]}
         self.assertEqual((rows["custody"]["state"], rows["custody"]["source"]),
                          ("paused", "status-log"))

@@ -5502,6 +5502,123 @@ selected_reread_count() {  # <call-log>
   grep -c '^axi status --run ' "$1" || true
 }
 
+plain_status_count() {  # <call-log>
+  grep -cx 'axi status' "$1" || true
+}
+
+# The overview as the real CLI (v1.84.0) prints it while this branch's run is
+# active: the whole plain status (its run record under `active_run:`, then any
+# branch_sync, gate, and help blocks), then the run inventory with its count.
+overview_with_status() {  # <plain-status>
+  printf '%s\n' "$1" | sed '1s/^run:$/active_run:/'
+  printf '%s\n' "$FM_FAKE_AXI_HOME"
+}
+
+overview_with_active_run() {  # <capture> [branch]
+  overview_with_status "$(captured_axi_status "$1" "${2:-fm/competing}")"
+}
+
+# An executing run at a head this copy cannot verify, with the daemon answered
+# down, binds only through the pipeline_owned branch_sync block, so the
+# overview stand-in must carry that block exactly as the plain status does.
+test_live_run_overview_carries_branch_sync() {
+  local d log inventory plain first_out status_out bare_out
+  make_competing_runs_case overview-branch-sync running cancelled
+  d=$TMP_ROOT/overview-branch-sync
+  log=$d/nm-calls
+  inventory=$FM_FAKE_AXI_HOME
+  FM_FAKE_RUN_HEAD=f0f0f0f0
+  FM_FAKE_DAEMON_DOWN=1
+  plain="$(captured_axi_status replacement)
+branch_sync:
+  state: pipeline_owned
+  changed: false"
+  FM_FAKE_AXI_HOME=$(overview_with_status "$plain")
+  FM_FAKE_AXI_STATUS=''
+  FM_FAKE_AXI_STATUS_RUN=''
+  : > "$log"
+  first_out=$(FM_FAKE_NM_CALL_LOG=$log run_crew_state "$d" competing)
+  assert_equals 0 "$(plain_status_count "$log")" 'the overview span with branch_sync is not re-read as the plain status'
+  assert_contains "$first_out" 'state: working' 'the overview branch_sync block binds the pipeline-owned run'
+  FM_FAKE_AXI_HOME=$inventory
+  FM_FAKE_AXI_STATUS=$plain
+  : > "$log"
+  status_out=$(FM_FAKE_NM_CALL_LOG=$log run_crew_state "$d" competing)
+  assert_equals 1 "$(plain_status_count "$log")" 'without the overview span the plain status is read'
+  assert_equals "$status_out" "$first_out" 'the overview span leaves the pipeline-owned verdict byte-identical'
+  FM_FAKE_AXI_HOME=$(overview_with_status "$(captured_axi_status replacement)")
+  FM_FAKE_AXI_STATUS=''
+  bare_out=$(run_crew_state "$d" competing)
+  assert_not_contains "$bare_out" 'state: working' 'an overview record without branch_sync does not bind the pipeline-owned run'
+  pass 'live run overview carries the branch_sync block of the plain status'
+}
+
+test_live_run_overview_stands_in_for_the_plain_status() {
+  local name=working shape=replacement expected=working d log inventory first_out status_out out field rc=0
+  make_competing_runs_case "overview-first-$name" running cancelled
+  d=$TMP_ROOT/overview-first-$name
+  log=$d/nm-calls
+  inventory=$FM_FAKE_AXI_HOME
+  # Overview-first: a plain status read would answer empty and read unknown.
+  FM_FAKE_AXI_HOME=$(overview_with_active_run "$shape")
+  FM_FAKE_AXI_STATUS=''
+  FM_FAKE_AXI_STATUS_RUN=''
+  : > "$log"
+  first_out=$(FM_FAKE_NM_CALL_LOG=$log run_crew_state "$d" competing)
+  assert_equals 0 "$(plain_status_count "$log")" "$name: a live run's overview record is not re-read as the plain status"
+  assert_equals 1 "$(grep -cx 'axi' "$log" || true)" "$name: the overview is read once"
+  # Status-first: the same record from the plain status, with an overview
+  # that carries only the inventory.
+  FM_FAKE_AXI_HOME=$inventory
+  FM_FAKE_AXI_STATUS=$(captured_axi_status "$shape")
+  : > "$log"
+  status_out=$(FM_FAKE_NM_CALL_LOG=$log run_crew_state "$d" competing)
+  assert_equals 1 "$(plain_status_count "$log")" "$name: without the overview record the plain status is read"
+  assert_equals "$status_out" "$first_out" "$name: the overview record leaves the verdict byte-identical"
+  assert_contains "$first_out" "state: $expected" "$name: the overview record keeps its classification"
+  assert_contains "$first_out" '01NEW' "$name: the overview record keeps its run id"
+  pass "$name live run overview stands in for the plain status"
+
+  for name in terminal-newest parked other-branch status head head_sha id; do
+    (
+      make_competing_runs_case "status-first-$name" running cancelled
+      d=$TMP_ROOT/status-first-$name
+      log=$d/nm-calls
+      case "$name" in
+        terminal-newest)
+          # The probe only picks the order: a newest terminal row keeps the
+          # plain status first even when the overview would carry a record.
+          FM_FAKE_RUNS_LIST=$(printf '%s\n' "$FM_FAKE_RUNS_LIST" | sed '1s/running/failed/')
+          FM_FAKE_AXI_HOME=$(overview_with_active_run replacement) ;;
+        parked)
+          # A parked plain status carries its gate outside the run record, so
+          # its overview record never stands in.
+          FM_FAKE_AXI_HOME=$(overview_with_active_run parked) ;;
+        other-branch) FM_FAKE_AXI_HOME=$(overview_with_active_run replacement fm/another-task) ;;
+        *)
+          field=$name
+          FM_FAKE_AXI_HOME=$(overview_with_active_run replacement | sed "/^  $field:/d") ;;
+      esac
+      FM_FAKE_AXI_STATUS=$(captured_axi_status replacement)
+      FM_FAKE_AXI_STATUS_RUN=''
+      : > "$log"
+      out=$(FM_FAKE_NM_CALL_LOG=$log run_crew_state "$d" competing)
+      assert_equals 1 "$(plain_status_count "$log")" "$name: the plain status is still read"
+      case "$name" in
+        terminal-newest)
+          assert_equals 'axi status' "$(grep '^axi' "$log" | head -1)" "$name: the plain status is read before the overview" ;;
+        *)
+          assert_equals 'axi' "$(grep '^axi' "$log" | head -1)" "$name: the overview is read first for a live newest row"
+          assert_equals 1 "$(grep -cx 'axi' "$log" || true)" "$name: the overview read first is reused as the inventory" ;;
+      esac
+      assert_contains "$out" 'state: working' "$name: the plain status record answers"
+      assert_contains "$out" '01NEW' "$name: the plain status keeps the selected id"
+      pass "$name keeps the plain status read"
+    ) || rc=1
+  done
+  [ "$rc" = 0 ] || fail 'live run overview stand-in neighbours'
+}
+
 test_selected_plain_status_skips_only_the_redundant_reread() {
   local spec name inventory shape expected d log skip_out reread_out field out rc=0
   for spec in working:running:replacement:working held:running:parked:parked \
@@ -5667,6 +5784,8 @@ test_captured_axi_status_shapes
 test_captured_inventory_replay
 test_captured_authority_transition
 test_selected_plain_status_skips_only_the_redundant_reread
+test_live_run_overview_stands_in_for_the_plain_status
+(test_live_run_overview_carries_branch_sync) || fail 'live run overview branch_sync'
 test_captured_completed_history
 cancellation_failures=0
 for cancellation_test in test_captured_cancelled_review_has_no_verdict \

@@ -308,6 +308,47 @@ PY
   esac
 }
 
+# The current branch's active run from captured `axi` overview TOON $1,
+# rendered as the `axi status` answer it duplicates: the overview span from the
+# top-level `active_run:` line up to the first top-level `count:` line, with
+# that header renamed `run:`. The real CLI prints that span (the run record and
+# its branch_sync, gate, and help blocks, in the plain status's order)
+# byte-identical to the plain status of the same executing run (no-mistakes
+# v1.84.0, a run in its ci step). A parked run's gate block can appear in the
+# overview in the same position, but by decision only an executing run
+# (fm_nm_run_is_executing) stands in.
+# Empty when the overview has no such span, or its run record does not name
+# branch $2 with id, status, head, and head_sha.
+fm_nm_overview_current_run() {  # <axi-overview> <branch>
+  local block field
+  block=$(printf '%s\n' "$1" | awk '
+    /^active_run:[[:space:]]*$/ { if (seen++) exit; inblock = 1; print "run:"; next }
+    inblock && /^count:/ { exit }
+    inblock { print }
+  ')
+  [ -n "$block" ] || return 0
+  [ "$(fm_nm_strip_quotes "$(fm_nm_field "$block" branch)")" = "$2" ] || return 0
+  for field in id status head head_sha; do
+    [ -n "$(fm_nm_strip_quotes "$(fm_nm_field "$block" "$field")")" ] || return 0
+  done
+  fm_nm_run_is_executing "$block" || return 0
+  printf '%s\n' "$block"
+}
+
+# 0 if the newest row for branch $2 in `no-mistakes runs --limit N` output $1
+# (format owned by fm_nm_runs_status_for_worktree below) is running or
+# pending. A read-order hint only: it never attributes a run, so a stale or
+# unreadable listing costs time, not classification.
+fm_nm_runs_newest_is_live() {  # <runs-list-output> <branch>
+  local st br _
+  while IFS=$' \t' read -r st br _; do
+    [ "$br" = "$2" ] || continue
+    case "$st" in running|pending) return 0 ;; esac
+    return 1
+  done <<< "$1"
+  return 1
+}
+
 # branch_sync.state from captured `axi status` TOON $1: the scalar directly
 # under the top-level `branch_sync:` block. The first `state:` inside the
 # block is the direct child (the nested local/pipeline/target/remote
