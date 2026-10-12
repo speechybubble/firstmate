@@ -1,0 +1,1 @@
+error: --mode must be one of no-mistakes, direct-PR, local-only (got 'unsupported')

@@ -1,0 +1,13 @@
+$ FM_SECONDMATE_CHARTER="lab charter" bin/fm-brief.sh sm-lab --secondmate --no-projects
+scaffolded: /tmp/tmp.PBDySObvee/home/data/sm-lab/brief.md (secondmate charter)
+rc=0
+charter written: 70 lines
+PASS: secondmate charter carries no task-execution route (retains own supervisor contract)
+
+$ bin/fm-brief.sh lab-ship fixture --mode no-mistakes --herdr-lab   (route coexists with Herdr lab section, ordering)
+rc=0
+3:# Task
+10:# Task execution
+13:# Herdr isolation - HARD SAFETY CONTRACT
+36:# Setup
+1
