@@ -162,6 +162,7 @@ fm_codex_max_check() {
     end
   ' 2>/dev/null) || verdict=unknown
   label=$(printf '%s' "$model" | jq -Rs .)
+  # shellcheck disable=SC2034 # Output global, read by the sourcing caller.
   case "$verdict" in
     supported)
       FM_CODEX_EFFORT_REASON="native Codex advertises max for $label"
