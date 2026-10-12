@@ -33,6 +33,37 @@ test_script_parses() {
   pass "fm-brief.sh: bash -n succeeds"
 }
 
+test_system_bash_generates_identical_briefs() {
+  local home kind lab id brief baseline status
+  home="$TMP_ROOT/system-bash-home"
+  mkdir -p "$home/data"
+  for kind in no-mistakes direct-PR local-only scout secondmate; do
+    for lab in off on; do
+      [ "$kind:$lab" != secondmate:on ] || continue
+      id="system-bash-$kind-$lab"
+      case "$kind" in
+        scout) set -- "$id" some-proj --scout ;;
+        secondmate) set -- "$id" --secondmate --no-projects ;;
+        *) set -- "$id" some-proj --mode "$kind" ;;
+      esac
+      [ "$lab" != on ] || set -- "$@" --herdr-lab
+      brief="$home/data/$id/brief.md"
+      baseline="$TMP_ROOT/$id.md"
+      FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "$@" >/dev/null 2>&1; status=$?
+      expect_code 0 "$status" "$id: ambient Bash scaffold failed"
+      assert_present "$brief" "$id: ambient Bash did not write a brief"
+      mv "$brief" "$baseline"
+      FM_HOME="$home" /bin/bash "$ROOT/bin/fm-brief.sh" "$@" >/dev/null 2>&1; status=$?
+      expect_code 0 "$status" "$id: system Bash scaffold failed"
+      assert_present "$brief" "$id: system Bash did not write a brief"
+      assert_grep "# Definition of done" "$brief" "$id: system Bash lost completion contract"
+      assert_grep "# Firstmate instruction inbox" "$brief" "$id: system Bash lost inbox contract"
+      cmp -s "$baseline" "$brief" || fail "$id: system Bash changed generated brief bytes"
+    done
+  done
+  pass "fm-brief.sh: system Bash generates identical briefs across scaffold paths"
+}
+
 test_help_includes_entire_header() {
   local help
   help=$("$ROOT/bin/fm-brief.sh" --help)
@@ -1421,6 +1452,43 @@ test_task_context_activation_and_intent_boundary() {
 }
 
 test_task_context_activation_and_intent_boundary
+test_task_execution_route() {
+  local home root kind brief route status
+  home="$TMP_ROOT/execution home with spaces"
+  root="$TMP_ROOT/tracked root with spaces"
+  mkdir -p "$root/.agents/skills"
+  ln -s "$ROOT/.agents/skills/task-execution" "$root/.agents/skills/task-execution"
+  for kind in no-mistakes direct-PR local-only scout; do
+    if [ "$kind" = scout ]; then
+      FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" FM_ROOT_OVERRIDE="$root" "$ROOT/bin/fm-brief.sh" "$kind" fixture --scout >/dev/null || fail "scout route scaffold failed"
+    else
+      FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" FM_ROOT_OVERRIDE="$root" "$ROOT/bin/fm-brief.sh" "$kind" fixture --mode "$kind" >/dev/null || fail "$kind route scaffold failed"
+    fi
+    brief="$home/data/$kind/brief.md"
+    # shellcheck disable=SC2016 # Match literal Markdown backticks, not command substitution.
+    route=$(sed -n 's/.*read and follow `\([^`]*\/task-execution\/SKILL.md\)`.*/\1/p' "$brief")
+    [ "$route" = "$root/.agents/skills/task-execution/SKILL.md" ] || fail "$kind route did not resolve through FM_ROOT"
+    [ -r "$route" ] && [ -s "$route" ] || fail "$kind emitted an unreadable workflow route"
+    cat "$route" > "$TMP_ROOT/$kind-loaded-skill.md" || fail "cannot load emitted workflow route"
+    cmp -s "$route" "$TMP_ROOT/$kind-loaded-skill.md" || fail "loaded route changed bytes"
+    assert_grep '{TASK}' "$brief" "$kind lost intent placeholder"
+    assert_grep '{FIRSTMATE_SPEC}' "$brief" "$kind lost spec placeholder"
+    assert_grep "$home/state/$kind.status" "$brief" "$kind lost isolated status"
+    assert_grep "$home/state/$kind.inbox" "$brief" "$kind lost isolated inbox"
+    assert_grep '# Herdr lifecycle declaration - NOT ENABLED' "$brief" "$kind lost safety gate"
+    if [ "$kind" != scout ]; then
+      assert_grep "Delivery contract: mode=$kind" "$brief" "$kind lost delivery contract"
+    fi
+  done
+  FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" "$ROOT/bin/fm-brief.sh" malformed fixture --mode unsupported >/dev/null 2>&1; status=$?
+  [ "$status" -ne 0 ] || fail "malformed mode succeeded"
+  assert_absent "$home/data/malformed/brief.md" "invalid mode wrote a successful artifact"
+  FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" FM_SECONDMATE_CHARTER=x "$ROOT/bin/fm-brief.sh" mate --secondmate --no-projects >/dev/null || fail "secondmate neighbor failed"
+  assert_no_grep '# Task execution' "$home/data/mate/brief.md" "worker procedure leaked into secondmate contract"
+  pass "fm-brief: eligible worker routes are readable with spaces and preserve neighboring contracts"
+}
+
+test_task_execution_route
 test_worker_role_scope
 
 # Rule 2 governs file edits rather than pool administration, so every crewmate
@@ -1547,6 +1615,7 @@ PY
 
 test_conditional_methods_resolve_from_code_root
 test_script_parses
+test_system_bash_generates_identical_briefs
 test_help_includes_entire_header
 test_ship_modes_generate_clean_briefs
 test_product_workflow_pointer_is_portable_and_worker_only
