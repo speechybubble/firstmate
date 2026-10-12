@@ -17,6 +17,8 @@ These skills are not captain-invocable; load them only at their precise triggers
 - `task-context` - load when earlier decisions, corrections or domain context can change brief authoring or task pickup, and before admitting a durable lesson from an explicit preference or correction, verified mistake or evidenced reusable success.
 - `product-experience` - load when scoping or executing a task that changes a user or caller experience, compares interaction alternatives, creates a tutorial, or explains a material technical decision.
 - `caller-first-design` - load before choosing or materially changing an interface or ownership boundary, an internal migration, or a repeated mechanical operation whose implementation remains uncertain.
+- `task-execution` - load when briefing, executing, or accepting a product behavior change, existing-fix verification, authorized multi-worker assignment, or long task with a measurable objective.
+- `verify-firstmate-brief` - load when changing brief generation or auditing the brief feature map.
 - `ask-user-authority` - load before deciding any ask-user finding.
 - `validation-supervision` - load when a ship starts or already has an active no-mistakes validation run, including a mid-run requirement change or finding, and before deciding or answering any ask-user finding.
 - `ship-landing` - load when a ship reports a PR or ready branch, when deciding or monitoring landing, and before task cleanup.
