@@ -1,0 +1,84 @@
+### case: incident
+{
+  "valid": false,
+  "state": "unknown",
+  "reason": "child current state unavailable: trelume-thoughts-reading, website-process-revision",
+  "invalidity": {
+    "kind": "child_current_unavailable",
+    "ids": [
+      "trelume-thoughts-reading",
+      "website-process-revision"
+    ]
+  },
+  "endpoints": [
+    {
+      "id": "trelume-thoughts-reading",
+      "state": "unknown"
+    },
+    {
+      "id": "website-process-revision",
+      "state": "unknown"
+    }
+  ],
+  "holds": [
+    {
+      "id": "trelume-thoughts-reading",
+      "source": "backlog",
+      "reason": "backlog hold until captain picks up"
+    }
+  ]
+}
+### case: mixed
+{
+  "valid": false,
+  "state": "unknown",
+  "reason": "child current state unavailable: lost-scout, trelume-thoughts-reading, website-process-revision",
+  "invalidity": {
+    "kind": "child_current_unavailable",
+    "ids": [
+      "lost-scout",
+      "trelume-thoughts-reading",
+      "website-process-revision"
+    ]
+  },
+  "endpoints": [
+    {
+      "id": "lost-scout",
+      "state": "unknown"
+    },
+    {
+      "id": "trelume-thoughts-reading",
+      "state": "unknown"
+    },
+    {
+      "id": "website-process-revision",
+      "state": "unknown"
+    }
+  ],
+  "holds": [
+    {
+      "id": "trelume-thoughts-reading",
+      "source": "backlog",
+      "reason": "backlog hold until captain picks up"
+    }
+  ]
+}
+### case: noagent
+{
+  "valid": false,
+  "state": "unknown",
+  "reason": "child current state unavailable: noagent-scout",
+  "invalidity": {
+    "kind": "child_current_unavailable",
+    "ids": [
+      "noagent-scout"
+    ]
+  },
+  "endpoints": [
+    {
+      "id": "noagent-scout",
+      "state": "unknown"
+    }
+  ],
+  "holds": []
+}

@@ -1,0 +1,89 @@
+### case: incident
+{
+  "valid": true,
+  "state": "externally_held",
+  "reason": null,
+  "invalidity": {
+    "kind": null,
+    "ids": []
+  },
+  "endpoints": [
+    {
+      "id": "trelume-thoughts-reading",
+      "state": "unknown"
+    },
+    {
+      "id": "website-process-revision",
+      "state": "unknown"
+    }
+  ],
+  "holds": [
+    {
+      "id": "trelume-thoughts-reading",
+      "source": "backlog",
+      "reason": "backlog hold until captain picks up"
+    },
+    {
+      "id": "website-process-revision",
+      "source": "child-state",
+      "reason": "paused: held until the captain reviews the brief"
+    }
+  ]
+}
+### case: mixed
+{
+  "valid": false,
+  "state": "unknown",
+  "reason": "child current state unavailable: lost-scout",
+  "invalidity": {
+    "kind": "child_current_unavailable",
+    "ids": [
+      "lost-scout"
+    ]
+  },
+  "endpoints": [
+    {
+      "id": "lost-scout",
+      "state": "unknown"
+    },
+    {
+      "id": "trelume-thoughts-reading",
+      "state": "unknown"
+    },
+    {
+      "id": "website-process-revision",
+      "state": "unknown"
+    }
+  ],
+  "holds": [
+    {
+      "id": "trelume-thoughts-reading",
+      "source": "backlog",
+      "reason": "backlog hold until captain picks up"
+    },
+    {
+      "id": "website-process-revision",
+      "source": "child-state",
+      "reason": "paused: held until the captain reviews the brief"
+    }
+  ]
+}
+### case: noagent
+{
+  "valid": false,
+  "state": "unknown",
+  "reason": "child current state unavailable: noagent-scout",
+  "invalidity": {
+    "kind": "child_current_unavailable",
+    "ids": [
+      "noagent-scout"
+    ]
+  },
+  "endpoints": [
+    {
+      "id": "noagent-scout",
+      "state": "unknown"
+    }
+  ],
+  "holds": []
+}
