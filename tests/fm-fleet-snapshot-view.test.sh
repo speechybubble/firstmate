@@ -1296,11 +1296,58 @@ EOF
   pass "home-summary default per-task bound covers a slow ready-PR read"
 }
 
+# A held or declared-paused child whose worker is deliberately not running reads
+# unknown; that is a hold, while an unknown child with neither stays unavailable.
+test_home_summary_lists_held_unknown_children_as_holds() {
+  local home fakebin out
+  home=$(make_home summary-held-unknown)
+  fakebin=$(make_fakebin "$home")
+  # Every current-state read outlasts the snapshot bound, so each child reads unknown.
+  printf '#!/usr/bin/env bash\nsleep 6\nexit 0\n' > "$fakebin/no-mistakes"
+  chmod +x "$fakebin/no-mistakes"
+  cat > "$home/data/backlog.md" <<'EOF'
+## In flight
+- [ ] held-stopped - Held with no running worker (repo: alpha) (kind: scout) (hold: maintenance stop) (hold-kind: external) (since 2026-07-11)
+- [ ] paused-stopped - Paused with no running worker (repo: alpha) (kind: scout) (since 2026-07-11)
+- [ ] lost-stopped - Unknown with no hold (repo: alpha) (kind: scout) (since 2026-07-11)
+
+## Queued
+
+## Done
+EOF
+  summary_states_child "$home" held-stopped failed 'working: reading'
+  summary_states_child "$home" paused-stopped failed 'paused: waiting for the maintenance release'
+  summary_states_child "$home" lost-stopped failed 'working: reading'
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_SNAPSHOT_CREW_STATE_TIMEOUT=2 \
+    "$SNAPSHOT" --secondmate-home-summary)
+  printf '%s' "$out" | jq -e '
+    ([.endpoints[] | select(.state == "unknown") | .id] | sort) == ["held-stopped","lost-stopped","paused-stopped"]
+      and .valid == false
+      and .invalidity == {kind:"child_current_unavailable",ids:["lost-stopped"]}
+      and .reason == "child current state unavailable: lost-stopped"
+      and ([.holds[] | select(.id == "held-stopped") | .source] == ["backlog"])
+      and ([.holds[] | select(.id == "paused-stopped") | {source,reason}]
+           == [{source:"child-state",reason:"paused: waiting for the maintenance release"}])
+  ' >/dev/null || fail "held or paused unknown children must be holds while an unheld unknown child stays unavailable: $out"
+
+  rm -f "$home/state/lost-stopped."*
+  grep -v '^- \[ \] lost-stopped ' "$home/data/backlog.md" > "$home/data/backlog.md.tmp"
+  mv "$home/data/backlog.md.tmp" "$home/data/backlog.md"
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_SNAPSHOT_CREW_STATE_TIMEOUT=2 \
+    "$SNAPSHOT" --secondmate-home-summary)
+  printf '%s' "$out" | jq -e '
+    .valid == true and .invalidity == {kind:null,ids:[]} and .state == "externally_held"
+      and ([.holds[].id] | sort) == ["held-stopped","paused-stopped"]
+  ' >/dev/null || fail "a home whose only unknown children are held must stay valid and externally held: $out"
+  pass "home-summary lists held or paused unknown children as holds"
+}
+
 test_empty_fleet_json
 test_fixture_snapshot_json
 test_home_summary_excludes_secondmate_from_child_inventory
 test_home_summary_accepts_awaiting_merge_and_held_failed_runs
 test_home_summary_default_bound_covers_a_slow_ready_pr_read
+test_home_summary_lists_held_unknown_children_as_holds
 test_undated_captain_hold_phrasing_and_aging
 test_hold_buckets_are_total_and_text_blind
 test_main_inventory_orphan_and_unstructured_disclosure
