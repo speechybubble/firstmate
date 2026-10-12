@@ -1,0 +1,135 @@
+=== live-claude-eligible
+TOOL Bash {"command": "git ls-files && wc -l $(git ls-files) 2>/dev/null | tail -5; ls -la /tmp/fm-lab.Uo7DLP/data/scout-1 /tmp/fm-lab.Uo7DLP/state 2>&1 | head -30", "des
+TOOL Read {"file_path": "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMPJHMF8TJFDD1TA9KWZ0C/.agents/skills/product-experience/SKILL.md"}
+TOOL Bash {"command": "cat -A README.md results.html; echo ----; cat /tmp/fm-lab.Uo7DLP/data/scout-1/brief.md | head -5; echo ----; cat /home/denni/.no-mistakes/worktrees
+TOOL Bash {"command": "cat /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMPJHMF8TJFDD1TA9KWZ0C/.agents/skills/captain-hold-lifecycle/SKILL.md; ls /tmp/fm-lab.Uo7DL
+TOOL Bash {"command": "cd /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMPJHMF8TJFDD1TA9KWZ0C && ls bin | grep -E 'captain-hold|procevent|fleet-ledger'; sed -n '1,
+TOOL Write {"file_path": "/home/denni/.claude/plans/lab-dry-run-in-iridescent-wadler.md", "content": "# Scout-1 plan: open a result's details without losing place (synthap
+RESULT: success
+I've written the plan to `/home/denni/.claude/plans/lab-dry-run-in-iridescent-wadler.md`; nothing was built or run. I couldn't submit it for approval because the ExitPlanMode tool isn't available in this session, so it's here for your review instead.
+
+**How I read the brief:** my job is to recommend one way to open a result's details: inline expansion or a side panel. The recommendation goes in `data/scout-1/report.md` and must be backed by evidence. I'm not building the feature, and any prototypes are scratch work that gets thrown away.
+
+**Starting state:**
+- `results.html` is 4 lines: three focusable `<li>` items with no click handling. The navigate-away behaviour exists only as a code comment, and `details.html` doesn't exist.
+- So the "loses scroll position" bug can't be reproduced as written. With only 3 items there is also nothing to scroll.
+- The report will say this plainly rather than claim a reproduction.
+
+**Plan:**
+1. Collect a few real-world examples of each pattern with the design-reference skill and fix one neutral visual target.
+2. Build a shared test list of about 40 items, keeping Gamma's "details unavailable" case. Both versions get the same data, the same selected item (around #25) and the same button trigger.
+3. Build three scratch pages: a stand-in for today's navigate-away behaviour, an inline expansion version and a side-panel version.
+4. Drive each in the browser at desktop (1280px) and narrow (375px) widths, by mouse and by keyboard. For each run I'll measure scroll position, where focus lands and whether the item stays in view through open, read and close, plus recovery from the unavailable case.
+5. Recommend from what was measured: how it looks, whether it behaves correctly, and whether it fits the product, judged separately. Then write a short usage tutorial and re-run it exactly as written.
+
+**Working hypothesis, not yet tested:** inline expansion. It keeps the reader's place at every width and needs simpler focus handling. The side panel likely loses because on a narrow screen it becomes a full-screen overlay, which takes the reader away again. Comparing several results side by side or long details would flip the choice.
+
+**Completion:** I expect the recommendation to need no call from the captain, so it closes the review with nothing held. If the evidence comes out a genuine tie, I'd raise a needs-decision with both options instead.
+
+**Side findings for the report, as follow-ups if this is promoted:**
+- The list items can be focused but do nothing, so keyboard users can't open a result.
+- `README.md:3` has the typo "recieved".
+=== live-claude-routine
+TOOL Bash {"command": "pwd -P && git rev-parse --show-toplevel && git status --short && ls -la && grep -rn \"recieved\" . --exclude-dir=.git", "description": "Check repo 
+TOOL Bash {"command": "git rev-parse --git-dir --git-common-dir --abbrev-ref HEAD && git worktree list && cat README.md && grep -rn \"recieved\" results.html; ls /tmp/fm-
+TOOL Write {"file_path": "/home/denni/.claude/plans/lab-dry-run-in-functional-rabbit.md", "content": "# Plan: fix 'recieved' typo in synthapp README.md\n\n## Context\nCapt
+RESULT: success
+The task is to change 'recieved' to 'received' in synthapp's `README.md`, and nothing else. It ships local-only, on branch `fm/ship-local-only`.
+
+**One issue first:** a real run here should stop at the safety check, before any edit. You said to skip Setup, but this directory (`/tmp/fm-lab.Uo7DLP/projects/synthapp`) looks like the primary checkout, not a disposable copy:
+- It is the only worktree that `git worktree list` shows.
+- It is on `main`, not on a detached HEAD.
+
+In a real run I would append `blocked [at=<epoch>]: launched in primary checkout, not an isolated worktree` to the status file and stop without branching or committing.
+
+**What I found (read-only):**
+- `README.md:3` is the only place the typo appears in the repo: `A synthetic app. Results are recieved from the index.`
+- This is a README typo, so the product-experience workflow doesn't apply.
+
+**Plan, assuming a proper isolated worktree:**
+1. Run the isolation check, then `git checkout -b fm/ship-local-only --`.
+2. Change `recieved` to `received` on line 3 of `README.md`.
+3. Check the result:
+   - `grep -rn recieved . --exclude-dir=.git` finds nothing.
+   - `git diff` shows exactly one changed line.
+4. Commit with `docs: fix 'received' typo in README`, without adding an agent as co-author.
+5. Make sure the branch still applies as a fast-forward on top of `main`, and rebase if `main` has moved.
+6. Make sure `git status --short` shows nothing left over.
+7. Append `done [at=<epoch>]: ready in branch fm/ship-local-only`, with the timestamp taken from `date +%s`, plus the fleet-ledger hook from the brief. Then stop.
+
+There are no in-between `working:` status lines, because the fix is a single edit.
+
+The plan is saved at `/home/denni/.claude/plans/lab-dry-run-in-functional-rabbit.md`.
+=== live-intake-E
+TOOL Skill {"skill": "product-experience"}
+TOOL Bash {"command": "cd /tmp/fm-lab.Uo7DLP && ls -la && ls config data 2>/dev/null; cat config/* 2>/dev/null | head -50; cat data/projects.md 2>/dev/null; find projects
+TOOL Bash {"command": "cat .fm-lab-home projects/synthapp/README.md projects/synthapp/results.html; ls data/*; cat /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMP
+TOOL Bash {"command": "sed -n '1,80p' eligible-brief.md; grep -n \"Firstmate spec\" -A12 routine-brief.md | head -30", "description": "Read existing lab brief scaffold fo
+TOOL Write {"file_path": "/home/denni/.claude/plans/lab-intake-dry-run-floofy-hanrahan.md", "content": "# Intake dry run: synthapp result details (lab home /tmp/fm-lab.Uo7
+RESULT: success
+Captain, here's how I'd scope this at intake. Nothing was written to the lab home, scaffolded, or launched.
+
+**My reading of the request:** you approved both the comparison and the build. So this goes out as one job that ships a change, and the worker picks between inline and side panel as part of the build. I wouldn't run a separate investigation first. I'd only come back to you if neither option works or the comparison raises a product question you haven't decided yet.
+
+**Intake decisions:**
+- **Project:** synthapp, which you named. It has two files: `README.md` and `results.html`.
+- **Delivery:** the lab home has no project list, so synthapp isn't registered. By default it gets full automated validation and a PR, and you approve the merge. You'd need to register the project if you want a different default.
+- **Effort:** high reasoning effort, because this is an open design comparison.
+- **What's there now:** `results.html` lists three results you can tab to. Gamma is marked "details unavailable". A comment in the page says a click goes to `details.html`, but that file doesn't exist in the repo.
+
+**Captain's intent** (your words, unchanged): In synthapp, clicking a search result navigates away and the reader loses their place. Work out whether opening details inline or in a side panel is better, and ship it.
+
+## Firstmate spec
+
+Start from the existing `results.html`: Alpha, Beta, and Gamma results, each focusable with `tabindex="0"`. Gamma's details are unavailable. Clicking a result currently navigates to `details.html`, which does not exist in the repository.
+
+Compare two candidates in sequence, yourself, with no extra agents:
+1. Inline expansion under the result.
+2. A side panel next to the list.
+
+Both candidates use the same data and the same starting state (scrolled partway down the list). Both open on the same actions: a click, or Enter/Space on a focused result. Use the refero-design skill to choose a fixed, neutral visual treatment and to check accessibility. Do not redesign the list's styling.
+
+Use chrome-devtools-axi to test each candidate at a desktop width and a narrow width. Open a result, read it, close it, and return. Also open Gamma and recover from its unavailable state. Keep screenshots as evidence of appearance. Keep a trace of focus, scroll position, and recovery as evidence of behavior. Recommend based on what you observed. Do not claim speed or satisfaction that you did not measure.
+
+Ship only the chosen candidate. The work is done when:
+- Clicking or pressing a key on a result shows its details without leaving the page.
+- Closing the details returns focus to the same result, and the list's scroll position does not change.
+- Gamma shows a clear "details unavailable" message, and the reader can close it and continue.
+- All of the above works at desktop and narrow widths.
+
+Add only the minimum detail content that the three results need. In the PR description, record the trade-off you observed, which candidate you chose, and why the other one lost.
+
+Out of scope:
+- The "recieved" typo in the README.
+- Search behavior.
+- Changes to the list's styling.
+- URL routing or deep links to details.
+- Shipping both candidates.
+
+Raise a decision request only if neither candidate gives a working return to the same place, or if the comparison shows that a new product choice is needed, such as linkable detail URLs.
+=== live-intake-R
+TOOL Bash {"command": "cd /tmp/fm-lab.Uo7DLP && ls -a; ls config data 2>/dev/null; cat data/projects.md 2>/dev/null; grep -rn -i \"recieve\" projects/synthapp --exclude-d
+TOOL Bash {"command": "cd /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMPJHMF8TJFDD1TA9KWZ0C && grep -n -i \"registry\" docs/configuration.md | head -8; ls /tmp/f
+TOOL Write {"file_path": "/home/denni/.claude/plans/lab-intake-dry-run-fancy-prism.md", "content": "# Intake dry run: synthapp README typo\n\n## Context\nCaptain ask: \"Fi
+RESULT: success
+Captain, here's how I'd scope this one. I only read files; nothing was scaffolded or launched.
+
+**Intake scoping:**
+- **Project:** synthapp, which you named directly.
+- **Where the typo is:** `README.md` line 3 reads "Results are recieved from the index." That's the only "recieved" anywhere in the repository. `results.html` doesn't have it.
+- **Type of work:** a straight fix. No investigation is needed, and it doesn't change how anyone uses the app.
+- **Delivery and merge:** this lab home has no project registry. That means it gets the default for an unregistered project: the full review pipeline through to a PR, and I'd wait for your merge approval. If you want to register synthapp with a different standing setting, that's your call.
+- **Other settings:** the default branch prefix and the project's default base branch. Low effort fits a one-word change.
+
+**`## Firstmate spec` I'd write into the instructions:**
+
+```markdown
+- In `README.md`, change "recieved" to "received" on the line "A synthetic app. Results are recieved from the index."
+- This is the only occurrence in the repository at intake; edit nothing else.
+- Out of scope: other spelling or wording fixes, other files (including `results.html`), and any project-wide spelling sweep or tooling. If you notice another typo, mention it in your final status as a follow-up instead of fixing it.
+- Done when the diff is exactly that one-word change in `README.md` and it has gone through the no-mistakes pipeline to a PR.
+```
+
+`## Captain's intent` would hold only your words: "Fix the typo recieved -> received in synthapp README."
+
+This plan is also saved at `/home/denni/.claude/plans/lab-intake-dry-run-fancy-prism.md`.

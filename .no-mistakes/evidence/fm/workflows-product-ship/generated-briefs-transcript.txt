@@ -1,0 +1,39 @@
+$ fm-brief.sh ship-no-mistakes synthapp --mode no-mistakes
+scaffolded: /tmp/fm-lab.Uo7DLP/data/ship-no-mistakes/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})
+exit=0
+$ fm-brief.sh ship-direct-PR synthapp --mode direct-PR
+scaffolded: /tmp/fm-lab.Uo7DLP/data/ship-direct-PR/brief.md (ship, mode=direct-PR; replace {TASK} and {FIRSTMATE_SPEC})
+exit=0
+$ fm-brief.sh ship-local-only synthapp --mode local-only
+scaffolded: /tmp/fm-lab.Uo7DLP/data/ship-local-only/brief.md (ship, mode=local-only; replace {TASK} and {FIRSTMATE_SPEC})
+exit=0
+$ fm-brief.sh scout-1 synthapp --scout
+scaffolded: /tmp/fm-lab.Uo7DLP/data/scout-1/brief.md (scout; replace {TASK} and {FIRSTMATE_SPEC})
+exit=0
+$ fm-brief.sh charter-1 --secondmate --no-projects
+scaffolded: /tmp/fm-lab.Uo7DLP/data/charter-1/brief.md (secondmate charter)
+exit=0
+
+FM_HOME=/tmp/fm-lab.Uo7DLP  code root=/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMPJHMF8TJFDD1TA9KWZ0C
+== ship-no-mistakes: product section ==
+10:# Product experience workflow
+11-If this task changes a user or caller experience, compares interaction design options, creates a tutorial, or explains a material technical decision, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMPJHMF8TJFDD1TA9KWZ0C/.agents/skills/product-experience/SKILL.md`.
+pointer=/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMPJHMF8TJFDD1TA9KWZ0C/.agents/skills/product-experience/SKILL.md
+pointer readable: yes (name: product-experience)
+== ship-direct-PR: product section ==
+10:# Product experience workflow
+11-If this task changes a user or caller experience, compares interaction design options, creates a tutorial, or explains a material technical decision, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMPJHMF8TJFDD1TA9KWZ0C/.agents/skills/product-experience/SKILL.md`.
+pointer=/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMPJHMF8TJFDD1TA9KWZ0C/.agents/skills/product-experience/SKILL.md
+pointer readable: yes (name: product-experience)
+== ship-local-only: product section ==
+10:# Product experience workflow
+11-If this task changes a user or caller experience, compares interaction design options, creates a tutorial, or explains a material technical decision, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMPJHMF8TJFDD1TA9KWZ0C/.agents/skills/product-experience/SKILL.md`.
+pointer=/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMPJHMF8TJFDD1TA9KWZ0C/.agents/skills/product-experience/SKILL.md
+pointer readable: yes (name: product-experience)
+== scout-1: product section ==
+10:# Product experience workflow
+11-If this task changes a user or caller experience, compares interaction design options, creates a tutorial, or explains a material technical decision, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMPJHMF8TJFDD1TA9KWZ0C/.agents/skills/product-experience/SKILL.md`.
+pointer=/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMPJHMF8TJFDD1TA9KWZ0C/.agents/skills/product-experience/SKILL.md
+/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QMPJHMF8TJFDD1TA9KWZ0C/.agents/skills/captain-hold-lifecycle/SKILL.md
+== charter-1: product section ==
+(no product-experience section; occurrences of 'product-experience': 0)
