@@ -117,6 +117,9 @@
 # for relevant task pickup and evidence-backed learning admission, outside # Task
 # so the pointer never becomes captain intent. Secondmate charters use their
 # own supervisor contract instead.
+# Ship/scout briefs point eligible experience and explanation tasks at the
+# internal product-experience owner in the resolved tracked code root, even
+# when FM_HOME and the destination project live elsewhere.
 # Scaffolds carry no role scope: fm-spawn.sh supplies fm_brief_worker_role from
 # fm-dod-lib.sh to every ship/scout launch brief, so this file never becomes a
 # second owner of a contract that must stay current across relaunches.
@@ -605,6 +608,12 @@ else
   SETUP_BASE="You are in a disposable git worktree of $REPO, at a detached HEAD on a clean default branch."
 fi
 
+IFS= read -r -d '' PRODUCT_SECTION <<EOF || true
+# Product experience workflow
+If this task changes a user or caller experience, compares interaction design options, creates a tutorial, or explains a material technical decision, read and follow \`$FM_ROOT/.agents/skills/product-experience/SKILL.md\`.
+EOF
+PRODUCT_SECTION=${PRODUCT_SECTION%$'\n'}
+
 if [ "$KIND" = scout ]; then
 if "$SCRIPT_DIR/fm-bootstrap.sh" lavish-compatible >/dev/null 2>&1; then
   LAVISH_LINE='If your deliverable is a visual artifact the captain will review and iterate on, use the lavish-axi rule: arm your board with bin/fm-procevent-lavish.sh arm <artifact.html> --for <task-id>; never run lavish-axi poll yourself. Re-arm with the reply after each nonterminal round to acknowledge it, route the board feedback through your steering inbox, write needs-decision [key=board-review] with the live board URL when the captain owes a decision, and stop at session_ended or an empty End without re-arming - acknowledge that final round with bin/fm-procevent.sh handled <source-id> <sequence> to conclude and retire your board.'
@@ -617,6 +626,8 @@ You are a crewmate: an autonomous worker agent managed by firstmate. Work on you
 $TASK_SECTION
 
 $TASK_CONTEXT_SECTION
+
+$PRODUCT_SECTION
 
 $HERDR_SECTION
 
@@ -690,6 +701,8 @@ You are a crewmate: an autonomous worker agent managed by firstmate. Work on you
 $TASK_SECTION
 
 $TASK_CONTEXT_SECTION
+
+$PRODUCT_SECTION
 
 $HERDR_SECTION
 
