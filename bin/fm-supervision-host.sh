@@ -1142,9 +1142,6 @@ while :; do
     if [ -n "$SUCCESSOR_GENERATION" ] \
       && ! fm_recovery_marker_publish "$STATE/.watcher-down" downtime >/dev/null 2>&1; then
       log_line "pass-through	downtime-unrestored	$(printf '%s\n' "$REASON" | head -n 1)"
-      # Say why on stdout: the owner reads a silent nonzero exit as a host
-      # that died, and retries a park instead of notifying main.
-      echo "watcher: FAILED - watcher downtime could not be restored for the main hand-back"
       exit 1
     fi
     emit
