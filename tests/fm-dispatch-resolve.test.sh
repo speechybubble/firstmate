@@ -1065,4 +1065,22 @@ assert_equals 1 "$(awk '$0 == "model/list" {n++} END {print n+0}' "$LOG/native.c
 assert_contains "$out" 'status: escalate' "equal quota ranking should keep the legitimate tie"
 pass "one native model snapshot covers every max profile even when the underlying catalog changes"
 
+reset_log
+fm_test_codex_catalog "$NATIVE_CATALOG"
+mkdir -p "$HOME_DIR/projects/pager" "$TMP_ROOT/caller"
+printf '%s\n' '{"rules":[{"when":"native max","use":{"harness":"codex","model":"gpt-6.1-sol","effort":"max"}}]}' > "$RULES"
+write_native_response
+cd "$TMP_ROOT/caller" || fail "cannot enter the caller directory"
+TYPESAFE_API_KEY=$KEY FM_TEST_CODEX_NATIVE_CWD_LOG="$LOG/project.cwd" run code out err "$BRIEF" --project pager
+expect_code 0 "$code" "project-scoped discovery should resolve: $err"
+assert_equals "$(cd "$HOME_DIR/projects/pager" && pwd -P)" "$(cat "$LOG/project.cwd")" "discovery did not run in the named project's root"
+TYPESAFE_API_KEY=$KEY FM_TEST_CODEX_NATIVE_CWD_LOG="$LOG/home.cwd" run code out err "$BRIEF"
+expect_code 0 "$code" "home-scoped discovery should resolve: $err"
+assert_equals "$(cd "$HOME_DIR" && pwd -P)" "$(cat "$LOG/home.cwd")" "discovery without a project did not run in the home"
+TYPESAFE_API_KEY=$KEY run code out err "$BRIEF" --project missing
+expect_code 2 "$code" "a missing project cannot verify max"
+assert_contains "$err" 'unable to verify Codex max' "a missing project was not refused as unverifiable"
+cd "$ROOT" || fail "cannot return to the repository"
+pass "typed resolution discovers in the target project or home, never the caller's directory"
+
 printf '# all fm-dispatch-resolve tests passed\n'

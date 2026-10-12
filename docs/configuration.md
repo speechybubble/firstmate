@@ -1184,7 +1184,7 @@ See [`docs/examples/crew-dispatch.json`](examples/crew-dispatch.json) for a star
 **Validation and diagnostics**
 
 - When the file exists, bootstrap validates it with `jq`.
-- Valid files stay silent by default, except that explicit Codex max reports inability to verify offline because bootstrap never refreshes models.
+- Valid files stay silent by default; bootstrap never refreshes models, so it leaves explicit Codex max capability to native discovery and reports only a Codex max profile without a concrete model.
 - The dispatch and launch paths perform native discovery; an unavailable account, protocol or capability response is actionable uncertainty, not malformed profile JSON.
 - With `FM_BOOTSTRAP_VERBOSE_FACTS=1`, bootstrap emits `BOOTSTRAP_INFO: crew dispatch active config/crew-dispatch.json`, one `BOOTSTRAP_INFO:` fact per rule, and one fact for the optional default profile set.
 - Malformed JSON, malformed rules, an empty or malformed profile array, an unverified harness, or an effort value unsupported by that harness is reported as `CREW_DISPATCH: invalid config/crew-dispatch.json - ...`.
@@ -1291,7 +1291,8 @@ No qualifying option, or two equally probable qualifying options, produces `ambi
 Every result above exits 0.
 
 - Response probabilities must contain exactly every offered choice, use numeric values from 0 through 1, and sum to approximately 1 within 0.01.
-- Only a usage or configuration error exits 2: an unreadable brief, an existing but unreadable or malformed canonical rules file, or missing `jq`, each reported and never selected around.
+- Only a usage or configuration error exits 2: an unreadable brief, an existing but unreadable or malformed canonical rules file, missing `jq`, or an unsupported or unverifiable explicit Codex max profile, each reported and never selected around.
+- Codex max discovery runs where `fm-spawn.sh` would launch: the named project's root under the home's `projects/` for `--project <name>`, otherwise the effective home, never the caller's working directory.
 - Missing `curl` is a normal structured `error` outcome with exit 0 so firstmate uses today's routing.
 
 **Firstmate retains the dispatch decision**

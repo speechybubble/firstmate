@@ -720,7 +720,7 @@ The omission control demonstrates the medium result when no effort override is s
 When native discovery lists a model without max, the refusal arm proves that an explicit max request for it stops before any launch.
 The guard runs by default when its tools are installed because it submits no model turn; an unavailable native account/discovery surface fails visibly rather than passing an unexercised runtime.
 The capability/refusal contract is owned by [`bin/fm-codex-effort-lib.sh`](../../bin/fm-codex-effort-lib.sh).
-Portable coverage in [`tests/fm-spawn-dispatch-profile.test.sh`](../../tests/fm-spawn-dispatch-profile.test.sh), [`tests/fm-dispatch-resolve.test.sh`](../../tests/fm-dispatch-resolve.test.sh), and [`tests/fm-bootstrap.test.sh`](../../tests/fm-bootstrap.test.sh) exercises support, refusal, ambiguity, offline diagnostics and ordinary-effort neighbors.
+Portable coverage in [`tests/fm-spawn-dispatch-profile.test.sh`](../../tests/fm-spawn-dispatch-profile.test.sh), [`tests/fm-dispatch-resolve.test.sh`](../../tests/fm-dispatch-resolve.test.sh), and [`tests/fm-bootstrap.test.sh`](../../tests/fm-bootstrap.test.sh) exercises support, refusal, ambiguity, silent offline diagnostics, target-directory discovery and ordinary-effort neighbors.
 No live result for remote hosts or another session-provider backend is established by this guard.
 
 ## Composer classification matrix

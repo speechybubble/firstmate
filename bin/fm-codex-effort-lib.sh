@@ -2,20 +2,23 @@
 # Account-scoped Codex max capability checks shared by spawn and dispatch.
 # Source this library; it does not execute discovery at load time.
 #
-# fm_codex_effort_snapshot discover|offline [existing-launch-directory]
-#   Reads one bounded model/list snapshot from a fresh native stdio app-server,
-#   using the same CODEX_HOME, account, config and executable as the launch.
-#   Native discovery owns cache/version/account applicability and may refresh
-#   its catalog. No login, model turn, shared daemon or fleet endpoint is used.
-#   Offline never launches Codex or contacts a service: current Codex exposes
-#   no account-scoped offline discovery, so bootstrap reports uncertainty.
+# fm_codex_effort_snapshot <existing-launch-directory>
+#   Reads one bounded model/list snapshot from a fresh native stdio app-server
+#   in that directory, using the same CODEX_HOME, account, config and
+#   executable as the launch. Native discovery owns cache/version/account
+#   applicability and may refresh its catalog. No login, model turn, shared
+#   daemon or fleet endpoint is used.
 # fm_codex_max_check <concrete-model>
 #   Returns 0 supported, 1 unsupported, 2 unknown; FM_CODEX_EFFORT_REASON names
 #   the result. Missing/default models and unusable or ambiguous evidence are
 #   unknown. Only an exact native model and explicit advertised max pass.
-# fm_codex_max_profiles <validated-profile-file> discover|offline
-#   Checks every declared Codex max profile against the same operation snapshot.
-#   An unknown profile is never selected around, including in a profile array.
+# fm_codex_max_profiles <validated-profile-file> offline|<discovery-directory>
+#   Checks every declared Codex max profile against one snapshot taken in the
+#   discovery directory. An unknown profile is never selected around,
+#   including in a profile array. Offline never launches Codex or contacts a
+#   service: current Codex exposes no account-scoped offline discovery, so it
+#   rejects only a profile without a concrete model and leaves capability
+#   verification to the dispatch and launch paths.
 #
 # Globals: FM_CODEX_EFFORT_MODELS (operation-local JSON, never persisted),
 #   FM_CODEX_EFFORT_REASON. Raw diagnostics/account data are never printed.
@@ -26,17 +29,9 @@ FM_CODEX_EFFORT_MODELS=
 FM_CODEX_EFFORT_REASON='native Codex capability discovery has not run'
 
 fm_codex_effort_snapshot() {
-  local mode=$1 directory=${2:-$PWD} binary result
+  local directory=$1 binary result
   FM_CODEX_EFFORT_MODELS=
   FM_CODEX_EFFORT_REASON='unable to verify Codex max: native discovery unavailable; open the native model picker, verify the account and retry'
-  case "$mode" in
-    offline)
-      FM_CODEX_EFFORT_REASON='unable to verify Codex max offline: this check never fetches models; native account-scoped discovery is required at dispatch'
-      return 2
-      ;;
-    discover) ;;
-    *) return 2 ;;
-  esac
   binary=$(command -v codex 2>/dev/null) || return 2
   command -v python3 >/dev/null 2>&1 || return 2
   command -v jq >/dev/null 2>&1 || return 2
@@ -187,7 +182,7 @@ fm_codex_max_check() {
 }
 
 fm_codex_max_profiles() {
-  local file=$1 mode=$2 models encoded model status
+  local file=$1 directory=$2 models encoded model status
   models=$(jq -r '
     def profiles($v): if ($v | type) == "array" then $v elif ($v | type) == "object" then [$v] else [] end;
     [((.rules // [])[] | profiles(.use)[]), profiles(.default // null)[]]
@@ -195,9 +190,12 @@ fm_codex_max_profiles() {
     | unique | .[] | @base64
   ' "$file") || return 2
   [ -n "$models" ] || return 0
-  fm_codex_effort_snapshot "$mode" || true
+  [ "$directory" = offline ] || fm_codex_effort_snapshot "$directory" || true
   while IFS= read -r encoded; do
     model=$(printf '%s' "$encoded" | jq -Rr '@base64d') || return 2
+    if [ "$directory" = offline ]; then
+      case "$model" in ''|default) ;; *) continue ;; esac
+    fi
     fm_codex_max_check "$model" && continue
     status=$?
     return "$status"

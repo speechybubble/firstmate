@@ -3176,7 +3176,7 @@ if [ "$HARNESS" = codex ] && [ "$EFFORT" = max ]; then
   else
     CODEX_DISCOVERY_DIRECTORY=$(cd "$(resolve_project_dir_arg "$PROJ")" && pwd) || exit 1
   fi
-  fm_codex_effort_snapshot discover "$CODEX_DISCOVERY_DIRECTORY" || true
+  fm_codex_effort_snapshot "$CODEX_DISCOVERY_DIRECTORY" || true
   if ! fm_codex_max_check "$MODEL"; then
     printf 'error: %s\n' "$FM_CODEX_EFFORT_REASON" >&2
     exit 1
