@@ -1,0 +1,41 @@
+{
+  "schema": "fm-secondmate-home-summary.v1",
+  "valid": true,
+  "state": "captain_decision",
+  "reason": null,
+  "invalidity": {
+    "kind": null,
+    "ids": []
+  },
+  "awaiting_merge": [
+    {
+      "id": "ready",
+      "pr_url": "https://github.com/o/r/pull/11",
+      "detail": "checks green: PR ready for review · run: 01ready"
+    },
+    {
+      "id": "passed-open",
+      "pr_url": "https://github.com/o/r/pull/31",
+      "detail": "run passed: PR open · run: 01passed-open"
+    }
+  ],
+  "held_failed_runs": [
+    {
+      "id": "paused-failed",
+      "reason": "paused: custody accepted, waiting for release",
+      "source": "status",
+      "detail": "run failed · run: 01paused-failed"
+    },
+    {
+      "id": "held-failed",
+      "reason": "keep stopped until release",
+      "source": "backlog",
+      "detail": "run failed · run: 01held-failed"
+    }
+  ],
+  "counts": {
+    "awaiting_merge": 2,
+    "held_failed_runs": 2
+  },
+  "omitted": []
+}

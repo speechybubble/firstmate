@@ -1,0 +1,31 @@
+{
+  "secondmates": [
+    {
+      "id": "mate",
+      "state": "captain_decision",
+      "doing": "Held after a failed run"
+    }
+  ],
+  "in_flight": [
+    {
+      "id": "mate/ready",
+      "state": "done",
+      "doing": "awaiting merge https://github.com/o/r/pull/11"
+    },
+    {
+      "id": "mate/passed-open",
+      "state": "done",
+      "doing": "awaiting merge https://github.com/o/r/pull/31"
+    },
+    {
+      "id": "mate/paused-failed",
+      "state": "failed",
+      "doing": "held failed run: paused: custody accepted, waiting for release"
+    },
+    {
+      "id": "mate/held-failed",
+      "state": "failed",
+      "doing": "held failed run: keep stopped until release"
+    }
+  ]
+}

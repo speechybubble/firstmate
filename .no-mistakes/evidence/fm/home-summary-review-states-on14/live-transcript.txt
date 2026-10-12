@@ -1,0 +1,232 @@
+=== S1: home with expected states AND real contradictions (default settings) ===
+{
+  "valid": false,
+  "state": "captain_decision",
+  "reason": "in-flight backlog item has terminal child state: merged=done, closed=done, unproven=done, no-pr=done, failed-open=failed",
+  "invalidity": {
+    "kind": "terminal_in_flight",
+    "ids": [
+      "merged",
+      "closed",
+      "unproven",
+      "no-pr",
+      "failed-open"
+    ]
+  },
+  "awaiting_merge": [
+    {
+      "id": "ready",
+      "pr_url": "https://github.com/o/r/pull/11",
+      "detail": "checks green: PR ready for review · run: 01ready"
+    },
+    {
+      "id": "passed-open",
+      "pr_url": "https://github.com/o/r/pull/31",
+      "detail": "run passed: PR open · run: 01passed-open"
+    }
+  ],
+  "held_failed_runs": [
+    {
+      "id": "paused-failed",
+      "reason": "paused: custody accepted, waiting for release",
+      "source": "status",
+      "detail": "run failed · run: 01paused-failed"
+    },
+    {
+      "id": "held-failed",
+      "reason": "keep stopped until release",
+      "source": "backlog",
+      "detail": "run failed · run: 01held-failed"
+    }
+  ],
+  "counts": {
+    "awaiting_merge": 2,
+    "held_failed_runs": 2,
+    "active_children": 0
+  }
+}
+=== S2: contradictions removed -> valid summary ===
+{
+  "schema": "fm-secondmate-home-summary.v1",
+  "valid": true,
+  "state": "captain_decision",
+  "reason": null,
+  "invalidity": {
+    "kind": null,
+    "ids": []
+  },
+  "awaiting_merge": [
+    {
+      "id": "ready",
+      "pr_url": "https://github.com/o/r/pull/11",
+      "detail": "checks green: PR ready for review · run: 01ready"
+    },
+    {
+      "id": "passed-open",
+      "pr_url": "https://github.com/o/r/pull/31",
+      "detail": "run passed: PR open · run: 01passed-open"
+    }
+  ],
+  "held_failed_runs": [
+    {
+      "id": "paused-failed",
+      "reason": "paused: custody accepted, waiting for release",
+      "source": "status",
+      "detail": "run failed · run: 01paused-failed"
+    },
+    {
+      "id": "held-failed",
+      "reason": "keep stopped until release",
+      "source": "backlog",
+      "detail": "run failed · run: 01held-failed"
+    }
+  ],
+  "counts": {
+    "awaiting_merge": 2,
+    "held_failed_runs": 2
+  },
+  "omitted": []
+}
+=== S3: real refresh publishes the ledger ===
+refresh rc=0
+{
+  "valid": true,
+  "state": "captain_decision",
+  "awaiting": [
+    "ready",
+    "passed-open"
+  ],
+  "held": [
+    "paused-failed",
+    "held-failed"
+  ]
+}
+=== S4: parent fleet snapshot + bearings through a local secondmate ===
+parent snapshot rc=0
+{
+  "id": "mate",
+  "current": {
+    "state": "captain_decision",
+    "reason": null
+  },
+  "provenance": "structured-home",
+  "awaiting_merge": [
+    {
+      "id": "ready",
+      "pr_url": "https://github.com/o/r/pull/11",
+      "detail": "checks green: PR ready for review · run: 01ready"
+    },
+    {
+      "id": "passed-open",
+      "pr_url": "https://github.com/o/r/pull/31",
+      "detail": "run passed: PR open · run: 01passed-open"
+    }
+  ],
+  "held_failed_runs": [
+    {
+      "id": "paused-failed",
+      "reason": "paused: custody accepted, waiting for release",
+      "source": "status",
+      "detail": "run failed · run: 01paused-failed"
+    },
+    {
+      "id": "held-failed",
+      "reason": "keep stopped until release",
+      "source": "backlog",
+      "detail": "run failed · run: 01held-failed"
+    }
+  ],
+  "counts": {
+    "awaiting_merge": 2,
+    "held_failed_runs": 2
+  }
+}
+bearings rc=0
+{
+  "secondmates": [
+    {
+      "id": "mate",
+      "state": "captain_decision",
+      "doing": "Held after a failed run"
+    }
+  ],
+  "in_flight": [
+    {
+      "id": "mate/ready",
+      "state": "done",
+      "doing": "awaiting merge https://github.com/o/r/pull/11"
+    },
+    {
+      "id": "mate/passed-open",
+      "state": "done",
+      "doing": "awaiting merge https://github.com/o/r/pull/31"
+    },
+    {
+      "id": "mate/paused-failed",
+      "state": "failed",
+      "doing": "held failed run: paused: custody accepted, waiting for release"
+    },
+    {
+      "id": "mate/held-failed",
+      "state": "failed",
+      "doing": "held failed run: keep stopped until release"
+    }
+  ]
+}
+bearings human rc=0
+schema: fm-bearings.v1
+home: nmlive.h56L6Q/parent
+generated: "2026-10-11T19:13:28Z"
+prs: "not_requested (run: /bearings include PRs)"
+contributions: 
+  scope: owned contributions per home
+  known: 2
+  checked: 0
+  counts: 
+    captain: 0
+    fleet: 2
+    maintainer: 0
+    nobody: 0
+  complete: false
+  proven_clear: false
+  unmeasured_homes: 0
+  unreadable_records: 0
+  unmeasured: 0
+  stale_verdicts: 0
+  missing_verdicts: 0
+  captain_omitted: 0
+  captain: []
+in_flight[4]{id,kind,state,repo,name,doing}:
+  mate/ready,secondmate,done,null,mate/ready,"awaiting merge https://github.com/o/r/pull/11"
+  mate/passed-open,secondmate,done,null,mate/passed-open,"awaiting merge https://github.com/o/r/pull/31"
+  mate/paused-failed,secondmate,failed,null,mate/paused-failed,"held failed run: paused: custody accepted, waiting for release"
+  mate/held-failed,secondmate,failed,null,mate/held-failed,"held failed run: keep stopped until release"
+secondmates[1]{id,state,doing,provenance,freshness,age_seconds,contradiction,reason}:
+  mate,captain_decision,Held after a failed run,structured-home,fresh,5,false,"-"
+secondmate_reconcile[1]{id,spawn_gen,host,kind,ids}:
+  mate,null,null,null,"[]"
+decisions_open[1]{id,key,verb,summary,owner}:
+  mate/held-failed,held-failed,captain-hold,"Held after a failed run: keep stopped until release",mate
+landed: []
+gates: []
+reports: []
+recorded_prs: []
+unhealthy_endpoints[1]{id,backend,target,exists,agent}:
+  mate,tmux,"firstmate:fm-mate",true,dead
+omitted[6]{surface,reveal}:
+  backlog item bodies,"--fields bodies"
+  task paths,"--fields paths"
+  watch/steer actions,"--fields actions"
+  healthy endpoint detail,"--fields endpoints"
+  full scout-report inventory,"--all-reports"
+  live PR discovery + checks,"--include-prs"
+=== S5: no merge / mutation was ever invoked ===
+gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged}}} -F owner=o -F repo=r -F number=12 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring)
+gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged}}} -F owner=o -F repo=r -F number=13 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring)
+gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged}}} -F owner=o -F repo=r -F number=31 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring)
+gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged}}} -F owner=o -F repo=r -F number=32 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring)
+gh pr view 12 --json number,title,state,author,isDraft,mergedAt,statusCheckRollup,body,comments,reviews --repo o/r
+no-mistakes axi
+no-mistakes axi status
+no-mistakes runs --limit 200
+no merge or mutating forge call

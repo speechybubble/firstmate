@@ -1,0 +1,12 @@
+{
+  "valid": true,
+  "state": "captain_decision",
+  "awaiting": [
+    "ready",
+    "passed-open"
+  ],
+  "held": [
+    "paused-failed",
+    "held-failed"
+  ]
+}

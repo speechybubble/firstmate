@@ -1,0 +1,8 @@
+gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged}}} -F owner=o -F repo=r -F number=12 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring)
+gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged}}} -F owner=o -F repo=r -F number=13 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring)
+gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged}}} -F owner=o -F repo=r -F number=31 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring)
+gh api graphql -f query=query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){state merged}}} -F owner=o -F repo=r -F number=32 --jq .data.repository.pullRequest | "state=" + (.state // ""), "merged=" + (.merged | tostring)
+gh pr view 12 --json number,title,state,author,isDraft,mergedAt,statusCheckRollup,body,comments,reviews --repo o/r
+no-mistakes axi
+no-mistakes axi status
+no-mistakes runs --limit 200
