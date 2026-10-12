@@ -10,7 +10,8 @@
 #   1. A session that does not own the home records and blocks nothing.
 #   2. Chat from before activation is never reinterpreted as new input.
 #   3. An omitted request blocks the stop exactly once, stays visible to later
-#      context, and Firstmate's own doorbell input is not captain input.
+#      context, and Firstmate's own doorbell input is not captain input, even
+#      after its record is pruned.
 #   4. `recorded` requires a readable existing task; `reply` stays provisional
 #      until a normal nonempty reply, narration before a tool call is not that
 #      reply, and interruption or a later captain message invalidates it.
@@ -156,13 +157,17 @@ test_omission_recovers_once_and_stays_visible() {
   printf '%s' "$out" | jq -e '.decision == "block"' >/dev/null || fail "the omitted request did not block the stop: $out"
   case "$out" in *u-a*u-b*) ;; *) fail "the reconciliation did not list both unresolved inputs: $out" ;; esac
   case "$out" in *u-op*) fail "Firstmate's own doorbell input was treated as captain input: $out" ;; esac
+  # Records are pruned after their retention; the doorbell stays Firstmate's.
+  rm -f "$home/state/operational-inbox/"*.msg
+  out=$(context_hook "$home" UserPromptSubmit)
+  case "$out" in *u-op*) fail "a doorbell whose record was pruned became captain input: $out" ;; esac
   [ "$(grep -c '"type":"recovery"' "$home/state/request-intake/sess-1.jsonl")" = 1 ] || fail "the recovery attempt was not persisted exactly once"
   out=$(stop_hook "$home")
   [ -z "$out" ] || fail "the same input blocked a second stop: $out"
   out=$(context_hook "$home" UserPromptSubmit)
   printf '%s' "$out" | jq -e '.hookSpecificOutput.hookEventName == "UserPromptSubmit"' >/dev/null || fail "context restoration did not name its event: $out"
   case "$out" in *u-a*) ;; *) fail "unresolved input vanished from later context: $out" ;; esac
-  pass "an omitted request blocks the stop once, stays visible afterwards, and Firstmate's doorbells are not captain input"
+  pass "an omitted request blocks the stop once, stays visible afterwards, and Firstmate's doorbells are not captain input, even once pruned"
 }
 
 test_dispositions_are_verified_and_reply_is_provisional() {

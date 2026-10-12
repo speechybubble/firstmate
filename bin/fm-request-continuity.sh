@@ -172,12 +172,15 @@ numbered_events() {  # <transcript> <after>
 }
 
 # True when <text> is Firstmate's own operational input rather than the
-# captain's: a current envelope, or a doorbell naming one of this home's
-# operational records.
+# captain's: a current envelope, or a well-formed doorbell naming this home's
+# operational inbox. Intake re-reads the whole session on every hook, so a
+# doorbell stays Firstmate's after its record is pruned.
 is_operational() {  # <text>
-  local kind
+  local kind record inbox
   fm_operational_input_kind "$1" kind && return 0
-  fm_operational_doorbell_kind "$1" "$STATE" kind
+  fm_operational_doorbell_path "$1" record || return 1
+  inbox=$(cd -P "$STATE/$FM_OPERATIONAL_RECORD_DIRNAME" 2>/dev/null && pwd -P) || return 1
+  [ "${record%/*}" = "$inbox" ]
 }
 
 # Compute the unresolved state into two globals: PENDING holds one JSON line per
