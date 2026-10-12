@@ -9,6 +9,9 @@
 # at all.
 set -u
 
+# shellcheck source=tests/codex-effort-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/codex-effort-helpers.sh"
+fm_test_codex_portable_environment
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -24,6 +27,9 @@ RULES="$HOME_DIR/config/crew-dispatch.json"
 QUOTA="$TMP_ROOT/quota.json"
 BASE_PATH=$PATH
 mkdir -p "$HOME_DIR/config" "$LOG" "$NO_CURL_BIN"
+NATIVE_CATALOG="$TMP_ROOT/native models.json"
+fm_test_codex_catalog "$NATIVE_CATALOG"
+fm_test_fake_codex_discovery "$FAKEBIN" "$NATIVE_CATALOG"
 for command_name in bash chmod cp dirname jq mktemp rm; do
   ln -s "$(command -v "$command_name")" "$NO_CURL_BIN/$command_name"
 done
@@ -163,7 +169,7 @@ reset_log() {
 run() {
   local __exit=$1 __out=$2 __err=$3 _out _code
   shift 3
-  _out=$(PATH="$FAKEBIN:$BASE_PATH" FM_HOME="$HOME_DIR" "$TOOL" "$@" 2> "$TMP_ROOT/stderr")
+  _out=$(PATH="$FAKEBIN:$BASE_PATH" FM_HOME="$HOME_DIR" CODEX_HOME="$HOME_DIR/codex home" "$TOOL" "$@" 2> "$TMP_ROOT/stderr")
   _code=$?
   printf -v "$__exit" '%s' "$_code"
   printf -v "$__out" '%s' "$_out"
@@ -1004,5 +1010,59 @@ run code out err --help
 expect_code 0 "$code" "--help exits 0"
 assert_contains "$out" 'Usage:' "--help prints usage"
 pass "configuration errors exit 2 before any network call"
+
+# Native Codex capabilities are checked before matching or quota selection.
+write_native_response() {
+  write_response "$RESPONSE" rule_1 0.9
+  jq '.answers.rule.probabilities = {"rule_1":0.99,"default":0.01}' "$RESPONSE" > "$RESPONSE.tmp"
+  mv "$RESPONSE.tmp" "$RESPONSE"
+}
+for model in gpt-6.1-sol gpt-6-astra gpt-5.6-luna other-exact-model; do
+  reset_log
+  jq -n --arg model "$model" '{rules:[{when:"native max",use:{harness:"codex",model:$model,effort:"max"}}]}' > "$RULES"
+  write_native_response
+  TYPESAFE_API_KEY=$KEY run code out err "$BRIEF"
+  expect_code 0 "$code" "advertised $model max should resolve: $err"
+  assert_contains "$out" "profile: --harness 'codex' --model '$model' --effort 'max'" "advertised max profile was not preserved"
+done
+pass "typed resolution accepts native-advertised max without model-name exceptions"
+
+for mode in unsupported missing-model no-model malformed rpc-error account-null exit duplicate partial no-efforts; do
+  reset_log
+  fm_test_codex_catalog "$NATIVE_CATALOG"
+  model=gpt-6.1-sol
+  case "$mode" in
+    unsupported) model=gpt-5 ;;
+    missing-model) model=gpt-6.1-sol-extra ;;
+    no-model) model=default ;;
+    duplicate) jq '.data += [.data[0]]' "$NATIVE_CATALOG" > "$NATIVE_CATALOG.tmp"; mv "$NATIVE_CATALOG.tmp" "$NATIVE_CATALOG" ;;
+    partial) jq '.nextCursor="100"' "$NATIVE_CATALOG" > "$NATIVE_CATALOG.tmp"; mv "$NATIVE_CATALOG.tmp" "$NATIVE_CATALOG" ;;
+    no-efforts) jq 'del(.data[0].supportedReasoningEfforts)' "$NATIVE_CATALOG" > "$NATIVE_CATALOG.tmp"; mv "$NATIVE_CATALOG.tmp" "$NATIVE_CATALOG" ;;
+  esac
+  # A valid cheaper neighbor cannot hide the unsupported/unknown candidate.
+  jq -n --arg model "$model" '{rules:[{when:"native max",use:[{harness:"codex",model:$model,effort:"max"},{harness:"claude",model:"sonnet",effort:"high"}]}]}' > "$RULES"
+  TYPESAFE_API_KEY=$KEY FM_TEST_CODEX_NATIVE_MODE="$mode" run code out err "$BRIEF"
+  expect_code 2 "$code" "$mode max candidate must not be selected around"
+  case "$mode" in
+    unsupported|missing-model) assert_contains "$err" 'unsupported Codex max' "$mode was not identified as unsupported" ;;
+    *) assert_contains "$err" 'unable to verify Codex max' "$mode uncertainty was misreported" ;;
+  esac
+  assert_equals '' "$out" "failed capability check published a selection"
+  assert_absent "$LOG/argv" "failed capability check made a matching API call"
+  assert_absent "$LOG/quota-axi.calls" "failed capability check read quotas"
+  assert_not_contains "$err" private-secret-must-not-leak "native error content leaked"
+done
+pass "typed resolution refuses unsupported and unknown max before selection, including arrays"
+
+reset_log
+fm_test_codex_catalog "$NATIVE_CATALOG"
+printf '%s\n' '{"data":[],"nextCursor":null}' > "$TMP_ROOT/mutated-native.json"
+printf '%s\n' '{"rules":[{"when":"native max","use":[{"harness":"codex","model":"gpt-6.1-sol","effort":"max"},{"harness":"codex","model":"gpt-6-astra","effort":"max"}]}]}' > "$RULES"
+write_native_response
+TYPESAFE_API_KEY=$KEY FM_TEST_CODEX_NATIVE_LOG="$LOG/native.calls" FM_TEST_CODEX_MUTATE_CATALOG="$TMP_ROOT/mutated-native.json" run code out err "$BRIEF"
+expect_code 0 "$code" "one immutable capability snapshot should validate both profiles: $err"
+assert_equals 1 "$(awk '$0 == "model/list" {n++} END {print n+0}' "$LOG/native.calls")" "an operation queried a changing native catalog repeatedly"
+assert_contains "$out" 'status: escalate' "equal quota ranking should keep the legitimate tie"
+pass "one native model snapshot covers every max profile even when the underlying catalog changes"
 
 printf '# all fm-dispatch-resolve tests passed\n'

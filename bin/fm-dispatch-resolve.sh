@@ -59,7 +59,8 @@
 #   error     -> API, network, response, or quota-axi failure; decide as today
 #   Every outcome exits 0 so an intake is never blocked by this tool.
 #   Exit 2 only for a usage or configuration error (unreadable brief, an
-#   existing unreadable rules file, malformed rules, or missing jq), which is
+#   existing unreadable rules file, malformed rules, missing jq, or unsupported
+#   or unverified explicit Codex max capability), which is
 #   actionable, never selected around.
 #
 # Environment:
@@ -89,6 +90,8 @@ CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
 . "$SCRIPT_DIR/fm-timing-lib.sh"
 # shellcheck source=bin/fm-brief-heading-lib.sh
 . "$SCRIPT_DIR/fm-brief-heading-lib.sh"
+# shellcheck source=bin/fm-codex-effort-lib.sh
+. "$SCRIPT_DIR/fm-codex-effort-lib.sh"
 
 CONFIDENCE_FLOOR=0.6
 TS_MODEL=jev-latest
@@ -151,7 +154,7 @@ rules_err=$(jq -r --argjson verified_harnesses "$VERIFIED_HARNESSES" --arg provi
     elif ($e | type) != "string" then false
     elif $e == "ultra" then (($h == "pi" or $h == "pi-signed") and (($m | type) == "string") and ($m | startswith("codex-native/")) and ($m | length) > 13)
     elif $h == "claude" then (["low","medium","high","xhigh","max"] | index($e)) != null
-    elif $h == "codex" then ((["low","medium","high","xhigh"] | index($e)) != null or ($e == "max" and $m == "gpt-5.6-luna"))
+    elif $h == "codex" then (["low","medium","high","xhigh","max"] | index($e)) != null
     elif $h == "grok" or $h == "agy" then (["low","medium","high"] | index($e)) != null
     elif $h == "pi" or $h == "pi-signed" or $h == "omp" or $h == "muse" then (["low","medium","high","xhigh","max"] | index($e)) != null
     elif $h == "rovo" then (["low","medium","high","max"] | index($e)) != null
@@ -199,6 +202,9 @@ rules_err=$(jq -r --argjson verified_harnesses "$VERIFIED_HARNESSES" --arg provi
   else empty end
 ' "$RULES" 2>/dev/null) || die "malformed rules file: $RULES_PATH (not JSON)"
 [ -z "$rules_err" ] || die "malformed rules file: $RULES_PATH - $rules_err"
+if ! fm_codex_max_profiles "$RULES" discover; then
+  die "$FM_CODEX_EFFORT_REASON"
+fi
 
 missing_provider=$(jq -r '
   def profiles($v): if ($v | type) == "array" then $v elif ($v | type) == "object" then [$v] else [] end;
