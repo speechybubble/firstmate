@@ -1,0 +1,41 @@
+[
+  {
+    "type": "response",
+    "command": "prompt",
+    "success": true
+  },
+  {
+    "type": "message_end",
+    "role": "user",
+    "stopReason": null,
+    "model": null,
+    "provider": null,
+    "content": [
+      {
+        "type": "text",
+        "text": "Arrange a keyboard accessibility audit after I send the fixture. Use task id keyboard-audit. READINESS.md has the scope."
+      }
+    ]
+  },
+  {
+    "type": "message_end",
+    "role": "custom",
+    "stopReason": null,
+    "model": null,
+    "provider": null,
+    "content": [
+      {
+        "type": "text",
+        "text": "\u2063FIRSTMATE_OP: v1 session-start: Run `bin/fm-session-start.sh` now, exactly once, before executing any other instructions."
+      }
+    ]
+  },
+  {
+    "type": "message_end",
+    "role": "assistant",
+    "stopReason": "error",
+    "model": "gpt-6-astra",
+    "provider": "openai-codex",
+    "content": []
+  }
+]

@@ -1,0 +1,3 @@
+total 0
+drwxrwxr-x 2 denni denni  40 Oct 12 20:15 .
+drwxrwxr-x 4 denni denni 120 Oct 12 20:15 ..

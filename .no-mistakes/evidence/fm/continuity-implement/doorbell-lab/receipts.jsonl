@@ -1,0 +1,7 @@
+{"type":"start","after":0}
+{"type":"recovery","ids":["6d6a4631-883b-426d-821c-850f1c000d70"]}
+{"type":"disposition","id":"6d6a4631-883b-426d-821c-850f1c000d70","disposition":"recorded","tasks":["t-relnote"],"summary":"Answered 7x6=42; Q3 release note drafting tracked by existing t-relnote","at":40}
+{"type":"recovery","ids":["991cf54e-809e-407f-bf18-ce07e429c753"]}
+{"type":"disposition","id":"991cf54e-809e-407f-bf18-ce07e429c753","disposition":"reply","tasks":[],"summary":"Replied DONE as requested","at":55}
+{"type":"recovery","ids":["4355ba07-31f5-410e-8994-6ff7854c23b6"]}
+{"type":"disposition","id":"4355ba07-31f5-410e-8994-6ff7854c23b6","disposition":"reply","tasks":[],"summary":"Ran list and showed its output verbatim","at":79}

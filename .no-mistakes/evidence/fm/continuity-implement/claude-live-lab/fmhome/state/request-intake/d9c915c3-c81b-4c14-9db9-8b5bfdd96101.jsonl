@@ -1,0 +1,11 @@
+{"type":"start","after":0}
+{"type":"recovery","ids":["28db295c-7a58-451a-837c-9ac93b2ceb39"]}
+{"type":"disposition","id":"28db295c-7a58-451a-837c-9ac93b2ceb39","disposition":"recorded","tasks":["t-relnote"],"summary":"Answered 7x6=42; Q3 release note drafting already tracked in existing task t-relnote","at":29}
+{"type":"outcome-stage","through":1,"at":40}
+{"type":"outcome-commit","through":1}
+{"type":"recovery","ids":["caa61c28-f656-4d16-9319-d0fce78390a8"]}
+{"type":"disposition","id":"caa61c28-f656-4d16-9319-d0fce78390a8","disposition":"reply","tasks":[],"summary":"Ran outcome-ack through 1 and relayed that PR 9 is ready for review","at":48}
+{"type":"recovery","ids":["b6bd819d-bc18-43bd-9918-6d08f68a3cf3"]}
+{"type":"disposition","id":"b6bd819d-bc18-43bd-9918-6d08f68a3cf3","disposition":"reply","tasks":[],"summary":"Acknowledged with OK; staging deploy stays paused until captain says otherwise, no deploy action taken","at":113}
+{"type":"recovery","ids":["e3a934b9-c624-4072-9c30-bb9e34409c57"]}
+{"type":"disposition","id":"e3a934b9-c624-4072-9c30-bb9e34409c57","disposition":"reply","tasks":[],"summary":"Replied DONE","at":124}

@@ -1,0 +1,1 @@
+: Firstmate operational input waiting: read '/tmp/fm-lab.GEgmVT/state/operational-inbox/1791800131-486d77ba53b45abb.msg' and handle its contents as Firstmate operational input.

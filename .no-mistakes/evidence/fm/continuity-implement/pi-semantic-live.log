@@ -1,0 +1,15 @@
+FM_TEST_BEGIN 2026-10-12T10:14:07Z tests/fm-request-continuity-live-e2e.test.sh family=live-harness-optin expected_gate_skip=live-capability
+Traceback (most recent call last):
+  File "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QR21AQZ1J2NHGD0D4AYDXP/tests/fm-request-continuity-live.py", line 191, in <module>
+    reply = prompt(
+        "Arrange a keyboard accessibility audit after I send the fixture. "
+        "Use task id keyboard-audit. READINESS.md has the scope.",
+        "Unrelated: what does UTC stand for?")
+  File "/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QR21AQZ1J2NHGD0D4AYDXP/tests/fm-request-continuity-live.py", line 147, in prompt
+    raise AssertionError("model did not complete normally")
+AssertionError: model did not complete normally
+FM_TEST_END 2026-10-12T10:14:20Z tests/fm-request-continuity-live-e2e.test.sh exit=1 duration_ms=12034 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=1 skipped_gate=0 duration_ms=12407
+FM_TEST_SUMMARY_FAMILY family=live-harness-optin count=1 duration_ms=12034 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-request-continuity-live-e2e.test.sh duration_ms=12034
+exit=1

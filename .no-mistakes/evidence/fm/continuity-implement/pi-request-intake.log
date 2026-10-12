@@ -1,0 +1,12 @@
+ok - deliberate unfiled acceptance survives unrelated steering and opens one recovery without a status request
+ok - actual compaction with an omitting summary still restores original unresolved user input
+ok - invented task links refuse; verified links clear intake without launching or completing the task
+ok - question dispositions require a normal substantive reply and never create backlog work
+ok - aborted and interrupted reply intentions stay unresolved after unrelated normal answers
+ok - repeated and modified input can link a closed identity without resurrecting or duplicating work
+ok - dispatched workers cannot mutate native primary intake receipts
+ok - durable native receipts survive reopening the same session
+ok - a navigated branch without the intake boundary keeps reconciling its own input
+ok - real Pi native input retains omitted obligations without manufacturing task state or endless recovery
+ok - real Pi recovers an internally acknowledged but undelivered owner-review outcome after a busy topic switch, delivers findings without a user prompt, and preserves independent approval
+exit=0

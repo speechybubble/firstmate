@@ -1,0 +1,8 @@
+ok - a session that does not own the home records and blocks nothing
+ok - activation records a boundary, so earlier chat is never reinterpreted as new instructions
+ok - an omitted request blocks the stop once, stays visible afterwards, and Firstmate's doorbells are not captain input, even once pruned
+ok - recorded links need a readable task; a reply stays provisional until a turn-ending reply, and interruption invalidates it
+ok - compaction keeps unresolved input restorable from the full transcript, independent of the summary, and only commands the model receives count as input
+ok - a staged outcome acknowledgement commits only after a turn-ending reply, a topic switch, interruption or Firstmate input invalidates it, and replay is idempotent
+all fm-request-continuity tests passed
+exit=0

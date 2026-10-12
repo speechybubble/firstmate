@@ -1,0 +1,50 @@
+
+ ▐▛███▛█   Claude Code v2.1.296
+▝▜██████▀  Opus 5.5 with low effort · Claude Max
+ ▝▝   ▝▝   /tmp/fm-lab.GEgmVT/project
+
+
+❯ : Firstmate operational input waiting: read '/tmp/fm-lab.GEgmVT/state/operational-inbox/1791800131-486d77ba53b45abb.msg' and handle its contents as Firstmate
+  operational input.
+
+● noted
+
+✻ Cogitated for 4s · done 8:15 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents

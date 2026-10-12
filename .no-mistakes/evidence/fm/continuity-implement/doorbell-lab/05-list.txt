@@ -1,0 +1,50 @@
+  [991cf54e-809e-407f-bf18-ce07e429c753] Reply with only DONE.
+
+  Reconcile every intent in these messages against later corrections, cancellations, priorities and existing records.
+  Use existing task IDs and owners; never replay a request merely because it is listed.
+  Record outliving work and its next action in the backlog, then run bin/fm-request-continuity.sh dispose <id> recorded <task-id>... --summary
+  "<handling>".
+  Questions and work fully handled in this reply need no task: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then
+  give the substantive answer.
+  A disposition does not establish task execution, completion or semantic correctness.
+
+  Ran 1 shell command
+
+● DONE
+
+✻ Worked for 11s · done 8:16 PM
+
+❯ Run exactly bin/fm-request-continuity.sh list with Bash and show its full output verbatim in a code block.
+
+  Ran 1 shell command
+
+● The list contains only this request:
+
+  [4355ba07-31f5-410e-8994-6ff7854c23b6]
+  Run exactly bin/fm-request-continuity.sh list with Bash and show its full output verbatim in a code block.
+
+● Ran 1 stop hook
+  ⎿  Stop hook error: Unreconciled native captain input (not a task list or permission to execute):
+  [4355ba07-31f5-410e-8994-6ff7854c23b6] Run exactly bin/fm-request-continuity.sh list with Bash and show its full output verbatim in a code block.
+
+  Reconcile every intent in these messages against later corrections, cancellations, priorities and existing records.
+  Use existing task IDs and owners; never replay a request merely because it is listed.
+  Record outliving work and its next action in the backlog, then run bin/fm-request-continuity.sh dispose <id> recorded <task-id>... --summary
+  "<handling>".
+  Questions and work fully handled in this reply need no task: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then
+  give the substantive answer.
+  A disposition does not establish task execution, completion or semantic correctness.
+
+  Ran 1 shell command
+
+● The list command printed only this request:
+
+  [4355ba07-31f5-410e-8994-6ff7854c23b6]
+  Run exactly bin/fm-request-continuity.sh list with Bash and show its full output verbatim in a code block.
+
+✻ Baked for 19s · done 8:16 PM
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← for agents
