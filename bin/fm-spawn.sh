@@ -1103,6 +1103,15 @@ spawn_remote_secondmate() {
     fm_lock_release "$SPAWN_TASK_LOCK" || true
     return 1
   fi
+  # A concrete-model Codex max is verified on the target host after sync; only
+  # the model-less request is refused here, before readiness or inheritance.
+  if [ "$harness" = codex ] && [ "$effort" = max ] && { [ "$model" = - ] || [ "$model" = default ]; } &&
+    ! fm_codex_max_check default; then
+    fm_lock_release "$registry_lock" || true
+    fm_lock_release "$SPAWN_TASK_LOCK" || true
+    printf 'error: %s\n' "$FM_CODEX_EFFORT_REASON" >&2
+    return 1
+  fi
   meta="$STATE/$id.meta"
   if [ -e "$meta" ] || [ -L "$meta" ]; then
     if ! fm_backlog_record_present "$meta" "task record" "$STATE" ||
@@ -3164,7 +3173,8 @@ if [ "$HARNESS" = codex ] && [ "$EFFORT" = max ]; then
   # A relaunch already has its exact worktree; a fresh task uses the existing
   # project root before Treehouse creates the new worktree. Secondmate checks
   # precede even its inheritance/sync effects. Remote launches reach this block
-  # only in the target-host spawn path.
+  # only in the target-host spawn path, so a concrete-model max on a remote
+  # second mate is verified on the target host after sync.
   if [ "$RELAUNCH" -eq 1 ]; then
     CODEX_DISCOVERY_DIRECTORY=$RELAUNCH_WT
   elif [ "$KIND" = secondmate ]; then

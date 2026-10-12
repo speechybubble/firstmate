@@ -1045,6 +1045,7 @@ for mode in unsupported missing-model no-model malformed rpc-error account-null 
   expect_code 2 "$code" "$mode max candidate must not be selected around"
   case "$mode" in
     unsupported|missing-model) assert_contains "$err" 'unsupported Codex max' "$mode was not identified as unsupported" ;;
+    no-model) assert_contains "$err" 'each use profile effort must be supported by its harness and model' "$mode was not rejected as an invalid effort" ;;
     *) assert_contains "$err" 'unable to verify Codex max' "$mode uncertainty was misreported" ;;
   esac
   assert_equals '' "$out" "failed capability check published a selection"

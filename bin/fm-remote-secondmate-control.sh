@@ -69,9 +69,16 @@ REMOTE_HERDR_SESSION=fm-remote
 . "$SCRIPT_DIR/fm-pending-reply-lib.sh"
 # shellcheck source=bin/fm-task-inbox-lib.sh
 . "$SCRIPT_DIR/fm-task-inbox-lib.sh"
+# shellcheck source=bin/fm-codex-effort-lib.sh
+. "$SCRIPT_DIR/fm-codex-effort-lib.sh"
 
 die() { printf 'error: %s\n' "$1" >&2; exit 1; }
 usage() { sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+require_codex_max_model() { # <harness> <model> <effort>
+  [ "$1" = codex ] && [ "$3" = max ] || return 0
+  case "$2" in -|default) fm_codex_max_check default || die "$FM_CODEX_EFFORT_REASON" ;; esac
+}
+
 validate_id() { case "$1" in ''|*[!A-Za-z0-9._-]*) die "invalid secondmate id: $1" ;; esac; }
 
 validate_home() { # <id> [allow-absent]
@@ -173,6 +180,7 @@ cmd_launch() {
   if [ "$effort" = ultra ]; then
     "$SCRIPT_DIR/fm-harness.sh" validate-native-effort "$harness" "$model" "$effort" || return 1
   fi
+  require_codex_max_model "$harness" "$model" "$effort"
   # Herdr is required on this host, not merely preferred: its server belongs to
   # the GUI login session, so the endpoint survives every SSH disconnection that
   # a remote route depends on. bin/fm-remote-doctor.sh is the readiness owner.
@@ -246,6 +254,7 @@ cmd_relaunch() {
   if [ "$effort" = ultra ]; then
     "$SCRIPT_DIR/fm-harness.sh" validate-native-effort "$harness" "$model" "$effort" || return 1
   fi
+  require_codex_max_model "$harness" "$model" "$effort"
   remote_endpoint_require "$id"
   [ "$model" != - ] || model=default
   [ "$effort" != - ] || effort=default

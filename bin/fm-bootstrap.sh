@@ -11,7 +11,6 @@
 #                 "BACKEND_INVALID: <name> (known: <names>)",
 #                 "STARTUP_MEMORY_BUDGET: invalid config/startup-memory-budget - <reason>",
 #                 "CREW_DISPATCH: invalid config/crew-dispatch.json - <reason>",
-#                 "CREW_DISPATCH: <unable to verify Codex max offline: reason>",
 #                 "FLEET_SYNC: <repo>: skipped|recovered|STUCK: <detail>",
 #                 "HOME_SUMMARY: <ledger never published|not republished since
 #                 <stamp>>; <n> failed attempt(s) ... last: <recorded failure>",
@@ -190,8 +189,6 @@ DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 . "$SCRIPT_DIR/fm-ff-lib.sh"
 # shellcheck source=bin/fm-cursor-lib.sh disable=SC1091
 . "$SCRIPT_DIR/fm-cursor-lib.sh"
-# shellcheck source=bin/fm-codex-effort-lib.sh
-. "$SCRIPT_DIR/fm-codex-effort-lib.sh"
 # shellcheck source=bin/fm-config-inherit-lib.sh disable=SC1091
 . "$SCRIPT_DIR/fm-config-inherit-lib.sh"
 # shellcheck source=bin/fm-secondmate-nudge-lib.sh disable=SC1091
@@ -1077,6 +1074,7 @@ crew_dispatch_validate() {
       elif ($e | type) != "string" then false
       elif $e == "ultra" then (($h == "pi" or $h == "pi-signed") and (($m | type) == "string") and ($m | startswith("codex-native/")) and ($m | length) > 13)
       elif $h == "claude" then (["low","medium","high","xhigh","max"] | index($e))
+      elif $h == "codex" and $e == "max" then (($m | type) == "string") and ($m | length) > 0 and $m != "default"
       elif $h == "codex" then (["low","medium","high","xhigh","max"] | index($e))
       elif $h == "grok" then (["low","medium","high"] | index($e))
       elif $h == "agy" then (["low","medium","high"] | index($e))
@@ -1162,11 +1160,6 @@ crew_dispatch_validate() {
   if [ -n "$err" ]; then
     echo "CREW_DISPATCH: invalid config/crew-dispatch.json - $err"
     return 0
-  fi
-  # Bootstrap is diagnostic-only and never refreshes the model catalog.
-  # Discovery and refusal happen at dispatch/launch, using the same owner.
-  if ! fm_codex_max_profiles "$file" offline; then
-    printf 'CREW_DISPATCH: %s\n' "$FM_CODEX_EFFORT_REASON"
   fi
   if [ "${FM_BOOTSTRAP_VERBOSE_FACTS:-0}" = 1 ]; then
     jq -r '
