@@ -33,6 +33,8 @@ SCRIPT_DIR="$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd
 . "$SCRIPT_DIR/fm-supervision-engine-lib.sh"
 # shellcheck source=bin/fm-afk-contract.sh
 . "$SCRIPT_DIR/fm-afk-contract.sh"
+# shellcheck source=bin/fm-session-lock-lib.sh
+. "$SCRIPT_DIR/fm-session-lock-lib.sh"
 
 DRAIN_TMP=
 DRAIN_VIEW_TMP=
@@ -679,8 +681,16 @@ ROWS
     done
     [ "$held" -eq 0 ] || text="${text}BRANCH OUTCOMES: $held newer captain outcome(s) are held back (byte cap); they follow on the next drain once these are acknowledged
 "
-    text="${text}BRANCH OUTCOMES: after processing them run bin/fm-branch-outcome.sh mark-processed --through $target; until then every drain presents them again
+    # A Claude-owned lock records its session beside the lock, and only there
+    # does a Stop hook commit a staged acknowledgement once the reply follows
+    # (bin/fm-request-continuity.sh), so only there is the acknowledgement staged.
+    if fm_session_lock_recorded_session_id "$STATE" >/dev/null; then
+      text="${text}BRANCH OUTCOMES: after processing them run bin/fm-request-continuity.sh outcome-ack --through $target, then give the captain-facing reply, which commits it; until then every drain presents them again
 "
+    else
+      text="${text}BRANCH OUTCOMES: after processing them run bin/fm-branch-outcome.sh mark-processed --through $target; until then every drain presents them again
+"
+    fi
   fi
 
   used=0

@@ -362,6 +362,14 @@ Reach the captain immediately for:
 The configured `tasks-axi` backend is the durable queue; the tracked default is `data/backlog.md`.
 It tracks work items only, never agents; persistent secondmates never appear as backlog items.
 Work routed to a secondmate is recorded in that secondmate home's own backlog, not the main backlog.
+File accepted work that will outlive the current reply at acceptance, before investigation, briefing, or dispatch; a promise in chat or a written brief is not its durable work record.
+On new input, reconcile any interrupted, still-unfiled commitment from the visible conversation before changing topics, using the existing task's identity for duplicates, amendments, reprioritization, or cancellation and preserving unrelated work.
+Record the requested outcome, owner, next action, and actual execution evidence in that task; queued work has no verified worker, and dispatch acceptance alone does not prove a worker is processing the brief.
+Represent waits in structured state: task prerequisites use backlog dependencies, and required captain input uses the captain-hold owner below; prose saying "waiting" must not leave the item dispatchable.
+For an authorized dependency continuation, use the existing completion wake or the `process-event-sources` skill's supported condition-to-action path, and record which one will resume it; a dependency edge alone does not launch work.
+Before ending a handling turn, reconcile the commitments changed or interrupted in that turn, advance authorized ready actions, and deliver requested outcomes through section 9 even after a topic switch; do not rerun a fleet-wide audit or keep an idle model turn open for an external wait.
+Explicit cancellation retires the affected continuation through its owner and records the cancellation before closure; it never cancels unrelated tasks or authorizes discarding unlanded work.
+Native-input reconciliation on Pi and Claude Code primaries is owned by [the native intake contract](docs/turnend-guard.md#native-input-reconciliation), including its bounded recovery and limits.
 A decision is simply a task held for the captain: create the task with `bin/fm-tasks-axi.sh add` when needed, then always hold it through `bin/fm-captain-hold.sh hold <id> --reason "<reason>"`, with `--until <date>` when the captain defers it.
 When a main-side thread such as a pending captain decision or relay reminder is worth durable tracking, file it as its own work item and hold it through that wrapper.
 Captain calls discovered by investigations or visual reviews follow `captain-hold-lifecycle`, which owns their completion gate and recorded-answer rules.

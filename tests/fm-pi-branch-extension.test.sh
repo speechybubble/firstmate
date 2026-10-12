@@ -12,6 +12,11 @@ set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+# Each case supplies its own home; an inherited worker override must never
+# redirect an extension's lock or state reads into the supervising home.
+unset FM_HOME FM_ROOT_OVERRIDE FM_STATE_OVERRIDE FM_DATA_OVERRIDE \
+  FM_CONFIG_OVERRIDE FM_PROJECTS_OVERRIDE FM_TASK_ID
+
 TMP_ROOT=$(fm_test_tmproot fm-pi-branch-extension)
 EXT="$ROOT/.pi/extensions/fm-branch-supervision.ts"
 export NODE_NO_WARNINGS=1
@@ -677,11 +682,18 @@ await fire("session_start", {}, defaultSessionCtx);
 // 1. An accepted wake reaches the branch session, never main. Keep the
 // scripted turn open until its durable report below, matching a real Pi prompt
 // whose tool calls complete before session.prompt() settles.
-let finishWakePrompt;
-globalThis.__fmOnBranchPrompt = () => new Promise((resolve) => { finishWakePrompt = resolve; });
+let finishWakePrompt, enteredWakePrompt;
+const prompted = new Promise((resolve) => { enteredWakePrompt = resolve; });
+globalThis.__fmOnBranchPrompt = () => {
+  enteredWakePrompt();
+  return new Promise((resolve) => { finishWakePrompt = resolve; });
+};
 const offer = dispatch("signal: task-9 done: PR https://example.com/pr/9 checks green");
 if (!offer.accepted) throw new Error("branch did not accept the wake offer");
-await settle(() => (globalThis.__fmPrompts ?? []).length === 1, "branch wake prompt");
+// Wait for the actual prompt boundary or surface the accepted offer's
+// settlement failure. Real fleet scripts may legitimately outlast a poll.
+await Promise.race([prompted, offer.settlement]);
+if ((globalThis.__fmPrompts ?? []).length !== 1) throw new Error("accepted wake settled without reaching its prompt");
 const wakePrompt = globalThis.__fmPrompts[0];
 if (!wakePrompt.includes("FIRSTMATE SUPERVISION WAKE: signal: task-9 done")) {
   throw new Error(`branch prompt lost the wake reason: ${wakePrompt}`);
@@ -944,7 +956,7 @@ EOF
     *"anchor entries in this transcript"*) fail "the processing request claims transcript entries a carried-over outcome does not have: $body" ;;
   esac
   case "$body" in
-    *"do not re-drain, re-run, or acknowledge the wake."*"call fm_branch_processed with through=3 exactly once."*"never counts as processing."*) ;;
+    *"do not re-drain, re-run, or acknowledge the wake."*"Perform required authorized owner review and advancement before acknowledging"*"call fm_branch_processed with through=3 exactly once, then give the visible reply."*"only stages acknowledgement"*"never counts as processing."*) ;;
     *) fail "the processing request body lost the event-ownership boundary or the sequence-bound acknowledgement duty: $body" ;;
   esac
   if ./bin/fm-operational-input.sh kind < "$home/state/delivered-routine-note" >/dev/null 2>&1; then
@@ -1073,7 +1085,10 @@ entries.push({ type: "message", message: { role: "user", content: legacyOperatio
 await fire("agent_start", {}, mainCtx);
 const unsolicited = dispatch("signal: healthy resource result");
 if (!unsolicited.accepted) throw new Error("branch did not accept the unsolicited result");
-await settle(() => fleetOperations.length === 2, "unsolicited result acknowledgement");
+// The public settlement owns acknowledgement and grant release. A timer
+// over command counts can expire while valid asynchronous delivery continues.
+await unsolicited.settlement;
+if (fleetOperations.length !== 2) throw new Error("unsolicited result was not acknowledged exactly once");
 if (sentToMain.length !== 1 || sentToMain[0].options.triggerTurn) {
   throw new Error(`unsolicited healthy result opened a main turn: ${JSON.stringify(sentToMain)}`);
 }
@@ -1102,7 +1117,8 @@ for (let index = 0; index < requestedPrompts.length; index += 1) {
   await fire("agent_start", {}, mainCtx);
   const requested = dispatch("signal: healthy resource result");
   if (!requested.accepted) throw new Error(`branch did not accept requested result ${index}`);
-  await settle(() => fleetOperations.length === 4 + (index * 2), `requested result ${index} acknowledgement`);
+  await requested.settlement;
+  if (fleetOperations.length !== 4 + (index * 2)) throw new Error(`requested result ${index} was not acknowledged exactly once`);
   const deliveredRequestMirror = globalThis.__fmSessions[0].ops
     .filter((op) => op.kind === "custom" && op.message.customType === "fm-main-mirror")
     .at(-1)?.message.content;
@@ -1468,10 +1484,41 @@ if (JSON.stringify(unprocessedSeqs()) !== JSON.stringify([seq])) throw new Error
 if (render("still refused") !== "") throw new Error("a refused acknowledgement released suppression");
 const ack = await processed.execute("ack", { through: seq }, undefined, undefined, {});
 if (ack.isError) throw new Error(`acknowledgement failed: ${JSON.stringify(ack)}`);
-if (unprocessedSeqs().length !== 0) throw new Error("the acknowledgement did not close the sequence");
-if (render("A newly processed response") !== "A newly processed response") throw new Error("successful acknowledgement did not release the response");
-await finish("A newly processed response");
-if (visibleFinals().at(-1) !== "A newly processed response") throw new Error("the acknowledged outcome lost its response");
+if (JSON.stringify(unprocessedSeqs()) !== JSON.stringify([seq])) throw new Error("internal acknowledgement retired an undelivered outcome");
+if (render("A newly processed response") !== "A newly processed response") throw new Error("a staged acknowledgement did not release the response");
+// The stage commits only on a normal nonempty reply. An empty, failed or
+// interrupted reply invalidates it, and an unrelated later answer cannot reuse it.
+mainEntries.push({ type: "message", message: { role: "assistant", content: [], stopReason: "stop" } });
+await fire("agent_end", {});
+await fire("agent_settled", {});
+if (JSON.stringify(unprocessedSeqs()) !== JSON.stringify([seq])) throw new Error("empty reply retired the outcome");
+await runOf(() => mainEntries.push({ type: "message", message: { role: "assistant", content: [{ type: "text", text: "Transport failed" }], stopReason: "error" } }));
+await runOf(() => mainEntries.push({ type: "message", message: { role: "assistant", content: [{ type: "text", text: "Unrelated answer" }], stopReason: "stop" } }));
+if (JSON.stringify(unprocessedSeqs()) !== JSON.stringify([seq])) throw new Error("failed stage was reused by a later answer");
+const interrupted = await processed.execute("ack-interrupted", { through: seq }, undefined, undefined, {});
+if (interrupted.isError) throw new Error(`re-staging after a failed reply was refused: ${JSON.stringify(interrupted)}`);
+await runOf(() => {
+  mainEntries.push({ type: "message", message: { role: "user", content: "Unrelated question" } });
+  mainEntries.push({ type: "message", message: { role: "assistant", content: [{ type: "text", text: "Unrelated answer" }], stopReason: "stop" } });
+});
+if (JSON.stringify(unprocessedSeqs()) !== JSON.stringify([seq])) throw new Error("topic switch reused a staged acknowledgement");
+await fire("agent_start", {});
+await fire("turn_start", {});
+await consumeRequest();
+const delivered = await processed.execute("ack-delivered", { through: seq }, undefined, undefined, {});
+if (delivered.isError) throw new Error(`final acknowledgement failed: ${JSON.stringify(delivered)}`);
+const repeatStage = await processed.execute("ack-repeat", { through: seq }, undefined, undefined, {});
+if (!repeatStage.isError || !repeatStage.content.some((item) => item.type === "text" && item.text.includes("already staged"))) {
+  throw new Error(`a repeated stage in one run was not idempotent: ${JSON.stringify(repeatStage)}`);
+}
+// A retry presentation may repeat a final already shown; once a receipt is
+// staged that reply is the delivery, so it must stay visible and commit.
+if (render(priorResult) !== priorResult) throw new Error("a staged acknowledgement left the committing reply suppressed");
+await finish(priorResult);
+if (visibleFinals().at(-1) !== priorResult) throw new Error("the committing reply was removed before persistence");
+await fire("agent_end", {});
+await fire("agent_settled", {});
+if (unprocessedSeqs().length !== 0) throw new Error("normal reply after acknowledgement did not close the sequence");
 const before = requests().length;
 await runOf();
 if (requests().length !== before) throw new Error("an acknowledged outcome was presented again");
@@ -1530,10 +1577,11 @@ await fire("turn_start", {});
 await consumeRequest();
 const partial = await processed.execute("ack-partial", { through: seqE }, undefined, undefined, {});
 if (partial.isError) throw new Error(`partial acknowledgement failed: ${JSON.stringify(partial)}`);
-if (JSON.stringify(unprocessedSeqs()) !== JSON.stringify([seqF])) throw new Error(`a partial acknowledgement did not keep the newer sequence open: ${unprocessedSeqs()}`);
+if (JSON.stringify(unprocessedSeqs()) !== JSON.stringify([seqE, seqF])) throw new Error("partial stage retired undelivered outcomes");
 if (render("partial response") !== "") throw new Error("partial acknowledgement released the remaining outcome's retry");
 const beforeF = requests().length;
-await runOf();
+await runOf(() => mainEntries.push({ type: "message", message: { role: "assistant", content: [{ type: "text", text: "The review result is ready; the missing credential remains blocked." }], stopReason: "stop" } }));
+if (JSON.stringify(unprocessedSeqs()) !== JSON.stringify([seqF])) throw new Error("partial reply closed the newer outcome");
 if (
   requests().length !== beforeF + 1 ||
   requests().at(-1).options.triggerTurn !== true ||
@@ -1543,7 +1591,9 @@ if (
   throw new Error("the changed remaining sequence set did not restart its triggered presentation budget");
 }
 const done = await processed.execute("ack-final", { through: seqF }, undefined, undefined, {});
-if (done.isError || unprocessedSeqs().length !== 0) throw new Error("the final acknowledgement did not close the newer sequence");
+if (done.isError) throw new Error("final stage failed");
+await runOf(() => mainEntries.push({ type: "message", message: { role: "assistant", content: [{ type: "text", text: "The remaining worker needs the missing credential before it can proceed." }], stopReason: "stop" } }));
+if (unprocessedSeqs().length !== 0) throw new Error("the final delivered acknowledgement did not close the newer sequence");
 
 // A follow-up queued while main is busy must not hide the answer already
 // underway. Suppression starts only when Pi consumes the custom message.
@@ -1571,6 +1621,7 @@ await finish("The batched user answer");
 if (visibleFinals().at(-1) !== "The batched user answer") throw new Error("processing suppression hid a user batched before the custom message");
 const latestSeq = unprocessedSeqs().at(-1);
 await processed.execute("ack-busy", { through: latestSeq }, undefined, undefined, {});
+await finish("The busy outcomes are handled.");
 await fire("agent_end", {});
 await fire("agent_settled", {});
 
@@ -1597,8 +1648,10 @@ for (const initial of ["", "Unrelated prior acknowledgment"]) {
     throw new Error("an empty, unrelated, or differing reply closed the durable obligation");
   }
   await processed.execute("ack-new-set", { through: newSeq }, undefined, undefined, {});
-  if (unprocessedSeqs().length) throw new Error("acknowledgement did not close the new set");
+  if (!unprocessedSeqs().includes(newSeq)) throw new Error("an acknowledgement without a reply closed the new set");
+  await finish("The new outcome is handled.");
   await fire("agent_settled", {});
+  if (unprocessedSeqs().length) throw new Error("acknowledgement followed by a reply did not close the new set");
 }
 
 // A session that does not own the fleet lock cannot acknowledge anything.
@@ -1660,8 +1713,8 @@ test_large_unprocessed_backlog_replays_in_batches() {
   PLUGIN="$repo/.pi/extensions/fm-branch-supervision.ts" FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
     DRIVER_PRELUDE="$DRIVER_PRELUDE" node --input-type=module > "$TMP_ROOT/node-output" 2>&1 <<'EOF'
 const prelude = process.env.DRIVER_PRELUDE;
-await eval(`(async () => { ${prelude}; globalThis.__t = { fire, sentToMain, mainTools, outcomeScript, defaultSessionCtx, home }; })()`);
-const { fire, sentToMain, mainTools, outcomeScript, defaultSessionCtx, home } = globalThis.__t;
+await eval(`(async () => { ${prelude}; globalThis.__t = { fire, sentToMain, mainTools, mainEntries, outcomeScript, defaultSessionCtx, home }; })()`);
+const { fire, sentToMain, mainTools, mainEntries, outcomeScript, defaultSessionCtx, home } = globalThis.__t;
 import { writeFileSync, statSync, existsSync, readFileSync } from "node:fs";
 const summary = "a".repeat(4096);
 const rows = Array.from({ length: 320 }, (_, i) => JSON.stringify({ seq: i + 1, epoch: Math.floor(Date.now() / 1000), task: `backlog-${i + 1}`, wake: "", verdict: "captain", summary, silent: false, statusEndpoint: 0, statusIdent: "-" }));
@@ -1679,10 +1732,12 @@ for (let start = 1; start <= 320; start += 32) {
   if (!request || !request.message.content.includes(`[seq ${start}, recorded`) || !request.message.content.includes(`through=${through}`) || request.message.content.includes(`[seq ${through + 1},`)) throw new Error(`request did not present the batch starting at ${start}`);
   if (Buffer.byteLength(request.message.content) >= 1024 * 1024) throw new Error("encoded request exceeded runner limit");
   const ack = await processed.execute(`batch-${through}`, { through }, undefined, undefined, {});
-  if (ack.isError || readFileSync(`${home}/state/.branch-outcomes-processed`, "utf8").trim() !== String(through)) throw new Error(`batch was not acknowledged through ${through}: ${JSON.stringify(ack)}`);
+  if (ack.isError) throw new Error(`batch acknowledgement through ${through} failed: ${JSON.stringify(ack)}`);
   await fire("agent_start", {});
+  mainEntries.push({ type: "message", message: { role: "assistant", content: [{ type: "text", text: `Batch through ${through} handled.` }], stopReason: "stop" } });
   await fire("agent_end", {});
   await fire("agent_settled", {});
+  if (readFileSync(`${home}/state/.branch-outcomes-processed`, "utf8").trim() !== String(through)) throw new Error(`batch reply did not commit the acknowledgement through ${through}`);
 }
 if (outcomeScript(["unprocessed"]).trim() !== "") throw new Error("backlog was not fully processed");
 process.exit(0);
@@ -1750,6 +1805,46 @@ EOF
   pass "an unprocessed captain row the store lists without its age is reported to main, never formatted undated, and stays unprocessed until the store is healthy"
 }
 
+test_pre_session_unread_outcome_requires_main() {
+  local repo home status
+  repo="$TMP_ROOT/pre-session-root"
+  home="$TMP_ROOT/pre-session-home"
+  mkdir -p "$home/state" "$home/config"
+  install_pi_branch_extension_fixture "$repo"
+  PLUGIN="$repo/.pi/extensions/fm-branch-supervision.ts" FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
+    DRIVER_PRELUDE="$DRIVER_PRELUDE" node --input-type=module > "$TMP_ROOT/pre-session-output" 2>&1 <<'EOF'
+const prelude = process.env.DRIVER_PRELUDE;
+await eval(`(async () => { ${prelude}; globalThis.__t = { dispatch, fire, outcomeScript, mainEntries, mainTools, defaultSessionCtx }; })()`);
+const { dispatch, fire, outcomeScript, mainEntries, mainTools, defaultSessionCtx } = globalThis.__t;
+const seq = Number(outcomeScript(["append", "--task", "branch-driver", "--verdict", "captain", "--summary", "A completed review still needs delivery"]));
+const offered = dispatch("signal: outcome before main session");
+if (!offered.accepted) throw new Error("owned pre-session wake was not accepted for guarded reconciliation");
+let refused = false;
+try { await offered.settlement; } catch (error) {
+  refused = String(error).includes("could not reconcile unread supervision outcomes into main");
+}
+if (!refused) throw new Error("unread outcome without main did not refuse delivery");
+if (!outcomeScript(["unread"]).includes(`"seq":${seq}`)) throw new Error("missing main retired unread outcome");
+if (mainEntries.length) throw new Error("missing main manufactured a delivery entry");
+await fire("session_start", {}, defaultSessionCtx);
+if (outcomeScript(["unread"])) throw new Error("valid main did not reconcile unread outcome");
+const visible = () => mainEntries.filter((entry) => entry.customType === "fm-branch-visible-outcome");
+if (visible().length !== 1) throw new Error("valid main did not deliver exactly one outcome");
+if (!outcomeScript(["unprocessed"]).includes(`"seq":${seq}`)) throw new Error("visible entry falsely established reply delivery");
+const processed = mainTools.find((tool) => tool.name === "fm_branch_processed");
+const ack = await processed.execute("pre-session-receipt", { through: seq }, undefined, undefined, {});
+if (ack.isError) throw new Error("valid main could not stage receipt");
+mainEntries.push({ type: "message", message: { role: "assistant", stopReason: "stop", content: [{ type: "text", text: "The completed review found no open decisions; its result is ready." }] } });
+await fire("turn_end", {}, defaultSessionCtx);
+if (outcomeScript(["unprocessed"])) throw new Error("normal reply did not establish delivery");
+await fire("session_start", {}, defaultSessionCtx);
+if (visible().length !== 1 || outcomeScript(["unprocessed"])) throw new Error("reconciliation replay duplicated delivery");
+EOF
+  status=$?
+  [ "$status" -eq 0 ] || fail "pre-session outcome boundary failed: $(cat "$TMP_ROOT/pre-session-output")"
+  pass "pre-session unread outcomes refuse until main exists, then reply delivery reconciles exactly once"
+}
+
 test_branch_cache_key_is_per_home_stable() {
   local repo home_a home_b key_a1 key_a2 key_b
   repo="$TMP_ROOT/cache-key-root"
@@ -1763,8 +1858,15 @@ test_branch_cache_key_is_per_home_stable() {
 const prelude = process.env.DRIVER_PRELUDE;
 await eval(`(async () => { ${prelude}; globalThis.__t = { dispatch, settle }; })()`);
 const { dispatch, settle } = globalThis.__t;
-dispatch("signal: cache probe");
-await settle(() => (globalThis.__fmPrompts ?? []).length === 1, "branch wake prompt");
+let enteredPrompt;
+const prompted = new Promise((resolve) => { enteredPrompt = resolve; });
+globalThis.__fmOnBranchPrompt = () => enteredPrompt();
+const offer = dispatch("signal: cache probe");
+if (!offer.accepted) throw new Error("cache-key wake refused");
+// Observe the prompt boundary itself, not a short poll of an async side effect.
+// A dispatch failure still rejects rather than leaving the fixture waiting.
+await Promise.race([prompted, offer.settlement]);
+if ((globalThis.__fmPrompts ?? []).length !== 1) throw new Error("cache-key wake did not reach exactly one prompt");
 const loader = globalThis.__fmLoaders[0];
 const entry = loader.options.extensionFactories[0];
 let handler = null;
@@ -2676,21 +2778,23 @@ const { bus, fire, home, makeOffer, realRoot } = globalThis.__t;
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
-fire("session_start", {});
+await fire("session_start", {});
 writeFileSync(
   `${home}/state/.wake-queue`,
   "1\t1\tsignal\tbranch-driver.status\tsignal: routine progress\n" +
     "2\t2\tsignal\tdecision-task.status\tneeds-decision: decision-task.status\n",
 );
-let releasePrompt;
-globalThis.__fmPromptGate = new Promise((resolve) => { releasePrompt = resolve; });
+let releasePrompt, enteredPrompt;
+const prompted = new Promise((resolve) => { enteredPrompt = resolve; });
+globalThis.__fmOnBranchPrompt = () => {
+  enteredPrompt();
+  return new Promise((resolve) => { releasePrompt = resolve; });
+};
 const offer = makeOffer("signal: branch-driver.status");
 bus.emit("fm-branch-supervision:dispatch", offer);
 if (!offer.accepted) throw new Error("branch refused the routine offer before its mixed-queue recheck");
-for (let i = 0; i < 250 && !globalThis.__fmPromptStarted; i += 1) {
-  await new Promise((resolve) => setTimeout(resolve, 10));
-}
-if (!globalThis.__fmPromptStarted) {
+await Promise.race([prompted, offer.settlement]);
+if ((globalThis.__fmPrompts ?? []).length !== 1) {
   throw new Error("a co-present needs-decision row vetoed the accepted routine branch prompt");
 }
 const snapshot = readFileSync(`${home}/state/.branch-eligible-rows`, "utf8").trim().split("\n");
@@ -4394,9 +4498,16 @@ const { fire, dispatch, settle, home, mainUserMessages } = globalThis.__t;
 import { existsSync, unlinkSync } from "node:fs";
 
 let releasePrompt;
-globalThis.__fmPromptGate = new Promise((resolve) => { releasePrompt = resolve; });
-if (!dispatch("signal: active wake").accepted) throw new Error("first wake was not accepted");
-await settle(() => globalThis.__fmPromptStarted === true, "blocked first prompt");
+let enteredPrompt;
+const prompted = new Promise((resolve) => { enteredPrompt = resolve; });
+globalThis.__fmOnBranchPrompt = () => {
+  enteredPrompt();
+  return new Promise((resolve) => { releasePrompt = resolve; });
+};
+const firstOffer = dispatch("signal: active wake");
+if (!firstOffer.accepted) throw new Error("first wake was not accepted");
+await Promise.race([prompted, firstOffer.settlement]);
+if (!releasePrompt) throw new Error("first wake settled before entering the blocked prompt");
 const queuedOffer = dispatch("signal: queued wake");
 if (!queuedOffer.accepted) throw new Error("queued wake was not accepted");
 const queuedFailure = queuedOffer.settlement.then(
@@ -4439,8 +4550,13 @@ await eval(`(async () => { ${prelude}; globalThis.__t = { fire, dispatch, settle
 const { fire, dispatch, settle, home, sentToMain } = globalThis.__t;
 import { existsSync, readFileSync } from "node:fs";
 
-if (!dispatch("signal: establish old branch").accepted) throw new Error("old branch wake was not accepted");
-await settle(() => (globalThis.__fmPrompts ?? []).length === 1, "old branch prompt");
+const oldOffer = dispatch("signal: establish old branch");
+if (!oldOffer.accepted) throw new Error("old branch wake was not accepted");
+const oldFailure = await oldOffer.settlement.then(() => null, (error) => error);
+if (!(oldFailure instanceof Error) || !oldFailure.message.includes("produced no durable outcome")) {
+  throw new Error(`old branch setup failed outside its expected no-report settlement: ${String(oldFailure)}`);
+}
+if ((globalThis.__fmPrompts ?? []).length !== 1) throw new Error("old branch prompt did not complete");
 const oldSession = globalThis.__fmSessions[0];
 const oldReport = oldSession.options.customTools.find((tool) => tool.name === "fm_branch_report");
 const oldBash = oldSession.options.customTools.find((tool) => tool.name === "bash");
@@ -4484,12 +4600,16 @@ if (sentToMain.length !== 0) throw new Error("stale report merged a note into ma
 
 releaseMirror();
 await new Promise((resolve) => setTimeout(resolve, 25));
-if (!dispatch("signal: establish replacement branch").accepted) throw new Error("replacement wake was not accepted");
-await settle(() => (globalThis.__fmPrompts ?? []).length === 2, "replacement branch prompt");
-await settle(
-  () => (globalThis.__fmMirrors ?? []).some((message) => message.content === "[captain] new generation mirror"),
-  "replacement mirror delivery",
-);
+const replacementOffer = dispatch("signal: establish replacement branch");
+if (!replacementOffer.accepted) throw new Error("replacement wake was not accepted");
+const replacementFailure = await replacementOffer.settlement.then(() => null, (error) => error);
+if (!(replacementFailure instanceof Error) || !replacementFailure.message.includes("produced no durable outcome")) {
+  throw new Error(`replacement setup failed outside its expected no-report settlement: ${String(replacementFailure)}`);
+}
+if ((globalThis.__fmPrompts ?? []).length !== 2) throw new Error("replacement branch prompt did not complete");
+if (!(globalThis.__fmMirrors ?? []).some((message) => message.content === "[captain] new generation mirror")) {
+  throw new Error("replacement mirror delivery did not complete before its wake settled");
+}
 const cursor = JSON.parse(readFileSync(`${home}/state/.branch-mirror-cursor`, "utf8"));
 if (cursor.file !== `${home}/new-main.jsonl` || cursor.index !== 1) {
   throw new Error(`stale mirror continuation changed the replacement cursor: ${JSON.stringify(cursor)}`);
@@ -4589,8 +4709,8 @@ const replacementPi = {
 };
 const replacement = await import(`${pathToFileURL(process.env.PLUGIN).href}?rebind=1`);
 replacement.default(replacementPi);
-for (const handler of replacementPiHandlers.get("session_start") ?? []) handler({}, ctx);
-for (const handler of replacementPiHandlers.get("turn_end") ?? []) handler({}, ctx);
+for (const handler of replacementPiHandlers.get("session_start") ?? []) await handler({}, ctx);
+for (const handler of replacementPiHandlers.get("turn_end") ?? []) await handler({}, ctx);
 writeFileSync(`${home}/state/.wake-queue`, "1\t1\tsignal\tbranch-driver.status\tsignal: after rebind\n");
 const offer = {
   message: "signal: after rebind",
@@ -4606,10 +4726,9 @@ const offer = {
 };
 replacementBus.emit("fm-branch-supervision:dispatch", offer);
 if (!offer.accepted) throw new Error("replacement instance refused the wake");
-for (let i = 0; i < 250; i += 1) {
-  const mirrors = (globalThis.__fmMirrors ?? []).map((m) => m.content);
-  if (mirrors.includes("[captain] standing order: never merge task-7")) break;
-  await new Promise((resolve) => setTimeout(resolve, 10));
+const failure = await offer.settlement.then(() => null, (error) => error);
+if (!(failure instanceof Error) || !failure.message.includes("produced no durable outcome")) {
+  throw new Error(`replacement setup failed outside its expected no-report settlement: ${String(failure)}`);
 }
 const mirrors = (globalThis.__fmMirrors ?? []).map((m) => m.content);
 if (!mirrors.includes("[captain] standing order: never merge task-7")) {
@@ -6271,6 +6390,7 @@ test_large_unprocessed_backlog_replays_in_batches
 test_undated_unprocessed_outcome_surfaces_and_stays_unprocessed
 test_branch_dispatch_classifies_main_only_rows_and_writes_the_eligible_snapshot
 test_branch_dispatch_routes_secondmate_signal_by_new_span
+test_pre_session_unread_outcome_requires_main
 test_branch_cache_key_is_per_home_stable
 test_branch_default_on_heartbeat_afk_and_fallback
 test_away_record_parks_main_and_presents_after_archive

@@ -32,6 +32,10 @@
 # shellcheck disable=SC2016
 set -u
 
+# Fixture homes must also own state; a launched worker can inherit an override
+# that otherwise sends synthetic lease/hold operations into its supervisor.
+unset FM_ROOT FM_HOME FM_ROOT_OVERRIDE FM_STATE_OVERRIDE FM_DATA_OVERRIDE \
+  FM_CONFIG_OVERRIDE FM_PROJECTS_OVERRIDE
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 # shellcheck source=/dev/null

@@ -605,3 +605,52 @@ The opt-in live tests are:
 - `FM_OMP_LIVE_E2E=1 tests/fm-omp-primary-live-e2e.test.sh` is the opt-in isolated omp path.
 
 [`verification/supervision.md`](verification/supervision.md#turn-end-guard) records the active cross-harness empirical evidence, including the current Claude `asyncRewake` revalidation.
+
+## Native input reconciliation
+
+The Pi and Claude Code primaries also check native conversational intake.
+This is separate from the watcher-liveness predicate: a healthy watcher cannot recover a commitment that was never filed.
+After activation, each native captain message in the current session remains unresolved until its handling has a disposition in that same session.
+Firstmate's own operational input, classified by `bin/fm-operational-input.sh` and its record-backed doorbells, does not create another intake obligation.
+An unrelated reply does not acknowledge earlier input.
+
+For work that outlives the reply, first update the existing backlog records, including scope, owner, wait and next action, then record their IDs with disposition `recorded` and a handling summary.
+The disposition verifies that each linked task can be read through the configured backlog owner; it does not create tasks or change their state.
+For a question or work fully handled in the current reply, disposition `reply` requires no task and stays provisional until a normal, nonempty assistant reply follows.
+The restored context distinguishes a staged reply from input needing disposition, so the model is asked to answer rather than stage repeatedly.
+An intervening captain message, failed, aborted or interrupted response invalidates a provisional reply, so an unrelated later answer cannot clear it.
+Link corrections, cancellations, priority changes and duplicates to their original task identities after applying them through the existing owner; an unresolved input is never permission to replay work.
+
+Unresolved input is restored to model context independently of the compaction summary, because it is read from the full native record.
+The context preview is bounded; the full listing returns the complete unresolved message text; image attachments are represented by a placeholder, not reconstructed image content.
+At the end of a run, at most one automatic reconciliation is requested per source message, and that attempt is recorded before it is delivered.
+Ignored or undelivered reconciliation remains visible on later turns without an endless sequence of automatic turns.
+Task completion and outcome delivery retain their existing owners.
+
+### Pi
+
+`.pi/extensions/lib/fm-request-continuity.ts` reads the native session branch and records dispositions as session entries.
+`fm_request_disposition` lists unresolved input when called without an ID and records a disposition otherwise.
+Unresolved input is added to the context of every model call, and the unresolved-input status count shows what remains.
+Outcome delivery uses [the branch outcome acknowledgement](pi-supervision-branch.md#processing-a-captain-outcome-on-main).
+Run `tests/fm-pi-request-intake.test.sh` for the real installed SDK with an in-process scripted provider and isolated task records, and the credentialed guard documented in [runtime verification](verification/runtime-backends.md#request-continuity-guards) for model behavior.
+
+### Claude Code
+
+`bin/fm-request-continuity.sh` reads the session transcript named in each hook payload and keeps its receipts in the home's private state; its header owns the formats and commands.
+The tracked `.claude/settings.json` runs it at `SessionStart` and `UserPromptSubmit`, which restore unresolved input as additional context, and at `Stop`, which blocks the stop once per unresolved source message with the reconciliation request.
+A slash command is captain input only when the model receives it; a command Claude Code answers itself, such as `/compact`, and shell-mode input are not.
+Main records dispositions with `bin/fm-request-continuity.sh dispose` and lists unresolved input with `bin/fm-request-continuity.sh list`.
+On a Claude-owned home the wake drain's `BRANCH OUTCOMES` section asks for `bin/fm-request-continuity.sh outcome-ack`, which only stages the acknowledgement; the `Stop` hook commits it through `bin/fm-branch-outcome.sh mark-processed` once a normal nonempty reply follows with no captain message between.
+A direct `mark-processed` call still acknowledges immediately, and other non-Pi primaries keep that immediate acknowledgement.
+Run `tests/fm-request-continuity.test.sh` for the portable regression, and see [runtime verification](verification/runtime-backends.md#request-continuity-guards) for the live Claude check.
+
+### Limits
+
+This detects missing dispositions, not misunderstood intent or dishonest acknowledgement.
+A task link proves record existence, not complete capture of every requested action, dispatch, worker activity or completion.
+A reply disposition still relies on the model to answer the correct question substantively, and an acknowledgement followed by an unrelated reply still commits.
+Compaction and reopening the same native session preserve the source messages and receipts; a fresh `/new` or `/clear`, switching away from that branch, or another harness does not inherit this session-local recovery and still requires the existing backlog and stow contract.
+The first activation establishes a boundary at the current end of the session rather than treating historical chat as new instructions.
+Dispatched workers and sessions without this home's lock remain inert.
+No other queue, task database, scheduler or semantic keyword classifier is added.

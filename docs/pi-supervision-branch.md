@@ -51,7 +51,7 @@ The away posture, recorded by `state/.afk-contract`, hands every row to the bran
 ### How outcomes reach main
 
 While attended, captain-relevant branch outcomes persist as exact, sequence-keyed visible transcript entries.
-They then open one sequence-keyed processing turn on main, which stays open until main acknowledges that sequence.
+They then open one sequence-keyed processing turn on main; [processing a captain outcome on main](#processing-a-captain-outcome-on-main) owns its acknowledgement and reply boundary.
 While away, the entries persist but processing waits until the record is archived.
 
 ### Design source
@@ -432,13 +432,17 @@ The other half is processing, because a blocker, a decision, or a ready PR needs
    Main sorts the outcomes by that state, and its reply to the captain covers only the still-open ones, as if the settled ones had never been listed; a settled one needs only the acknowledgement below.
    A listed row without a valid age breaks the store's contract, so the extension reports it to main as a visible note and sends no request; every row stays unprocessed and is presented once the store is healthy.
 2. That request opens exactly one main turn.
-3. Main closes it only by calling `fm_branch_processed` with the highest sequence the request listed.
-   That call advances a processed marker, which `bin/fm-branch-outcome.sh` keeps separately from the read cursor and never moves past it or backwards.
+3. After performing the required owner action, main calls `fm_branch_processed` with the highest sequence the request listed and then gives the visible reply.
+   The call only stages acknowledgement: it persists a provisional `fm-branch-processing-receipt` entry in the native session.
+4. Only a subsequent normal nonempty assistant reply commits that receipt and advances the processed marker, which `bin/fm-branch-outcome.sh` keeps separately from the read cursor and never moves past it or backwards.
+   An intervening user message, error, abort, or length termination invalidates the stage.
+   Turn completion and session recovery reconcile the full native branch, including entries before compaction, so a crash after the reply persists can still finish the marker update.
+   Before main is bound, receipt reconciliation is a no-op, while an unread outcome still refuses delivery until a valid main session exists.
 
 A lower listed captain sequence is accepted only as a partial acknowledgement and leaves every newer captain sequence open.
 
 Nothing else advances that marker.
-An unrelated reply, an empty reply, or a reply that paraphrases the outcome leaves the sequence unprocessed.
+An unrelated reply without the call, an empty reply, a reply that paraphrases the outcome, or a call with no following reply leaves the sequence unprocessed.
 The extension presents the current unprocessed sequence set again at the next main run boundary and at every session start.
 
 The first presentation of a sequence set is an ordinary turn whose response stays visible, including prose alongside `fm_branch_processed`.
@@ -447,7 +451,10 @@ Differing replies stay visible, including the first real handling after an empty
 Messages carrying tool calls always retain their prose, signed reasoning, and usage accounting.
 Pi's Markdown transformer API buffers retry prose while streaming on versions that expose it, so the complete reply can be compared before rendering.
 A retained reply renders when the message ends.
-Successful acknowledgement releases subsequent assistant output, and a real user message restores ordinary output immediately, including when a processing request rides that prompt.
+A staged acknowledgement releases subsequent assistant output in that run, so the reply that commits it is never removed, and a real user message restores ordinary output immediately, including when a processing request rides that prompt.
+
+This checks durable reply delivery, not semantic adequacy: an acknowledgement followed by an unrelated reply can still satisfy it.
+Required owner review, approval boundaries, and truthful advancement remain agent judgments under the existing completion owner, and the extension never attests, approves, launches, or completes task records.
 
 ### Re-presentation pacing
 

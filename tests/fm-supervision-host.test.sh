@@ -519,6 +519,27 @@ test_branch_outcomes_put_captain_first_and_collapse_routine_overflow() {
   pass "drain: captain outcomes come first, and routine overflow collapses into a count one drain clears"
 }
 
+# A home whose lock records a Claude session gets the staged acknowledgement,
+# which its Stop hook commits once a reply follows (bin/fm-request-continuity.sh);
+# without that record the drain keeps the immediate mark-processed command.
+test_branch_outcomes_stage_acknowledgement_on_a_claude_owned_home() {
+  local home drained
+  home="$TMP_ROOT/drain-claude-stage"
+  mkdir -p "$home/state" "$home/config"
+  FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" append --task demo --verdict captain --summary 'PR ready for review' >/dev/null \
+    || fail "fixture: could not record a captain outcome"
+  printf 'claude-session-1\n' > "$home/state/.lock-session"
+  drained=$(FM_HOME="$home" "$FAKE_CLAUDE" -c '"$0" 2>&1' "$ROOT/bin/fm-wake-drain.sh")
+  assert_contains "$drained" "run bin/fm-request-continuity.sh outcome-ack --through 1, then give the captain-facing reply, which commits it" \
+    "a Claude-owned home must stage the acknowledgement"
+  assert_not_contains "$drained" "mark-processed --through" "a Claude-owned home must not be told to acknowledge immediately"
+  rm -f "$home/state/.lock-session"
+  drained=$(FM_HOME="$home" "$FAKE_CLAUDE" -c '"$0" 2>&1' "$ROOT/bin/fm-wake-drain.sh")
+  assert_contains "$drained" "run bin/fm-branch-outcome.sh mark-processed --through 1" \
+    "without a recorded Claude session the drain must keep the immediate acknowledgement"
+  pass "drain: a Claude-owned home stages the outcome acknowledgement for its reply, any other home acknowledges immediately"
+}
+
 # Repeated captain outcomes for one task collapse to its newest, one line per
 # task; when the byte cap holds rows back, the section shows only the oldest
 # contiguous run its acknowledgement covers - a shown task's newer row that
@@ -3036,6 +3057,7 @@ test_report_after_the_return_is_queued_for_main
 test_dispatch_entry_scopes_rows_and_renders_the_away_tail
 test_branch_outcomes_only_on_a_host_home_off_pi
 test_branch_outcomes_put_captain_first_and_collapse_routine_overflow
+test_branch_outcomes_stage_acknowledgement_on_a_claude_owned_home
 test_branch_outcomes_collapse_repeated_captain_outcomes_per_task
 test_branch_outcomes_present_a_long_away_window_once
 test_branch_outcomes_budgets_count_bytes

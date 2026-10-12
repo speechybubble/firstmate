@@ -238,6 +238,7 @@ A local skill exists only in this home, so offloading an entry out of `data/capt
 The sweep above preserves knowledge; this one preserves the state of work.
 A reset destroys whatever exists only in this session, and that includes what you have learned about work already under way, not just facts worth remembering.
 So before the reset, make sure the important open work you are holding in context is durably recorded: file what was never filed, and correct what you now know is stale.
+Use `AGENTS.md` section 10's acceptance and continuation contract for those records, including interrupted intake and explicitly cancelled or amended work.
 
 Judge for yourself what is important and which record each thing belongs to, and write it through the owner that already governs that record.
 One bound holds: this covers the open work you are actually holding in context, not the records at large.

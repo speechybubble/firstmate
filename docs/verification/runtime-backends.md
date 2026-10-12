@@ -2513,3 +2513,58 @@ Without Firstmate's hooks, Herdr reported the question panel as `blocked`, which
 This live proof covers the watcher and queue boundary; it does not establish live daemon-consumer delivery.
 `bin/fm-test-run.sh tests/fm-daemon.test.sh` exercises that consumer routing separately with portable regressions for busy escalation and busy-bookkeeping failures in away and quiet mode.
 Repeat the hooked-worker check above before publication if watcher or task-inbox busy code changes; `bin/fm-test-run.sh tests/fm-task-inbox.test.sh` refreshes the portable ladder regressions.
+
+## Request continuity guards
+
+The [native intake contract](../turnend-guard.md#native-input-reconciliation) and [branch outcome contract](../pi-supervision-branch.md) own behavior and limitations.
+`AGENTS.md` section 10 owns semantic acceptance and continuation; the captain-hold lifecycle skill owns report review and attestation.
+
+`bash tests/fm-pi-request-intake.test.sh` uses the real installed Pi SDK with an in-process scripted provider, isolated native sessions, and actual backlog, outcome and completion commands.
+It deliberately omits filing after mid-response unrelated input, verifies bounded automatic recovery, performs actual compaction with an omitting summary, and checks task-link refusal, reply staging, cancellation identity, ownership and session reopening.
+Its outcome probe delivers a report while main answers another topic, stages acknowledgement followed by an empty reply, and verifies automatic retry without another user prompt.
+The scripted owner then reads the fixture report, uses the existing completion attestation, and delivers findings while preserving an independent approval hold.
+This proves lifecycle wiring and durable boundaries; the scripted review is not evidence of model judgment.
+The portable branch suite additionally checks failed replies, intervening user messages, partial acknowledgements, finite retry pacing, replay and actor ownership.
+
+The credentialed semantic guard runs the installed Pi RPC interface with the actual primary intake extension and actual backlog and captain-hold commands:
+
+```bash
+FM_REQUEST_CONTINUITY_LIVE_E2E=1 bin/fm-test-run.sh tests/fm-request-continuity-live-e2e.test.sh
+```
+
+It uses the existing authenticated `openai-codex/gpt-6-astra` subscription at medium effort.
+It checks interruption before filing, structured input and task waits, unrelated input, duplicates, scope and priority changes, cancellation, and same-session compaction.
+An independent synthetic worker process and explicitly delivered completion wake check preservation of running work, substantive reporting after a topic switch, source completion and advancement of an authorized follow-up.
+Those cases test handling, not a real delegated agent, automatic wake transport, or backend lifecycle.
+`FM_REQUEST_CONTINUITY_EVIDENCE` optionally retains only visible messages and final task records in a private directory.
+`FM_REQUEST_CONTINUITY_POLICY` selects a preserved `AGENTS.md` for controlled comparisons.
+The guard requires normal assistant completion and successful actual compaction.
+
+On 2026-10-07, Node 22.22.1 and Pi 0.85.1 with Astra medium completed the actual-extension semantic guard with nine normal assistant completions, successful compaction and intake interrupted before filing.
+Its terminal result was `PASS: semantic cases completed normally; worker and wake are fixtures, not backend proof`.
+Earlier original-policy controls also passed, so wording alone has no demonstrated reliability improvement.
+The real-SDK intake and outcome probes passed on the same installed Pi version, including native resource loading without an external TypeScript loader:
+
+```bash
+env -u NODE_OPTIONS bin/fm-test-run.sh tests/fm-pi-request-intake.test.sh
+```
+
+The runner reported `FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0`.
+On 2026-10-12 the same probe passed again on Node 24.14.0 and Pi 0.85.1 with all ten cases reported `ok`.
+
+The Claude Code primary uses the same contract through `bin/fm-request-continuity.sh` and its tracked hooks.
+`bash tests/fm-request-continuity.test.sh` pins the reconciliation against synthetic Claude transcripts with the real hooks, outcome store, operational-input owner and session-lock ownership.
+The credentialed guard runs the installed Claude Code CLI in an isolated lab project and `FM_HOME` with only the tracked continuity hooks:
+
+```bash
+FM_REQUEST_CONTINUITY_CLAUDE_LIVE_E2E=1 bin/fm-test-run.sh tests/fm-request-continuity-claude-live-e2e.test.sh
+```
+
+It proves that a typed prompt is recorded as captain input, that the Stop hook's single block leads the model to record a disposition, that the final reply is already in the transcript when the Stop hook commits a staged outcome acknowledgement, and that unresolved input is restored after an actual `/compact`.
+`FM_REQUEST_CONTINUITY_CLAUDE_EVIDENCE` optionally retains the lab, including transcripts and receipts.
+On 2026-10-12 Claude Code 2.1.296 at low effort passed with `ok - Claude 2.1.296 (Claude Code): omitted input was reconciled once through the Stop hook, a staged outcome acknowledgement committed at the stop after its reply, and unresolved input was restored after compaction`.
+That run also showed Claude records `/compact` and its `<local-command-stdout>` reply as user entries without `promptSource`, which is why only commands the model receives count as captain input.
+
+These are bounded examples, not guarantees of correct interpretation, adequate review, honest semantic acknowledgement, or arbitrary future behavior.
+Harnesses other than Pi and Claude Code, fresh sessions after `/clear`, and live backend lifecycle were not exercised by these cases.
+Strict TypeScript checking and native Codex adapter integration still require an environment providing those optional prerequisites.
