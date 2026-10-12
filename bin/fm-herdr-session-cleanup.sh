@@ -62,13 +62,30 @@ fm_herdr_cleanup_home_identity() {
   (cd "$FM_HOME" 2>/dev/null && pwd -P)
 }
 
+# fm_herdr_cleanup_journal_has_token: 0 when <journal> holds the exact line
+# projection_id=<token>. Builtin reads only, so the per-journal prefilter costs
+# no fork; callers apply it only to an already guarded regular, non-symlink
+# journal with a valid task id, never to an unvalidated glob match.
+fm_herdr_cleanup_journal_has_token() { # <journal> <token>
+  local journal=$1 want="projection_id=$2" line
+  while IFS= read -r line || [ -n "$line" ]; do
+    [ "$line" != "$want" ] || return 0
+  done < "$journal"
+  return 1
+}
+
 fm_herdr_cleanup_journal_matches() { # <title> <session> <home-real>
-  local title=$1 session=$2 home_real=$3 journal id expected journal_home
+  local title=$1 session=$2 home_real=$3 journal id expected journal_home token
   [ -d "$STATE" ] && [ ! -L "$STATE" ] || return 1
+  token=$(fm_herdr_cleanup_title_token "$title") || return 0
   for journal in "$STATE"/*"$FM_BACKEND_HERDR_PRESENTATION_JOURNAL_SUFFIX"; do
     [ -f "$journal" ] && [ ! -L "$journal" ] || continue
-    id=$(basename "$journal" "$FM_BACKEND_HERDR_PRESENTATION_JOURNAL_SUFFIX")
+    id=${journal##*/}
+    id=${id%"$FM_BACKEND_HERDR_PRESENTATION_JOURNAL_SUFFIX"}
     fm_task_id_creation_valid "$id" || continue
+    # A journal can match only if it carries this title's exact token, so the
+    # strict field-by-field parse below runs only for those few journals.
+    fm_herdr_cleanup_journal_has_token "$journal" "$token" || continue
     fm_backend_herdr_projection_journal_snapshot "$journal" "$id" || continue
     if [ "$FM_BACKEND_HERDR_JOURNAL_VERSION" = 2 ]; then
       journal_home=$(fm_backend_herdr_projection_home_identity \
@@ -214,6 +231,11 @@ fm_herdr_cleanup_one() { # <session> <workspace> <title> <home-real>
   bound_tab=$FM_HERDR_CLEANUP_BOUND_TAB
   bound_pane=$FM_HERDR_CLEANUP_BOUND_PANE
   [ "$FM_HERDR_CLEANUP_TOKEN" = "$token" ] || return 0
+  # Current task metadata always preserves the candidate. Skip the locks and
+  # Herdr reads for it here; the locked recheck below still decides the rest.
+  if [ -e "$STATE/$id.meta" ] || [ -L "$STATE/$id.meta" ]; then
+    return 0
+  fi
   task_lock="$STATE/.spawn-$id.lock"
   if ! fm_lock_try_acquire "$task_lock"; then
     fm_herdr_cleanup_warn "$id skipped because its task lock is busy"
