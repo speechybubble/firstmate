@@ -172,15 +172,14 @@ numbered_events() {  # <transcript> <after>
 }
 
 # True when <text> is Firstmate's own operational input rather than the
-# captain's: a current envelope, or a well-formed doorbell naming this home's
-# operational inbox. Intake re-reads the whole session on every hook, so a
+# captain's: a current envelope, or a well-formed doorbell naming <inbox>, this
+# home's physical operational inbox. Intake re-reads the whole session on every hook, so a
 # doorbell stays Firstmate's after its record is pruned.
-is_operational() {  # <text>
-  local kind record inbox
+is_operational() {  # <text> <inbox>
+  local kind record
   fm_operational_input_kind "$1" kind && return 0
   fm_operational_doorbell_path "$1" record || return 1
-  inbox=$(cd -P "$STATE/$FM_OPERATIONAL_RECORD_DIRNAME" 2>/dev/null && pwd -P) || return 1
-  [ "${record%/*}" = "$inbox" ]
+  [ -n "$2" ] && [ "${record%/*}" = "$2" ]
 }
 
 # Compute the unresolved state into two globals: PENDING holds one JSON line per
@@ -205,10 +204,11 @@ pending_requests() {  # <session> <transcript>
   # extracts every candidate's line and text, so no process runs per entry.
   # Firstmate's own input is not captain input, and like an interruption it
   # invalidates a staged reply or acknowledgement.
-  local user_lines=() user_texts=() retag="" i=0
+  local user_lines=() user_texts=() retag="" i=0 inbox
+  inbox=$(cd -P "$STATE/$FM_OPERATIONAL_RECORD_DIRNAME" 2>/dev/null && pwd -P) || inbox=""
   eval "$(printf '%s\n' "$events" | jq -r 'select(.kind == "user") | "user_lines+=(\(.line)); user_texts+=(\(.text | @sh))"' 2>/dev/null)"
   while [ "$i" -lt "${#user_lines[@]}" ]; do
-    if is_operational "${user_texts[$i]}"; then
+    if is_operational "${user_texts[$i]}" "$inbox"; then
       retag="$retag,\"${user_lines[$i]}\":\"break\""
     fi
     i=$((i + 1))
