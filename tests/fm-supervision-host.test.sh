@@ -1454,7 +1454,9 @@ esac
 exec "$real_mktemp" "\$@"
 SH
   chmod +x "$home/fakebin/mktemp"
-  start_hook_session "$home"
+  # A slow host poll lets the arm close before the host streams its ready
+  # line, so the failed hand-back's own output is all the hook reads.
+  FM_SUPERVISION_HOST_POLL=60 start_hook_session "$home"
   turn_end "$home"
   wait_until 150 watcher_live "$home" || fail "hook write failure: no watcher started"
   append_status "$home" 'step one'
@@ -1464,6 +1466,7 @@ SH
   assert_re '^(pending|announced):handling:' "$home/state/.watcher-down" "fixture: the marker unexpectedly became downtime"
   expect_code 2 "$(cat "$home/hook.rc")" "the Stop hook must notify main instead of dropping the close"
   assert_grep 'firstmate watcher auto-arm FAILED' "$home/hook.err" "main must receive the failure notification"
+  assert_grep 'watcher downtime could not be restored' "$home/hook.err" "the notification must say why the hand-back failed"
   assert_re 'outcome=failed ' "$home/state/.claude-autoarm-epoch" "the failure must be committed"
   pass "host+hook: failed at-turn downtime write notifies main despite a healthy successor"
 }
