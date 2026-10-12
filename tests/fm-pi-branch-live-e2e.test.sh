@@ -35,6 +35,10 @@ set -u
 
 fm_live_gate opt-in FM_PI_BRANCH_LIVE_E2E npm jq node
 export NODE_NO_WARNINGS=1
+# Every probe supplies its own home. Never inherit a dispatching worker's
+# state override and accidentally consult that supervisor's lock namespace.
+unset FM_HOME FM_ROOT_OVERRIDE FM_STATE_OVERRIDE FM_DATA_OVERRIDE \
+  FM_CONFIG_OVERRIDE FM_PROJECTS_OVERRIDE FM_TASK_ID
 
 PI_PACKAGE_DIR=${FM_PI_PACKAGE_DIR:-"$(npm root -g)/@earendil-works/pi-coding-agent"}
 if [ ! -f "$PI_PACKAGE_DIR/package.json" ]; then
@@ -47,7 +51,7 @@ repo="$TMP_ROOT/repo"
 home="$TMP_ROOT/home"
 agentdir="$TMP_ROOT/agent-dir"
 mkdir -p "$repo/.pi/extensions/lib" "$repo/node_modules/@earendil-works" \
-  "$home/state" "$home/config" "$agentdir"
+  "$home/state" "$home/config" "$home/data" "$agentdir"
 cp "$ROOT/.pi/extensions/fm-branch-supervision.ts" "$repo/.pi/extensions/fm-branch-supervision.ts"
 cp "$ROOT/.pi/extensions/fm-primary-pi-watch.ts" "$repo/.pi/extensions/fm-primary-pi-watch.ts"
 cp "$ROOT/.pi/extensions/lib/fm-branch-dispatch.ts" "$repo/.pi/extensions/lib/fm-branch-dispatch.ts"
@@ -58,6 +62,13 @@ cp "$ROOT/.pi/extensions/lib/fm-calm-visibility.ts" "$repo/.pi/extensions/lib/fm
 cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" "$repo/.pi/extensions/lib/fm-operational-input.ts"
 mkdir -p "$repo/bin"
 cp "$ROOT/bin/fm-operational-input.sh" "$repo/bin/fm-operational-input.sh"
+# Watcher eligibility now reads captain holds through the same real owner as
+# branch grant validation. Keep only the watcher arm synthetic, not the hold
+# result; a missing helper correctly makes the production classifier refuse.
+cat > "$repo/bin/fm-captain-hold.sh" <<'SH'
+#!/usr/bin/env bash
+exec bash "${FM_REAL_ROOT:?}/bin/fm-captain-hold.sh" "$@"
+SH
 cat > "$repo/bin/fm-watch-arm.sh" <<'SH'
 #!/usr/bin/env bash
 if [ "${1:-}" = --handling-delivered ]; then
@@ -267,7 +278,7 @@ pass "real Pi SDK $PI_VERSION accepts the branch session construction and preser
 # assistant message and resolves session.prompt() through its production loop.
 errorhome="$TMP_ROOT/error-home"
 erroragentdir="$TMP_ROOT/error-agent-dir"
-mkdir -p "$errorhome/state" "$errorhome/config" "$erroragentdir"
+mkdir -p "$errorhome/state" "$errorhome/config" "$errorhome/data" "$erroragentdir"
 cat > "$erroragentdir/models.json" <<'JSON'
 {
   "providers": {

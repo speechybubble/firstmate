@@ -10,6 +10,8 @@ import {
   firstmateShellInvocation,
 } from "./lib/fm-operational-input.ts";
 
+import { registerRequestContinuity } from "./lib/fm-request-continuity.ts";
+
 let guardFollowupActive = false;
 
 type LockOwnership = "owned" | "missing" | "other";
@@ -509,6 +511,7 @@ function runCdCheck(command: string): Promise<{ code: number; stderr: string }> 
 }
 
 export default function (pi: ExtensionAPI) {
+  const intake = registerRequestContinuity(pi, () => !process.env.FM_TASK_ID && lockOwnership() === "owned", root);
   let sessionstartGeneration: SessionstartGeneration | null = null;
   let sessionstartExitListenerRegistered = false;
   const cleanupSessionstartOnProcessExit = (): void => {
@@ -541,6 +544,7 @@ export default function (pi: ExtensionAPI) {
   registerSessionstartExitListener();
 
   pi.on?.("session_start", (event, ctx) => {
+    intake.start(ctx);
     const reason = String((event as { reason?: unknown }).reason ?? "");
     const source = reason === "startup"
       ? startupRebuildSource(ctx) ?? "startup"
@@ -556,8 +560,9 @@ export default function (pi: ExtensionAPI) {
 
   pi.on?.("before_agent_start", async (_event, ctx) => {
     const generation = sessionstartGeneration;
-    if (!generation) return;
+    if (!generation) { intake.initialize(ctx); return; }
     const message = await claimSessionstartMessage(generation, ctx);
+    intake.initialize(ctx);
     return message ? { message } : undefined;
   });
 
@@ -568,6 +573,7 @@ export default function (pi: ExtensionAPI) {
     registerSessionstartExitListener();
     const generation = createSessionstartGeneration("compact", sessionIdFromContext(ctx));
     sessionstartGeneration = generation;
+    intake.status(ctx);
     const message = await claimSessionstartMessage(generation, ctx);
     if (!message || !sessionstartGenerationIsLive(generation)) return;
     try {
@@ -578,6 +584,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on?.("session_shutdown", async () => {
+    intake.shutdown();
     const generation = sessionstartGeneration;
     try {
       if (generation) await stopSessionstartGeneration(generation);
@@ -600,7 +607,8 @@ export default function (pi: ExtensionAPI) {
     return { block: true, reason: result.stderr.trim() || "denied by the watcher-arm PreToolUse seatbelt" };
   });
 
-  pi.on("agent_settled", async () => {
+  pi.on("agent_settled", async (_event, ctx) => {
+    await intake.settled(ctx);
     if (guardFollowupActive) {
       guardFollowupActive = false;
       return;

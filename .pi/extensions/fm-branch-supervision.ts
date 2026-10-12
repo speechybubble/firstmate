@@ -169,7 +169,7 @@ const VISIBLE_OUTCOME_ENTRY_TYPE = "fm-branch-visible-outcome";
 // The processing half of the captain-outcome contract. The visible entry
 // above is the DISPLAY: crash-safe and exact-once. This hidden, typed request
 // is the PROCESSING: it opens the one turn in which main acts on the outcome,
-// and only main's explicit sequence-bound acknowledgement (fm_branch_processed)
+// and main's sequence-bound acknowledgement plus a subsequent normal reply
 // closes it. An unrelated or empty answer leaves the sequence open, so it is
 // presented again at the end of the next main run and at session start. Pi
 // gives the model only a custom message's `content`, so the request carries
@@ -196,8 +196,9 @@ const PROCESSING_INSTRUCTION =
   "First sort the outcomes by that current state into still open and already settled, such as a decision since answered, a PR since merged, or a task since finished. " +
   "Your reply to the captain covers only the still-open outcomes: give the captain a visible response where one is due, answer or escalate a decision, or act on a blocker or failure. " +
   "Write that reply as if the settled outcomes had never been listed: leave them out entirely, without naming them, summarizing them, or saying they are settled, because checking them is all the processing they need. " +
-  "When every outcome below is processed, call fm_branch_processed with through={N} exactly once. " +
-  "Until that call the outcomes stay open and are presented again; an answer that does not make that call never counts as processing.";
+  "Perform required authorized owner review and advancement before acknowledging; reading a report or recording an internal note is not that action. Preserve genuine dependencies and approvals. " +
+  "When every outcome below is processed, call fm_branch_processed with through={N} exactly once, then give the visible reply. " +
+  "The call only stages acknowledgement: the outcomes stay open and are presented again until a normal nonempty assistant reply is persisted after it without an intervening user message; an answer without that call, or a call without that reply, never counts as processing.";
 type MirrorItem = { tag: "captain" | "main"; text: string };
 type MirrorCursor = { file: string; index: number };
 type Verdict = "routine" | "captain";
@@ -480,6 +481,7 @@ function writeMirrorCursor(cursor: MirrorCursor): void {
 type ReadonlyEntries = {
   getSessionFile(): string | undefined;
   getEntries(): Array<{ type: string; customType?: string; data?: unknown }>;
+  getBranch?(): Array<{ type: string; customType?: string; data?: unknown }>;
 };
 
 function parseOutcomeRow(value: unknown): OutcomeRow | null {
@@ -663,6 +665,10 @@ export default function (pi: ExtensionAPI) {
   // Buffer retry streaming until message_end can make that decision; tool
   // messages always keep their prose, and a user message ends this scope.
   let activeProcessing: { request: ProcessingState; retry: boolean } | null = null;
+  // Set once fm_branch_processed stages a full receipt in the current run. The
+  // reply that follows is the delivery the receipt waits for, so retry
+  // suppression must not blank it.
+  let receiptStagedThisRun = false;
   let userMessageThisTurn = false;
   let processedInitializedGeneration = -1;
   // One revision for BOTH selections: a model or effort change invalidates an
@@ -1058,14 +1064,57 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
+  // Receipt of an event is not delivery to the user. Keep the existing
+  // outcome marker open until a staged acknowledgement is followed by a
+  // durable normal reply. Reading full native entries, rather than compacted
+  // model context, also recovers the crash between reply persistence and the
+  // marker update. Never inspect or export assistant thinking blocks.
+  async function reconcileProcessedReplies(expectedGeneration: number): Promise<boolean> {
+    if (!(await generationOwnsLock(expectedGeneration))) return false;
+    // A wake can arrive before session_start binds main. There is no native
+    // receipt to reconcile yet; unread outcome delivery still requires main.
+    if (!currentMainSession) return true;
+    const entries = currentMainSession.getBranch?.() ?? currentMainSession.getEntries();
+    let staged: number | null = null;
+    let delivered = 0;
+    for (const entry of entries) {
+      if (entry.type === "custom" && entry.customType === "fm-branch-processing-receipt") {
+        const data = entry.data as { version?: number; through?: number };
+        if (data?.version === 1 && Number.isSafeInteger(data.through) && (data.through ?? 0) > 0) staged = data.through!;
+        continue;
+      }
+      if (entry.type !== "message") continue;
+      const message = (entry as { message?: { role?: string; content?: unknown; stopReason?: string } }).message;
+      if (message?.role === "user") { staged = null; continue; }
+      if (message?.role !== "assistant") continue;
+      if (["error", "aborted", "length"].includes(message.stopReason ?? "")) { staged = null; continue; }
+      const text = typeof message.content === "string" ? message.content : Array.isArray(message.content)
+        ? message.content.filter((part) => part?.type === "text").map((part) => part.text).join("\n") : "";
+      if (message.stopReason === "stop" && text.trim() && staged !== null) {
+        delivered = Math.max(delivered, staged);
+        staged = null;
+      }
+    }
+    if (!delivered) return true;
+    const rows = await readUnprocessedOutcomes(expectedGeneration);
+    if (rows === null) return false;
+    if (!rows.some((row) => row.seq === delivered)) return true;
+    if (!(await generationOwnsLock(expectedGeneration))) return false;
+    if (!(await runOutcomeScript(["mark-processed", "--through", String(delivered)])).ok) return false;
+    if (expectedGeneration === generation && activeProcessing && delivered >= activeProcessing.request.through) {
+      activeProcessing = null;
+    }
+    return true;
+  }
+
   // Present the oldest bounded batch of unprocessed captain outcomes to main
   // as one sequence-keyed processing request. After its acknowledgement the
   // next run boundary presents the next batch. The first PROCESSING_TRIGGERED_ATTEMPTS presentations
   // of a given sequence set open a turn of their own (queued as a follow-up
   // while main is busy); after that the request rides the captain's next
   // prompt instead, once per run, and a session replacement starts the
-  // triggered budget over. Nothing here advances the processed marker: only
-  // fm_branch_processed does, keyed to the sequence main acknowledges.
+  // triggered budget over. Only a staged sequence acknowledgement followed by
+  // a durable normal reply advances the processed marker.
   async function presentUnprocessedOutcomes(expectedGeneration: number): Promise<boolean> {
     const rows = await readUnprocessedOutcomes(expectedGeneration);
     if (rows === null) return false;
@@ -1139,6 +1188,7 @@ export default function (pi: ExtensionAPI) {
       if (!(await runOutcomeScript(["processed-init"])).ok) return false;
       processedInitializedGeneration = expectedGeneration;
     }
+    if (!(await reconcileProcessedReplies(expectedGeneration))) return false;
     const unread = await runOutcomeScript(["unread"]);
     if (!unread.ok) return false;
     if (unread.stdout) {
@@ -1712,6 +1762,7 @@ ${context.command}
     if (event.message.role === "user") {
       userMessageThisTurn = true;
       activeProcessing = null;
+      receiptStagedThisRun = false;
     } else if (
       event.message.role === "custom" &&
       isProcessingCustomMessage(event.message) &&
@@ -1725,7 +1776,7 @@ ${context.command}
     }
   });
   pi.registerMarkdownTransformer?.((markdown, context) =>
-    activeProcessing?.retry && context.isStreaming && context.messageType !== "user" ? "" : markdown,
+    activeProcessing?.retry && !receiptStagedThisRun && context.isStreaming && context.messageType !== "user" ? "" : markdown,
   );
   pi.on?.("message_end", (event) => {
     if (!activeProcessing || event.message.role !== "assistant") return;
@@ -1734,7 +1785,7 @@ ${context.command}
     if (event.message.content.some((part) => part.type === "toolCall")) return;
     const text = event.message.content.filter((part) => part.type === "text").map((part) => part.text).join("\n").trim();
     const { request, retry } = activeProcessing;
-    if (!retry || (text && !request.visibleFinals.has(text))) {
+    if (!retry || receiptStagedThisRun || (text && !request.visibleFinals.has(text))) {
       if (text) request.visibleFinals.add(text);
       return;
     }
@@ -1770,10 +1821,12 @@ ${context.command}
     queuedProcessingContent = null;
     processingOpenedThisRun = false;
     activeProcessing = null;
+    receiptStagedThisRun = false;
     if (processing) processing.pending = false;
     const settledGeneration = generation;
     await enqueueDelivery(async () => {
       if (!(await actingAsOwner(settledGeneration))) return;
+      await reconcileProcessedReplies(settledGeneration);
       await presentUnprocessedOutcomes(settledGeneration);
     });
   });
@@ -2337,7 +2390,7 @@ ${context.command}
     name: "fm_branch_processed",
     label: "Acknowledge processed supervision outcomes",
     description:
-      "Acknowledge that every captain-facing supervision outcome up to a sequence number has been processed by this conversation. Call it exactly once after handling a supervision processing request, with through set to the highest sequence that request listed; an outcome that is not acknowledged is presented again.",
+      "Stage acknowledgement after performing the required owner review/advancement for every listed outcome. Then give the substantive public reply. The processed marker advances only after a normal nonempty reply is persisted; an intervening user message or failed reply invalidates the stage. This tool alone never establishes user delivery, accepts findings or approves work.",
     promptSnippet: "Acknowledge processed captain-facing supervision outcomes by sequence.",
     parameters: Type.Object({
       through: Type.Number({ description: "The highest outcome sequence number this conversation has processed" }),
@@ -2362,7 +2415,7 @@ ${context.command}
       refreshOutcomesToolShell(shellState, theme, context);
       return new Container();
     },
-    execute: async (_toolCallId, params) => {
+    execute: async (toolCallId, params) => {
       const raw = (params as { through?: unknown }).through;
       const through = typeof raw === "number" && Number.isSafeInteger(raw) && raw >= 1 ? raw : null;
       if (through === null) {
@@ -2391,26 +2444,42 @@ ${context.command}
             isError: true,
           };
         }
-        const marked = await runOutcomeScript(["mark-processed", "--through", String(through)]);
-        if (!marked.ok) {
+        const rows = await readUnprocessedOutcomes(acknowledgedGeneration);
+        if (rows === null || !rows.some((row) => row.seq === through)) {
           return {
-            content: [{ type: "text", text: `acknowledgement refused: ${marked.detail}` }],
+            content: [{ type: "text", text: `acknowledgement refused: seq ${through} is not an unprocessed captain outcome` }],
             details: undefined,
             isError: true,
           };
         }
-        const remaining = await readUnprocessedOutcomes(acknowledgedGeneration);
-        if (acknowledgedGeneration === generation && activeProcessing && through >= activeProcessing.request.through) {
-          activeProcessing = null;
+        if (!(await generationOwnsLock(acknowledgedGeneration)) || !currentMainSession) {
+          return { content: [{ type: "text", text: "acknowledgement refused: session ownership changed" }], details: undefined, isError: true };
         }
-        if (remaining !== null && remaining.length === 0) processing = null;
-        const open = remaining === null
-          ? "the remaining outcomes could not be read"
-          : remaining.length === 0
-            ? "no captain outcome remains unprocessed"
-            : `${remaining.length} newer captain outcome(s) remain unprocessed (seq ${remaining.map((row) => row.seq).join(", ")}) and will be presented again`;
+        const activeEntries = currentMainSession.getBranch?.() ?? currentMainSession.getEntries();
+        for (const entry of [...activeEntries].reverse()) {
+          if (entry.type === "message") {
+            const message = (entry as { message?: { role?: string; stopReason?: string } }).message;
+            if (message?.role === "user" || (message?.role === "assistant" && ["stop", "error", "aborted", "length"].includes(message.stopReason ?? ""))) break;
+          }
+          if (entry.type === "custom" && entry.customType === "fm-branch-processing-receipt" &&
+              (entry.data as { through?: number })?.through === through) {
+            return { content: [{ type: "text", text: "acknowledgement already staged; give the substantive public reply" }], details: undefined, isError: true };
+          }
+        }
+        const receipt = { version: 1, through, call: toolCallId };
+        pi.appendEntry("fm-branch-processing-receipt", receipt);
+        const saved = currentMainSession.getEntries().some((entry) =>
+          entry.type === "custom" && entry.customType === "fm-branch-processing-receipt" &&
+          JSON.stringify(entry.data) === JSON.stringify(receipt));
+        if (!saved) return { content: [{ type: "text", text: "acknowledgement was not persisted; outcomes remain open" }], details: undefined, isError: true };
+        // A full acknowledgement releases retry suppression exactly as before,
+        // so the reply that commits it stays visible; a partial one keeps the
+        // remaining outcome's suppression.
+        if (acknowledgedGeneration === generation && (!activeProcessing || through >= activeProcessing.request.through)) {
+          receiptStagedThisRun = true;
+        }
         return {
-          content: [{ type: "text", text: `processed through seq ${through}; ${open}` }],
+          content: [{ type: "text", text: `acknowledgement staged through seq ${through}; give the substantive public reply. Outcomes remain open until that reply is durably recorded.` }],
           details: undefined,
         };
       });

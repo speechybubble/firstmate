@@ -15,6 +15,8 @@ fi
 project="$TMP_ROOT/project"
 mkdir -p "$project/.pi/extensions/lib" "$project/bin" "$project/state"
 cp "$ROOT/.pi/extensions/fm-primary-turnend-guard.ts" "$project/.pi/extensions/"
+cp "$ROOT/.pi/extensions/lib/fm-request-continuity.ts" "$project/.pi/extensions/lib/"
+cp "$ROOT/.pi/extensions/lib/fm-native-contract.ts" "$project/.pi/extensions/lib/"
 cp "$ROOT/.pi/extensions/lib/fm-operational-input.ts" \
   "$ROOT/.pi/extensions/lib/fm-sessionstart-supervisor.mjs" "$project/.pi/extensions/lib/"
 
