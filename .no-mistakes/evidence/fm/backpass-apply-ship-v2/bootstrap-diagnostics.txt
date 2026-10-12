@@ -1,0 +1,5 @@
+## {"default":{"harness":"codex","effort":"max"}}
+CREW_DISPATCH: invalid config/crew-dispatch.json - invalid effort: codex:max
+## {"rules":[{"when":"x","use":{"harness":"codex","model":"default","effort":"max"}}]}
+CREW_DISPATCH: invalid config/crew-dispatch.json - invalid effort: codex:max
+## {"rules":[{"when":"x","use":{"harness":"codex","model":"gpt-5.6-luna","effort":"medium"}}]}

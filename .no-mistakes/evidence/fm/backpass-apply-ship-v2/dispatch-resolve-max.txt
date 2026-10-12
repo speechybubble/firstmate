@@ -1,0 +1,12 @@
+## rules: {"rules":[{"when":"native max","use":{"harness":"codex","model":"gpt-5.6-luna","effort":"max"}}]}
+error: unable to verify Codex max: native discovery unavailable; open the native model picker, verify the account and retry
+exit=2
+## rules: {"rules":[{"when":"native max","use":{"harness":"codex","effort":"max"}}]}
+error: malformed rules file: /tmp/fm-lab.7UcsF3/config/crew-dispatch.json - each use profile effort must be supported by its harness and model
+exit=2
+## rules: {"rules":[{"when":"native max","use":[{"harness":"codex","model":"gpt-6.1-sol","effort":"max"},{"harness":"claude","model":"sonnet","effort":"high"}]}]}
+error: unable to verify Codex max: native discovery unavailable; open the native model picker, verify the account and retry
+exit=2
+## rules: {"rules":[{"when":"ordinary","use":{"harness":"codex","model":"gpt-5.6-luna","effort":"medium"}}]}
+dispatch-resolve: off (brief text matches /tmp/fm-lab.7UcsF3/config/dispatch-never-send line 1; nothing sent)
+exit=0

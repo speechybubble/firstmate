@@ -1,0 +1,9 @@
+$ bin/fm-spawn.sh sc-max-nomodel /tmp/fm-lab.7UcsF3/projects/demo --scout --harness codex --effort max
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.7UcsF3
+error: unable to verify Codex max: a concrete --model is required
+exit=1
+$ bin/fm-spawn.sh sc-max-luna /tmp/fm-lab.7UcsF3/projects/demo --scout --harness codex --model gpt-5.6-luna --effort max
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.7UcsF3
+error: unable to verify Codex max: native discovery unavailable; open the native model picker, verify the account and retry
+exit=1
+state dir after refusals contained only sc-medium entries (spawned later); no tmux windows/meta for sc-max-*

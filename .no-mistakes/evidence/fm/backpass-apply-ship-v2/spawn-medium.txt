@@ -1,0 +1,4 @@
+$ bin/fm-spawn.sh sc-medium /tmp/fm-lab.7UcsF3/projects/demo --scout --harness codex --model gpt-5.6-luna --effort medium
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.7UcsF3
+spawned sc-medium harness=codex kind=scout window=primary:fm-sc-medium worktree=/home/denni/.treehouse/demo-81f319/1/demo
+exit=0

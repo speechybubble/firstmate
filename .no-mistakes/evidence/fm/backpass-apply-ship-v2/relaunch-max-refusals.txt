@@ -1,0 +1,13 @@
+$ bin/fm-control.sh sc-medium relaunch --effort max
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.7UcsF3
+error: unable to verify Codex max: native discovery unavailable; open the native model picker, verify the account and retry
+exit=1
+$ bin/fm-control.sh sc-medium relaunch --harness codex --model default --effort max
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.7UcsF3
+error: unable to verify Codex max: a concrete --model is required
+exit=1
+$ bin/fm-control.sh sc-medium relaunch --harness codex --model gpt-5.6-luna --effort max
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.7UcsF3
+error: unable to verify Codex max: native discovery unavailable; open the native model picker, verify the account and retry
+exit=1
+old agent pid before=3373236 after=3373236; meta effort=medium
