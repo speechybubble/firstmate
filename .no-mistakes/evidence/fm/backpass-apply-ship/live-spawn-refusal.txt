@@ -1,0 +1,17 @@
+=== fm-spawn.sh --harness codex --model gpt-6-astra --effort max (real codex codex-cli 0.162.1, private CODEX_HOME with unusable account)
+exit=1
+--- spawn output (tail)
+error: unable to verify Codex max: native discovery unavailable; open the native model picker, verify the account and retry
+--- launch command reached tmux: no
+--- task records published under home/state: 0
+
+=== fm-spawn.sh --harness codex --model gpt-6-astra --effort medium (real codex codex-cli 0.162.1, private CODEX_HOME with unusable account)
+exit=0
+--- spawn output (tail)
+warning: /tmp/fmmax.m21j/spawn-medium/home/data/live-medium/launch-brief.md records no delivery contract line (scaffolded before ship briefs recorded one); launching on the explicit --mode no-mistakes - confirm its definition of done matches
+spawned live-medium harness=codex kind=ship mode=no-mistakes yolo=off window=firstmate:fm-live-medium worktree=/tmp/fmmax.m21j/spawn-medium/wt
+--- launch command reached tmux: yes
+--model 'gpt-6-astra'
+--- task records published under home/state: 1
+
+model_reasoning_effort="medium"'

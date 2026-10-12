@@ -1,0 +1,33 @@
+=== A: model-less Codex max (invalid config)
+rules: {"rules":[{"when":"refactors","use":{"harness":"codex","effort":"max"}}]}
+$ fm-dispatch-resolve.sh brief.md --project demo   (cwd=/tmp, CODEX_HOME=private copy, network blocked)
+error: malformed rules file: /tmp/fmmax.m21j/fmhome/config/crew-dispatch.json - each use profile effort must be supported by its harness and model
+exit=2 (1s)
+
+=== B: Codex max with model default (invalid config)
+rules: {"rules":[{"when":"refactors","use":{"harness":"codex","model":"default","effort":"max"}}]}
+$ fm-dispatch-resolve.sh brief.md --project demo   (cwd=/tmp, CODEX_HOME=private copy, network blocked)
+error: malformed rules file: /tmp/fmmax.m21j/fmhome/config/crew-dispatch.json - each use profile effort must be supported by its harness and model
+exit=2 (0s)
+
+=== C: concrete-model Codex max, native account evidence unknown
+rules: {"rules":[{"when":"refactors","use":{"harness":"codex","model":"gpt-6-astra","effort":"max"}}]}
+$ fm-dispatch-resolve.sh brief.md --project demo   (cwd=/tmp, CODEX_HOME=private copy, network blocked)
+error: unable to verify Codex max: native discovery unavailable; open the native model picker, verify the account and retry
+exit=2 (1s)
+
+=== D: unknown max in a non-matching rule inside an array still refuses (never selected around)
+rules: {"rules":[{"when":"refactors","use":[{"harness":"codex","model":"gpt-6-astra","effort":"medium"},{"harness":"codex","model":"gpt-6.1-sol","effort":"max"}]}]}
+$ fm-dispatch-resolve.sh brief.md --project demo   (cwd=/tmp, CODEX_HOME=private copy, network blocked)
+error: unable to verify Codex max: native discovery unavailable; open the native model picker, verify the account and retry
+exit=2 (2s)
+
+=== E: ordinary Codex medium is unaffected (passes guard, reaches resolver call)
+rules: {"rules":[{"when":"refactors","use":{"harness":"codex","model":"gpt-6-astra","effort":"medium"}}]}
+$ fm-dispatch-resolve.sh brief.md --project demo   (cwd=/tmp, CODEX_HOME=private copy, network blocked)
+dispatch-resolve: error (http 000 after 31 ms: )
+dispatch-resolve:
+  status: error
+  reason: http 000 after 31 ms: 
+exit=0 (0s)
+

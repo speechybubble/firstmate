@@ -1,0 +1,15 @@
+$ fm-dispatch-resolve.sh brief.md --project demo   # rules: model-less codex max
+{"rules":[{"when":"any task","use":{"harness":"codex","effort":"max"}}]}
+error: malformed rules file: <tmp>/home/config/crew-dispatch.json - each use profile effort must be supported by its harness and model
+exit=2
+
+$ fm-dispatch-resolve.sh brief.md --project demo   # rules: codex max model=default
+{"rules":[{"when":"any task","use":{"harness":"codex","model":"default","effort":"max"}}]}
+error: malformed rules file: <tmp>/home/config/crew-dispatch.json - each use profile effort must be supported by its harness and model
+exit=2
+
+$ fm-dispatch-resolve.sh brief.md --project demo   # rules: concrete codex max, native account unverifiable (expired host token)
+{"rules":[{"when":"any task","use":{"harness":"codex","model":"gpt-6.1-sol","effort":"max"}}]}
+error: unable to verify Codex max: native discovery unavailable; open the native model picker, verify the account and retry
+exit=2
+
