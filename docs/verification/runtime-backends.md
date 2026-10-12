@@ -565,6 +565,34 @@ It captures the launch `bin/fm-spawn.sh` actually builds, replays those exact fl
 It spends no model tokens, so it runs by default wherever Codex is installed.
 The portable half, `tests/fm-spawn-dispatch-profile.test.sh`, pins the split the launch template makes: a crewmate launches hook-free while a secondmate, which runs a primary session on this repository's own project hooks, keeps them.
 
+## Codex model and max effort
+
+Verified on 2026-10-12 with codex-cli 0.162.1 on Linux.
+[`tests/fm-codex-effort-live-e2e.test.sh`](../../tests/fm-codex-effort-live-e2e.test.sh) refreshes this result through the `live-harness-optin` family.
+It captures the canonical `fm-spawn` launch through a fake tmux pane, uses native account/model discovery for max, and replays the captured flags into a private native stdio app-server.
+Its model is the first one native discovery advertises max for, unless `FM_CODEX_EFFORT_MODEL` pins one, so an account catalog change cannot turn a stale model name into a false failure.
+The isolated file-auth home has an explicit medium default; no model prompt or fleet endpoint is used.
+
+```sh
+FM_CODEX_EFFORT_LIVE=1 bin/fm-test-run.sh tests/fm-codex-effort-live-e2e.test.sh
+```
+
+```text
+ok - native captured omitted profile resolves model=gpt-6-luna effort=medium
+ok - native captured medium profile resolves model=gpt-6-luna effort=medium
+ok - native captured max profile resolves model=gpt-6-luna effort=max
+ok - native discovery omits max for model=gpt-5.5; explicit max refuses before launch
+ok - codex codex-cli 0.162.1: captured max overrides the isolated medium default; omitted/medium neighbors preserved
+```
+
+These are native `thread/start` resolved-configuration observations, not server-side reasoning or entitlement receipts.
+The omission control demonstrates the medium result when no effort override is supplied; the max arm demonstrates that the canonical launch supplies and resolves the explicit override.
+When native discovery lists a model without max, the refusal arm proves that an explicit max request for it stops before any launch.
+The guard runs by default when its tools are installed because it submits no model turn; an unavailable native account/discovery surface fails visibly rather than passing an unexercised runtime.
+The capability/refusal contract is owned by [`bin/fm-codex-effort-lib.sh`](../../bin/fm-codex-effort-lib.sh).
+Portable coverage in [`tests/fm-spawn-dispatch-profile.test.sh`](../../tests/fm-spawn-dispatch-profile.test.sh), [`tests/fm-dispatch-resolve.test.sh`](../../tests/fm-dispatch-resolve.test.sh), and [`tests/fm-bootstrap.test.sh`](../../tests/fm-bootstrap.test.sh) exercises support, refusal, ambiguity, offline diagnostics and ordinary-effort neighbors.
+No live result for remote hosts or another session-provider backend is established by this guard.
+
 ## Composer classification matrix
 
 The shared composer classifier (`bin/fm-composer-lib.sh`, `fm_composer_classify_screen`) owns every composer shape fleet-wide; each backend contributes only a capture and a capability descriptor.
