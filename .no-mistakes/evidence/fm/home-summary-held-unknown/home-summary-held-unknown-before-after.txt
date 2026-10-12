@@ -1,0 +1,137 @@
+===== scenario: mixed | AFTER (HEAD 8d23491) =====
+{
+  "valid": false,
+  "state": "unknown",
+  "reason": "child current state unavailable: lost-scout",
+  "invalidity": {
+    "kind": "child_current_unavailable",
+    "ids": [
+      "lost-scout"
+    ]
+  },
+  "unknown_endpoints": [
+    "held-scout",
+    "lost-scout",
+    "paused-scout"
+  ],
+  "holds": [
+    {
+      "id": "held-scout",
+      "source": "backlog",
+      "reason": "maintenance stop"
+    },
+    {
+      "id": "paused-scout",
+      "source": "child-state",
+      "reason": "paused: waiting for the maintenance release"
+    }
+  ]
+}
+===== scenario: mixed | BEFORE (pre-fix 096572c) =====
+{
+  "valid": false,
+  "state": "unknown",
+  "reason": "child current state unavailable: held-scout, lost-scout, paused-scout",
+  "invalidity": {
+    "kind": "child_current_unavailable",
+    "ids": [
+      "held-scout",
+      "lost-scout",
+      "paused-scout"
+    ]
+  },
+  "unknown_endpoints": [
+    "held-scout",
+    "lost-scout",
+    "paused-scout"
+  ],
+  "holds": [
+    {
+      "id": "held-scout",
+      "source": "backlog",
+      "reason": "maintenance stop"
+    }
+  ]
+}
+===== scenario: held-only | AFTER (HEAD 8d23491) =====
+{
+  "valid": true,
+  "state": "externally_held",
+  "reason": null,
+  "invalidity": {
+    "kind": null,
+    "ids": []
+  },
+  "unknown_endpoints": [
+    "held-scout",
+    "paused-scout"
+  ],
+  "holds": [
+    {
+      "id": "held-scout",
+      "source": "backlog",
+      "reason": "maintenance stop"
+    },
+    {
+      "id": "paused-scout",
+      "source": "child-state",
+      "reason": "paused: waiting for the maintenance release"
+    }
+  ]
+}
+===== scenario: held-only | BEFORE (pre-fix 096572c) =====
+{
+  "valid": false,
+  "state": "unknown",
+  "reason": "child current state unavailable: held-scout, paused-scout",
+  "invalidity": {
+    "kind": "child_current_unavailable",
+    "ids": [
+      "held-scout",
+      "paused-scout"
+    ]
+  },
+  "unknown_endpoints": [
+    "held-scout",
+    "paused-scout"
+  ],
+  "holds": [
+    {
+      "id": "held-scout",
+      "source": "backlog",
+      "reason": "maintenance stop"
+    }
+  ]
+}
+===== scenario: resolved-pause | AFTER (HEAD 8d23491) =====
+{
+  "valid": false,
+  "state": "unknown",
+  "reason": "child current state unavailable: resumed-scout",
+  "invalidity": {
+    "kind": "child_current_unavailable",
+    "ids": [
+      "resumed-scout"
+    ]
+  },
+  "unknown_endpoints": [
+    "resumed-scout"
+  ],
+  "holds": []
+}
+===== scenario: resolved-pause | BEFORE (pre-fix 096572c) =====
+{
+  "valid": false,
+  "state": "unknown",
+  "reason": "child current state unavailable: resumed-scout",
+  "invalidity": {
+    "kind": "child_current_unavailable",
+    "ids": [
+      "resumed-scout"
+    ]
+  },
+  "unknown_endpoints": [
+    "resumed-scout"
+  ],
+  "holds": []
+}
