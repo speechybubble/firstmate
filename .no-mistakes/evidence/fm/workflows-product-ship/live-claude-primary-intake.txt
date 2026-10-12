@@ -1,0 +1,17 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+Captain, here is the dry-run intake for both asks. Nothing was run, scaffolded, spawned or edited.
+
+I treated this as deciding which skills to load while scoping each brief. "Our CLI" doesn't name a project, so in a live intake I'd match it against the project registry first and ask you one question if more than one project fits. I didn't do that matching here.
+
+**A - first-run setup redesign**
+
+- **SKILLS_LOADED:** `.agents/skills/product-experience/SKILL.md` and `.agents/skills/product-experience/references/experience-exercise.md`. I read the second one to check whether it applies; it covers only a synthetic validation exercise, so it doesn't govern this brief. I also confirmed that the generated brief already points the worker at that skill (`bin/fm-brief.sh:613`).
+- **PRODUCT_EXPERIENCE:** yes - the ask changes what a user sees on first run and asks for a choice between two interaction designs, which is exactly when that skill applies.
+- **BRIEF_SCOPE:** The worker would build both versions, a wizard and a single config command, with the same content and starting state. It would test each one's start, success, error, recovery and return behavior using the project's existing run path. It would write a short first-run tutorial before committing to the interface and then run it as written. Finally it would record the trade-off, which option it picked and why the other loses. It would not redesign other commands or add hardening you didn't ask for.
+- **Assumption:** I'd treat this as a build task, not a design-only investigation, because "pick" hands the choice to the worker and the skill keeps the comparison inside the build. If you only want a recommendation first, I'd ask you once before starting.
+
+**B - version bump**
+
+- **SKILLS_LOADED:** none. Neither the product-experience trigger nor task-context applies, and the bump isn't a reported bug that would call for the diagnostic skill.
+- **PRODUCT_EXPERIENCE:** no - this is a mechanical edit with a fixed target, and the skill itself says to skip exploration for that.
+- **BRIEF_SCOPE:** The worker would change only the `version` field in `package.json` from `1.4.2` to `1.4.3` and deliver it through the project's normal delivery path. Nothing else would be in scope: no changelog edits, no lockfile or tag work beyond what the project's own tooling does automatically, and no prototype or tutorial.

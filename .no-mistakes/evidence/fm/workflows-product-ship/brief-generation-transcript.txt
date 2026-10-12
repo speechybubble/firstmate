@@ -1,0 +1,47 @@
+== ship no-mistakes exit=0
+13:# Product experience workflow
+14-If this task changes a user or caller experience, compares interaction design options, creates a tutorial, or explains a material technical decision, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QRT8HW3NV2M8MYHRBVMW9H/.agents/skills/product-experience/SKILL.md`.
+15-
+== ship direct-PR exit=0
+13:# Product experience workflow
+14-If this task changes a user or caller experience, compares interaction design options, creates a tutorial, or explains a material technical decision, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QRT8HW3NV2M8MYHRBVMW9H/.agents/skills/product-experience/SKILL.md`.
+15-
+== ship local-only exit=0
+13:# Product experience workflow
+14-If this task changes a user or caller experience, compares interaction design options, creates a tutorial, or explains a material technical decision, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QRT8HW3NV2M8MYHRBVMW9H/.agents/skills/product-experience/SKILL.md`.
+15-
+== scout exit=0
+13:# Product experience workflow
+14-If this task changes a user or caller experience, compares interaction design options, creates a tutorial, or explains a material technical decision, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QRT8HW3NV2M8MYHRBVMW9H/.agents/skills/product-experience/SKILL.md`.
+15-
+== secondmate exit=0
+product-experience mentions in charter: 0
+resolved pointer: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QRT8HW3NV2M8MYHRBVMW9H/.agents/skills/task-context/SKILL.md
+/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QRT8HW3NV2M8MYHRBVMW9H/.agents/skills/product-experience/SKILL.md
+skill copy in destination? no; in FM_HOME? no
+== section order (no-mistakes brief headings)
+3:# Task
+10:# Task context and learning
+13:# Product experience workflow
+16:# Herdr lifecycle declaration - NOT ENABLED
+21:# Setup
+31:# Rules
+90:# Firstmate instruction inbox
+95:# Project memory
+100:# Definition of done
+resolved product pointer: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QRT8HW3NV2M8MYHRBVMW9H/.agents/skills/product-experience/SKILL.md
+READABLE
+---
+name: product-experience
+description: >-
+  Compose experience-first acceptance, meaningful interaction alternatives,
+  tutorial-first usability and evidence-preserving communication with existing
+  design, writing and verification owners. Load when scoping or executing a task
+  that changes a user/caller experience, compares interaction alternatives,
+  creates a tutorial, or explains a material technical decision.
+user-invocable: false
+metadata:
+  internal: true
+---
+
+# Product experience

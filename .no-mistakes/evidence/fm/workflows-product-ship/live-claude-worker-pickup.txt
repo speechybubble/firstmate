@@ -1,0 +1,20 @@
+===== ux-task =====
+FILES_READ: /tmp/tmp.SxHso3eQc6/home/data/ux-task/brief.md, /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QRT8HW3NV2M8MYHRBVMW9H/.agents/skills/product-experience/SKILL.md, /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QRT8HW3NV2M8MYHRBVMW9H/.agents/skills/product-experience/references/experience-exercise.md
+
+PRODUCT_WORKFLOW_APPLIES: yes - the task adds a way for users to view record details in the results list, and the interaction style is still open, so it changes the user experience and needs a choice between interaction options.
+
+PLAN:
+- Check that I'm in an isolated worktree, create `fm/ux-task`, and record the user's main action and expected result: open one record's details, read them, close them, and land back at the same list position with focus and scroll intact. This includes what happens when details aren't available.
+- Use the Refero design skill to compare, one after the other, two different interactions that use the same data, selection and keyboard action: inline expansion and a side panel. Different color schemes of one design won't count as a comparison.
+- Use chrome-devtools-axi to run open, read, close and return at desktop and narrow widths. Keep screenshots (which only show appearance) and a focus/scroll/recovery trace under `/tmp/tmp.SxHso3eQc6/home/data/ux-task/`, then base the recommendation on what I observe, not on assumed speed or satisfaction.
+- Record the trade-off, my pick and why the other option loses. Because the captain asked me to pick, I'll build my pick and commit it on `fm/ux-task` (local-only). I'll write a short how-to-use guide and run it exactly as written against that commit. If the choice turns out to be a new product decision above my role, I'll raise `needs-decision` instead.
+===== routine-task =====
+FILES_READ: /tmp/tmp.SxHso3eQc6/home/data/routine-task/brief.md
+
+PRODUCT_WORKFLOW_APPLIES: no - this is a rename of an internal constant and its two call sites with no behavior change, so it doesn't change any user or caller experience, compare interaction options, create a tutorial, or explain a material technical decision.
+
+PLAN:
+- Confirm I'm in the isolated worktree with `pwd -P` and `git rev-parse --show-toplevel`, then run `git checkout -b fm/routine-task --`.
+- Search the repo for `MAX_RETRY` to confirm there is exactly one definition in `src/config.ts` and two call sites (so `MAX_RETRIES` itself isn't touched), then rename all three without changing anything else.
+- Run the project's existing typecheck, lint and tests to confirm nothing changed, then commit on `fm/routine-task` and rebase if `main` has moved ahead, leaving the worktree clean.
+- Append the `done` status line with a real epoch timestamp. I won't compare interaction alternatives, because there is no interaction design choice in this task.
