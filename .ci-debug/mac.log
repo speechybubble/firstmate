@@ -1,0 +1,476 @@
+﻿2026-10-09T03:55:45.2585900Z Current runner version: '2.337.0'
+2026-10-09T03:55:45.2608960Z ##[group]Runner Image Provisioner
+2026-10-09T03:55:45.2609720Z Hosted Compute Agent
+2026-10-09T03:55:45.2610130Z Version: 20260828.587
+2026-10-09T03:55:45.2610580Z Commit: abac92662cab4cc7352de4f9f9d2e2419aad9c29
+2026-10-09T03:55:45.2611150Z Build Date: 2026-08-28T16:44:25Z
+2026-10-09T03:55:45.2611730Z Worker ID: {5d060713-662e-475c-9ba2-91731a786a10}
+2026-10-09T03:55:45.2612230Z Azure Region: westus
+2026-10-09T03:55:45.2612760Z ##[endgroup]
+2026-10-09T03:55:45.2613970Z ##[group]Operating System
+2026-10-09T03:55:45.2614440Z macOS
+2026-10-09T03:55:45.2614860Z 26.6.2
+2026-10-09T03:55:45.2615420Z 25G83
+2026-10-09T03:55:45.2615780Z ##[endgroup]
+2026-10-09T03:55:45.2616360Z ##[group]Runner Image
+2026-10-09T03:55:45.2616840Z Image: macos-26-arm64
+2026-10-09T03:55:45.2617300Z Version: 20260907.0351.1
+2026-10-09T03:55:45.2618280Z Included Software: https://github.com/actions/runner-images/blob/macos-26-arm64/20260907.0351/images/macos/macos-26-arm64-Readme.md
+2026-10-09T03:55:45.2619600Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-26-arm64%2F20260907.0351
+2026-10-09T03:55:45.2620310Z ##[endgroup]
+2026-10-09T03:55:45.2621360Z ##[group]GITHUB_TOKEN Permissions
+2026-10-09T03:55:45.2623460Z Contents: read
+2026-10-09T03:55:45.2623980Z Metadata: read
+2026-10-09T03:55:45.2624900Z ##[endgroup]
+2026-10-09T03:55:45.2626730Z Secret source: Actions
+2026-10-09T03:55:45.2627340Z Cache mode: write
+2026-10-09T03:55:45.2627910Z Prepare workflow directory
+2026-10-09T03:55:45.2967730Z Prepare all required actions
+2026-10-09T03:55:45.3012320Z Getting action download info
+2026-10-09T03:55:45.6103250Z Download action repository 'actions/checkout@v6' (SHA:d23441a48e516b6c34aea4fa41551a30e30af803)
+2026-10-09T03:55:46.0360470Z Complete job name: Stock macOS Bash snapshot compatibility
+2026-10-09T03:55:46.1158000Z ##[group]Run actions/checkout@v6
+2026-10-09T03:55:46.1158740Z with:
+2026-10-09T03:55:46.1159150Z   repository: speechybubble/firstmate
+2026-10-09T03:55:46.1162750Z   token: ***
+2026-10-09T03:55:46.1163120Z   ssh-strict: true
+2026-10-09T03:55:46.1163480Z   ssh-user: git
+2026-10-09T03:55:46.1163870Z   persist-credentials: true
+2026-10-09T03:55:46.1164270Z   clean: true
+2026-10-09T03:55:46.1164630Z   sparse-checkout-cone-mode: true
+2026-10-09T03:55:46.1165240Z   fetch-depth: 1
+2026-10-09T03:55:46.1165610Z   fetch-tags: false
+2026-10-09T03:55:46.1165980Z   show-progress: true
+2026-10-09T03:55:46.1166370Z   lfs: false
+2026-10-09T03:55:46.1166750Z   submodules: false
+2026-10-09T03:55:46.1167200Z   set-safe-directory: true
+2026-10-09T03:55:46.1167630Z   allow-unsafe-pr-checkout: false
+2026-10-09T03:55:46.1168580Z ##[endgroup]
+2026-10-09T03:55:46.7308200Z Syncing repository: speechybubble/firstmate
+2026-10-09T03:55:46.7311910Z ##[group]Getting Git version info
+2026-10-09T03:55:46.7312830Z Working directory is '/Users/runner/work/firstmate/firstmate'
+2026-10-09T03:55:46.7313950Z [command]/opt/homebrew/bin/git version
+2026-10-09T03:55:46.7897870Z git version 2.55.0
+2026-10-09T03:55:46.7929920Z ##[endgroup]
+2026-10-09T03:55:46.7943490Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/d4b7f26a-4a7c-4760-8150-0c6a7e4d2e64/.gitconfig'
+2026-10-09T03:55:46.7948450Z Temporarily overriding HOME='/Users/runner/work/_temp/d4b7f26a-4a7c-4760-8150-0c6a7e4d2e64' before making global git config changes
+2026-10-09T03:55:46.7952300Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-09T03:55:46.7955850Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/firstmate/firstmate
+2026-10-09T03:55:46.8102890Z Deleting the contents of '/Users/runner/work/firstmate/firstmate'
+2026-10-09T03:55:46.8114000Z ##[group]Determining repository object format
+2026-10-09T03:55:46.8115620Z ##[endgroup]
+2026-10-09T03:55:46.8118660Z ##[group]Initializing the repository
+2026-10-09T03:55:46.8157860Z [command]/opt/homebrew/bin/git init /Users/runner/work/firstmate/firstmate
+2026-10-09T03:55:46.8529160Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-09T03:55:46.8550390Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-09T03:55:46.8599560Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-09T03:55:46.8606720Z hint: call:
+2026-10-09T03:55:46.8612920Z hint:
+2026-10-09T03:55:46.8616520Z hint: 	git config --global init.defaultBranch <name>
+2026-10-09T03:55:46.8617360Z hint:
+2026-10-09T03:55:46.8618020Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-09T03:55:46.8619140Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-09T03:55:46.8620090Z hint:
+2026-10-09T03:55:46.8620600Z hint: 	git branch -m <name>
+2026-10-09T03:55:46.8621180Z hint:
+2026-10-09T03:55:46.8621930Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-09T03:55:46.8623140Z Initialized empty Git repository in /Users/runner/work/firstmate/firstmate/.git/
+2026-10-09T03:55:46.8625090Z [command]/opt/homebrew/bin/git remote add origin https://github.com/speechybubble/firstmate
+2026-10-09T03:55:46.8711220Z ##[endgroup]
+2026-10-09T03:55:46.8716700Z ##[group]Disabling automatic garbage collection
+2026-10-09T03:55:46.8721510Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-10-09T03:55:46.8858500Z ##[endgroup]
+2026-10-09T03:55:46.8865310Z ##[group]Setting up auth
+2026-10-09T03:55:46.8866250Z Removing SSH command configuration
+2026-10-09T03:55:46.8924840Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-09T03:55:46.9053930Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-09T03:55:47.0571210Z Removing HTTP extra header
+2026-10-09T03:55:47.0574560Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-09T03:55:47.0739280Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-09T03:55:47.2717270Z Removing includeIf entries pointing to credentials config files
+2026-10-09T03:55:47.2822430Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-09T03:55:47.3130220Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-09T03:55:47.5227350Z [command]/opt/homebrew/bin/git config --file /Users/runner/work/_temp/git-credentials-27ab53b5-48bc-424a-a60b-ba47fe03172d.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-09T03:55:47.5498510Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/Users/runner/work/firstmate/firstmate/.git.path /Users/runner/work/_temp/git-credentials-27ab53b5-48bc-424a-a60b-ba47fe03172d.config
+2026-10-09T03:55:47.5578670Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/Users/runner/work/firstmate/firstmate/.git/worktrees/*.path /Users/runner/work/_temp/git-credentials-27ab53b5-48bc-424a-a60b-ba47fe03172d.config
+2026-10-09T03:55:47.5729630Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-27ab53b5-48bc-424a-a60b-ba47fe03172d.config
+2026-10-09T03:55:47.5869650Z [command]/opt/homebrew/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-27ab53b5-48bc-424a-a60b-ba47fe03172d.config
+2026-10-09T03:55:47.6008640Z ##[endgroup]
+2026-10-09T03:55:47.6010110Z ##[group]Fetching the repository
+2026-10-09T03:55:47.6018290Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +94517133fdc56cdd5cbd036245d6bb264e0d0942:refs/remotes/pull/8/merge
+2026-10-09T03:55:49.4159120Z From https://github.com/speechybubble/firstmate
+2026-10-09T03:55:49.4262500Z  * [new ref]         94517133fdc56cdd5cbd036245d6bb264e0d0942 -> pull/8/merge
+2026-10-09T03:55:49.4406110Z ##[endgroup]
+2026-10-09T03:55:49.4438360Z ##[group]Determining the checkout info
+2026-10-09T03:55:49.4466860Z ##[endgroup]
+2026-10-09T03:55:49.4472840Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-10-09T03:55:49.4498920Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-09T03:55:49.4549910Z ##[group]Checking out the ref
+2026-10-09T03:55:49.4552860Z [command]/opt/homebrew/bin/git checkout --progress --force refs/remotes/pull/8/merge
+2026-10-09T03:55:49.6666410Z HEAD is now at 9451713 Merge 8d6795e8934d929b528dfd743ad7bc326d602c29 into 444064df605dcdc31daeb49fd7a04b9b4814ad9c
+2026-10-09T03:55:49.6676930Z ##[endgroup]
+2026-10-09T03:55:49.6795000Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-10-09T03:55:49.6886780Z 94517133fdc56cdd5cbd036245d6bb264e0d0942
+2026-10-09T03:55:49.7286210Z ##[group]Run set -eu
+2026-10-09T03:55:49.7287590Z [36;1mset -eu[0m
+2026-10-09T03:55:49.7288460Z [36;1mcase "$BASH_VERSION" in[0m
+2026-10-09T03:55:49.7289540Z [36;1m  3.2.57*) ;;[0m
+2026-10-09T03:55:49.7291040Z [36;1m  *) echo "::error::expected stock macOS Bash 3.2.57, got $BASH_VERSION"; exit 1 ;;[0m
+2026-10-09T03:55:49.7292720Z [36;1mesac[0m
+2026-10-09T03:55:49.7293530Z [36;1m/bin/bash --version | head -1[0m
+2026-10-09T03:55:49.7295010Z [36;1mcommand -v jq >/dev/null || { echo "::error::jq is required"; exit 1; }[0m
+2026-10-09T03:55:49.7296560Z [36;1m[0m
+2026-10-09T03:55:49.7297690Z [36;1mshell_inventory="$RUNNER_TEMP/fm-shell-inventory"[0m
+2026-10-09T03:55:49.7299450Z [36;1mbin/fm-lint.sh --list-files > "$shell_inventory"[0m
+2026-10-09T03:55:49.7300750Z [36;1mparse_fail=0[0m
+2026-10-09T03:55:49.7301680Z [36;1mwhile IFS= read -r f; do[0m
+2026-10-09T03:55:49.7303460Z [36;1m  /bin/bash -n "$f" || { echo "::error::stock macOS Bash 3.2 failed to parse $f"; parse_fail=1; }[0m
+2026-10-09T03:55:49.7305160Z [36;1mdone < "$shell_inventory"[0m
+2026-10-09T03:55:49.7306770Z [36;1m[ "$parse_fail" -eq 0 ] || { echo "::error::stock macOS Bash 3.2 parse sweep failed"; exit 1; }[0m
+2026-10-09T03:55:49.7308520Z [36;1m[0m
+2026-10-09T03:55:49.7310010Z [36;1mcommand -v npm >/dev/null || { echo "::error::npm is required to install tasks-axi"; exit 1; }[0m
+2026-10-09T03:55:49.7311880Z [36;1mnpm install -g tasks-axi@0.2.6 >/dev/null[0m
+2026-10-09T03:55:49.7313190Z [36;1mPATH="$(npm prefix -g)/bin:$PATH"[0m
+2026-10-09T03:55:49.7314410Z [36;1mexport PATH[0m
+2026-10-09T03:55:49.7316240Z [36;1mcommand -v tasks-axi >/dev/null || { echo "::error::tasks-axi is required for the stock Bash regressions"; exit 1; }[0m
+2026-10-09T03:55:49.7318220Z [36;1m[0m
+2026-10-09T03:55:49.7319410Z [36;1msnapshot_output=$(/bin/bash tests/fm-fleet-snapshot-view.test.sh)[0m
+2026-10-09T03:55:49.7320930Z [36;1mprintf '%s\n' "$snapshot_output"[0m
+2026-10-09T03:55:49.7322450Z [36;1msnapshot_count=$(printf '%s\n' "$snapshot_output" | grep -c '^ok - ')[0m
+2026-10-09T03:55:49.7323950Z [36;1m[ "$snapshot_count" -eq 18 ] || {[0m
+2026-10-09T03:55:49.7326020Z [36;1m  echo "::error::expected 18 snapshot/fleet-view tests, got $snapshot_count"[0m
+2026-10-09T03:55:49.7327580Z [36;1m  exit 1[0m
+2026-10-09T03:55:49.7328630Z [36;1m}[0m
+2026-10-09T03:55:49.7329340Z [36;1m[0m
+2026-10-09T03:55:49.7330470Z [36;1mbearings_output=$(/bin/bash tests/fm-bearings-snapshot.test.sh)[0m
+2026-10-09T03:55:49.7331930Z [36;1mprintf '%s\n' "$bearings_output"[0m
+2026-10-09T03:55:49.7333290Z [36;1mbearings_count=$(printf '%s\n' "$bearings_output" | grep -c '^ok - ')[0m
+2026-10-09T03:55:49.7334760Z [36;1m[ "$bearings_count" -eq 60 ] || {[0m
+2026-10-09T03:55:49.7336150Z [36;1m  echo "::error::expected 60 Bearings tests, got $bearings_count"[0m
+2026-10-09T03:55:49.7337430Z [36;1m  exit 1[0m
+2026-10-09T03:55:49.7338160Z [36;1m}[0m
+2026-10-09T03:55:49.7338890Z [36;1m[0m
+2026-10-09T03:55:49.7340760Z [36;1m# The full public-followup suite is not a stock-bash snapshot; run only[0m
+2026-10-09T03:55:49.7342310Z [36;1m# the empty-lock register regression under real /bin/bash 3.2.[0m
+2026-10-09T03:55:49.7344330Z [36;1mpf_output=$(FM_TEST_ONLY=test_first_register_succeeds_with_empty_lock_list_under_bash32 \[0m
+2026-10-09T03:55:49.7346210Z [36;1m  /bin/bash tests/fm-public-followup.test.sh)[0m
+2026-10-09T03:55:49.7347380Z [36;1mprintf '%s\n' "$pf_output"[0m
+2026-10-09T03:55:49.7348560Z [36;1mpf_count=$(printf '%s\n' "$pf_output" | grep -c '^ok - ')[0m
+2026-10-09T03:55:49.7349660Z [36;1m[ "$pf_count" -eq 1 ] || {[0m
+2026-10-09T03:55:49.7351230Z [36;1m  echo "::error::expected 1 public-followup bash 3.2 register regression, got $pf_count"[0m
+2026-10-09T03:55:49.7352890Z [36;1m  exit 1[0m
+2026-10-09T03:55:49.7353590Z [36;1m}[0m
+2026-10-09T03:55:49.7354340Z [36;1m[0m
+2026-10-09T03:55:49.7355470Z [36;1m# Same shape for the watcher's churn-deferral regression: an already-[0m
+2026-10-09T03:55:49.7357740Z [36;1m# marked churn window expands an empty array that only stock Bash[0m
+2026-10-09T03:55:49.7359610Z [36;1m# treats as an unbound variable under set -u.[0m
+2026-10-09T03:55:49.7361320Z [36;1mchurn_output=$(FM_TEST_ONLY=test_turn_ended_churn_existing_marker_absorbed \[0m
+2026-10-09T03:55:49.7362890Z [36;1m  /bin/bash tests/fm-watch-triage.test.sh)[0m
+2026-10-09T03:55:49.7364120Z [36;1mprintf '%s\n' "$churn_output"[0m
+2026-10-09T03:55:49.7365430Z [36;1mchurn_count=$(printf '%s\n' "$churn_output" | grep -c '^ok - ')[0m
+2026-10-09T03:55:49.7366870Z [36;1m[ "$churn_count" -eq 1 ] || {[0m
+2026-10-09T03:55:49.7368500Z [36;1m  echo "::error::expected 1 watcher churn-deferral bash 3.2 regression, got $churn_count"[0m
+2026-10-09T03:55:49.7370160Z [36;1m  exit 1[0m
+2026-10-09T03:55:49.7370890Z [36;1m}[0m
+2026-10-09T03:55:49.7371570Z [36;1m[0m
+2026-10-09T03:55:49.7372810Z [36;1m# The fork-free hot-path helpers must stay byte-identical to the[0m
+2026-10-09T03:55:49.7376150Z [36;1m# commands they replace under stock Bash 3.2, which lacks the[0m
+2026-10-09T03:55:49.7378550Z [36;1m# printf %(...)T clock and falls back to date.[0m
+2026-10-09T03:55:49.7380030Z [36;1mhelpers_output=$(/bin/bash tests/fm-fork-free-helpers.test.sh)[0m
+2026-10-09T03:55:49.7381460Z [36;1mprintf '%s\n' "$helpers_output"[0m
+2026-10-09T03:55:49.7382770Z [36;1mhelpers_count=$(printf '%s\n' "$helpers_output" | grep -c '^ok - ')[0m
+2026-10-09T03:55:49.7384270Z [36;1m[ "$helpers_count" -eq 6 ] || {[0m
+2026-10-09T03:55:49.7385600Z [36;1m  echo "::error::expected 6 fork-free helper bash 3.2 regressions, got $helpers_count"[0m
+2026-10-09T03:55:49.7386910Z [36;1m  exit 1[0m
+2026-10-09T03:55:49.7387670Z [36;1m}[0m
+2026-10-09T03:55:49.7388360Z [36;1m[0m
+2026-10-09T03:55:49.7389390Z [36;1mbackend_output=$(FM_TEST_ONLY=test_backend_source_requires_adapter_file \[0m
+2026-10-09T03:55:49.7390830Z [36;1m  FM_TEST_BASH=/bin/bash \[0m
+2026-10-09T03:55:49.7392000Z [36;1m  /bin/bash tests/fm-backend.test.sh)[0m
+2026-10-09T03:55:49.7393170Z [36;1mprintf '%s\n' "$backend_output"[0m
+2026-10-09T03:55:49.7394530Z [36;1mbackend_count=$(printf '%s\n' "$backend_output" | grep -c '^ok - ')[0m
+2026-10-09T03:55:49.7395950Z [36;1m[ "$backend_count" -eq 2 ] || {[0m
+2026-10-09T03:55:49.7397540Z [36;1m  echo "::error::expected 2 backend adapter-file bash 3.2 regressions, got $backend_count"[0m
+2026-10-09T03:55:49.7399180Z [36;1m  exit 1[0m
+2026-10-09T03:55:49.7399910Z [36;1m}[0m
+2026-10-09T03:55:49.7405650Z shell: /bin/bash {0}
+2026-10-09T03:55:49.7406430Z env:
+2026-10-09T03:55:49.7407420Z   PATH: /bin:/usr/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin
+2026-10-09T03:55:49.7408680Z ##[endgroup]
+2026-10-09T03:55:49.8166900Z GNU bash, version 3.2.57(1)-release (arm64-apple-darwin25)
+2026-10-09T03:56:51.8835750Z ok - empty fleet snapshot and view use explicit absence markers
+2026-10-09T03:56:51.8841150Z ok - fixture snapshot covers task rows, backlog rows, pointers, stable ordering, and emission-time event age
+2026-10-09T03:56:51.8858330Z ok - home-summary excludes kind=secondmate from unowned_current and terminal_in_flight
+2026-10-09T03:56:51.8859150Z ok - undated captain holds age after a configurable threshold, decided only from structured fields
+2026-10-09T03:56:51.8861270Z ok - captain-hold buckets are total, mutually exclusive, and never decided by prose
+2026-10-09T03:56:51.8863280Z ok - main_inventory discloses orphan/unstructured and clears when inventory is consistent
+2026-10-09T03:56:51.8864070Z ok - backlog normalization preserves strict roles and resolves every blocker compatibly
+2026-10-09T03:56:51.8864670Z ok - snapshot event hints follow reconciled current state
+2026-10-09T03:56:51.8865340Z ok - durable fold keeps an open decision past a later unrelated event
+2026-10-09T03:56:51.8866010Z ok - a live secondmate endpoint preserves unrelated open decisions
+2026-10-09T03:56:51.8867140Z ok - durable captain-held transfer closes the duplicate live status decision
+2026-10-09T03:56:51.8899400Z ok - durable fold clears a decision only on a keyed resolution
+2026-10-09T03:56:51.8906680Z ok - a completed scout's stale decision surfaces as a report pointer, not pending
+2026-10-09T03:56:51.8921630Z ok - a scout still parked at a decision stays pending (terminal clear does not over-fire)
+2026-10-09T03:56:51.8923040Z ok - snapshot includes durable scout reports after teardown
+2026-10-09T03:56:51.8935230Z ok - snapshot parses tasks-axi rows and respects operational overrides
+2026-10-09T03:56:51.8937390Z ok - fleet view renders the snapshot without secondmate peek guidance
+2026-10-09T03:56:51.8940250Z ok - fleet view renders secondmate agent liveness
+2026-10-09T03:58:50.3011960Z not ok - unowned held child lost its classification or decisions: {
+2026-10-09T03:58:50.3013640Z   "schema": "fm-fleet-snapshot.v1",
+2026-10-09T03:58:50.3014590Z   "generated": "2026-07-11T18:00:00Z",
+2026-10-09T03:58:50.3015920Z   "fm_home": "/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/fm-bearings.u15uzX/child-state-classification",
+2026-10-09T03:58:50.3017620Z   "roots": {
+2026-10-09T03:58:50.3018760Z     "fm_root": "/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/fm-bearings.u15uzX/fixture-root",
+2026-10-09T03:58:50.3020630Z     "state": "/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/fm-bearings.u15uzX/child-state-classification/state",
+2026-10-09T03:58:50.3022640Z     "data": "/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/fm-bearings.u15uzX/child-state-classification/data",
+2026-10-09T03:58:50.3024790Z     "config": "/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/fm-bearings.u15uzX/child-state-classification/config",
+2026-10-09T03:58:50.3026880Z     "projects": "/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/fm-bearings.u15uzX/child-state-classification/projects"
+2026-10-09T03:58:50.3028290Z   },
+2026-10-09T03:58:50.3029830Z   "backlog": {
+2026-10-09T03:58:50.3031340Z     "path": "/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/fm-bearings.u15uzX/child-state-classification/data/backlog.md",
+2026-10-09T03:58:50.3032880Z     "present": false,
+2026-10-09T03:58:50.3033530Z     "records": []
+2026-10-09T03:58:50.3034190Z   },
+2026-10-09T03:58:50.3034640Z   "tasks": [],
+2026-10-09T03:58:50.3036160Z   "main_inventory": {
+2026-10-09T03:58:50.3036890Z     "valid": true,
+2026-10-09T03:58:50.3037410Z     "reason": null,
+2026-10-09T03:58:50.3038060Z     "orphan_in_flight": [],
+2026-10-09T03:58:50.3038700Z     "unstructured_current_count": 0
+2026-10-09T03:58:50.3039570Z   },
+2026-10-09T03:58:50.3039790Z   "contributions": {
+2026-10-09T03:58:50.3040090Z     "known": 0,
+2026-10-09T03:58:50.3040290Z     "checked": 0,
+2026-10-09T03:58:50.3040670Z     "counts": {
+2026-10-09T03:58:50.3040900Z       "captain": 0,
+2026-10-09T03:58:50.3041160Z       "fleet": 0,
+2026-10-09T03:58:50.3041370Z       "maintainer": 0,
+2026-10-09T03:58:50.3041650Z       "nobody": 0
+2026-10-09T03:58:50.3041910Z     },
+2026-10-09T03:58:50.3042100Z     "unmeasured": 0,
+2026-10-09T03:58:50.3042390Z     "complete": false,
+2026-10-09T03:58:50.3043680Z     "proven_clear": false,
+2026-10-09T03:58:50.3043990Z     "stale_verdicts": 0,
+2026-10-09T03:58:50.3044220Z     "missing_verdicts": 0,
+2026-10-09T03:58:50.3044630Z     "unreadable_records": 1,
+2026-10-09T03:58:50.3045060Z     "valid_until": 900,
+2026-10-09T03:58:50.3045330Z     "captain": [],
+2026-10-09T03:58:50.3045550Z     "captain_omitted": 0
+2026-10-09T03:58:50.3045820Z   },
+2026-10-09T03:58:50.3046100Z   "scout_reports": [],
+2026-10-09T03:58:50.3048630Z   "secondmate_current": {
+2026-10-09T03:58:50.3048880Z     "registry": {
+2026-10-09T03:58:50.3049220Z       "present": true,
+2026-10-09T03:58:50.3049500Z       "available": true,
+2026-10-09T03:58:50.3049840Z       "reason": null,
+2026-10-09T03:58:50.3050240Z       "provenance": "registered-table",
+2026-10-09T03:58:50.3050860Z       "path": "/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/fm-bearings.u15uzX/child-state-classification/data/secondmates.md",
+2026-10-09T03:58:50.3051570Z       "freshness": {
+2026-10-09T03:58:50.3052580Z         "status": "fresh",
+2026-10-09T03:58:50.3052910Z         "observed_at": "2026-07-11T18:00:00Z"
+2026-10-09T03:58:50.3053180Z       },
+2026-10-09T03:58:50.3053430Z       "records": [
+2026-10-09T03:58:50.3053630Z         {
+2026-10-09T03:58:50.3053850Z           "id": "states",
+2026-10-09T03:58:50.3054340Z           "home": "/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/fm-bearings.u15uzX/child-state-classification-home",
+2026-10-09T03:58:50.3054860Z           "host": null,
+2026-10-09T03:58:50.3055160Z           "root": null,
+2026-10-09T03:58:50.3055380Z           "remote": false,
+2026-10-09T03:58:50.3055680Z           "registered": true,
+2026-10-09T03:58:50.3055960Z           "registry_error": null
+2026-10-09T03:58:50.3056290Z         }
+2026-10-09T03:58:50.3056500Z       ],
+2026-10-09T03:58:50.3056780Z       "input_truncated": false,
+2026-10-09T03:58:50.3057340Z       "records_truncated": false,
+2026-10-09T03:58:50.3057590Z       "complete": true,
+2026-10-09T03:58:50.3058310Z       "reasons": [],
+2026-10-09T03:58:50.3058590Z       "lines_in_window": 1,
+2026-10-09T03:58:50.3058950Z       "records_in_window": 1
+2026-10-09T03:58:50.3059180Z     },
+2026-10-09T03:58:50.3059470Z     "records": [
+2026-10-09T03:58:50.3059670Z       {
+2026-10-09T03:58:50.3059890Z         "id": "states",
+2026-10-09T03:58:50.3060350Z         "home": "/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/fm-bearings.u15uzX/child-state-classification-home",
+2026-10-09T03:58:50.3060920Z         "host": null,
+2026-10-09T03:58:50.3061210Z         "remote": false,
+2026-10-09T03:58:50.3061490Z         "registered": true,
+2026-10-09T03:58:50.3061820Z         "spawn_gen": null,
+2026-10-09T03:58:50.3062120Z         "current": {
+2026-10-09T03:58:50.3062410Z           "state": "captain_decision",
+2026-10-09T03:58:50.3062900Z           "reason": "structured home state invalid: task metadata has no current backlog item or recorded completion: parked=parked"
+2026-10-09T03:58:50.3063550Z         },
+2026-10-09T03:58:50.3063780Z         "invalidity": {
+2026-10-09T03:58:50.3064100Z           "kind": "unowned_current",
+2026-10-09T03:58:50.3064360Z           "ids": [
+2026-10-09T03:58:50.3064620Z             "parked"
+2026-10-09T03:58:50.3064870Z           ]
+2026-10-09T03:58:50.3065120Z         },
+2026-10-09T03:58:50.3065430Z         "reconcile_inventory": {
+2026-10-09T03:58:50.3065710Z           "kind": "unowned_current",
+2026-10-09T03:58:50.3065990Z           "ids": [
+2026-10-09T03:58:50.3066200Z             "parked"
+2026-10-09T03:58:50.3066430Z           ]
+2026-10-09T03:58:50.3066620Z         },
+2026-10-09T03:58:50.3066860Z         "provenance": {
+2026-10-09T03:58:50.3067120Z           "selected": "structured-home",
+2026-10-09T03:58:50.3067710Z           "structured_home": "/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/fm-bearings.u15uzX/child-state-classification-home",
+2026-10-09T03:58:50.3068360Z           "summary_source": "local-ledger",
+2026-10-09T03:58:50.3068640Z           "summary_valid": false,
+2026-10-09T03:58:50.3069350Z           "trust": "partial-structured",
+2026-10-09T03:58:50.3069660Z           "parent_event_role": "historical-only"
+2026-10-09T03:58:50.3069980Z         },
+2026-10-09T03:58:50.3070190Z         "freshness": {
+2026-10-09T03:58:50.3070580Z           "status": "fresh",
+2026-10-09T03:58:50.3070850Z           "observed_at": "2026-07-11T18:00:00Z",
+2026-10-09T03:58:50.3071170Z           "age_seconds": 0
+2026-10-09T03:58:50.3071790Z         },
+2026-10-09T03:58:50.3072110Z         "active_children": [],
+2026-10-09T03:58:50.3072390Z         "decisions_open": [
+2026-10-09T03:58:50.3072610Z           {
+2026-10-09T03:58:50.3072840Z             "id": "parked",
+2026-10-09T03:58:50.3073080Z             "key": "parked",
+2026-10-09T03:58:50.3073370Z             "verb": "needs-decision",
+2026-10-09T03:58:50.3073620Z             "summary": "choose a route",
+2026-10-09T03:58:50.3073960Z             "reason": null,
+2026-10-09T03:58:50.3074280Z             "source": "status"
+2026-10-09T03:58:50.3074520Z           }
+2026-10-09T03:58:50.3075000Z         ],
+2026-10-09T03:58:50.3075240Z         "holds": [],
+2026-10-09T03:58:50.3075490Z         "queued": [],
+2026-10-09T03:58:50.3075810Z         "contributions": {
+2026-10-09T03:58:50.3076050Z           "known": 0,
+2026-10-09T03:58:50.3076290Z           "checked": 0,
+2026-10-09T03:58:50.3076490Z           "counts": {
+2026-10-09T03:58:50.3076800Z             "captain": 0,
+2026-10-09T03:58:50.3077050Z             "fleet": 0,
+2026-10-09T03:58:50.3077300Z             "maintainer": 0,
+2026-10-09T03:58:50.3077540Z             "nobody": 0
+2026-10-09T03:58:50.3077800Z           },
+2026-10-09T03:58:50.3077990Z           "unmeasured": 0,
+2026-10-09T03:58:50.3078260Z           "complete": true,
+2026-10-09T03:58:50.3078560Z           "proven_clear": true,
+2026-10-09T03:58:50.3078800Z           "stale_verdicts": 0,
+2026-10-09T03:58:50.3079120Z           "missing_verdicts": 0,
+2026-10-09T03:58:50.3079430Z           "unreadable_records": 0,
+2026-10-09T03:58:50.3079770Z           "valid_until": 900,
+2026-10-09T03:58:50.3080200Z           "captain": [],
+2026-10-09T03:58:50.3086910Z           "captain_omitted": 0
+2026-10-09T03:58:50.3087680Z         },
+2026-10-09T03:58:50.3089590Z         "landed": [],
+2026-10-09T03:58:50.3090850Z         "endpoints": [
+2026-10-09T03:58:50.3092010Z           {
+2026-10-09T03:58:50.3093500Z             "id": "parked",
+2026-10-09T03:58:50.3096130Z             "state": "parked",
+2026-10-09T03:58:50.3096880Z             "source": "status-log",
+2026-10-09T03:58:50.3097670Z             "endpoint": {
+2026-10-09T03:58:50.3100590Z               "target": "firstmate:fm-parked",
+2026-10-09T03:58:50.3101370Z               "exists": true,
+2026-10-09T03:58:50.3103530Z               "agent_alive": "not_checked",
+2026-10-09T03:58:50.3257650Z               "status": "unknown",
+2026-10-09T03:58:50.3257920Z               "observed_at": "2026-07-11T18:00:00Z",
+2026-10-09T03:58:50.3258220Z               "freshness": "fresh"
+2026-10-09T03:58:50.3258660Z             }
+2026-10-09T03:58:50.3258920Z           }
+2026-10-09T03:58:50.3259060Z         ],
+2026-10-09T03:58:50.3259240Z         "counts": {
+2026-10-09T03:58:50.3259490Z           "completed_retained": 0,
+2026-10-09T03:58:50.3259760Z           "active_children": 0,
+2026-10-09T03:58:50.3260070Z           "decisions_open": 1,
+2026-10-09T03:58:50.3260340Z           "holds": 0,
+2026-10-09T03:58:50.3260560Z           "queued": 0,
+2026-10-09T03:58:50.3260900Z           "landed": 0,
+2026-10-09T03:58:50.3261110Z           "endpoints": 1
+2026-10-09T03:58:50.3261300Z         },
+2026-10-09T03:58:50.3261510Z         "omitted": [],
+2026-10-09T03:58:50.3261720Z         "parent_event": {
+2026-10-09T03:58:50.3261930Z           "raw": "",
+2026-10-09T03:58:50.3262120Z           "note": "",
+2026-10-09T03:58:50.3262390Z           "age_seconds": null,
+2026-10-09T03:58:50.3262630Z           "open_activities": [],
+2026-10-09T03:58:50.3262880Z           "open_decisions": [],
+2026-10-09T03:58:50.3263120Z           "activity_scan": {
+2026-10-09T03:58:50.3263860Z             "records": [],
+2026-10-09T03:58:50.3264040Z             "available": true,
+2026-10-09T03:58:50.3264300Z             "input_truncated": false,
+2026-10-09T03:58:50.3264560Z             "retained_truncated": false,
+2026-10-09T03:58:50.3264820Z             "reasons": [],
+2026-10-09T03:58:50.3265040Z             "lines_in_window": 0,
+2026-10-09T03:58:50.3265310Z             "records_in_window": 0
+2026-10-09T03:58:50.3265590Z           },
+2026-10-09T03:58:50.3265800Z           "reconciliation": {
+2026-10-09T03:58:50.3266080Z             "provenance": "parent-status-keyed-fold",
+2026-10-09T03:58:50.3266390Z             "trust": "untrusted-supplement",
+2026-10-09T03:58:50.3266670Z             "activities": [],
+2026-10-09T03:58:50.3266890Z             "decisions": [],
+2026-10-09T03:58:50.3267070Z             "contradiction": false,
+2026-10-09T03:58:50.3267270Z             "inconclusive": false
+2026-10-09T03:58:50.3267540Z           }
+2026-10-09T03:58:50.3267750Z         },
+2026-10-09T03:58:50.3268250Z         "terminal_evidence": {
+2026-10-09T03:58:50.3268580Z           "provenance": "parent-direct-report-terminal",
+2026-10-09T03:58:50.3268930Z           "trust": "untrusted-supplement",
+2026-10-09T03:58:50.3269260Z           "captured": false,
+2026-10-09T03:58:50.3269580Z           "observed_at": "2026-07-11T18:00:00Z",
+2026-10-09T03:58:50.3269850Z           "freshness": "not-collected",
+2026-10-09T03:58:50.3270210Z           "reason": "no useful contradiction check",
+2026-10-09T03:58:50.3270530Z           "lines": 0,
+2026-10-09T03:58:50.3270850Z           "bytes": 0,
+2026-10-09T03:58:50.3271070Z           "event_note_seen": false,
+2026-10-09T03:58:50.3271490Z           "contradiction": false
+2026-10-09T03:58:50.3271760Z         },
+2026-10-09T03:58:50.3272030Z         "contradiction": false
+2026-10-09T03:58:50.3272210Z       }
+2026-10-09T03:58:50.3272370Z     ],
+2026-10-09T03:58:50.3272560Z     "total_registered": 1,
+2026-10-09T03:58:50.3272850Z     "total": 1,
+2026-10-09T03:58:50.3273000Z     "shown": 1,
+2026-10-09T03:58:50.3273150Z     "truncated": 0
+2026-10-09T03:58:50.3273410Z   },
+2026-10-09T03:58:50.3273660Z   "secondmate_landed": {
+2026-10-09T03:58:50.3273990Z     "records": [],
+2026-10-09T03:58:50.3274190Z     "truncated": [],
+2026-10-09T03:58:50.3274450Z     "unreadable": [],
+2026-10-09T03:58:50.3274650Z     "partial": [
+2026-10-09T03:58:50.3275130Z       "/private/var/folders/36/tjdph2t965j8snz9_vkdnw0r0000gn/T/fm-bearings.u15uzX/child-state-classification-home"
+2026-10-09T03:58:50.3275550Z     ]
+2026-10-09T03:58:50.3275760Z   },
+2026-10-09T03:58:50.3275950Z   "secondmate_guidance": {
+2026-10-09T03:58:50.3276600Z     "note": "For kind=secondmate, bearings selects validated structured state from that registered home; parent events and bounded terminal evidence are fallback-only supplements and never current-state authority."
+2026-10-09T03:58:50.3277380Z   }
+2026-10-09T03:58:50.3277550Z }
+2026-10-09T03:58:50.4000920Z ##[error]Process completed with exit code 1.
+2026-10-09T03:58:50.4180200Z Post job cleanup.
+2026-10-09T03:58:50.7932620Z [command]/opt/homebrew/bin/git version
+2026-10-09T03:58:50.8046820Z git version 2.55.0
+2026-10-09T03:58:50.8071350Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/13e1885b-9d7f-458d-b641-91243a866a89/.gitconfig'
+2026-10-09T03:58:50.8087970Z Temporarily overriding HOME='/Users/runner/work/_temp/13e1885b-9d7f-458d-b641-91243a866a89' before making global git config changes
+2026-10-09T03:58:50.8089690Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-09T03:58:50.8091930Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/firstmate/firstmate
+2026-10-09T03:58:50.8179230Z Removing SSH command configuration
+2026-10-09T03:58:50.8188030Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-09T03:58:50.9586490Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-09T03:58:51.2036740Z Removing HTTP extra header
+2026-10-09T03:58:51.2158140Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-09T03:58:51.2438670Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-09T03:58:51.4036450Z Removing includeIf entries pointing to credentials config files
+2026-10-09T03:58:51.4044070Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-09T03:58:51.4185160Z includeif.gitdir:/Users/runner/work/firstmate/firstmate/.git.path
+2026-10-09T03:58:51.4186480Z includeif.gitdir:/Users/runner/work/firstmate/firstmate/.git/worktrees/*.path
+2026-10-09T03:58:51.4187160Z includeif.gitdir:/github/workspace/.git.path
+2026-10-09T03:58:51.4187550Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-09T03:58:51.4200350Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/firstmate/firstmate/.git.path
+2026-10-09T03:58:51.4318130Z /Users/runner/work/_temp/git-credentials-27ab53b5-48bc-424a-a60b-ba47fe03172d.config
+2026-10-09T03:58:51.4330910Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/Users/runner/work/firstmate/firstmate/.git.path /Users/runner/work/_temp/git-credentials-27ab53b5-48bc-424a-a60b-ba47fe03172d.config
+2026-10-09T03:58:51.4476810Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/firstmate/firstmate/.git/worktrees/*.path
+2026-10-09T03:58:51.4623130Z /Users/runner/work/_temp/git-credentials-27ab53b5-48bc-424a-a60b-ba47fe03172d.config
+2026-10-09T03:58:51.4626730Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/Users/runner/work/firstmate/firstmate/.git/worktrees/*.path /Users/runner/work/_temp/git-credentials-27ab53b5-48bc-424a-a60b-ba47fe03172d.config
+2026-10-09T03:58:51.4774520Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-09T03:58:51.4906310Z /github/runner_temp/git-credentials-27ab53b5-48bc-424a-a60b-ba47fe03172d.config
+2026-10-09T03:58:51.4921570Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-27ab53b5-48bc-424a-a60b-ba47fe03172d.config
+2026-10-09T03:58:51.5085540Z [command]/opt/homebrew/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-09T03:58:51.5243920Z /github/runner_temp/git-credentials-27ab53b5-48bc-424a-a60b-ba47fe03172d.config
+2026-10-09T03:58:51.5276030Z [command]/opt/homebrew/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-27ab53b5-48bc-424a-a60b-ba47fe03172d.config
+2026-10-09T03:58:51.5453720Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-09T03:58:51.7259740Z Removing credentials config '/Users/runner/work/_temp/git-credentials-27ab53b5-48bc-424a-a60b-ba47fe03172d.config'
+2026-10-09T03:58:51.7578580Z Cleaning up orphan processes

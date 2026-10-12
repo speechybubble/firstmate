@@ -38,7 +38,13 @@
 # The ordinary warning also stays silent for the supervision branch
 # actor (FM_SUPERVISION_ACTOR=branch), because that actor runs guarded commands
 # while handling exactly the queued rows its grant covers and can drain nothing
-# else. Always exits 0: the guard warns, it never blocks.
+# else. The watcher-down banner and its reminder stay silent for that actor too,
+# and its calls leave the episode state alone: the branch never owns watcher
+# continuity (Pi main or the supervision host restarts the watcher once the
+# branch's turn ends, and a successor cycle that closed on a newer wake mid-turn
+# is that host's normal gap), while the repair line names the primary's own arm
+# command, which under a supervision host's primary pin is the host itself or
+# the plain arm. Always exits 0: the guard warns, it never blocks.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,6 +52,9 @@ FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
+if [ -f "$STATE/.codex-watch-error" ] && [ ! -L "$STATE/.codex-watch-error" ]; then
+  head -c 2048 "$STATE/.codex-watch-error" >&2
+fi
 WATCH="$SCRIPT_DIR/fm-watch.sh"
 GRACE=${FM_GUARD_GRACE:-300}
 queue_pending=false
@@ -201,8 +210,11 @@ fi
 
 # No fresh watcher with tasks in flight is the dangerous state: emit a prominent,
 # bordered banner FIRST so it reads as an alarm, not a buried stderr line. Later
-# calls in the same episode get a one-line reminder only.
-if [ "$watcher_healthy" = false ]; then
+# calls in the same episode get a one-line reminder only. The supervision branch
+# actor neither sees nor advances an episode (header).
+if [ "$GUARD_ACTOR" = branch ]; then
+  :
+elif [ "$watcher_healthy" = false ]; then
   episode_key=$(fm_guard_stale_episode_key "$watcher_down_reason")
   episode_key=${episode_key%$'\n'}
   print_full_banner=0

@@ -59,7 +59,9 @@ printf '%s\n' "$SNAPSHOT" | jq -r '
   def backlog_row($r):
     "| \($r.id // "-") | \(dash($r.title // $r.raw)) | \(dash($r.repo)) | \(dash($r.kind)) | \(blocker($r)) | \(dash($r.pr_url // $r.report_path // $r.local_note)) |";
 
-  "# Fleet View",
+  ([.tasks[] | select(.lifecycle.state == "completed_retained")]) as $retained
+  | .tasks |= map(select(.lifecycle.state != "completed_retained"))
+  | "# Fleet View",
   "",
   "Schema: \(.schema)",
   "Home: \(.fm_home)",
@@ -72,6 +74,9 @@ printf '%s\n' "$SNAPSHOT" | jq -r '
     "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     (.tasks[] | task_row(.))
    end),
+  "",
+  "## Completed retained",
+  ($retained[] | "- \(.id): \(.lifecycle.source)"),
   "",
   "## Queued",
   (if ([.backlog.records[]? | select(.state == "queued")] | length) == 0 then

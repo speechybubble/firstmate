@@ -1,0 +1,16 @@
+ok - unknown extension conformance section selectors fail before setup
+ok - the section coordinator propagates ordered failures and bounded cleanup
+not-autohandled: flow-source (left for the handler; still unacknowledged)
+not-autohandled: example-file (left for the handler; still unacknowledged)
+ok - one external adapter registers, invokes, captures unhandled evidence, classifies, and terminally retires end to end
+ok - the shipped file-signal package is a runnable end-to-end external adapter
+not-autohandled: remote-source (left for the handler; still unacknowledged)
+ok - register-extension and reconcile of an unhandled extension result take their locks in one order
+
+all extension-binding tests passed
+ok - serialized remote binding crosses fm-on through addressed-home capture and retirement
+
+all extension-binding tests passed
+not-autohandled: example-symlinked (left for the handler; still unacknowledged)
+not ok - inner host crash during result.silent wedged its runner before result.terminal
+not ok - an isolated extension conformance section failed

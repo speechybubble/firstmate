@@ -182,6 +182,11 @@ test_fixture_snapshot_json() {
       and (.actions.watch | contains("do not routinely fm-peek"))
   ' >/dev/null || fail "secondmate return-channel guidance missing"
   printf '%s' "$out" | jq -e '
+    .tasks[] | select(.id == "secondmate-task")
+    | .paths.status_log.last_event
+    | has("age_seconds") and .age_seconds == null
+  ' >/dev/null || fail "legacy event must have an explicit unknown age"
+  printf '%s' "$out" | jq -e '
     .tasks[] | select(.id == "cmux-task")
     | .backend == "cmux"
       and .paths.worktree.present == false
@@ -194,7 +199,60 @@ test_fixture_snapshot_json() {
     .backlog.records[] | select(.id == "done-task")
     | .state == "done" and .pr_url == "https://github.com/kunchenguid/firstmate/pull/7"
   ' >/dev/null || fail "done backlog PR row missing"
-  pass "fixture snapshot covers task rows, backlog rows, pointers, and stable ordering"
+
+  local line expected_age before after emitted epoch observed
+  printf 'secondmate-task\n' > "$home/secondmate-home/.fm-secondmate-home"
+  printf 'schema=fm-secondmate-parent.v1\nroute=local\nparent_home=%s\n' "$home" \
+    > "$home/secondmate-home/.fm-secondmate-parent"
+  before=$(date +%s)
+  FM_HOME="$home/secondmate-home" "$ROOT/bin/fm-secondmate-report.sh" \
+    'done' 0123456789abcdef 'audit complete' || fail "parent report failed"
+  after=$(date +%s)
+  emitted=$(tail -1 "$home/state/secondmate-task.status")
+  # shellcheck source=bin/fm-classify-lib.sh
+  . "$ROOT/bin/fm-classify-lib.sh"
+  epoch=$(status_line_at_epoch "$emitted") || fail "new parent report has unknown time"
+  [ "$epoch" -ge "$before" ] && [ "$epoch" -le "$after" ] \
+    || fail "parent report did not record emission time"
+  for line in "$emitted" 'working: legacy' 'working [at=1700000000]: timed' \
+    'working [at=1700000200]: future' 'working [at=oops]: malformed'; do
+    printf '%s\n\n' "$line" > "$home/state/secondmate-task.status"
+    # Deliberately unrelated file age must never substitute for event age.
+    touch -t 202001010000 "$home/state/secondmate-task.status"
+    expected_age=null; observed=1700000100
+    case "$line" in
+      "$emitted") expected_age=100; observed=$((epoch + 100)) ;;
+      *1700000000*) expected_age=100 ;;
+    esac
+    out=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_SNAPSHOT_NOW_EPOCH=$observed "$SNAPSHOT" --json)
+    printf '%s' "$out" | jq -e --argjson age "$expected_age" '
+      .tasks[] | select(.id == "secondmate-task")
+      | .paths.status_log.last_event
+      | has("age_seconds") and .age_seconds == $age
+        and (has("emitted_at_epoch") | not)
+    ' >/dev/null || fail "event age came from something other than the record: $line"
+    # parent_event age is the emission age; freshness is how old this snapshot's
+    # own observation of the file is, so the 2020 mtime must show up there and
+    # only there.
+    printf '%s' "$out" | jq -e --argjson age "$expected_age" '
+      .secondmate_current.records[] | select(.id == "secondmate-task")
+      | .current.state == "unknown"
+        and .parent_event.age_seconds == $age
+        and (.parent_event | has("emitted_at_epoch") | not)
+        and (.freshness.age_seconds | type) == "number"
+        and .freshness.age_seconds > 100000000
+    ' >/dev/null || fail "fallback confused event age, observation freshness, and current state: $line"
+    if [ "${FM_TEST_EVIDENCE:-0}" = 1 ]; then
+      printf '$ touch -t 202001010000 %s\n' "$home/state/secondmate-task.status"
+      printf '$ FM_HOME=%s FM_SNAPSHOT_NOW_EPOCH=%s bin/fm-fleet-snapshot.sh --json\n' "$home" "$observed"
+      printf '%s' "$out" | jq '{
+        last_event: (.tasks[] | select(.id == "secondmate-task") | .paths.status_log.last_event),
+        secondmate: (.secondmate_current.records[] | select(.id == "secondmate-task")
+          | {current, parent_event, freshness})
+      }'
+    fi
+  done
+  pass "fixture snapshot covers task rows, backlog rows, pointers, stable ordering, and emission-time event age"
 }
 
 # R1 owner contract: main_inventory discloses orphan in-flight and unstructured
@@ -1094,9 +1152,202 @@ EOF
   pass "home-summary excludes kind=secondmate from unowned_current and terminal_in_flight"
 }
 
+# One ship child per case, each in its own git worktree, and a no-mistakes that
+# answers each worktree's branch from $FM_HOME/nm/<branch>.status, the way the
+# real CLI answers the current branch.
+summary_states_child() {  # <home> <id> <outcome> <status-line> [<pr-url>]
+  local home=$1 id=$2 outcome=$3 line=$4 pr=${5:-} wt head
+  wt=$home/projects/$id
+  mkdir -p "$wt" "$home/nm"
+  git -C "$wt" init -q
+  git -C "$wt" -c user.email=t@e -c user.name=t commit -q --allow-empty -m init
+  git -C "$wt" checkout -q -b "fm/$id"
+  head=$(git -C "$wt" rev-parse HEAD)
+  cat > "$home/nm/fm_$id.status" <<EOF
+run:
+  id: "01$id"
+  branch: fm/$id
+  status: completed
+  head: "$head"
+  head_sha: "$head"
+  pr: "$pr"
+  findings: none
+outcome: $outcome
+EOF
+  printf 'count: 1 of 1 total\nruns[1]{id,branch,status,head,pr}:\n  "01%s",fm/%s,completed,%s,""\n' \
+    "$id" "$id" "${head:0:8}" > "$home/nm/fm_$id.overview"
+  fm_write_meta "$home/state/$id.meta" "window=firstmate:fm-$id" "worktree=$wt" \
+    "project=alpha" "harness=claude" "kind=ship" "mode=no-mistakes" ${pr:+"pr=$pr"}
+  record_claude_idle "$home/state" "$id"
+  printf '%s\n' "$line" > "$home/state/$id.status"
+}
+
+test_home_summary_accepts_awaiting_merge_and_held_failed_runs() {
+  local home fakebin out
+  home=$(make_home summary-states)
+  fakebin=$(make_fakebin "$home")
+  cat > "$fakebin/no-mistakes" <<'SH'
+#!/usr/bin/env bash
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0
+f="$FM_HOME/nm/${branch//\//_}"
+case "$*" in
+  axi) cat "$f.overview" 2>/dev/null ;;
+  "axi status"*) cat "$f.status" 2>/dev/null ;;
+esac
+exit 0
+SH
+  # The forge reports pull/13 merged and cannot read any other PR, so a passed
+  # run's PR state stays unproven.
+  cat > "$fakebin/gh" <<'SH'
+#!/usr/bin/env bash
+case "$*" in *number=13*) printf 'state=MERGED\nmerged=true\n'; exit 0 ;; esac
+exit 1
+SH
+  chmod +x "$fakebin/no-mistakes" "$fakebin/gh"
+  cat > "$home/data/backlog.md" <<'EOF'
+## In flight
+- [ ] ready - Ready for merge (repo: alpha) (kind: ship) (since 2026-07-11)
+- [ ] paused-failed - Paused after a failed run (repo: alpha) (kind: ship) (since 2026-07-11)
+- [ ] held-failed - Held after a failed run (repo: alpha) (kind: ship) (hold: keep stopped) (hold-kind: captain) (since 2026-07-11)
+- [ ] unproven - Passed with an unreadable PR (repo: alpha) (kind: ship) (since 2026-07-11)
+- [ ] failed-open - Failed with no hold (repo: alpha) (kind: ship) (since 2026-07-11)
+- [ ] merged - Passed with a merged PR (repo: alpha) (kind: ship) (since 2026-07-11)
+- [ ] no-pr - Ready for review without a recorded PR (repo: alpha) (kind: ship) (since 2026-07-11)
+
+## Queued
+
+## Done
+EOF
+  summary_states_child "$home" ready checks-passed 'working: validating' https://github.com/o/r/pull/11
+  summary_states_child "$home" paused-failed failed 'paused: custody accepted, waiting for release'
+  summary_states_child "$home" held-failed failed 'working: validating'
+  summary_states_child "$home" unproven passed 'working: validating' https://github.com/o/r/pull/12
+  summary_states_child "$home" failed-open failed 'working: validating'
+  summary_states_child "$home" merged passed 'working: validating' https://github.com/o/r/pull/13
+  summary_states_child "$home" no-pr checks-passed 'working: validating'
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
+  printf '%s' "$out" | jq -e '
+    .valid == false
+      and .invalidity.kind == "terminal_in_flight"
+      and (.invalidity.ids | sort) == ["failed-open","merged","no-pr","unproven"]
+      and (.reason | contains("unproven=done")) and (.reason | contains("failed-open=failed"))
+      and (.reason | contains("merged=done")) and (.reason | contains("no-pr=done"))
+      and ([.awaiting_merge[] | {id,pr_url}] == [{id:"ready",pr_url:"https://github.com/o/r/pull/11"}])
+      and (.awaiting_merge[0].detail | startswith("checks green: PR ready for review"))
+      and ([.held_failed_runs[] | {id,source}] | sort_by(.id))
+          == [{id:"held-failed",source:"backlog"},{id:"paused-failed",source:"status"}]
+      and (.held_failed_runs[] | select(.id == "paused-failed") | .reason)
+          == "paused: custody accepted, waiting for release"
+      and .counts.awaiting_merge == 1 and .counts.held_failed_runs == 2
+  ' >/dev/null || fail "summary did not separate expected terminal states from contradictions: $out"
+
+  # Without the contradictions the home is valid again, and the accepted
+  # children stay visible in their own states.
+  rm -f "$home/state/unproven."* "$home/state/failed-open."* "$home/state/merged."* "$home/state/no-pr."*
+  grep -Ev '^- \[ \] (unproven|failed-open|merged|no-pr) ' "$home/data/backlog.md" > "$home/data/backlog.md.tmp"
+  mv "$home/data/backlog.md.tmp" "$home/data/backlog.md"
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
+  printf '%s' "$out" | jq -e '
+    .valid == true and .reason == null and .invalidity == {kind:null,ids:[]}
+      and [.awaiting_merge[].id] == ["ready"]
+      and ([.held_failed_runs[].id] | sort) == ["held-failed","paused-failed"]
+  ' >/dev/null || fail "expected terminal states alone must leave the summary valid: $out"
+  pass "home-summary lists PRs awaiting merge and held failed runs instead of invalidating"
+}
+
+# A real home's ready-PR read pays several sequential no-mistakes answers. Each
+# one answers within crew-state's own per-call bound, yet together they take
+# longer than ten seconds; the default per-task snapshot bound must leave room
+# for that, or the child folds to unknown and the whole summary is invalid.
+test_home_summary_default_bound_covers_a_slow_ready_pr_read() {
+  local home fakebin out started elapsed
+  home=$(make_home summary-slow-read)
+  fakebin=$(make_fakebin "$home")
+  cat > "$fakebin/no-mistakes" <<'SH'
+#!/usr/bin/env bash
+sleep 4
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0
+f="$FM_HOME/nm/${branch//\//_}"
+case "$*" in
+  axi) cat "$f.overview" 2>/dev/null ;;
+  "axi status"*) cat "$f.status" 2>/dev/null ;;
+esac
+exit 0
+SH
+  printf '#!/usr/bin/env bash\nexit 1\n' > "$fakebin/gh"
+  chmod +x "$fakebin/no-mistakes" "$fakebin/gh"
+  cat > "$home/data/backlog.md" <<'EOF'
+## In flight
+- [ ] slow-ready - Ready for merge behind a slow CLI (repo: alpha) (kind: ship) (since 2026-07-11)
+
+## Queued
+
+## Done
+EOF
+  summary_states_child "$home" slow-ready checks-passed 'working: validating' https://github.com/o/r/pull/21
+  started=$(date +%s)
+  out=$(env -u FM_SNAPSHOT_CREW_STATE_TIMEOUT PATH="$fakebin:$PATH" FM_HOME="$home" \
+    "$SNAPSHOT" --secondmate-home-summary)
+  elapsed=$(( $(date +%s) - started ))
+  [ "$elapsed" -gt 10 ] || fail "fixture read finished in ${elapsed}s, so it no longer exceeds the old ten-second bound"
+  printf '%s' "$out" | jq -e '
+    .valid == true and [.awaiting_merge[].id] == ["slow-ready"]
+  ' >/dev/null || fail "default snapshot bound cut off a slow ready-PR read (${elapsed}s): $out"
+  pass "home-summary default per-task bound covers a slow ready-PR read"
+}
+
+# A held or declared-paused child whose worker is deliberately not running reads
+# unknown; that is a hold, while an unknown child with neither stays unavailable.
+test_home_summary_lists_held_unknown_children_as_holds() {
+  local home fakebin out
+  home=$(make_home summary-held-unknown)
+  fakebin=$(make_fakebin "$home")
+  # Every current-state read outlasts the snapshot bound, so each child reads unknown.
+  printf '#!/usr/bin/env bash\nsleep 6\nexit 0\n' > "$fakebin/no-mistakes"
+  chmod +x "$fakebin/no-mistakes"
+  cat > "$home/data/backlog.md" <<'EOF'
+## In flight
+- [ ] held-stopped - Held with no running worker (repo: alpha) (kind: scout) (hold: maintenance stop) (hold-kind: external) (since 2026-07-11)
+- [ ] paused-stopped - Paused with no running worker (repo: alpha) (kind: scout) (since 2026-07-11)
+- [ ] lost-stopped - Unknown with no hold (repo: alpha) (kind: scout) (since 2026-07-11)
+
+## Queued
+
+## Done
+EOF
+  summary_states_child "$home" held-stopped failed 'working: reading'
+  summary_states_child "$home" paused-stopped failed 'paused: waiting for the maintenance release'
+  summary_states_child "$home" lost-stopped failed 'working: reading'
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_SNAPSHOT_CREW_STATE_TIMEOUT=2 \
+    "$SNAPSHOT" --secondmate-home-summary)
+  printf '%s' "$out" | jq -e '
+    ([.endpoints[] | select(.state == "unknown") | .id] | sort) == ["held-stopped","lost-stopped","paused-stopped"]
+      and .valid == false
+      and .invalidity == {kind:"child_current_unavailable",ids:["lost-stopped"]}
+      and .reason == "child current state unavailable: lost-stopped"
+      and ([.holds[] | select(.id == "held-stopped") | .source] == ["backlog"])
+      and ([.holds[] | select(.id == "paused-stopped") | {source,reason}]
+           == [{source:"child-state",reason:"paused: waiting for the maintenance release"}])
+  ' >/dev/null || fail "held or paused unknown children must be holds while an unheld unknown child stays unavailable: $out"
+
+  rm -f "$home/state/lost-stopped."*
+  grep -v '^- \[ \] lost-stopped ' "$home/data/backlog.md" > "$home/data/backlog.md.tmp"
+  mv "$home/data/backlog.md.tmp" "$home/data/backlog.md"
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_SNAPSHOT_CREW_STATE_TIMEOUT=2 \
+    "$SNAPSHOT" --secondmate-home-summary)
+  printf '%s' "$out" | jq -e '
+    .valid == true and .invalidity == {kind:null,ids:[]} and .state == "externally_held"
+      and ([.holds[].id] | sort) == ["held-stopped","paused-stopped"]
+  ' >/dev/null || fail "a home whose only unknown children are held must stay valid and externally held: $out"
+  pass "home-summary lists held or paused unknown children as holds"
+}
+
 test_empty_fleet_json
 test_fixture_snapshot_json
 test_home_summary_excludes_secondmate_from_child_inventory
+test_home_summary_accepts_awaiting_merge_and_held_failed_runs
+test_home_summary_default_bound_covers_a_slow_ready_pr_read
+test_home_summary_lists_held_unknown_children_as_holds
 test_undated_captain_hold_phrasing_and_aging
 test_hold_buckets_are_total_and_text_blind
 test_main_inventory_orphan_and_unstructured_disclosure

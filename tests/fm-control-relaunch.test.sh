@@ -25,6 +25,8 @@ set -u
 . "$ROOT/bin/fm-control-lib.sh"
 # shellcheck source=/dev/null
 . "$ROOT/bin/fm-trace-context-lib.sh"
+# shellcheck source=/dev/null
+. "$ROOT/bin/fm-tasks-axi-lib.sh"
 
 CONTROL="$ROOT/bin/fm-control.sh"
 SPAWN="$ROOT/bin/fm-spawn.sh"
@@ -37,13 +39,19 @@ TMP_ROOT=$(fm_test_tmproot fm-control-relaunch)
 mkdir -p "$TMP_ROOT"
 TMP_ROOT=$(cd "$TMP_ROOT" && pwd)
 TASK_TMPS=()
+OWNER_PIDS=()
 
 relaunch_cleanup() {
   local d
+  for d in "${OWNER_PIDS[@]:-}"; do
+    [ -n "$d" ] && kill "$d" 2>/dev/null
+  done
   for d in "${TASK_TMPS[@]:-}"; do
     [ -n "$d" ] && rm -rf "$d"
   done
-  rm -rf "$TMP_ROOT"
+  # A relaunch leaves read-only per-task git hook directories, which a plain
+  # rm -rf cannot empty.
+  fm_test_remove_tree "$TMP_ROOT"
 }
 trap relaunch_cleanup EXIT
 
@@ -70,13 +78,28 @@ case "${1:-}" in
     done
     payload=${1:-}
     if [ "$literal" = 1 ]; then
+      case "$payload" in
+        ". '"*"'") staged=${payload#". '"}; staged=${staged%"'"}; [ ! -f "$staged" ] || payload=$(cat "$staged") ;;
+      esac
       printf '%s\n' "$payload" >> "$D/literal"
       case "$payload" in
         /exit|/quit)
           printf 'zsh' > "$D/command"
+          # A stand-in Claude process that owns a session record stops with
+          # the agent it models (claude_owner_fixture).
+          if [ -s "$D/owner-pids" ]; then
+            while read -r owner; do
+              kill "$owner" 2>/dev/null
+              for _ in 1 2 3 4 5 6 7 8 9 10; do
+                kill -0 "$owner" 2>/dev/null || break
+                /bin/sleep 0.05
+              done
+            done < "$D/owner-pids"
+            : > "$D/owner-pids"
+          fi
           [ -z "${FM_FAKE_EXIT_TRANSPORT_FAIL_AFTER_STOP:-}" ] || exit 1
           ;;
-        *'encode launch-brief'*)
+        *'encode launch-brief'* | *'Firstmate operational input waiting: read'* | *' --resume '*)
           cat "$D/becomes" > "$D/command"
           [ -z "${FM_FAKE_LAUNCH_TRANSPORT_FAIL_AFTER_START:-}" ] || exit 1
           ;;
@@ -101,6 +124,7 @@ case "${1:-}" in
       case "$a" in
         *cursor_y*) printf '1\n'; exit 0 ;;
         *pane_current_command*) cat "$D/command"; printf '\n'; exit 0 ;;
+        *pane_pid*) [ ! -s "$D/pane-pid" ] || cat "$D/pane-pid"; printf '\n'; exit 0 ;;
         *pane_current_path*)
           if [ -n "${FM_FAKE_CWD_RACE_READY:-}" ]; then
             : > "$FM_FAKE_CWD_RACE_READY"
@@ -118,7 +142,53 @@ case "${1:-}" in
       printf '╭────╮\n│    │\n╰────╯\n'
     fi
     exit 0 ;;
-  list-windows) [ -f "$D/windows" ] && cat "$D/windows"; exit 0 ;;
+  list-windows)
+    # The three shapes real tmux answers a per-session inventory with. The
+    # first two are DEFINITIVE and classify `missing`; the third is not and
+    # classifies `unreadable`.
+    if [ -f "$D/server-dead" ]; then
+      echo 'no server running on /tmp/tmux-1000/default' >&2
+      exit 1
+    fi
+    if [ -f "$D/session-missing" ]; then
+      echo "can't find session: $(cat "$D/session-name")" >&2
+      exit 1
+    fi
+    if [ -f "$D/inventory-broken" ]; then
+      echo 'lost server' >&2
+      exit 1
+    fi
+    [ -f "$D/windows" ] && cat "$D/windows"; exit 0 ;;
+  new-session)
+    # Nothing in the relaunch path may ever create a session; recording the
+    # call is how a refusal test proves that.
+    shift
+    ses=
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -s) ses=${2:-}; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    printf '%s\n' "$ses" >> "$D/created-sessions"
+    exit 0 ;;
+  new-window)
+    # Model the one thing an endpoint re-creation depends on: the window now
+    # appears in the session inventory, so the very next agent-state read stops
+    # answering `missing`. Echo a stable window id the way the real -P -F does.
+    shift
+    name=
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        -n) name=${2:-}; shift 2 ;;
+        -c|-t) shift 2 ;;
+        *) shift ;;
+      esac
+    done
+    printf '%s\n' "$name" >> "$D/windows"
+    printf '%s\n' "$name" >> "$D/created-windows"
+    printf '@9\n'
+    exit 0 ;;
 esac
 exit 0
 SH
@@ -140,13 +210,14 @@ new_case() {
   printf 'claude' > "$dir/fake/command"
   printf 'claude' > "$dir/fake/becomes"
   printf '%s\n' "fm-$id" > "$dir/fake/windows"
+  printf '%s' fmses > "$dir/fake/session-name"
   make_tmux_stub "$dir"
   printf '%s\n' "$dir"
 }
 
-# add_ship_task <case-dir> <id> [harness]
+# add_ship_task <case-dir> <id> [harness] [session]
 add_ship_task() {
-  local dir=$1 id=$2 harness=${3:-claude}
+  local dir=$1 id=$2 harness=${3:-claude} ses=${4:-fmses}
   local home="$dir/home" proj="$dir/proj" wt="$dir/wt"
   fm_git_worktree "$proj" "$wt" "task-$id"
   mkdir -p "$home/data/$id"
@@ -159,7 +230,7 @@ Exercise relaunch behavior for $id.
 Preserve the task while replacing its agent process.
 EOF
   {
-    echo "window=fmses:fm-$id"
+    echo "window=$ses:fm-$id"
     echo "endpoint_task_id=$id"
     echo "worktree=$wt"
     echo "project=$proj"
@@ -172,6 +243,7 @@ EOF
     echo "effort=default"
   } > "$home/state/$id.meta"
   printf '%s\n' "fm-$id" > "$dir/fake/windows"
+  printf '%s' "$ses" > "$dir/fake/session-name"
   printf '%s' "$wt" > "$dir/fake/cwd"
   TASK_TMPS+=("/tmp/fm-$id")
 }
@@ -182,7 +254,9 @@ run_control() {  # <case-dir> <args...>
   # store (bin/fm-claude-trust.sh), and a relaunch reaches it through fm-control.sh, so this runs against a throwaway HOME;
   # without it this suite would write the developer's real ~/.claude.json.
   mkdir -p "$dir/user-home"
-  env PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_FAKE_DIR="$dir/fake" \
+  env -u HERDR_ENV -u HERDR_PANE_ID -u HERDR_SESSION -u HERDR_SOCKET_PATH \
+    -u HERDR_TAB_ID -u HERDR_WORKSPACE_ID \
+    PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_FAKE_DIR="$dir/fake" \
     HOME="$dir/user-home" CLAUDE_CONFIG_DIR='' \
     FM_SPAWN_NO_GUARD=1 GROK_HOME="$dir/grokhome" \
     FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 \
@@ -202,7 +276,9 @@ run_spawn() {  # <case-dir> <args...>
   # store (bin/fm-claude-trust.sh), so it runs against a throwaway HOME;
   # without it this suite would write the developer's real ~/.claude.json.
   mkdir -p "$dir/user-home"
-  env PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_FAKE_DIR="$dir/fake" \
+  env -u HERDR_ENV -u HERDR_PANE_ID -u HERDR_SESSION -u HERDR_SOCKET_PATH \
+    -u HERDR_TAB_ID -u HERDR_WORKSPACE_ID \
+    PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_FAKE_DIR="$dir/fake" \
     HOME="$dir/user-home" CLAUDE_CONFIG_DIR='' \
     FM_SPAWN_NO_GUARD=1 GROK_HOME="$dir/grokhome" \
     "$SPAWN" "$@" 2>&1
@@ -328,7 +404,9 @@ test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint() {
   [ "$(journal_field "$dir" rl1 phase)" = complete ] \
     || fail "the transaction journal should end complete"
   assert_grep "/exit" "$dir/fake/literal" "the previous agent should have been exited"
-  assert_grep "encode launch-brief" "$dir/fake/literal" "the replacement should have been launched"
+  assert_grep "cd -- '$dir/wt'" "$dir/fake/keys" "the replacement launch must enter the recorded worktree"
+  assert_grep "Firstmate operational input waiting: read" "$dir/fake/literal" "the replacement should have been launched"
+  assert_no_grep " --resume " "$dir/fake/literal" "an ordinary relaunch must start a fresh session"
   pass "fm-control relaunch: a same-harness relaunch replaces the agent in the same endpoint and worktree"
 }
 
@@ -704,6 +782,106 @@ test_native_ultra_relaunch_preserves_profile_and_rejects_before_stop() {
   pass "native Ultra relaunch preserves its profile and rejects an unsupported model before stopping"
 }
 
+# A fake claude that answers `claude auth status` the way the real runner
+# does: signed in only when the selected config root holds a stored login.
+make_claude_auth_stub() {  # <case-dir>
+  cat > "$1/fakebin/claude" <<'SH'
+#!/usr/bin/env bash
+[ "${1:-}" = auth ] && [ "${2:-}" = status ] || exit 0
+[ -f "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.credentials.json" ]
+SH
+  chmod +x "$1/fakebin/claude"
+}
+
+test_signed_out_worker_account_pin_refuses_before_stop() {
+  local dir out rc id=rl-acct-out
+  dir=$(new_case acct-out "$id")
+  add_ship_task "$dir" "$id" claude
+  make_claude_auth_stub "$dir"
+  mkdir -p "$dir/home/config" "$dir/work"
+  printf '%s\n' "$dir/work" > "$dir/home/config/claude-account"
+  cp "$dir/home/state/$id.meta" "$dir/meta-before"
+  out=$(run_control "$dir" "$id" relaunch --note "account signed out"); rc=$?
+  expect_code 1 "$rc" "a relaunch under a signed-out account pin must refuse"
+  assert_contains "$out" "config/claude-account pins Claude workers to $dir/work, which is not signed in" \
+    "the refusal should name the pin and the signed-out root"
+  [ "$(cat "$dir/fake/command")" = claude ] || fail "a signed-out pin must refuse before the running agent stops"
+  [ ! -s "$dir/fake/literal" ] || fail "a signed-out pin must refuse before any lifecycle input is sent"
+  cmp -s "$dir/meta-before" "$dir/home/state/$id.meta" || fail "a refused relaunch must leave the task record untouched"
+  pass "fm-control relaunch: a signed-out worker account pin refuses before the old agent stops"
+}
+
+test_worker_account_pin_follows_the_relaunch() {
+  local dir out rc id=rl-acct
+  dir=$(new_case acct "$id")
+  add_ship_task "$dir" "$id" claude
+  make_claude_auth_stub "$dir"
+  mkdir -p "$dir/home/config" "$dir/work"
+  : > "$dir/work/.credentials.json"
+  printf '%s\n' "$dir/work" > "$dir/home/config/claude-account"
+  out=$(run_control "$dir" "$id" relaunch --note "pinned account"); rc=$?
+  expect_code 0 "$rc" "a relaunch under a signed-in account pin should succeed"$'\n'"$out"
+  [ "$(meta_field "$dir" "$id" account)" = "$dir/work" ] || fail "the relaunched record should carry the pinned account"
+  assert_contains "$(cat "$dir/fake/literal")" "CLAUDE_CONFIG_DIR='$dir/work'" \
+    "the replacement should launch under the pinned root"
+  rm "$dir/home/config/claude-account"
+  : > "$dir/fake/literal"
+  out=$(run_control "$dir" "$id" relaunch --note "pin removed"); rc=$?
+  expect_code 0 "$rc" "a relaunch after the pin is removed should succeed"$'\n'"$out"
+  assert_no_grep "account=" "$dir/home/state/$id.meta" "a relaunch without a pin must drop the previous account from the record"
+  assert_not_contains "$(cat "$dir/fake/literal")" "CLAUDE_CONFIG_DIR=" \
+    "an unpinned replacement must launch exactly as before"
+  pass "fm-control relaunch: the replacement follows the home's current worker account pin"
+}
+
+test_pi_exclude_tools_follow_the_relaunch() {
+  local dir out rc id=rl-pi-excl
+  dir=$(new_case pi-exclude "$id")
+  add_ship_task "$dir" "$id" pi
+  printf pi > "$dir/fake/command"
+  printf pi > "$dir/fake/becomes"
+  printf '#!/usr/bin/env bash\nprintf "Options: --tui-mode\\n"\n' > "$dir/fakebin/pi"
+  chmod +x "$dir/fakebin/pi"
+  mkdir -p "$dir/home/config"
+  printf '%s\n' '# hide writes' 'mcp__srv__writeTool' 'mcp__srv__adminTool' > "$dir/home/config/crew-exclude-tools"
+  out=$(run_control "$dir" "$id" relaunch --note "keep exclusions"); rc=$?
+  expect_code 0 "$rc" "a Pi relaunch with exclusions should succeed"$'\n'"$out"
+  assert_contains "$(cat "$dir/fake/literal")" "--exclude-tools 'mcp__srv__writeTool,mcp__srv__adminTool'" \
+    "the relaunched Pi worker must keep the home's tool exclusions"
+  rm "$dir/home/config/crew-exclude-tools"
+  : > "$dir/fake/literal"
+  printf pi > "$dir/fake/command"
+  out=$(run_control "$dir" "$id" relaunch --note "exclusions removed"); rc=$?
+  expect_code 0 "$rc" "a Pi relaunch after the file is removed should succeed"$'\n'"$out"
+  assert_not_contains "$(cat "$dir/fake/literal")" "--exclude-tools" \
+    "a relaunch without the file must launch with no exclusions"
+  pass "fm-control relaunch: a Pi replacement keeps the home's tool exclusions"
+}
+
+test_exclude_tools_refusals_happen_before_the_agent_stops() {
+  local dir out rc id=rl-excl-refuse
+  dir=$(new_case excl-refuse "$id")
+  add_ship_task "$dir" "$id" pi
+  printf pi > "$dir/fake/command"
+  printf pi > "$dir/fake/becomes"
+  printf '#!/usr/bin/env bash\nprintf "Options: --tui-mode\\n"\n' > "$dir/fakebin/pi"
+  chmod +x "$dir/fakebin/pi"
+  mkdir -p "$dir/home/config"
+  printf '%s\n' 'two words' > "$dir/home/config/crew-exclude-tools"
+  out=$(run_control "$dir" "$id" relaunch --note "bad list"); rc=$?
+  expect_code 1 "$rc" "a malformed exclusion list must refuse the relaunch"
+  assert_contains "$out" "config/crew-exclude-tools has a malformed entry" "refusal must name the entry"
+  [ "$(cat "$dir/fake/command")" = pi ] || fail "a malformed exclusion list stopped the running agent"
+  [ ! -s "$dir/fake/literal" ] || fail "a refused relaunch sent lifecycle input"
+  printf '%s\n' 'mcp__srv__writeTool' > "$dir/home/config/crew-exclude-tools"
+  out=$(run_control "$dir" "$id" relaunch --harness codex --note "switch runtime"); rc=$?
+  expect_code 1 "$rc" "relaunching onto a runtime that cannot hide tools must refuse"
+  assert_contains "$out" "config/crew-exclude-tools" "refusal must name the config file"
+  [ "$(cat "$dir/fake/command")" = pi ] || fail "an unhonorable exclusion list stopped the running agent"
+  [ ! -s "$dir/fake/literal" ] || fail "a refused relaunch sent lifecycle input"
+  pass "fm-control relaunch: exclusion-list refusals happen before the running agent stops"
+}
+
 test_explicit_model_wins_over_the_recorded_one() {
   local dir out rc
   dir=$(new_case explicit rl7)
@@ -757,7 +935,7 @@ test_wiring_removal_failure_refuses_before_replacement_arm() {
   assert_contains "$out" "could not retire claude wiring" \
     "the failure should identify prior wiring cleanup"
   [ -e "$hook" ] || fail "the fixture should retain the undeletable prior hook"
-  assert_no_grep "encode launch-brief" "$dir/fake/literal" \
+  assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
     "replacement launch must not be armed after wiring cleanup fails"
   [ "$(journal_field "$dir" rl29 phase)" = failed:launching ] \
     || fail "the transaction should record the partial launch failure"
@@ -968,6 +1146,25 @@ test_spawn_relaunch_without_a_harness_reuses_the_recorded_one() {
     || fail "fm-spawn --relaunch without --harness must reuse the recorded harness, got '$(meta_field "$dir" rl21 harness)'"
   assert_contains "$out" "spawned rl21 harness=claude" "the launch should report the recorded harness"
   pass "fm-spawn --relaunch: with no explicit harness it reuses the task's recorded one, never the crew default"
+}
+
+# A promoted scout records kind=ship and a custom ship branch in its meta, but
+# its brief is the scout scaffold: it never gained a Ship branch line, and a
+# relaunch cannot regenerate the brief (--branch-prefix is refused there). The
+# recorded branch is authoritative, so the relaunch must proceed on it.
+test_spawn_relaunch_of_promoted_scout_uses_the_recorded_branch() {
+  local dir out
+  dir=$(new_case promotebranch rl42)
+  add_ship_task "$dir" rl42 claude
+  printf 'branch=fix/rl42\n' >> "$dir/home/state/rl42.meta"
+  printf 'zsh' > "$dir/fake/command"
+  out=$(run_spawn "$dir" rl42 --relaunch)
+  assert_contains "$out" "spawned rl42" "the relaunch should complete on the recorded branch"
+  assert_contains "$out" "records no ship branch" "the brief gap should be reported, not silent"
+  assert_contains "$out" "recorded branch fix/rl42" "the relaunch should name the branch it adopted"
+  [ "$(meta_field "$dir" rl42 branch)" = "fix/rl42" ] \
+    || fail "the recorded branch must survive the relaunch"
+  pass "fm-spawn --relaunch: a promoted scout with a recorded custom branch relaunches on it instead of being refused"
 }
 
 test_promoted_scout_relaunch_receives_the_current_delivery_contract() {
@@ -1190,7 +1387,9 @@ test_prepublication_failure_keeps_concurrent_durable_metadata() {
     run_control "$dir" rl30 relaunch --harness codex --note "preserve concurrent metadata" \
       > "$dir/control.out" &
   control_pid=$!
-  while [ ! -e "$dir/cwd-race-ready" ] && [ "$i" -lt 200 ]; do
+  # Each poll forks /bin/sleep, so 1500 polls bound the wait at well over 15 s;
+  # a loaded host measured 214-232 polls (3.9-4.9 s) to reach the check.
+  while [ ! -e "$dir/cwd-race-ready" ] && [ "$i" -lt 1500 ]; do
     /bin/sleep 0.01
     i=$((i + 1))
   done
@@ -1293,6 +1492,191 @@ test_prepublication_abort_retires_replacement_wiring_and_busy_state() {
   [ "$(journal_field "$dir" rl28 rollback)" = prior-record-kept ] \
     || fail "the journal should record the unpublished replacement rollback"
   pass "fm-spawn relaunch: prepublication abort removes replacement state"
+}
+
+# add_claude_secondmate_task <case-dir> <id>: a Claude second mate whose home
+# holds the captain's own private .claude/settings.local.json, which is home
+# configuration rather than per-task wiring (fm-spawn arms none for a mate).
+add_claude_secondmate_task() {
+  local dir=$1 id=$2 home="$1/home" mate="$1/smhome"
+  mkdir -p "$home/config" "$home/data/$id"
+  printf 'claude\n' > "$home/config/secondmate-harness"
+  printf '# secondmate brief\n' > "$home/data/$id/brief.md"
+  fm_git_worktree "$dir/proj" "$mate" sm-branch
+  mkdir -p "$mate/state" "$mate/data" "$mate/bin" "$mate/.claude"
+  printf '%s\n' "$id" > "$mate/.fm-secondmate-home"
+  printf '# agents\n' > "$mate/AGENTS.md"
+  printf '%s\n' '{"permissions":{"deny":["Bash(rm -rf:*)","Read(./.env)"]}}' \
+    > "$mate/.claude/settings.local.json"
+  cp -p "$mate/.claude/settings.local.json" "$dir/mate-settings-before"
+  {
+    echo "window=fmses:fm-$id"
+    echo "endpoint_task_id=$id"
+    echo "worktree=$mate"
+    echo "project=$mate"
+    echo "harness=claude"
+    echo "kind=secondmate"
+    echo "mode=secondmate"
+    echo "yolo=off"
+    echo "model=default"
+    echo "effort=default"
+    echo "home=$mate"
+  } > "$home/state/$id.meta"
+  printf '%s\n' "fm-$id" > "$dir/fake/windows"
+  printf '%s' "$mate" > "$dir/fake/cwd"
+}
+
+test_secondmate_relaunch_keeps_the_home_private_claude_settings() {
+  local dir out rc
+  dir=$(new_case smsettings sm9)
+  add_claude_secondmate_task "$dir" sm9
+  out=$(run_control "$dir" sm9 relaunch); rc=$?
+  expect_code 0 "$rc" "a Claude second mate should relaunch"$'\n'"$out"
+  assert_grep "/exit" "$dir/fake/literal" "the previous agent should have been exited"
+  cmp -s "$dir/mate-settings-before" "$dir/smhome/.claude/settings.local.json" \
+    || fail "a second-mate relaunch must leave its home's private .claude/settings.local.json byte-identical"
+  pass "fm-control relaunch: a second mate's home keeps its private Claude settings across a relaunch"
+}
+
+test_aborted_secondmate_relaunch_keeps_the_home_private_claude_settings() {
+  local dir out rc real_mv meta
+  dir=$(new_case smsettingsabort sm10)
+  add_claude_secondmate_task "$dir" sm10
+  meta="$dir/home/state/sm10.meta"
+  real_mv=$(command -v mv)
+  make_mv_failure_stub "$dir"
+  out=$(FM_REAL_MV="$real_mv" FM_FAKE_META_PUBLISH_MV_FAIL="$meta" \
+    run_control "$dir" sm10 relaunch); rc=$?
+  expect_code 1 "$rc" "a failed metadata publication should fail closed"$'\n'"$out"
+  [ "$(journal_field "$dir" sm10 rollback)" = prior-record-kept ] \
+    || fail "the aborted relaunch should have rolled back its unpublished replacement"
+  cmp -s "$dir/mate-settings-before" "$dir/smhome/.claude/settings.local.json" \
+    || fail "an aborted second-mate relaunch must leave its home's private .claude/settings.local.json byte-identical"
+  pass "fm-control relaunch: an aborted second-mate relaunch keeps its home's private Claude settings"
+}
+
+test_ship_relaunch_still_rearms_its_claude_wiring() {
+  local dir out rc gen
+  dir=$(new_case shipwiring rl40)
+  add_ship_task "$dir" rl40 claude
+  mkdir -p "$dir/wt/.claude"
+  printf 'prior incarnation wiring\n' > "$dir/wt/.claude/settings.local.json"
+  out=$(run_control "$dir" rl40 relaunch --note "fresh hooks"); rc=$?
+  expect_code 0 "$rc" "a ship relaunch should succeed"$'\n'"$out"
+  gen=$(meta_field "$dir" rl40 busy_gen)
+  [ -n "$gen" ] || fail "the relaunch should record a busy generation"
+  assert_no_grep "prior incarnation wiring" "$dir/wt/.claude/settings.local.json" \
+    "a ship's previous Claude wiring must be retired"
+  assert_grep "$gen" "$dir/wt/.claude/settings.local.json" \
+    "a ship's replacement Claude wiring must carry the new busy generation"
+  pass "fm-control relaunch: a ship still retires and re-arms its own Claude wiring"
+}
+
+# set_recorded_profile <case-dir> <id> <model> <effort>
+set_recorded_profile() {
+  sed "s|^model=default\$|model=$3|; s|^effort=default\$|effort=$4|" \
+    "$1/home/state/$2.meta" > "$1/home/state/$2.meta.tmp"
+  mv "$1/home/state/$2.meta.tmp" "$1/home/state/$2.meta"
+}
+
+# launch_line <case-dir>: the replacement claude launch typed into the endpoint.
+launch_line() {
+  grep -F -- '--dangerously-skip-permissions' "$1/fake/literal" | tail -1
+}
+
+test_spawn_relaunch_keeps_the_recorded_model_and_effort() {
+  local dir out rc launch
+  dir=$(new_case spawnprofile rl41)
+  add_ship_task "$dir" rl41 claude
+  set_recorded_profile "$dir" rl41 claude-opus-5-5 medium
+  printf 'zsh' > "$dir/fake/command"
+  out=$(run_spawn "$dir" rl41 --relaunch); rc=$?
+  expect_code 0 "$rc" "fm-spawn --relaunch should succeed"$'\n'"$out"
+  launch=$(launch_line "$dir")
+  printf '%s' "$launch" | grep -Eq -- "--model '?claude-opus-5-5'?( |$)" \
+    || fail "the relaunch must carry the recorded model, got: $launch"
+  printf '%s' "$launch" | grep -Eq -- "--effort '?medium'?( |$)" \
+    || fail "the relaunch must carry the recorded effort, got: $launch"
+  [ "$(meta_field "$dir" rl41 model)" = claude-opus-5-5 ] \
+    || fail "the relaunched record must keep the model, got '$(meta_field "$dir" rl41 model)'"
+  [ "$(meta_field "$dir" rl41 effort)" = medium ] \
+    || fail "the relaunched record must keep the effort, got '$(meta_field "$dir" rl41 effort)'"
+  pass "fm-spawn --relaunch: with no explicit axes it keeps the task's recorded model and effort"
+}
+
+test_spawn_relaunch_explicit_axes_win_and_a_recorded_default_stays_flagless() {
+  local dir out rc launch
+  dir=$(new_case spawnprofilewin rl42)
+  add_ship_task "$dir" rl42 claude
+  set_recorded_profile "$dir" rl42 claude-opus-5-5 medium
+  printf 'zsh' > "$dir/fake/command"
+  out=$(run_spawn "$dir" rl42 --relaunch --model sonnet --effort low); rc=$?
+  expect_code 0 "$rc" "fm-spawn --relaunch with explicit axes should succeed"$'\n'"$out"
+  launch=$(launch_line "$dir")
+  printf '%s' "$launch" | grep -Eq -- "--model '?sonnet'?( |$)" \
+    || fail "an explicit model must win, got: $launch"
+  printf '%s' "$launch" | grep -Eq -- "--effort '?low'?( |$)" \
+    || fail "an explicit effort must win, got: $launch"
+  assert_not_contains "$launch" "claude-opus-5-5" "the recorded model must not also be passed"
+
+  dir=$(new_case spawnprofiledefault rl43)
+  add_ship_task "$dir" rl43 claude
+  printf 'zsh' > "$dir/fake/command"
+  out=$(run_spawn "$dir" rl43 --relaunch); rc=$?
+  expect_code 0 "$rc" "fm-spawn --relaunch of a default profile should succeed"$'\n'"$out"
+  launch=$(launch_line "$dir")
+  [ -n "$launch" ] || fail "the relaunch should have typed a claude launch"
+  assert_not_contains "$launch" "--model" "a recorded default model must stay flagless"
+  assert_not_contains "$launch" "--effort" "a recorded default effort must stay flagless"
+  pass "fm-spawn --relaunch: explicit axes win, and a recorded default launches with no axis flags"
+}
+
+test_spawn_relaunch_onto_an_explicit_harness_carries_no_recorded_axes() {
+  local dir out rc
+  dir=$(new_case spawnprofileswitch rl44)
+  add_ship_task "$dir" rl44 claude
+  set_recorded_profile "$dir" rl44 claude-opus-5-5 medium
+  printf 'zsh' > "$dir/fake/command"
+  printf 'codex' > "$dir/fake/becomes"
+  out=$(run_spawn "$dir" rl44 --relaunch --harness codex); rc=$?
+  expect_code 0 "$rc" "fm-spawn --relaunch onto codex should succeed"$'\n'"$out"
+  [ "$(meta_field "$dir" rl44 harness)" = codex ] || fail "the record should move to codex"
+  [ "$(meta_field "$dir" rl44 model)" = default ] \
+    || fail "a model recorded for claude must not carry to codex, got '$(meta_field "$dir" rl44 model)'"
+  [ "$(meta_field "$dir" rl44 effort)" = default ] \
+    || fail "an effort recorded for claude must not carry to codex, got '$(meta_field "$dir" rl44 effort)'"
+  assert_no_grep "claude-opus-5-5" "$dir/fake/literal" "the recorded claude model must not reach the codex launch"
+  pass "fm-spawn --relaunch: an explicit harness carries none of the recorded axes"
+}
+
+# Run the PR poll's strict identity parse on a record in a separate shell, so
+# the library's own variables never mix with the caller's; with a second
+# argument, also require that the parsed PR URL equals it.
+pr_identity_parses() {
+  bash -c '. "$1/bin/fm-pr-lib.sh" && fm_pr_metadata_identity_parse "$2" \
+    && { [ -z "$3" ] || [ "$FM_PR_META_URL" = "$3" ]; }' _ "$ROOT" "$1" "${2:-}"
+}
+
+test_control_relaunch_keeps_the_pr_poll_record_authenticatable() {
+  local dir out rc record last_two
+  dir=$(new_case prpollauth rl45)
+  add_ship_task "$dir" rl45 claude
+  record="$dir/home/state/rl45.meta"
+  {
+    printf '%s\n' 'pr=https://github.com/example/repo/pull/45'
+    printf '%s\n' 'pr_head=0123456789abcdef0123456789abcdef01234567'
+  } >> "$record"
+  pr_identity_parses "$record" \
+    || fail "fixture: the recorded PR binding should authenticate before the relaunch"
+  out=$(run_control "$dir" rl45 relaunch --note "keep the merge poll"); rc=$?
+  expect_code 0 "$rc" "the relaunch should succeed"$'\n'"$out"
+  assert_grep 'control_relaunch_tx=' "$record" "fixture: a control relaunch should record its transaction"
+  last_two=$(tail -n 2 "$record" | cut -d= -f1 | tr '\n' ' ')
+  [ "$last_two" = "pr pr_head " ] \
+    || fail "the PR binding must stay the record's last keys after a control relaunch, got '$last_two'"
+  pr_identity_parses "$record" https://github.com/example/repo/pull/45 \
+    || fail "the relaunched record must still authenticate the task's PR binding"
+  pass "fm-control relaunch: the relaunched record keeps the PR binding last, so the merge poll still authenticates"
 }
 
 test_journal_records_the_checkpoint_it_proved() {
@@ -1409,18 +1793,73 @@ test_secondmate_checkpoint_refuses_unreadable_child_state() {
   expect_code 1 "$rc" "a non-readable child record should refuse"
   assert_contains "$out" "not a readable regular file" "the refusal should name the unreadable child record"
   [ "$(cat "$dir/fake/command")" = claude ] || fail "child record failure must not stop the secondmate"
+  pass "fm-control relaunch: unreadable child records fail checkpoint"
+  if [ "$(id -u)" = 0 ]; then
+    pass "fm-control relaunch: unlistable state check skipped as root (mode 000 does not restrict root)"
+    return 0
+  fi
   rmdir "$dir/smhome/state/bad.meta"
-  cat > "$dir/fakebin/find" <<'SH'
+  printf 'window=x:c1\n' > "$dir/smhome/state/c1.meta"
+  chmod 000 "$dir/smhome/state"
+  out=$(run_control "$dir" sm5 relaunch); rc=$?
+  chmod 755 "$dir/smhome/state"
+  expect_code 1 "$rc" "an unlistable state directory should refuse"
+  assert_contains "$out" "no readable state directory" \
+    "the refusal should name the unlistable home state directory"
+  [ "$(cat "$dir/fake/command")" = claude ] || fail "unlistable child state must not stop the secondmate"
+  pass "fm-control relaunch: unlistable state fails checkpoint"
+}
+
+test_secondmate_checkpoint_ignores_a_vanished_scratch_find_walk() {
+  local dir home out rc real_find
+  dir=$(new_case smfindrace sm6)
+  home="$dir/home"
+  mkdir -p "$home/config"
+  printf 'claude\n' > "$home/config/secondmate-harness"
+  fm_git_worktree "$dir/proj" "$dir/smhome" sm-branch
+  mkdir -p "$dir/smhome/state" "$dir/smhome/data" "$dir/smhome/bin"
+  printf 'sm6\n' > "$dir/smhome/.fm-secondmate-home"
+  printf '# charter\n' > "$dir/smhome/data/charter.md"
+  printf '# agents\n' > "$dir/smhome/AGENTS.md"
+  printf 'window=x:fm-c1\n' > "$dir/smhome/state/c1.meta"
+  printf 'window=x:fm-c2\n' > "$dir/smhome/state/c2.meta"
+  : > "$dir/smhome/state/.hash-0"
+  : > "$dir/smhome/state/.count-0"
+  : > "$dir/smhome/state/.last-0"
+  {
+    echo "window=fmses:fm-sm6"
+    echo "endpoint_task_id=sm6"
+    echo "worktree=$dir/smhome"
+    echo "project=$dir/smhome"
+    echo "harness=claude"
+    echo "kind=secondmate"
+    echo "mode=secondmate"
+    echo "yolo=off"
+    echo "model=default"
+    echo "effort=default"
+    echo "home=$dir/smhome"
+    echo "projects="
+  } > "$home/state/sm6.meta"
+  printf '%s\n' "fm-sm6" > "$dir/fake/windows"
+  printf '%s' "$dir/smhome" > "$dir/fake/cwd"
+  real_find=$(command -v find)
+  cat > "$dir/fakebin/find" <<SH
 #!/usr/bin/env bash
-exit 1
+for arg in "\$@"; do
+  if [ "\$arg" = "$dir/smhome/state" ]; then
+    echo "find: \$arg/.hash-0: No such file or directory" >&2
+    exit 1
+  fi
+done
+exec "$real_find" "\$@"
 SH
   chmod +x "$dir/fakebin/find"
-  out=$(run_control "$dir" sm5 relaunch); rc=$?
-  expect_code 1 "$rc" "failed child-state traversal should refuse"
-  assert_contains "$out" "child records cannot be traversed" \
-    "the refusal should preserve a find traversal failure"
-  [ "$(cat "$dir/fake/command")" = claude ] || fail "child traversal failure must not stop the secondmate"
-  pass "fm-control relaunch: unreadable and untraversable child state fails checkpoint"
+  out=$(run_control "$dir" sm6 relaunch); rc=$?
+  expect_code 0 "$rc" "a vanished watcher scratch file must not refuse relaunch"$'\n'"$out"
+  assert_contains "$out" "relaunched sm6" "readable child metas must still allow the replacement launch"
+  [ "$(journal_field "$dir" sm6 children)" = 2 ] \
+    || fail "readable child metas must still be counted, got '$(journal_field "$dir" sm6 children)'"
+  pass "fm-control relaunch: a vanished watcher scratch file does not fail the child-record checkpoint"
 }
 
 test_concurrent_relaunch_is_refused() {
@@ -1443,6 +1882,7 @@ test_concurrent_relaunch_is_refused() {
     i=$((i + 1))
   done
   [ -e "$lock" ] || { kill "$holder" 2>/dev/null; fail "could not stage a held control lock"; }
+  printf 'held\n' > "$dir/home/state/rl19.composer-dialog"
   out=$(run_control "$dir" rl19 relaunch --note "concurrent"); rc=$?
   kill "$holder" 2>/dev/null || true
   wait "$holder" 2>/dev/null || true
@@ -1451,6 +1891,8 @@ test_concurrent_relaunch_is_refused() {
     "the refusal should name the concurrent action"
   [ "$(cat "$dir/fake/command")" = claude ] \
     || fail "a refused concurrent relaunch must not stop the agent"
+  [ "$(cat "$dir/home/state/rl19.composer-dialog" 2>/dev/null)" = held ] \
+    || fail "a refused concurrent relaunch must not remove the lock holder's dialog file"
   pass "fm-control relaunch: two control actions on one task serialize instead of interleaving"
 }
 
@@ -1646,10 +2088,552 @@ test_spawn_relaunch_refuses_a_pane_outside_the_worktree() {
   pass "fm-spawn --relaunch: refuses to start a replacement outside the copy holding its work"
 }
 
+# --- 7. reclaiming a task whose endpoint is gone ----------------------------
+#
+# Before this, `missing` was a terminal state: fm-spawn --relaunch accepted only
+# `dead` and told the caller to stop the agent first, while fm-control exit
+# refused `missing` outright and told the caller to reconcile the task first -
+# and there is no reconcile verb. Each command named the other as its
+# prerequisite, so a task whose pane or workspace was destroyed could not be
+# reclaimed by anything, and any no-mistakes approval it was parked on had no
+# seat left to answer it.
+
+# strand_endpoint <case-dir> <id>: make a tmux endpoint read `missing` the way
+# a destroyed window does - a successful session inventory that omits the exact
+# window.
+strand_endpoint() {  # <case-dir> <id>
+  : > "$1/fake/windows"
+}
+
+# Every tmux `missing` refuses on BOTH verbs, whatever produced it. tmux is the
+# one verified backend whose absence cannot be proven from a task record: the
+# record carries no socket identity for the endpoint, and any inventory
+# describes only the server this process happens to address. So a window that
+# is merely on a server this seat cannot reach is indistinguishable from one
+# that was destroyed, and neither verb will guess.
+assert_tmux_missing_refuses() {  # <case-dir> <id> <what-was-staged>
+  local dir=$1 id=$2 what=$3 out rc brief_before
+
+  out=$(run_spawn "$dir" "$id" --relaunch --harness claude); rc=$?
+  expect_code 1 "$rc" "relaunch must refuse a tmux endpoint whose absence cannot be proven ($what)"$'\n'"$out"
+  assert_absent "$dir/fake/created-windows" "a refused relaunch must not create a window ($what)"
+  assert_absent "$dir/fake/created-sessions" "a refused relaunch must not create a session ($what)"
+  [ ! -s "$dir/fake/literal" ] || fail "a refused relaunch must send nothing into any pane ($what)"
+
+  brief_before=$(cat "$dir/home/data/$id/brief.md")
+  out=$(run_control "$dir" "$id" exit); rc=$?
+  expect_code 1 "$rc" "exit must refuse a tmux endpoint whose absence cannot be proven ($what)"$'\n'"$out"
+  assert_not_contains "$out" "endpoint-gone" \
+    "exit must not report a stop it cannot see ($what)"
+  [ ! -s "$dir/fake/literal" ] || fail "a refused exit must send nothing into any pane ($what)"
+
+  out=$(run_control "$dir" "$id" relaunch --note "this note must never reach a live agent"); rc=$?
+  expect_code 1 "$rc" "the relaunch transaction must fail closed ($what)"$'\n'"$out"
+  [ "$(cat "$dir/home/data/$id/brief.md")" = "$brief_before" ] \
+    || fail "a refused relaunch edited instructions an agent that may still be running is reading ($what)"
+  assert_absent "$dir/fake/created-windows" "a refused transaction must not create a window ($what)"
+  assert_absent "$dir/fake/created-sessions" "a refused transaction must not create a session ($what)"
+  [ ! -s "$dir/fake/literal" ] || fail "a refused transaction must launch nothing ($what)"
+}
+
+test_tmux_refuses_a_window_missing_from_its_session() {
+  local dir
+  dir=$(new_case tmux-gone rl60)
+  add_ship_task "$dir" rl60 claude
+  strand_endpoint "$dir" rl60
+  assert_tmux_missing_refuses "$dir" rl60 "window absent from a readable session inventory"
+  pass "tmux: a window absent from its session refuses both verbs rather than being assumed gone"
+}
+
+test_tmux_refuses_a_session_that_cannot_be_found() {
+  local dir
+  dir=$(new_case tmux-nosession rl61)
+  add_ship_task "$dir" rl61 claude
+  # Real tmux's answer to a renamed session, and to a different
+  # TMUX_TMPDIR/socket: definitive about the SESSION, silent about whether the
+  # window and its agent survived elsewhere.
+  : > "$dir/fake/session-missing"
+  assert_tmux_missing_refuses "$dir" rl61 "recorded session not found"
+  pass "tmux: an unfindable session refuses both verbs, so a live agent is never duplicated"
+}
+
+test_tmux_refuses_when_the_server_is_gone() {
+  local dir
+  dir=$(new_case tmux-noserver rl62)
+  add_ship_task "$dir" rl62 claude
+  # No server on the socket this process addresses. Another server may still be
+  # running the task's window, and the record cannot say which socket is its.
+  : > "$dir/fake/server-dead"
+  assert_tmux_missing_refuses "$dir" rl62 "no tmux server on this socket"
+  pass "tmux: a dead server on this socket refuses both verbs rather than proving absence"
+}
+
+test_reclaim_refuses_an_unreadable_endpoint() {
+  local dir out rc
+  dir=$(new_case gone-unreadable rl63)
+  add_ship_task "$dir" rl63 claude
+  # The inventory itself fails non-definitively. That is not evidence of
+  # absence, and reading it as one is exactly how two agents end up in one
+  # endpoint.
+  : > "$dir/fake/inventory-broken"
+
+  out=$(run_spawn "$dir" rl63 --relaunch --harness claude); rc=$?
+  expect_code 1 "$rc" "an unreadable endpoint must still refuse"
+  assert_contains "$out" "positively agent-free endpoint" \
+    "only a POSITIVELY proven agent-free endpoint may be relaunched into"
+  assert_absent "$dir/fake/created-windows" \
+    "a refused relaunch must not create an endpoint"
+  [ ! -s "$dir/fake/literal" ] || fail "a refused relaunch must launch nothing"
+  pass "reclaim: an unclassifiable endpoint is still refused, so two agents cannot share one"
+}
+
+# --- herdr: a stopped server is not a destroyed endpoint --------------------
+#
+# Stopping and restarting a named Herdr server preserves workspace, tab, pane
+# and label ids; only the harness processes and their registrations die
+# (docs/herdr-backend.md "Restart and liveness behavior"). The recovery-grade
+# classifier still reads a stopped server as `missing`, so a reclaim that
+# believed that verdict would abandon a pane that was about to come back and
+# open a second tab beside it.
+#
+# Canned/stateful fake only - never a real herdr session.
+make_herdr_stub() {  # <case-dir>
+  local fb="$1/fakebin"
+  mkdir -p "$fb"
+  # The herdr server-ensure poll must actually wait between reads, so this case
+  # keeps the real sleep rather than the tmux cases' instant stub.
+  rm -f "$fb/sleep"
+  cat > "$fb/herdr" <<'SH'
+#!/usr/bin/env bash
+set -u
+D=$FM_FAKE_DIR
+printf '%s\n' "$*" >> "$D/herdr-log"
+if [ "${1:-}" = status ] && [ "${2:-}" = --json ]; then
+  if [ -f "$D/herdr-stopped" ]; then
+    printf '{"client":{"version":"0.9.0","protocol":22},"server":{"running":false}}\n'
+  else
+    printf '{"client":{"version":"0.9.0","protocol":22},"server":{"running":true}}\n'
+  fi
+  exit 0
+fi
+if [ "${1:-}" = server ]; then
+  rm -f "$D/herdr-stopped"
+  exit 0
+fi
+if [ -f "$D/herdr-stopped" ]; then
+  # Every operational call against a stopped server fails at the transport,
+  # with no JSON body to classify.
+  echo 'error: could not connect to the herdr server' >&2
+  exit 1
+fi
+case "${1:-} ${2:-}" in
+  'pane get')
+    if [ "${3:-}" = "$(cat "$D/herdr-pane")" ]; then
+      printf '{"result":{"pane":{"pane_id":"%s","foreground_cwd":"%s"}}}\n' \
+        "${3:-}" "$(cat "$D/cwd")"
+    else
+      # Only the pane this case says survived can be read back. Any other pane
+      # id is structurally gone, which is herdr's `pane_not_found`.
+      printf '{"error":{"code":"pane_not_found"}}\n'
+    fi
+    exit 0 ;;
+  'agent get')
+    if [ -f "$D/herdr-agent-registration" ]; then
+      cat "$D/herdr-agent-registration"
+    elif [ -f "$D/herdr-agent-live" ]; then
+      # The agent came back with its server. Nothing here is reclaimable.
+      printf '{"result":{"agent":{"agent_status":"idle"}}}\n'
+    else
+      # A pane that comes back holding no agent is the adoptable state.
+      printf '{"error":{"code":"agent_not_found"}}\n'
+    fi
+    exit 0 ;;
+  'pane process-info')
+    # A retained registration with a shell-only pane models an exited agent
+    # whose Herdr status authority still belongs to its previous session.
+    if [ -f "$D/herdr-agent-registration" ]; then
+      printf '{"result":{"type":"pane_process_info","process_info":{"pane_id":"%s","shell_pid":4242,"foreground_processes":[]}}}\n' \
+        "$(cat "$D/herdr-pane")"
+    else
+      # A stand-in pane shell from claude_owner_fixture --in-pane is the pane's
+      # real top shell when the case has one.
+      shell_pid=4242
+      [ ! -s "$D/pane-pid" ] || shell_pid=$(cat "$D/pane-pid")
+      printf '{"result":{"type":"pane_process_info","process_info":{"pane_id":"%s","shell_pid":%s,"foreground_processes":[{"pid":4243,"name":"claude","argv":["claude"],"cmdline":"claude"}]}}}\n' \
+        "$(cat "$D/herdr-pane")" "$shell_pid"
+    fi
+    exit 0 ;;
+  'pane send-text')
+    # Mirrors the tmux fake's `becomes`: delivering the launch brief is what
+    # makes an agent exist on this pane, so the control plane's alive-wait can
+    # observe the replacement come up. A launch arrives as a short line sourcing
+    # the staged launch file rather than the literal command, so read that file
+    # back before deciding what was delivered - exactly as the tmux fake above
+    # and tests/fixtures.sh do.
+    payload=${4:-}
+    case "$payload" in
+      ". '"*"'") staged=${payload#". '"}; staged=${staged%"'"}; [ ! -f "$staged" ] || payload=$(cat "$staged") ;;
+    esac
+    printf '%s\n' "$payload" >> "$D/literal"
+    case "$payload" in
+      /exit)
+        # The live agent exits, and with it any stand-in Claude process that
+        # owns a session record (claude_owner_fixture).
+        rm -f "$D/herdr-agent-live"
+        if [ -s "$D/owner-pids" ]; then
+          while read -r owner; do
+            kill "$owner" 2>/dev/null
+            for _ in 1 2 3 4 5 6 7 8 9 10; do
+              kill -0 "$owner" 2>/dev/null || break
+              /bin/sleep 0.05
+            done
+          done < "$D/owner-pids"
+          : > "$D/owner-pids"
+        fi
+        ;;
+      *'encode launch-brief'* | *'Firstmate operational input waiting: read'* | *' --resume '*)
+        printf '%s\n' "$payload" > "$D/launched-command"
+        : > "$D/herdr-agent-live" ;;
+    esac
+    exit 0 ;;
+  'pane read')
+    # An empty Claude composer box, so a typed control command cannot
+    # concatenate onto pending text.
+    printf '╭────╮\n│    │\n╰────╯\n'
+    exit 0 ;;
+  'workspace list')
+    printf '{"result":{"workspaces":[]}}\n'
+    exit 0 ;;
+  'workspace create')
+    if [ -f "$D/herdr-workspace-create-fails" ]; then
+      echo 'error: workspace create failed' >&2
+      exit 1
+    fi
+    printf '{"result":{"workspace":{"workspace_id":"wsnew"},"tab":{"tab_id":"seedtab"}}}\n'
+    exit 0 ;;
+  'tab list')
+    printf '{"result":{"tabs":[]}}\n'
+    exit 0 ;;
+  'tab create')
+    # The re-created endpoint. Recording it lets a case prove the pane the
+    # record ends up naming is the one this call minted.
+    printf '%s\n' "$*" >> "$D/herdr-created-tabs"
+    printf '{"result":{"tab":{"tab_id":"tabnew"},"root_pane":{"pane_id":"%%9"}}}\n'
+    # From here on the new pane is the one that reads back.
+    printf '%s' '%9' > "$D/herdr-pane"
+    exit 0 ;;
+esac
+exit 0
+SH
+  chmod +x "$fb/herdr"
+  cat > "$fb/ps" <<'SH'
+#!/usr/bin/env bash
+if [ -f "$FM_FAKE_DIR/herdr-agent-registration" ]; then
+  case "$*" in
+    '-axo pid=,ppid=,comm=') printf '4242 1 bash\n' ;;
+    '-p 4242 -o args=') printf 'bash\n' ;;
+    *) exec /bin/ps "$@" ;;
+  esac
+else
+  exec /bin/ps "$@"
+fi
+SH
+  chmod +x "$fb/ps"
+}
+
+# add_herdr_ship_task <case-dir> <id> [session] [surviving-pane]: a ship task
+# recorded on the herdr backend, with its server stopped so its endpoint
+# classifies `missing`. <surviving-pane> is the pane id the fake will answer for
+# once that server is back; default is the recorded one (it survived the
+# restart). Pass a different id to model a pane that genuinely did not.
+add_herdr_ship_task() {  # <case-dir> <id> [session] [surviving-pane]
+  local dir=$1 id=$2 ses=${3:-fmlab} survivor=${4:-'%7'}
+  local home="$dir/home" proj="$dir/proj" wt="$dir/wt"
+  fm_git_worktree "$proj" "$wt" "task-$id"
+  mkdir -p "$home/data/$id"
+  cat > "$home/data/$id/brief.md" <<EOF
+# Task
+## Captain's intent
+Exercise a herdr reclaim safely.
+
+## Firstmate spec
+Keep the recorded endpoint when it outlives its server.
+EOF
+  {
+    echo "window=$ses:%7"
+    echo "endpoint_task_id=$id"
+    echo "worktree=$wt"
+    echo "project=$proj"
+    echo "harness=claude"
+    echo "kind=ship"
+    echo "mode=no-mistakes"
+    echo "yolo=off"
+    echo "tasktmp=/tmp/fm-$id"
+    echo "model=default"
+    echo "effort=default"
+    echo "backend=herdr"
+    echo "herdr_session=$ses"
+    echo "herdr_workspace_id=ws1"
+    echo "herdr_tab_id=tab1"
+    echo "herdr_pane_id=%7"
+  } > "$home/state/$id.meta"
+  printf '%s' "$wt" > "$dir/fake/cwd"
+  printf '%s' "$survivor" > "$dir/fake/herdr-pane"
+  : > "$dir/fake/herdr-log"
+  : > "$dir/fake/herdr-stopped"
+  TASK_TMPS+=("/tmp/fm-$id")
+}
+
+# Sets HERDR_CASE_DIR rather than echoing it, so callers invoke it as a plain
+# statement. A `dir=$(herdr_case_or_skip ...)` would run add_herdr_ship_task in
+# a command-substitution subshell, where its TASK_TMPS registration would
+# mutate a discarded copy and the EXIT trap would never remove the
+# out-of-tmproot /tmp/fm-<id> root the spawn creates.
+HERDR_CASE_DIR=
+herdr_case_or_skip() {  # <name> <id> [session] [surviving-pane]
+  HERDR_CASE_DIR=
+  command -v jq >/dev/null 2>&1 || return 1
+  HERDR_CASE_DIR=$(new_case "$1" "$2")
+  add_herdr_ship_task "$HERDR_CASE_DIR" "$2" "${3:-fmlab}" "${4:-%7}"
+  make_herdr_stub "$HERDR_CASE_DIR"
+  return 0
+}
+
+test_herdr_relaunch_resumes_only_the_registered_pi_session() {
+  local dir out rc=0 command registered
+  for registered in pi claude; do
+    herdr_case_or_skip "resume-$registered" "resume-$registered" || {
+      echo "skip - herdr relaunch needs jq (the herdr adapter parses JSON with it)"
+      return 0
+    }
+    dir=$HERDR_CASE_DIR
+    rm -f "$dir/fake/herdr-stopped"
+    sed -i 's/^harness=claude$/harness=pi/' "$dir/home/state/resume-$registered.meta"
+    # Keep the pane's status authority registered to an existing Pi session,
+    # while process-info proves that its previous agent has exited.
+    printf '{"result":{"agent":{"agent":"%s","agent_status":"idle","agent_session":{"kind":"path","value":"/tmp/pi-bound-session.jsonl"}}}}\n' \
+      "$registered" > "$dir/fake/herdr-agent-registration"
+    out=$(run_spawn "$dir" "resume-$registered" --relaunch --harness pi) || rc=$?
+    expect_code 0 "$rc" "Herdr Pi relaunch should complete ($registered registration)"$'\n'"$out"
+    command=$(cat "$dir/fake/launched-command")
+    if [ "$registered" = pi ]; then
+      assert_contains "$command" "--session '/tmp/pi-bound-session.jsonl'" \
+        "the replacement Pi must resume the session that owns Herdr status authority"
+    else
+      assert_not_contains "$command" "--session" \
+        "a Pi replacement must not resume a foreign adapter's conversation"
+    fi
+    rc=0
+  done
+  pass "fm-spawn --relaunch: resumes the bound Pi session only for a Pi registration"
+}
+
+test_herdr_reclaim_adopts_a_pane_that_outlived_its_server() {
+  local dir out rc=0 log stray
+  herdr_case_or_skip gone-herdr rl68 || {
+    echo "skip - herdr reclaim needs jq (the herdr adapter parses JSON with it)"
+    return 0
+  }
+  dir=$HERDR_CASE_DIR
+
+  out=$(run_spawn "$dir" rl68 --relaunch --harness claude) || rc=$?
+  log=$(cat "$dir/fake/herdr-log")
+  expect_code 0 "$rc" "a pane that outlived its stopped server is adoptable"$'\n'"$out"$'\n'"$log"
+
+  assert_contains "$log" "server --session fmlab" \
+    "the reclaim must bring the RECORDED session's server back before deciding anything"
+  assert_contains "$log" "agent get %7 --session fmlab" \
+    "the reclaim must re-read the recorded pane once its server is running"
+  assert_not_contains "$log" "workspace create" \
+    "adopting a preserved pane must not create a workspace"
+  assert_not_contains "$log" "tab create" \
+    "adopting a preserved pane must not open a second tab beside it"
+  # Every call belongs to the session the record names. A rebind resolves its
+  # container from the ambient session instead, which is how the preserved pane
+  # ends up orphaned in a workspace nothing points at.
+  stray=$(printf '%s\n' "$log" | grep -v -- '--session fmlab$' | grep -v '^status --json$' || true)
+  [ -z "$stray" ] || fail "a herdr reclaim touched a session the record does not name: $stray"
+  assert_contains "$out" "window=fmlab:%7" "the reclaim should report the adopted endpoint"
+  [ "$(meta_field "$dir" rl68 herdr_pane_id)" = '%7' ] \
+    || fail "the adopted record's pane id changed, got $(meta_field "$dir" rl68 herdr_pane_id)"
+  [ "$(meta_field "$dir" rl68 herdr_tab_id)" = tab1 ] \
+    || fail "the adopted record's tab id changed, got $(meta_field "$dir" rl68 herdr_tab_id)"
+  [ "$(meta_field "$dir" rl68 window)" = 'fmlab:%7' ] \
+    || fail "the adopted record's endpoint moved, got $(meta_field "$dir" rl68 window)"
+  assert_contains "$log" "pane send-text %7 " \
+    "the replacement's launch brief must be delivered into the adopted pane"
+  pass "reclaim: a herdr pane that outlived its stopped server is adopted, never orphaned beside a new tab"
+}
+
+test_herdr_exit_reports_already_stopped_when_the_pane_outlived_its_server() {
+  local dir out rc=0
+  herdr_case_or_skip gone-herdr-exit rl72 || {
+    echo "skip - herdr exit needs jq (the herdr adapter parses JSON with it)"
+    return 0
+  }
+  dir=$HERDR_CASE_DIR
+
+  out=$(run_control "$dir" rl72 exit) || rc=$?
+  expect_code 0 "$rc" "a pane that outlived its stopped server holds no agent, which is success"$'\n'"$out"
+  assert_contains "$out" "already-stopped" \
+    "the endpoint is there and idle, which is the ordinary already-stopped outcome"
+  assert_not_contains "$out" "endpoint-gone" \
+    "a pane that survived its server's restart was never gone"
+  [ "$(meta_field "$dir" rl72 window)" = 'fmlab:%7' ] \
+    || fail "exit must leave the recorded endpoint exactly as it found it"
+  pass "fm-control exit: a herdr pane that outlived its stopped server is already-stopped, not gone"
+}
+
+test_herdr_rebind_stays_in_the_recorded_session() {
+  local dir out rc=0 log
+  # The record names session `fmlab`; this seat has no ambient HERDR_SESSION, so
+  # the adapter's own default is `default`. The recorded pane does NOT come back
+  # with the server, so this reclaim really does rebind - and the rebind must
+  # land in `fmlab`, never in `default`.
+  herdr_case_or_skip gone-herdr-pin rl73 fmlab '%none' || {
+    echo "skip - herdr rebind needs jq (the herdr adapter parses JSON with it)"
+    return 0
+  }
+  dir=$HERDR_CASE_DIR
+
+  out=$(run_spawn "$dir" rl73 --relaunch --harness claude) || rc=$?
+  log=$(cat "$dir/fake/herdr-log")
+  expect_code 0 "$rc" "a herdr pane that did not survive its server should be rebound"$'\n'"$out"$'\n'"$log"
+
+  assert_contains "$log" "tab create" "a destroyed pane must be replaced by a fresh tab"
+  [ -z "$(grep -v -- '--session fmlab$' <<<"$log" | grep -v '^status --json$' || true)" ] \
+    || fail "the rebind used a herdr session the record does not name: $log"
+  [ "$(meta_field "$dir" rl73 herdr_session)" = fmlab ] \
+    || fail "the rebound record left its recorded herdr session, got $(meta_field "$dir" rl73 herdr_session)"
+  [ "$(meta_field "$dir" rl73 window)" = 'fmlab:%9' ] \
+    || fail "the rebound endpoint should be the new pane in the recorded session, got $(meta_field "$dir" rl73 window)"
+  [ "$(meta_field "$dir" rl73 herdr_pane_id)" = '%9' ] \
+    || fail "the rebound record should name the pane the reclaim minted, got $(meta_field "$dir" rl73 herdr_pane_id)"
+  pass "reclaim: a herdr rebind is created in the session the record names, never the ambient one"
+}
+
+test_herdr_reclaim_refuses_an_agent_that_came_back() {
+  local dir out rc log
+  herdr_case_or_skip gone-herdr-alive rl74 || {
+    echo "skip - herdr reclaim needs jq (the herdr adapter parses JSON with it)"
+    return 0
+  }
+  dir=$HERDR_CASE_DIR
+  # The server was stopped, so the first read says `missing` - but starting it
+  # brings the pane AND its agent back. A rebind here would put a second agent
+  # in this task's worktree, which is the whole reason absence is re-proven.
+  : > "$dir/fake/herdr-agent-live"
+
+  out=$(run_spawn "$dir" rl74 --relaunch --harness claude); rc=$?
+  log=$(cat "$dir/fake/herdr-log")
+  expect_code 1 "$rc" "a returning agent must refuse, never be duplicated"$'\n'"$out"$'\n'"$log"
+  assert_contains "$out" "alive" "the refusal should name the state it actually read"
+  assert_not_contains "$log" "tab create" "a refused reclaim must not mint a second tab"
+  assert_not_contains "$log" "workspace create" "a refused reclaim must not create a workspace"
+  [ "$(meta_field "$dir" rl74 herdr_pane_id)" = '%7' ] \
+    || fail "a refused reclaim rewrote the record's pane id"
+  pass "reclaim: a herdr agent that came back with its server refuses, so one worktree keeps one agent"
+}
+
+test_herdr_reclaim_keeps_the_task_whole() {
+  local dir out rc=0 head_before
+  herdr_case_or_skip gone-herdr-work rl75 fmlab '%none' || {
+    echo "skip - herdr reclaim needs jq (the herdr adapter parses JSON with it)"
+    return 0
+  }
+  dir=$HERDR_CASE_DIR
+  printf 'landed on the branch\n' > "$dir/wt/committed.txt"
+  git -C "$dir/wt" add committed.txt
+  git -C "$dir/wt" -c user.email=t@example.com -c user.name=t commit -qm "work in progress"
+  head_before=$(git -C "$dir/wt" rev-parse HEAD)
+  printf 'never committed\n' > "$dir/wt/dirty.txt"
+
+  # A reclaim rebinds the ENDPOINT and nothing else. Everything that identifies
+  # the task must come through untouched: a record row the reclaim does not
+  # own, the armed watcher check and the private binding that authorizes it,
+  # and the status log the supervisor reads.
+  printf '%s\n' "pr=https://example.invalid/pr/7" >> "$dir/home/state/rl75.meta"
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$dir/home/state/rl75.check.sh"
+  chmod 0700 "$dir/home/state/rl75.check.sh"
+  FM_HOME="$dir/home" "$ROOT/bin/fm-check-register.sh" rl75 >/dev/null \
+    || fail "could not arm a custom check for the reclaim fixture"
+  printf 'working: parked on an approval nobody can answer\n' >> "$dir/home/state/rl75.status"
+
+  out=$(run_control "$dir" rl75 relaunch --note "the pane was destroyed; pick the work back up") || rc=$?
+  expect_code 0 "$rc" "the owning seat should be able to reclaim a task whose pane is gone"$'\n'"$out"
+
+  [ "$(git -C "$dir/wt" rev-parse HEAD)" = "$head_before" ] \
+    || fail "a reclaim moved the worktree's HEAD"
+  [ "$(git -C "$dir/wt" rev-parse --abbrev-ref HEAD)" = "task-rl75" ] \
+    || fail "a reclaim changed the worktree's branch"
+  assert_contains "$(cat "$dir/wt/dirty.txt")" "never committed" \
+    "a reclaim destroyed or rewrote an uncommitted change"
+  assert_present "$dir/wt/committed.txt" "a reclaim destroyed committed work"
+
+  [ "$(meta_field "$dir" rl75 worktree)" = "$dir/wt" ] \
+    || fail "a reclaim must keep the recorded worktree"
+  [ "$(meta_field "$dir" rl75 pr)" = "https://example.invalid/pr/7" ] \
+    || fail "a reclaim dropped a record row it does not own"
+  assert_present "$dir/home/state/rl75.check.sh" "a reclaim retired the task's armed check"
+  assert_present "$dir/home/state/rl75.check-trust" "a reclaim broke the armed check's registration"
+  assert_contains "$(cat "$dir/home/state/rl75.status")" "parked on an approval nobody can answer" \
+    "a reclaim truncated the status log"
+  assert_contains "$(cat "$dir/home/data/rl75/brief.md")" "the pane was destroyed" \
+    "the replacement must inherit the progress note"
+  [ "$(journal_field "$dir" rl75 exit_result)" = endpoint-gone ] \
+    || fail "the transaction should record that the endpoint was already gone"
+  pass "reclaim: a herdr reclaim rebinds the endpoint and leaves the whole rest of the task alone"
+}
+
+test_herdr_rebind_failure_from_a_plain_shell_names_the_real_cause() {
+  local dir out rc
+  # No HERDR_* env at all, which is how an operator reclaims from ssh or cron.
+  # The adapter's ambient session then reads `default` while the record names
+  # `fmlab`, but the cross-session launcher guard was never consulted - this
+  # seat claims no launcher pane, so placement fell back to the recorded
+  # session's labeled container and the container failed for its own reason.
+  herdr_case_or_skip gone-herdr-plain rl77 fmlab '%none' || {
+    echo "skip - herdr reclaim needs jq (the herdr adapter parses JSON with it)"
+    return 0
+  }
+  dir=$HERDR_CASE_DIR
+  : > "$dir/fake/herdr-workspace-create-fails"
+
+  out=$(run_spawn "$dir" rl77 --relaunch --harness claude); rc=$?
+  expect_code 1 "$rc" "a container that cannot be ensured must refuse"$'\n'"$out"
+  assert_contains "$out" "fmlab" "the refusal should name the session the reclaim was targeting"
+  assert_not_contains "$out" "this seat is running in herdr session" \
+    "a seat with no launcher pane never hit the cross-session guard, so the refusal must not blame one"
+  assert_not_contains "$out" "a reclaim never moves a task to another session" \
+    "the operator must not be sent to re-run from another seat when that would not help"
+  pass "reclaim: a rebind refused from a plain shell reports the real cause, not a fabricated session mismatch"
+}
+
+test_herdr_reclaim_of_a_secondmate_names_its_own_owner() {
+  local dir out rc
+  herdr_case_or_skip gone-herdr-secondmate rl76 fmlab '%none' || {
+    echo "skip - herdr reclaim needs jq (the herdr adapter parses JSON with it)"
+    return 0
+  }
+  dir=$HERDR_CASE_DIR
+  printf '%s\n' "kind=secondmate" "home=$dir/wt" >> "$dir/home/state/rl76.meta"
+
+  out=$(run_spawn "$dir" rl76 --relaunch --harness claude); rc=$?
+  expect_code 1 "$rc" "a secondmate reclaim belongs to the secondmate respawn path"
+  assert_contains "$out" "--secondmate" "the refusal should name the path that owns this recovery"
+  assert_not_contains "$(cat "$dir/fake/herdr-log")" "tab create" \
+    "the refusal must happen before any endpoint is created"
+  pass "reclaim: a herdr secondmate whose endpoint is gone is sent to its own respawn owner"
+}
+
 test_relaunch_reverifies_an_already_in_flight_item_instead_of_rewriting_it() {
   local dir out rc=0
   command -v tasks-axi >/dev/null 2>&1 || {
     pass "skipped: tasks-axi is not installed, so the backlog transition is inert"
+    return 0
+  }
+  fm_tasks_axi_compatible || {
+    pass "skipped: installed tasks-axi predates ${FM_TASKS_AXI_MIN}, so dispatch refuses automatic backlog transitions"
     return 0
   }
   dir=$(new_case reverify rl40)
@@ -1670,6 +2654,10 @@ test_relaunch_moves_a_drifted_item_back_in_flight() {
     pass "skipped: tasks-axi is not installed, so the backlog transition is inert"
     return 0
   }
+  fm_tasks_axi_compatible || {
+    pass "skipped: installed tasks-axi predates ${FM_TASKS_AXI_MIN}, so dispatch refuses automatic backlog transitions"
+    return 0
+  }
   dir=$(new_case drifted rl41)
   add_ship_task "$dir" rl41 claude
   seed_backlog "$dir" rl41 queued
@@ -1679,6 +2667,521 @@ test_relaunch_moves_a_drifted_item_back_in_flight() {
   [ "$(backlog_state "$dir" rl41)" = in_flight ] \
     || fail "a relaunch left its item at $(backlog_state "$dir" rl41)"
   pass "relaunch heals an item that drifted out of In flight while the task stayed live"
+}
+
+test_exit_and_relaunch_remove_the_dialog_file() {
+  local dir out rc
+  dir=$(new_case dialog-file-exit rl70)
+  add_ship_task "$dir" rl70 claude
+  out=$(run_control "$dir" rl70 exit); rc=$?
+  expect_code 0 "$rc" "exit should stop the agent"$'\n'"$out"
+  [ ! -e "$dir/home/state/rl70.composer-dialog" ] \
+    || fail "exit should remove the dialog file"
+
+  dir=$(new_case dialog-file-relaunch rl71)
+  add_ship_task "$dir" rl71 claude
+  out=$(run_control "$dir" rl71 relaunch --note "replace the agent"); rc=$?
+  expect_code 0 "$rc" "relaunch should replace the agent"$'\n'"$out"
+  [ ! -e "$dir/home/state/rl71.composer-dialog" ] \
+    || fail "relaunch should remove the dialog file"
+  pass "fm-control removes the dialog file after exit and after relaunch"
+}
+
+# The lock release removes paths at or under the control lock with rm, so a
+# recording rm sees the state directory at the moment of release without a
+# second overlapping command.
+test_exit_removes_the_dialog_file_before_releasing_the_lock() {
+  local dir out rc lock sink trace
+  dir=$(new_case dialog-file-order rl72)
+  add_ship_task "$dir" rl72 claude
+  lock="$dir/home/state/.control-rl72.lock"
+  sink="$dir/home/state/rl72.composer-dialog"
+  trace="$dir/fake/rm-trace"
+  cat > "$dir/fakebin/rm" <<SH
+#!/usr/bin/env bash
+for arg in "\$@"; do
+  case "\$arg" in
+    "$lock"|"$lock"/*)
+      if [ -e "$sink" ]; then echo present; else echo absent; fi >> "$trace"
+      break
+      ;;
+  esac
+done
+exec "$(command -v rm)" "\$@"
+SH
+  chmod +x "$dir/fakebin/rm"
+  out=$(run_control "$dir" rl72 exit); rc=$?
+  expect_code 0 "$rc" "exit should stop the agent"$'\n'"$out"
+  [ ! -e "$lock" ] || fail "exit should release the control lock"
+  [ "$(tail -n 1 "$trace" 2>/dev/null)" = absent ] \
+    || fail "the dialog file must be gone when the control lock is released, got: $(cat "$trace" 2>/dev/null)"
+  pass "fm-control exit removes the dialog file before it releases the control lock"
+}
+
+test_exit_and_relaunch_remove_the_dialog_file
+test_exit_removes_the_dialog_file_before_releasing_the_lock
+# --- exact Claude session resume (--resume-session) --------------------------
+#
+# A required restart may have to keep a Claude agent's exact conversation. The
+# session is proven before anything stops, the replacement resumes exactly that
+# session with the task's full launch wiring and no launch brief, and every
+# failure refuses rather than falling back to a fresh session. The session
+# records and transcripts below follow Claude Code's own store layout under the
+# case's throwaway HOME (CLAUDE_CONFIG_DIR is empty in run_control/run_spawn).
+
+RESUME_UUID=0b1c2d3e-4f50-4617-8293-a4b5c6d7e8f9
+OTHER_UUID=11111111-2222-4333-8444-555555555555
+
+# claude_transcript_fixture <case-dir> <cwd> <session-id>
+claude_transcript_fixture() {
+  local dir=$1 cwd=$2 id=$3 slug
+  slug=$(cd "$cwd" && pwd -P | sed 's/[^A-Za-z0-9]/-/g')
+  mkdir -p "$dir/user-home/.claude/projects/$slug"
+  printf '{"type":"user","sessionId":"%s"}\n' "$id" \
+    > "$dir/user-home/.claude/projects/$slug/$id.jsonl"
+}
+
+# start_orphan <command...>: run <command> in the background with its output
+# discarded and print its pid. Called inside a command substitution, so the
+# process outlives that subshell and is reaped as soon as it stops.
+start_orphan() {
+  sh -c 'printf "%s\n" "$$"; exec "$@" >/dev/null 2>&1' start_orphan "$@" &
+}
+
+# claude_owner_fixture <case-dir> <cwd> <session-id> [--in-pane] [NAME=value...]:
+# start a stand-in process, orphaned so it is reaped as soon as it stops, with
+# exactly the given Fleet environment, and record it the way Claude records a
+# running interactive session. --in-pane starts it under a stand-in pane shell
+# whose pid the tmux stub reports as the endpoint's pane_pid. The tmux stub's
+# exit command stops it.
+claude_owner_fixture() {
+  local dir=$1 cwd=$2 id=$3 pid real start stat_line shell_pid in_pane=0
+  shift 3
+  if [ "${1-}" = --in-pane ]; then
+    in_pane=1
+    shift
+  fi
+  real=$(cd "$cwd" && pwd -P)
+  if [ "$in_pane" = 1 ]; then
+    rm -f "$dir/fake/owner-child"
+    # shellcheck disable=SC2016  # the inner script expands in the pane shell
+    shell_pid=$(start_orphan bash -c '"$@" & echo $! > "$0.tmp" && mv "$0.tmp" "$0"; wait' "$dir/fake/owner-child" \
+      env -u FM_TASK_INBOX -u FM_HOME -u FM_TASK_ID "$@" /bin/sleep 300)
+    OWNER_PIDS+=("$shell_pid")
+    for _ in $(seq 1 100); do
+      [ ! -s "$dir/fake/owner-child" ] || break
+      /bin/sleep 0.02
+    done
+    pid=$(cat "$dir/fake/owner-child")
+    printf '%s' "$shell_pid" > "$dir/fake/pane-pid"
+  else
+    pid=$(start_orphan env -u FM_TASK_INBOX -u FM_HOME -u FM_TASK_ID "$@" /bin/sleep 300)
+  fi
+  OWNER_PIDS+=("$pid")
+  start=
+  if stat_line=$(cat "/proc/$pid/stat" 2>/dev/null); then
+    # shellcheck disable=SC2086  # word-split the stat fields deliberately
+    set -- ${stat_line##*) }
+    start=${20-}
+  fi
+  mkdir -p "$dir/user-home/.claude/sessions"
+  printf '{"pid":%s,"sessionId":"%s","cwd":"%s","procStart":"%s","kind":"interactive"}\n' \
+    "$pid" "$id" "$real" "$start" > "$dir/user-home/.claude/sessions/$pid.json"
+  printf '%s\n' "$pid" >> "$dir/fake/owner-pids"
+}
+
+# The inbox path a Fleet launch of <id> exports as FM_TASK_INBOX.
+task_inbox() {  # <case-dir> <id>
+  printf '%s/home/state/%s.inbox' "$1" "$2"
+}
+
+# The literal launch line the stub recorded for the replacement.
+resume_launch_line() {  # <case-dir>
+  grep -F -- ' --resume ' "$1/fake/literal" | tail -1
+}
+
+test_resume_session_relaunch_resumes_the_exact_worker_conversation() {
+  local dir out rc gen_before gen_after launch
+  command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
+  dir=$(new_case resume-worker rs1)
+  add_ship_task "$dir" rs1 claude
+  claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+  claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rs1)"
+  gen_before=$("$ROOT/bin/fm-busy-event.sh" arm "$dir/home/state" rs1)
+  printf 'busy_gen=%s\n' "$gen_before" >> "$dir/home/state/rs1.meta"
+
+  out=$(run_control "$dir" rs1 relaunch --resume-session "$RESUME_UUID" --note "cutover restart"); rc=$?
+  expect_code 0 "$rc" "a verified exact-session relaunch should succeed"$'\n'"$out"
+  assert_contains "$out" "resumed_session=$RESUME_UUID" "the outcome should name the resumed session"
+  assert_grep "/exit" "$dir/fake/literal" "the previous agent should have been exited"
+  launch=$(resume_launch_line "$dir")
+  assert_contains "$launch" "--resume '$RESUME_UUID'" "the replacement must resume the exact verified session"
+  assert_contains "$launch" "--append-system-prompt" "the worker trust contract must stay on the launch"
+  assert_contains "$launch" "FM_TASK_INBOX=" "the task inbox export must stay on the launch"
+  assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
+    "a resumed session must not be handed the launch brief again"
+  [ "$(meta_field "$dir" rs1 window)" = "fmses:fm-rs1" ] || fail "the endpoint must be reused"
+  [ "$(meta_field "$dir" rs1 harness)" = claude ] || fail "the record must stay on claude"
+  gen_after=$(meta_field "$dir" rs1 busy_gen)
+  [ -n "$gen_after" ] && [ "$gen_after" != "$gen_before" ] \
+    || fail "a resume must still arm a fresh busy generation, got '$gen_after'"
+  assert_grep "$gen_after" "$dir/wt/.claude/settings.local.json" \
+    "the worker's busy hooks must carry the new generation"
+  assert_grep "state=idle" "$dir/home/state/rs1.busy-state" \
+    "no turn is submitted on a resume, so the busy record starts idle"
+  [ "$(journal_field "$dir" rs1 resume_session)" = "$RESUME_UUID" ] \
+    || fail "the transaction journal should record the resumed session"
+  [ "$(journal_field "$dir" rs1 phase)" = complete ] || fail "the transaction should complete"
+  pass "fm-control relaunch --resume-session: a worker resumes its exact conversation with full wiring and no brief"
+}
+
+test_resume_session_relaunch_resumes_a_secondmate_with_its_home_environment() {
+  local dir home out rc launch binding
+  command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
+  for binding in legacy inbox; do
+    dir=$(new_case "resume-sm-$binding" rsm1)
+    home="$dir/home"
+    mkdir -p "$home/config"
+    printf 'claude\n' > "$home/config/secondmate-harness"
+    fm_git_worktree "$dir/proj" "$dir/smhome" sm-branch
+    mkdir -p "$dir/smhome/state" "$dir/smhome/data" "$dir/smhome/bin"
+    printf 'rsm1\n' > "$dir/smhome/.fm-secondmate-home"
+    printf '# charter\n' > "$dir/smhome/data/charter.md"
+    printf '# agents\n' > "$dir/smhome/AGENTS.md"
+    {
+      echo "window=fmses:fm-rsm1"
+      echo "endpoint_task_id=rsm1"
+      echo "worktree=$dir/smhome"
+      echo "project=$dir/smhome"
+      echo "harness=claude"
+      echo "kind=secondmate"
+      echo "mode=secondmate"
+      echo "yolo=off"
+      echo "model=default"
+      echo "effort=default"
+      echo "home=$dir/smhome"
+      echo "projects="
+    } > "$home/state/rsm1.meta"
+    printf '%s\n' "fm-rsm1" > "$dir/fake/windows"
+    printf '%s' "$dir/smhome" > "$dir/fake/cwd"
+    claude_transcript_fixture "$dir" "$dir/smhome" "$RESUME_UUID"
+    if [ "$binding" = legacy ]; then
+      # Launched before the FM_TASK_INBOX export existed, as the live Trelume
+      # secondmate was: bound through its endpoint's process tree and its home.
+      claude_owner_fixture "$dir" "$dir/smhome" "$RESUME_UUID" --in-pane FM_HOME="$dir/smhome"
+    else
+      claude_owner_fixture "$dir" "$dir/smhome" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rsm1)" FM_HOME="$dir/smhome"
+    fi
+
+    out=$(run_control "$dir" rsm1 relaunch --resume-session "$RESUME_UUID"); rc=$?
+    expect_code 0 "$rc" "a verified secondmate resume should succeed"$'\n'"$out"
+    launch=$(resume_launch_line "$dir")
+    assert_contains "$launch" "--resume '$RESUME_UUID'" "the secondmate must resume its exact session"
+    assert_contains "$launch" "FM_HOME='$dir/smhome'" "the secondmate's own home must stay its FM_HOME"
+    assert_contains "$launch" "FM_SUPERVISION_MODEL=autoarm" "the secondmate supervision environment must stay"
+    assert_contains "$launch" "FM_TASK_INBOX=" "the inbox export must stay on the launch"
+    assert_not_contains "$launch" "--append-system-prompt" "a secondmate never receives the task-worker contract"
+    assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
+      "a resumed secondmate must not be handed its launch brief again"
+    [ "$(cat "$dir/smhome/data/charter.md")" = "# charter" ] || fail "the charter must stay untouched"
+    [ "$(meta_field "$dir" rsm1 kind)" = secondmate ] || fail "the record must stay a secondmate"
+  done
+  pass "fm-control relaunch --resume-session: a secondmate resumes in its own home environment, bound by FM_TASK_INBOX or, launched before it, by its endpoint and home"
+}
+
+test_resume_session_relaunch_resumes_a_legacy_worker_bound_by_endpoint_and_task_id() {
+  local dir out rc launch home_env
+  command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
+  for home_env in absent matching; do
+    dir=$(new_case "resume-legacy-worker-$home_env" rlw1)
+    add_ship_task "$dir" rlw1 claude
+    claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+    # A ship launched before the FM_TASK_INBOX export existed carries only the
+    # FM_TASK_ID its pane was marked with; its FM_HOME is normally unset, and
+    # one it does carry must be the task's home.
+    if [ "$home_env" = absent ]; then
+      claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_TASK_ID=rlw1
+    else
+      claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_TASK_ID=rlw1 FM_HOME="$dir/home"
+    fi
+    out=$(run_control "$dir" rlw1 relaunch --resume-session "$RESUME_UUID" --note "cutover restart"); rc=$?
+    expect_code 0 "$rc" "a legacy worker bound by its endpoint and task id should resume"$'\n'"$out"
+    launch=$(resume_launch_line "$dir")
+    assert_contains "$launch" "--resume '$RESUME_UUID'" "the legacy worker must resume its exact session"
+    assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
+      "a resumed legacy worker must not be handed the launch brief again"
+  done
+  pass "fm-control relaunch --resume-session: a legacy worker without FM_TASK_INBOX or FM_HOME resumes through its endpoint and FM_TASK_ID"
+}
+
+# Each refusal must happen while the old agent is still running: nothing is
+# typed into the pane, no transaction is opened, and the record and the
+# instructions stay byte-identical.
+assert_resume_refused_before_stop() {  # <case-dir> <id> <output> <rc> <expected-text> <what>
+  local dir=$1 id=$2 out=$3 rc=$4 want=$5 what=$6
+  expect_code 1 "$rc" "$what must refuse"$'\n'"$out"
+  assert_contains "$out" "$want" "$what should say why"
+  assert_no_grep "/exit" "$dir/fake/literal" "$what must refuse before the agent is stopped"
+  assert_no_grep " --resume " "$dir/fake/literal" "$what must launch nothing"
+  assert_absent "$dir/home/state/$id.control-relaunch" "$what must not open a relaunch transaction"
+  cmp -s "$dir/home/state/$id.meta" "$dir/meta-before" || fail "$what must leave the task record byte-identical"
+  cmp -s "$dir/home/data/$id/brief.md" "$dir/brief-before" || fail "$what must leave the instructions byte-identical"
+  local owner
+  [ ! -e "$dir/fake/owner-pids" ] || while read -r owner; do
+    [ -n "$owner" ] || continue
+    kill -0 "$owner" 2>/dev/null || fail "$what must leave the live Claude process $owner running"
+  done < "$dir/fake/owner-pids"
+}
+
+test_resume_session_refusals_happen_before_the_agent_stops() {
+  local dir out rc scenario
+  command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
+  for scenario in malformed missing mismatched elsewhere no-transcript already-owned not-claude \
+      foreign-interactive other-task in-pane-no-task-id foreign-in-pane-task in-pane-wrong-home; do
+    dir=$(new_case "resume-refuse-$scenario" rr1)
+    add_ship_task "$dir" rr1 claude
+    case "$scenario" in
+      malformed)
+        out=$(run_control "$dir" rr1 relaunch --resume-session "NOT-A-UUID" --note n); rc=$?
+        expect_code 1 "$rc" "a malformed session id must refuse"$'\n'"$out"
+        assert_contains "$out" "not a well-formed Claude session id" "a malformed id should say so"
+        assert_no_grep "/exit" "$dir/fake/literal" "a malformed id must refuse before the agent is stopped"
+        continue
+        ;;
+      missing)
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        want="no live Claude process records session $RESUME_UUID"
+        ;;
+      mismatched)
+        # The running agent is on another conversation.
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$OTHER_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rr1)"
+        want="no live Claude process records session $RESUME_UUID"
+        ;;
+      elsewhere)
+        mkdir -p "$dir/other"
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/other" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rr1)"
+        want="not to this task's working directory"
+        ;;
+      no-transcript)
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rr1)"
+        want="has no transcript"
+        ;;
+      already-owned)
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rr1)"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        want="owned by more than one live process"
+        ;;
+      not-claude)
+        sed -i 's/^harness=claude$/harness=codex/' "$dir/home/state/rr1.meta"
+        printf 'codex' > "$dir/fake/command"
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rr1)"
+        want="resumes a Claude conversation on Claude"
+        ;;
+      foreign-interactive)
+        # An interactive claude someone opened in the same worktree owns the
+        # id; the task's own agent is a different, running process.
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_TASK_ID=rr1
+        want="not in task rr1's endpoint process tree"
+        ;;
+      other-task)
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rr2)"
+        want="not task rr1"
+        ;;
+      in-pane-no-task-id)
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_HOME="$dir/home"
+        want="FM_TASK_ID='unset'"
+        ;;
+      foreign-in-pane-task)
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_TASK_ID=rr2
+        want="FM_TASK_ID='rr2'"
+        ;;
+      in-pane-wrong-home)
+        claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+        mkdir -p "$dir/otherhome"
+        claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" --in-pane FM_TASK_ID=rr1 FM_HOME="$dir/otherhome"
+        want="not task rr1's home"
+        ;;
+    esac
+    cp -p "$dir/home/state/rr1.meta" "$dir/meta-before"
+    cp -p "$dir/home/data/rr1/brief.md" "$dir/brief-before"
+    out=$(run_control "$dir" rr1 relaunch --resume-session "$RESUME_UUID" --note "cutover restart"); rc=$?
+    assert_resume_refused_before_stop "$dir" rr1 "$out" "$rc" "$want" "a $scenario session"
+  done
+  pass "fm-control relaunch --resume-session: a malformed, missing, mismatched, foreign, transcript-less, doubly owned, other-agent-owned, or non-Claude session refuses before anything stops"
+}
+
+test_resume_session_spawn_refuses_a_session_still_owned_and_never_falls_back() {
+  local dir out rc
+  command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
+  dir=$(new_case resume-spawn rsp1)
+  add_ship_task "$dir" rsp1 claude
+  printf 'zsh' > "$dir/fake/command"
+  claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+  # The endpoint's agent stopped, but another live process still owns the
+  # conversation: launching would put two processes on one session.
+  claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+  out=$(run_spawn "$dir" rsp1 --relaunch --resume-session "$RESUME_UUID"); rc=$?
+  expect_code 1 "$rc" "a still-owned session must refuse at launch"$'\n'"$out"
+  assert_contains "$out" "still owned by live process" "the refusal should name the live owner"
+  assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
+    "a refused resume must never fall back to a fresh launch"
+  assert_no_grep " --resume " "$dir/fake/literal" "a refused resume must launch nothing"
+
+  out=$(run_spawn "$dir" rsp2 "$dir/proj" --resume-session "$RESUME_UUID"); rc=$?
+  expect_code 1 "$rc" "a fresh spawn has no conversation to resume"$'\n'"$out"
+  assert_contains "$out" "applies to --relaunch only" "the refusal should say the option is relaunch-only"
+  pass "fm-spawn --relaunch --resume-session: refuses a session another process still owns and never launches fresh"
+}
+
+# A legacy Herdr secondmate (no FM_TASK_INBOX) is bound through the pane shell
+# Herdr's `pane process-info` names, the cutover's path for the live Trelume
+# secondmate: an owner inside that shell's tree resumes, and one outside it is
+# refused before anything is stopped.
+test_herdr_resume_session_binds_a_legacy_secondmate_through_the_pane_shell() {
+  local dir out rc owner placement
+  for placement in in-pane outside; do
+    herdr_case_or_skip "resume-herdr-sm-$placement" rhs1 || {
+      echo "skip - herdr relaunch needs jq (the herdr adapter parses JSON with it)"
+      return 0
+    }
+    dir=$HERDR_CASE_DIR
+    rm -f "$dir/fake/herdr-stopped"
+    : > "$dir/fake/herdr-agent-live"
+    : > "$dir/fake/literal"
+    mkdir -p "$dir/home/config"
+    printf 'claude\n' > "$dir/home/config/secondmate-harness"
+    fm_git_worktree "$dir/smproj" "$dir/smhome" sm-branch
+    mkdir -p "$dir/smhome/state" "$dir/smhome/data" "$dir/smhome/bin"
+    printf 'rhs1\n' > "$dir/smhome/.fm-secondmate-home"
+    printf '# charter\n' > "$dir/smhome/data/charter.md"
+    printf '# agents\n' > "$dir/smhome/AGENTS.md"
+    {
+      echo "window=fmlab:%7"
+      echo "endpoint_task_id=rhs1"
+      echo "worktree=$dir/smhome"
+      echo "project=$dir/smhome"
+      echo "harness=claude"
+      echo "kind=secondmate"
+      echo "mode=secondmate"
+      echo "yolo=off"
+      echo "model=default"
+      echo "effort=default"
+      echo "home=$dir/smhome"
+      echo "projects="
+      echo "backend=herdr"
+      echo "herdr_session=fmlab"
+      echo "herdr_workspace_id=ws1"
+      echo "herdr_tab_id=tab1"
+      echo "herdr_pane_id=%7"
+    } > "$dir/home/state/rhs1.meta"
+    printf '%s' "$dir/smhome" > "$dir/fake/cwd"
+    claude_transcript_fixture "$dir" "$dir/smhome" "$RESUME_UUID"
+    if [ "$placement" = in-pane ]; then
+      claude_owner_fixture "$dir" "$dir/smhome" "$RESUME_UUID" --in-pane FM_HOME="$dir/smhome"
+    else
+      # The pane's shell is a different process tree from the owner's.
+      claude_owner_fixture "$dir" "$dir/smhome" "$OTHER_UUID" --in-pane FM_HOME="$dir/smhome"
+      : > "$dir/fake/owner-pids"
+      claude_owner_fixture "$dir" "$dir/smhome" "$RESUME_UUID" FM_HOME="$dir/smhome"
+    fi
+
+    out=$(run_control "$dir" rhs1 relaunch --resume-session "$RESUME_UUID"); rc=$?
+    if [ "$placement" = in-pane ]; then
+      expect_code 0 "$rc" "a legacy Herdr secondmate inside its pane shell's tree should resume"$'\n'"$out"
+      assert_grep "/exit" "$dir/fake/literal" "the previous agent should have been exited"
+      assert_contains "$(cat "$dir/fake/launched-command")" "--resume '$RESUME_UUID'" \
+        "the Herdr secondmate must resume its exact session"
+      assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
+        "a resumed Herdr secondmate must not be handed its launch brief again"
+    else
+      expect_code 1 "$rc" "an owner outside the Herdr pane shell's tree must refuse"$'\n'"$out"
+      assert_contains "$out" "not in task rhs1's endpoint process tree" "the refusal should say why"
+      assert_no_grep "/exit" "$dir/fake/literal" "the refusal must come before the agent is stopped"
+      assert_absent "$dir/home/state/rhs1.control-relaunch" "the refusal must not open a relaunch transaction"
+      assert_present "$dir/fake/herdr-agent-live" "the task's agent must be left running"
+      while read -r owner; do
+        [ -n "$owner" ] || continue
+        kill -0 "$owner" 2>/dev/null || fail "the foreign Claude process $owner must be left running"
+      done < "$dir/fake/owner-pids"
+    fi
+  done
+  pass "fm-control relaunch --resume-session: a legacy Herdr secondmate is bound through its pane shell, and an owner outside it refuses before the stop"
+}
+
+test_resume_session_spawn_resumes_a_released_session() {
+  local dir out rc launch
+  command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
+  dir=$(new_case resume-released rsr1)
+  add_ship_task "$dir" rsr1 claude
+  printf 'zsh' > "$dir/fake/command"
+  claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+  out=$(run_spawn "$dir" rsr1 --relaunch --resume-session "$RESUME_UUID"); rc=$?
+  expect_code 0 "$rc" "a released session with its transcript should resume"$'\n'"$out"
+  launch=$(resume_launch_line "$dir")
+  assert_contains "$launch" "--resume '$RESUME_UUID'" "the replacement must resume the exact session"
+  assert_no_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
+    "a resumed session must not be handed the launch brief again"
+  pass "fm-spawn --relaunch --resume-session: an already-stopped task resumes its released session"
+}
+
+test_resume_session_post_stop_failure_names_the_exact_session_recovery() {
+  local dir out rc failure launch
+  command -v jq >/dev/null 2>&1 || { echo "skip - session-record checks need jq"; return 0; }
+  for failure in stop-transport launch-refused; do
+    dir=$(new_case "resume-post-stop-$failure" rps1)
+    add_ship_task "$dir" rps1 claude
+    claude_transcript_fixture "$dir" "$dir/wt" "$RESUME_UUID"
+    claude_owner_fixture "$dir" "$dir/wt" "$RESUME_UUID" FM_TASK_INBOX="$(task_inbox "$dir" rps1)"
+    if [ "$failure" = stop-transport ]; then
+      out=$(FM_FAKE_EXIT_TRANSPORT_FAIL_AFTER_STOP=1 \
+        run_control "$dir" rps1 relaunch --resume-session "$RESUME_UUID" --note "cutover restart"); rc=$?
+    else
+      # The endpoint's shell left the worktree, so the launch owner refuses
+      # only after the verified agent has been stopped.
+      printf '%s' "$dir/proj" > "$dir/fake/cwd"
+      out=$(run_control "$dir" rps1 relaunch --resume-session "$RESUME_UUID" --note "cutover restart"); rc=$?
+    fi
+    expect_code 1 "$rc" "a $failure failure after the stop should fail closed"$'\n'"$out"
+    assert_contains "$out" "no agent is running" "the $failure failure should report the stopped agent"
+    assert_contains "$out" "run: $ROOT/bin/fm-spawn.sh rps1 --relaunch --harness claude --resume-session $RESUME_UUID;" \
+      "the $failure failure must name the exact-session recovery command"
+    assert_contains "$out" "a plain relaunch would start a fresh session" \
+      "the $failure failure must warn that a plain relaunch loses the conversation"
+    assert_no_grep " --resume " "$dir/fake/literal" "the $failure failure must not have resumed anything"
+  done
+  printf '%s' "$dir/wt" > "$dir/fake/cwd"
+  out=$(run_spawn "$dir" rps1 --relaunch --harness claude --resume-session "$RESUME_UUID"); rc=$?
+  expect_code 0 "$rc" "the named recovery command should resume the released session"$'\n'"$out"
+  launch=$(resume_launch_line "$dir")
+  assert_contains "$launch" "--resume '$RESUME_UUID'" "the recovery must resume the exact session"
+  pass "fm-control relaunch --resume-session: a failure after the stop names the exact-session recovery command, which resumes it"
+}
+
+test_herdr_claude_relaunch_without_resume_session_stays_fresh() {
+  local dir out rc=0 command
+  herdr_case_or_skip resume-claude-fresh rcf1 || {
+    echo "skip - herdr relaunch needs jq (the herdr adapter parses JSON with it)"
+    return 0
+  }
+  dir=$HERDR_CASE_DIR
+  rm -f "$dir/fake/herdr-stopped"
+  # A Claude registration in the pane is never a resume source by itself.
+  printf '{"result":{"agent":{"agent":"claude","agent_status":"idle","agent_session":{"kind":"id","value":"%s"}}}}\n' \
+    "$RESUME_UUID" > "$dir/fake/herdr-agent-registration"
+  out=$(run_spawn "$dir" rcf1 --relaunch --harness claude) || rc=$?
+  expect_code 0 "$rc" "an ordinary Herdr Claude relaunch should complete"$'\n'"$out"
+  command=$(cat "$dir/fake/launched-command")
+  assert_not_contains "$command" "--resume" "an ordinary Claude relaunch must start a fresh session"
+  assert_contains "$command" "Firstmate operational input waiting: read" "an ordinary relaunch still delivers the brief"
+  pass "fm-spawn --relaunch: an ordinary Claude relaunch on Herdr stays a fresh session with its brief"
 }
 
 test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint
@@ -1696,6 +3199,10 @@ test_harness_switch_resolves_a_prefixed_recorded_harness
 test_prefixed_recorded_harness_requires_explicit_replacement
 test_same_harness_relaunch_keeps_the_profile_axes
 test_native_ultra_relaunch_preserves_profile_and_rejects_before_stop
+test_signed_out_worker_account_pin_refuses_before_stop
+test_worker_account_pin_follows_the_relaunch
+test_pi_exclude_tools_follow_the_relaunch
+test_exclude_tools_refusals_happen_before_the_agent_stops
 test_explicit_model_wins_over_the_recorded_one
 test_relaunch_onto_an_unverified_harness_is_refused
 test_prior_harness_turnend_registry_entry_is_cleared
@@ -1707,6 +3214,7 @@ test_secondmate_relaunch_onto_a_crewmate_only_adapter_refuses_before_stop
 test_explicit_secondmate_harness_ignores_configured_profile_axes
 test_ship_relaunch_ignores_the_crew_harness_config
 test_spawn_relaunch_without_a_harness_reuses_the_recorded_one
+test_spawn_relaunch_of_promoted_scout_uses_the_recorded_branch
 test_promoted_scout_relaunch_receives_the_current_delivery_contract
 test_prefixed_prior_harness_wiring_is_still_retired
 test_muse_session_binding_is_retired_on_a_harness_switch
@@ -1721,10 +3229,18 @@ test_post_publication_launch_failure_keeps_the_new_record
 test_stop_transport_failure_reconciles_a_dead_agent
 test_complete_journal_failure_rolls_back_from_durable_phase
 test_prepublication_abort_retires_replacement_wiring_and_busy_state
+test_secondmate_relaunch_keeps_the_home_private_claude_settings
+test_aborted_secondmate_relaunch_keeps_the_home_private_claude_settings
+test_ship_relaunch_still_rearms_its_claude_wiring
+test_spawn_relaunch_keeps_the_recorded_model_and_effort
+test_spawn_relaunch_explicit_axes_win_and_a_recorded_default_stays_flagless
+test_spawn_relaunch_onto_an_explicit_harness_carries_no_recorded_axes
+test_control_relaunch_keeps_the_pr_poll_record_authenticatable
 test_journal_records_the_checkpoint_it_proved
 test_secondmate_relaunch_checkpoints_child_work_and_spares_the_charter
 test_secondmate_relaunch_refuses_an_unmarked_home
 test_secondmate_checkpoint_refuses_unreadable_child_state
+test_secondmate_checkpoint_ignores_a_vanished_scratch_find_walk
 test_concurrent_relaunch_is_refused
 test_direct_spawn_relaunch_participates_in_the_lifecycle_lock
 test_promotion_participates_in_the_lifecycle_lock_before_metadata_resolution
@@ -1735,5 +3251,26 @@ test_spawn_relaunch_refuses_a_pending_authoritative_close
 test_spawn_relaunch_refuses_contradicting_flags
 test_spawn_relaunch_refuses_an_unrecorded_task
 test_spawn_relaunch_refuses_a_pane_outside_the_worktree
+test_tmux_refuses_a_window_missing_from_its_session
+test_tmux_refuses_a_session_that_cannot_be_found
+test_tmux_refuses_when_the_server_is_gone
+test_reclaim_refuses_an_unreadable_endpoint
+test_herdr_relaunch_resumes_only_the_registered_pi_session
+test_resume_session_relaunch_resumes_the_exact_worker_conversation
+test_resume_session_relaunch_resumes_a_secondmate_with_its_home_environment
+test_resume_session_relaunch_resumes_a_legacy_worker_bound_by_endpoint_and_task_id
+test_resume_session_refusals_happen_before_the_agent_stops
+test_resume_session_spawn_refuses_a_session_still_owned_and_never_falls_back
+test_resume_session_spawn_resumes_a_released_session
+test_resume_session_post_stop_failure_names_the_exact_session_recovery
+test_herdr_resume_session_binds_a_legacy_secondmate_through_the_pane_shell
+test_herdr_claude_relaunch_without_resume_session_stays_fresh
+test_herdr_reclaim_adopts_a_pane_that_outlived_its_server
+test_herdr_exit_reports_already_stopped_when_the_pane_outlived_its_server
+test_herdr_rebind_stays_in_the_recorded_session
+test_herdr_reclaim_refuses_an_agent_that_came_back
+test_herdr_reclaim_keeps_the_task_whole
+test_herdr_reclaim_of_a_secondmate_names_its_own_owner
+test_herdr_rebind_failure_from_a_plain_shell_names_the_real_cause
 test_relaunch_reverifies_an_already_in_flight_item_instead_of_rewriting_it
 test_relaunch_moves_a_drifted_item_back_in_flight

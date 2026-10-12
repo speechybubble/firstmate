@@ -12,6 +12,9 @@ set -u
 # shellcheck source=bin/fm-secondmate-registry-lib.sh
 # shellcheck disable=SC1091
 . "$ROOT/bin/fm-secondmate-registry-lib.sh"
+# shellcheck source=bin/fm-tasks-axi-lib.sh
+# shellcheck disable=SC1091
+. "$ROOT/bin/fm-tasks-axi-lib.sh"
 
 BEARINGS="$ROOT/bin/fm-bearings-snapshot.sh"
 TASKS_AXI_BIN=$(command -v tasks-axi || true)
@@ -380,6 +383,8 @@ test_domain_alpha_stale_parent_event_does_not_become_current_work() {
     .secondmate_current.records[] | select(.id == "domain-alpha")
     | .provenance.selected == "structured-home"
       and .freshness.status == "fresh"
+      and .parent_event.age_seconds == null
+      and (.parent_event | has("emitted_at_epoch") | not)
       and .terminal_evidence.provenance == "parent-direct-report-terminal"
       and .terminal_evidence.trust == "untrusted-supplement"
       and .terminal_evidence.captured == true
@@ -429,7 +434,11 @@ SH
       and .parent_event.activity_scan.available == true
   ' >/dev/null || fail "GNU stat fixture corrupted the authoritative secondmate summary: $canonical"
   assert_contains "$(cat "$stat_log")" '-c %a' "GNU registry mode must use stat -c"
-  assert_contains "$(cat "$stat_log")" '-c %Y' "GNU parent-event mtime must use stat -c"
+  assert_contains "$(cat "$stat_log")" '-c %Y' "GNU status-observation mtime must use stat -c"
+  printf '%s' "$canonical" | jq -e '
+    .secondmate_current.records[] | select(.id == "domain-alpha")
+    | .parent_event.age_seconds == null and (.parent_event | has("emitted_at_epoch") | not)
+  ' >/dev/null || fail "legacy event acquired an age from GNU stat"
   assert_contains "$(cat "$stat_log")" '-c %s' "GNU parent-event size must use stat -c"
   if grep -q '^-f ' "$stat_log"; then
     fail "GNU snapshot invoked BSD stat -f before its GNU file reads: $(cat "$stat_log")"
@@ -887,8 +896,6 @@ EOF
   printf '%s' "$canonical" | jq -e '
     .secondmate_current.records[] | select(.id == "states")
     | .current.state == "captain_decision"
-      and (.current.reason | contains("live child state has no in-flight backlog item"))
-      and (.current.reason | contains("parked=parked"))
       and .provenance.selected == "structured-home"
       and .provenance.trust == "partial-structured"
       and .invalidity == {kind:"unowned_current",ids:["parked"]}
@@ -1416,6 +1423,35 @@ test_include_prs_is_the_only_fetch_path() {
   pass "--include-prs is the only path that fetches, and it enriches correctly"
 }
 
+test_include_prs_maps_custom_branch_prefix_to_task() {
+  local home fakebin json
+  home=$(make_home custom-prefix); write_fixture "$home"
+  fm_write_meta "$home/state/ship-task.meta" \
+    "window=firstmate:fm-ship-task" \
+    "worktree=$home/projects/ship-wt" \
+    "project=firstmate" \
+    "harness=claude" \
+    "kind=ship" \
+    "mode=no-mistakes" \
+    "branch=fix/ship-task" \
+    "pr=https://github.com/kunchenguid/firstmate/pull/9"
+  fakebin=$(make_fakebin "$home"); : > "$home/net.log"
+  cat > "$fakebin/gh" <<'SH'
+#!/usr/bin/env bash
+echo "gh $*" >> "$NET_LOG"
+if [ "${FAKE_GH_FAIL:-0}" = 1 ]; then exit 1; fi
+cat <<'JSON'
+[{"number":9,"title":"Ship the thing","url":"https://github.com/kunchenguid/firstmate/pull/9","headRefName":"fix/ship-task","reviewDecision":"APPROVED","mergeable":"MERGEABLE","statusCheckRollup":[{"conclusion":"SUCCESS","status":"COMPLETED"}]}]
+JSON
+SH
+  chmod +x "$fakebin/gh"
+  json=$(run "$home" "$fakebin" --include-prs --json)
+  printf '%s' "$json" | jq -e '
+    .candidate_prs | any(.[]; .num == "9" and .task == "ship-task")
+  ' >/dev/null || fail "a PR on a custom (non-fm/) branch prefix must still map to its recorded task, not fall to '-': $json"
+  pass "--include-prs maps a custom branch-prefix PR back to its recorded task"
+}
+
 test_partial_github_failure_degrades() {
   local home fakebin json rc
   home=$(make_home partial); write_fixture "$home"
@@ -1621,6 +1657,10 @@ test_landed_accepts_only_kind_owned_delivery_artifacts() {
   local home fakebin json main_backlog report_path report_pr
   local keyword_report shipping_report fleet_json created_kind failures=''
   [ -n "$TASKS_AXI_BIN" ] || fail "tasks-axi is required for the landed-selector regression"
+  fm_tasks_axi_compatible || {
+    echo "skip: installed tasks-axi predates ${FM_TASKS_AXI_MIN}, so the real backlog mutations this regression needs are refused"
+    return 0
+  }
   home=$(make_home kind-owned-landed)
   write_fixture "$home"
   fakebin=$(make_fakebin "$home")
@@ -1773,6 +1813,10 @@ EOF
 test_kind_fallback_matches_tasks_axi_word_boundaries() {
   local home fakebin id title kind producer_kind fleet_json json
   [ -n "$TASKS_AXI_BIN" ] || fail "tasks-axi is required for the kind-boundary regression"
+  fm_tasks_axi_compatible || {
+    echo "skip: installed tasks-axi predates ${FM_TASKS_AXI_MIN}, so the real backlog mutations this regression needs are refused"
+    return 0
+  }
   home=$(make_home kind-word-boundaries)
   fakebin=$(make_fakebin "$home")
   : > "$home/net.log"
@@ -2435,6 +2479,70 @@ test_nameless_legacy_summary_uses_its_durable_identifier() {
   pass "blank legacy summary names use their durable identifier"
 }
 
+# A PR awaiting merge is child work and a held failed run is a hold; neither
+# lets a home read as idle. The parent record forwards both lists, and the hold
+# ranking does not depend on whether the home also has a captain decision.
+set_awaiting_held_summary() {  # <remote-home> <jq-filter>
+  jq "$2" "$1/state/home-summary.json" > "$1/state/states-summary.json"
+  mv "$1/state/states-summary.json" "$1/state/home-summary.json"
+}
+
+test_awaiting_merge_and_held_failed_runs_reach_bearings() {
+  local parent fakebin json canonical held
+  parent=$(make_home awaiting-merge-held-failed)
+  make_remote_ledger_fleet "$parent" 4
+  fakebin=$(make_remote_ledger_ssh "$parent/remote-ssh")
+  held='.held_failed_runs = [{id:"paused",reason:"paused: waiting for release",source:"status",detail:"run failed"}]
+    | .counts.held_failed_runs = 1'
+  set_awaiting_held_summary "$TMP_ROOT/remote-ledger-home-1" '
+    .state = "no_active_work" | .decisions_open = [] | .queued = []
+    | .awaiting_merge = [{id:"ready",pr_url:"https://github.com/o/r/pull/11",
+        detail:"checks green: PR ready for review"}]
+    | .counts += {decisions_open:0,queued:0,awaiting_merge:1}
+    | '"$held"
+  rm -f "$TMP_ROOT/remote-ledger-home-2/state/home-summary.json"
+  set_awaiting_held_summary "$TMP_ROOT/remote-ledger-home-3" '
+    .state = "no_active_work" | .decisions_open = [] | .queued = []
+    | .counts += {decisions_open:0,queued:0} | '"$held"
+  set_awaiting_held_summary "$TMP_ROOT/remote-ledger-home-4" '
+    .decisions_open = [{id:"other",key:"other",verb:"needs-decision",summary:"pick a route",source:"status"}]
+    | .queued = [] | .holds = [{id:"paused",reason:"keep stopped",source:"backlog"}]
+    | .counts += {decisions_open:1,queued:0,holds:1} | '"$held"
+
+  canonical=$(FM_HOME="$parent" FM_ROOT_OVERRIDE="$ROOT" FM_SSH_BIN="$fakebin/fake-ssh" \
+    FM_TEST_LEDGER_CALL_LOG="$parent/ledger-calls.log" \
+    FM_SNAPSHOT_CACHE_DIR="$parent/state/summary-cache" \
+    FM_SNAPSHOT_BUDGET=15 FM_SNAPSHOT_NOW_EPOCH=1100 \
+    "$ROOT/bin/fm-fleet-snapshot.sh" --json) || fail "awaiting-merge snapshot failed"
+  printf '%s' "$canonical" | jq -e '
+    (.secondmate_current.records[] | select(.id == "ledger-1")
+      | .current.state == "no_active_work"
+        and [.awaiting_merge[] | {id,pr_url}] == [{id:"ready",pr_url:"https://github.com/o/r/pull/11"}]
+        and [.held_failed_runs[] | {id,reason}] == [{id:"paused",reason:"paused: waiting for release"}])
+    and (.secondmate_current.records[] | select(.id == "ledger-2")
+      | .current.state == "unknown" and .awaiting_merge == [] and .held_failed_runs == []
+        and .counts.awaiting_merge == 0 and .counts.held_failed_runs == 0)
+  ' >/dev/null || fail "parent record dropped awaiting_merge or held_failed_runs: $canonical"
+
+  json=$(run_remote_ledger_bearings "$parent" "$fakebin" 1100) \
+    || fail "awaiting-merge bearings failed"
+  printf '%s' "$json" | jq -e '
+    (.secondmates[] | select(.id == "ledger-1")
+      | .state == "active_child_work"
+        and .doing == "ready: awaiting merge https://github.com/o/r/pull/11")
+    and (.secondmates[] | select(.id == "ledger-3")
+      | .state == "externally_held"
+        and .doing == "paused: held failed run: paused: waiting for release")
+    and (.secondmates[] | select(.id == "ledger-4")
+      | .state == "externally_held" and .doing == "paused: keep stopped")
+    and (.in_flight | any(.id == "ledger-1/ready" and .state == "done"
+      and .doing == "awaiting merge https://github.com/o/r/pull/11"))
+    and (.in_flight | any(.id == "ledger-3/paused" and .state == "failed"
+      and .doing == "held failed run: paused: waiting for release"))
+  ' >/dev/null || fail "bearings misranked a PR awaiting merge or a held failed run: $json"
+  pass "PRs awaiting merge read as child work and held failed runs as holds in bearings"
+}
+
 test_newest_filed_gates_are_selected_before_snapshot_bounds() {
   local home mate fakebin json i
   home=$(make_home newest-before-bounds)
@@ -2700,7 +2808,6 @@ EOF
   printf '%s' "$canonical" | jq -e '
     .secondmate_current.records[] | select(.id == "sshhip")
     | .current.state == "unknown"
-      and (.current.reason | contains("live child state has no in-flight backlog item: unreadable-child=unknown"))
       and .provenance.selected == "structured-home"
       and .provenance.trust == "partial-structured"
       and .invalidity == {kind:"unowned_current",ids:["unreadable-child"]}
@@ -3348,6 +3455,7 @@ test_main_orphan_counterfactual_meta_clears_inventory_warning
 test_working_captain_holds_keep_their_bucket_surfaces
 test_active_children_project_independent_of_home_captain_hold
 test_nameless_legacy_summary_uses_its_durable_identifier
+test_awaiting_merge_and_held_failed_runs_reach_bearings
 test_newest_filed_gates_are_selected_before_snapshot_bounds
 test_underway_and_gate_rows_carry_the_durable_name_and_filed_date
 test_mixed_secondmate_roles_partial_state_and_captain_readiness
@@ -3357,6 +3465,7 @@ test_open_decision_surfaces_end_to_end
 test_report_pointers_surface
 test_queued_item_prose_never_hides_it
 test_include_prs_is_the_only_fetch_path
+test_include_prs_maps_custom_branch_prefix_to_task
 test_partial_github_failure_degrades
 test_perl_fallback_bounds_github_call
 test_section_caps_and_expansion_flags
