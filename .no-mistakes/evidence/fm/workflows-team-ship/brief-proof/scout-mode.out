@@ -1,0 +1,2 @@
+error: --mode applies only to ship briefs; a scout delivers a report and a secondmate charter is not a delivery contract
+scout --mode rc=1

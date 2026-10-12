@@ -1,0 +1,12 @@
+--- /tmp/tmp.lMCSGK5aph/base.md	2026-10-12 20:18:35.355859409 +1000
++++ /tmp/tmp.lMCSGK5aph/cand.md	2026-10-12 20:18:35.675901911 +1000
+@@ -10,6 +10,9 @@
+ # Task context and learning
+ When earlier decisions, corrections or domain context can change task pickup, or an explicit preference or correction, verified mistake or evidenced reusable success may warrant a durable lesson, read and follow `<ROOT>/.agents/skills/task-context/SKILL.md`.
+ 
++# Task execution
++When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow `<ROOT>/.agents/skills/task-execution/SKILL.md` before execution.
++
+ # Herdr lifecycle declaration - NOT ENABLED
+ **HARD SAFETY GATE:** this scaffold cannot inspect the task text filled in above.
+ If the task will start, stop, delete, restart, profile, or otherwise drive Herdr lifecycle behavior, stop and regenerate the brief with `--herdr-lab` before dispatch.

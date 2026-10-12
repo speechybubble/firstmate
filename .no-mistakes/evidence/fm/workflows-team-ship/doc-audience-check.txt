@@ -1,3 +1,1 @@
-$ bin/fm-doc-audience-check.sh
-fm-doc-audience-check: ok surfaces=123 local_links=771
-rc=0
+fm-doc-audience-check: ok surfaces=125 local_links=784

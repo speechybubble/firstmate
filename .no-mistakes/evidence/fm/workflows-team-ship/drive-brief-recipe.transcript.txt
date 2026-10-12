@@ -1,0 +1,154 @@
++ export BRIEF_PROOF=/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof
++ BRIEF_PROOF=/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof
++ cd /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1
++ env
++ grep -E '^(FM_|NO_MISTAKES)'
++ sed 's/=.*//'
++ unset NO_MISTAKES_GATE FM_GATE_REFUSE_BYPASS FM_CONFIG_OVERRIDE FM_PROJECTS_OVERRIDE
+++ pwd -P
++ BRIEF_REPO=/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1
+++ mktemp -d
++ BRIEF_SCRATCH=/tmp/tmp.FRkcqqUWca
++ export BRIEF_REPO BRIEF_SCRATCH
++ mkdir -p /home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof
++ export 'FM_HOME=/tmp/tmp.FRkcqqUWca/home with spaces'
++ FM_HOME='/tmp/tmp.FRkcqqUWca/home with spaces'
++ unset FM_ROOT_OVERRIDE FM_DATA_OVERRIDE FM_STATE_OVERRIDE
++ mkdir -p '/tmp/tmp.FRkcqqUWca/home with spaces'
++ git rev-parse HEAD
++ git status --short
++ doctor
++ test -x /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-brief.sh
++ test '/tmp/tmp.FRkcqqUWca/home with spaces' = '/tmp/tmp.FRkcqqUWca/home with spaces'
++ test -d '/tmp/tmp.FRkcqqUWca/home with spaces'
++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-brief.sh --help
++ for mode in no-mistakes direct-PR local-only
++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-brief.sh ship-no-mistakes fixture --mode no-mistakes
++ brief='/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-no-mistakes/brief.md'
++ test -s '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-no-mistakes/brief.md'
++ grep -F 'Delivery contract: mode=no-mistakes' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-no-mistakes/brief.md'
+Delivery contract: mode=no-mistakes
++ grep -F '{TASK}' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-no-mistakes/brief.md'
+{TASK}
++ grep -F '{FIRSTMATE_SPEC}' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-no-mistakes/brief.md'
+{FIRSTMATE_SPEC}
++ grep -F '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-no-mistakes.status' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-no-mistakes/brief.md'
+   `echo "{state} [at=<epoch>]: {one short line}" >> '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-no-mistakes.status' && { [ ! -e '/tmp/tmp.FRkcqqUWca/home with spaces/config/fleet-ledger' ] || '/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-fleet-ledger.sh' appended '/tmp/tmp.FRkcqqUWca/home with spaces/config' '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-no-mistakes.status' >/dev/null 2>&1 || true; }`
++ grep -F '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-no-mistakes.inbox' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-no-mistakes/brief.md'
+Firstmate steers you through durable message files in '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-no-mistakes.inbox'.
+When a terminal message says an instruction is waiting there - and at any natural checkpoint when you are unsure - list '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-no-mistakes.inbox'/*.msg, read and act on each message in numeric order, then acknowledge each handled message by moving it: `mv '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-no-mistakes.inbox'/NNN.msg '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-no-mistakes.inbox'/handled/`.
++ grep -F /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/.agents/skills/task-execution/SKILL.md '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-no-mistakes/brief.md'
+When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/.agents/skills/task-execution/SKILL.md` before execution.
++ test -r /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/.agents/skills/task-execution/SKILL.md
++ grep -F '# Herdr lifecycle declaration - NOT ENABLED' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-no-mistakes/brief.md'
+# Herdr lifecycle declaration - NOT ENABLED
++ cp '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-no-mistakes/brief.md' /home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/ship-no-mistakes.md
++ for mode in no-mistakes direct-PR local-only
++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-brief.sh ship-direct-PR fixture --mode direct-PR
++ brief='/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-direct-PR/brief.md'
++ test -s '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-direct-PR/brief.md'
++ grep -F 'Delivery contract: mode=direct-PR' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-direct-PR/brief.md'
+Delivery contract: mode=direct-PR
++ grep -F '{TASK}' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-direct-PR/brief.md'
+{TASK}
++ grep -F '{FIRSTMATE_SPEC}' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-direct-PR/brief.md'
+{FIRSTMATE_SPEC}
++ grep -F '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-direct-PR.status' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-direct-PR/brief.md'
+   `echo "{state} [at=<epoch>]: {one short line}" >> '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-direct-PR.status' && { [ ! -e '/tmp/tmp.FRkcqqUWca/home with spaces/config/fleet-ledger' ] || '/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-fleet-ledger.sh' appended '/tmp/tmp.FRkcqqUWca/home with spaces/config' '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-direct-PR.status' >/dev/null 2>&1 || true; }`
++ grep -F '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-direct-PR.inbox' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-direct-PR/brief.md'
+Firstmate steers you through durable message files in '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-direct-PR.inbox'.
+When a terminal message says an instruction is waiting there - and at any natural checkpoint when you are unsure - list '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-direct-PR.inbox'/*.msg, read and act on each message in numeric order, then acknowledge each handled message by moving it: `mv '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-direct-PR.inbox'/NNN.msg '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-direct-PR.inbox'/handled/`.
++ grep -F /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/.agents/skills/task-execution/SKILL.md '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-direct-PR/brief.md'
+When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/.agents/skills/task-execution/SKILL.md` before execution.
++ test -r /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/.agents/skills/task-execution/SKILL.md
++ grep -F '# Herdr lifecycle declaration - NOT ENABLED' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-direct-PR/brief.md'
+# Herdr lifecycle declaration - NOT ENABLED
++ cp '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-direct-PR/brief.md' /home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/ship-direct-PR.md
++ for mode in no-mistakes direct-PR local-only
++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-brief.sh ship-local-only fixture --mode local-only
++ brief='/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-local-only/brief.md'
++ test -s '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-local-only/brief.md'
++ grep -F 'Delivery contract: mode=local-only' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-local-only/brief.md'
+Delivery contract: mode=local-only
++ grep -F '{TASK}' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-local-only/brief.md'
+{TASK}
++ grep -F '{FIRSTMATE_SPEC}' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-local-only/brief.md'
+{FIRSTMATE_SPEC}
++ grep -F '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-local-only.status' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-local-only/brief.md'
+   `echo "{state} [at=<epoch>]: {one short line}" >> '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-local-only.status' && { [ ! -e '/tmp/tmp.FRkcqqUWca/home with spaces/config/fleet-ledger' ] || '/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-fleet-ledger.sh' appended '/tmp/tmp.FRkcqqUWca/home with spaces/config' '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-local-only.status' >/dev/null 2>&1 || true; }`
++ grep -F '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-local-only.inbox' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-local-only/brief.md'
+Firstmate steers you through durable message files in '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-local-only.inbox'.
+When a terminal message says an instruction is waiting there - and at any natural checkpoint when you are unsure - list '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-local-only.inbox'/*.msg, read and act on each message in numeric order, then acknowledge each handled message by moving it: `mv '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-local-only.inbox'/NNN.msg '/tmp/tmp.FRkcqqUWca/home with spaces/state/ship-local-only.inbox'/handled/`.
++ grep -F /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/.agents/skills/task-execution/SKILL.md '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-local-only/brief.md'
+When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/.agents/skills/task-execution/SKILL.md` before execution.
++ test -r /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/.agents/skills/task-execution/SKILL.md
++ grep -F '# Herdr lifecycle declaration - NOT ENABLED' '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-local-only/brief.md'
+# Herdr lifecycle declaration - NOT ENABLED
++ cp '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-local-only/brief.md' /home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/ship-local-only.md
++ doctor
++ test -x /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-brief.sh
++ test '/tmp/tmp.FRkcqqUWca/home with spaces' = '/tmp/tmp.FRkcqqUWca/home with spaces'
++ test -d '/tmp/tmp.FRkcqqUWca/home with spaces'
++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-brief.sh --help
++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-brief.sh scout fixture --scout
++ brief='/tmp/tmp.FRkcqqUWca/home with spaces/data/scout/brief.md'
++ test -s '/tmp/tmp.FRkcqqUWca/home with spaces/data/scout/brief.md'
++ grep -F 'This is a SCOUT task' '/tmp/tmp.FRkcqqUWca/home with spaces/data/scout/brief.md'
+This is a SCOUT task: the deliverable is a written report, not a PR.
++ grep -F '/tmp/tmp.FRkcqqUWca/home with spaces/data/scout/report.md' '/tmp/tmp.FRkcqqUWca/home with spaces/data/scout/brief.md'
+Write your findings to `/tmp/tmp.FRkcqqUWca/home with spaces/data/scout/report.md`.
++ grep -F '/tmp/tmp.FRkcqqUWca/home with spaces/state/scout.status' '/tmp/tmp.FRkcqqUWca/home with spaces/data/scout/brief.md'
+   `echo "{state} [at=<epoch>]: {one short line}" >> '/tmp/tmp.FRkcqqUWca/home with spaces/state/scout.status' && { [ ! -e '/tmp/tmp.FRkcqqUWca/home with spaces/config/fleet-ledger' ] || '/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-fleet-ledger.sh' appended '/tmp/tmp.FRkcqqUWca/home with spaces/config' '/tmp/tmp.FRkcqqUWca/home with spaces/state/scout.status' >/dev/null 2>&1 || true; }`
++ grep -F '/tmp/tmp.FRkcqqUWca/home with spaces/state/scout.inbox' '/tmp/tmp.FRkcqqUWca/home with spaces/data/scout/brief.md'
+Firstmate steers you through durable message files in '/tmp/tmp.FRkcqqUWca/home with spaces/state/scout.inbox'.
+When a terminal message says an instruction is waiting there - and at any natural checkpoint when you are unsure - list '/tmp/tmp.FRkcqqUWca/home with spaces/state/scout.inbox'/*.msg, read and act on each message in numeric order, then acknowledge each handled message by moving it: `mv '/tmp/tmp.FRkcqqUWca/home with spaces/state/scout.inbox'/NNN.msg '/tmp/tmp.FRkcqqUWca/home with spaces/state/scout.inbox'/handled/`.
++ grep -F /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/.agents/skills/task-execution/SKILL.md '/tmp/tmp.FRkcqqUWca/home with spaces/data/scout/brief.md'
+When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/.agents/skills/task-execution/SKILL.md` before execution.
++ test -r /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/.agents/skills/task-execution/SKILL.md
++ grep -F 'Delivery contract: mode=' '/tmp/tmp.FRkcqqUWca/home with spaces/data/scout/brief.md'
++ cp '/tmp/tmp.FRkcqqUWca/home with spaces/data/scout/brief.md' /home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/scout.md
++ doctor
++ test -x /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-brief.sh
++ test '/tmp/tmp.FRkcqqUWca/home with spaces' = '/tmp/tmp.FRkcqqUWca/home with spaces'
++ test -d '/tmp/tmp.FRkcqqUWca/home with spaces'
++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-brief.sh --help
++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-brief.sh invalid fixture --mode unsupported
++ brief_rc=1
++ printf '%s\n' 1
++ test '!' -e '/tmp/tmp.FRkcqqUWca/home with spaces/data/invalid/brief.md'
++ cat /home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/invalid.out
+error: --mode must be one of no-mistakes, direct-PR, local-only (got 'unsupported')
++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-brief.sh scout2 fixture --scout --mode no-mistakes
++ echo 'scout --mode rc=1'
++ test '!' -e '/tmp/tmp.FRkcqqUWca/home with spaces/data/scout2/brief.md'
++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-brief.sh ship-no-mistakes fixture --mode no-mistakes
++ echo 'overwrite rc=1'
++ cmp '/tmp/tmp.FRkcqqUWca/home with spaces/data/ship-no-mistakes/brief.md' /home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/ship-no-mistakes.md
++ FM_SECONDMATE_CHARTER=x
++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QSANRYNJGCH39AQAFHWSW1/bin/fm-brief.sh mate --secondmate --no-projects
++ cp '/tmp/tmp.FRkcqqUWca/home with spaces/data/mate/brief.md' /home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/secondmate.md
++ grep -F task-execution /home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/secondmate.md
++ rm -r -- /tmp/tmp.FRkcqqUWca
++ test -s /home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/revision.txt
++ test -s /home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/help.txt
++ find /home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof -type f -print
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/ship-local-only.out
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/ship-no-mistakes.out
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/revision.txt
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/secondmate.out
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/secondmate.md
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/overwrite.out
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/ship-no-mistakes.md
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/scout.md
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/scout-mode.out
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/ship-direct-PR.out
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/worktree.txt
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/inherited-env-names.txt
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/ship-direct-PR.md
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/invalid.exit
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/scout.out
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/invalid.out
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/ship-local-only.md
+/home/denni/.no-mistakes/evidence/01M4QSANRYNJGCH39AQAFHWSW1/brief-proof/help.txt
++ echo RECIPE_DRIVE_OK
+RECIPE_DRIVE_OK
