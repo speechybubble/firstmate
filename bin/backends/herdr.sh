@@ -2138,6 +2138,19 @@ fm_backend_herdr_pane_process_state() {  # <session> <pane_id>
   printf '%s' "$verdict"
 }
 
+# fm_backend_herdr_pane_shell_pid: the pane's top shell pid from the same
+# `pane process-info` read fm_backend_herdr_pane_process_state walks
+# descendants from, printed only when the response round-trips <target>'s pane.
+fm_backend_herdr_pane_shell_pid() {  # <target>
+  local info
+  fm_backend_herdr_parse_target "$1" || return 1
+  info=$(fm_backend_herdr_cli "$FM_BACKEND_HERDR_SESSION" pane process-info --pane "$FM_BACKEND_HERDR_PANE" 2>/dev/null) \
+    || return 1
+  printf '%s' "$info" | jq -er --arg pane "$FM_BACKEND_HERDR_PANE" '
+    select(.result.type == "pane_process_info" and .result.process_info.pane_id == $pane)
+    | .result.process_info.shell_pid | select(type == "number" and . > 1) | floor' 2>/dev/null
+}
+
 # fm_backend_herdr_pane_process_state_sample: one instantaneous observation
 # for fm_backend_herdr_pane_process_state, which owns the verdict contract and
 # the settle retry.

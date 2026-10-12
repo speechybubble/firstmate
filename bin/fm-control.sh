@@ -6,6 +6,7 @@
 #        fm-control.sh <task-id> exit
 #        fm-control.sh <task-id> relaunch [--harness <name>] [--model <name>]
 #                                         [--effort <level>]
+#                                         [--resume-session <claude-session-id>]
 #                                         (--note <text> | --note-file <path>)
 #
 # Why this exists, and how it differs from fm-send.sh. bin/fm-send.sh is the
@@ -83,6 +84,19 @@
 #              inherits the local copy but none of the conversation; a
 #              secondmate reconciles its own home's records at startup, so its
 #              standing charter is never rewritten.
+#              --resume-session <id> keeps a Claude agent's exact conversation
+#              across a required restart: the replacement runs
+#              `claude --resume <id>` with the task's full Fleet launch wiring
+#              and no launch brief, instead of a fresh session. It is
+#              Claude-to-Claude only, and before anything is stopped the id must
+#              be well formed, recorded by exactly one live Claude process whose
+#              working directory is the task's and which is proven to be this
+#              task's agent, and backed by a transcript there
+#              (bin/fm-control-lib.sh's fm_control_claude_session_verify owns the
+#              check); the launch owner re-checks that the stopped agent
+#              released it. Any failure refuses; it never falls back to a fresh
+#              session. A ship or scout still needs --note, which is recorded in
+#              its instructions for a later fresh relaunch but not replayed.
 #              Records a durable checkpoint and that note, exits the old agent,
 #              then delegates the launch to its single owner,
 #              bin/fm-spawn.sh --relaunch. A failure before publication keeps
@@ -98,7 +112,8 @@
 # `resume` is not a verb: it is not deterministic across the verified adapters
 # (bin/fm-control-lib.sh's header owns that reasoning). `relaunch` covers the
 # same need for every adapter because the brief on disk, not a harness-private
-# session, is the durable instruction.
+# session, is the durable instruction; its Claude-only --resume-session input
+# is the one caller-chosen exception, and it is verified before any stop.
 #
 # Targeting is EXACT: only a bare task id with a state/<id>.meta record in
 # THIS home is accepted, and the record must pass the shared endpoint-identity
@@ -230,7 +245,7 @@ shift 2
 if ! fm_control_verb_allowed "$VERB"; then
   {
     if [ "$VERB" = resume ]; then
-      echo "error: 'resume' is not a control verb: resuming an exited agent is not deterministic across the verified adapters (codex and grok need a session id printed at exit, opencode continues the most recent session for the cwd, and claude, pi, pi-signed, and kimi have no verified pane-resume contract). Use 'relaunch', which carries the brief plus a progress note into a fresh agent on any adapter."
+      echo "error: 'resume' is not a control verb: resuming an exited agent is not deterministic across the verified adapters (codex and grok need a session id printed at exit, opencode continues the most recent session for the cwd, and claude, pi, pi-signed, and kimi have no verified pane-resume contract). Use 'relaunch', which carries the brief plus a progress note into a fresh agent on any adapter, or 'relaunch --resume-session <id>' to keep a Claude agent's exact verified conversation."
     else
       echo "error: '$VERB' is not a control verb"
     fi
@@ -248,6 +263,8 @@ MODEL_SET=0
 EFFORT_SET=0
 NOTE=
 NOTE_SET=0
+RESUME_SESSION=
+RESUME_SESSION_SET=0
 control_want_value=
 for control_arg in "$@"; do
   if [ -n "$control_want_value" ]; then
@@ -259,6 +276,7 @@ for control_arg in "$@"; do
       model) NEW_MODEL=$control_arg; MODEL_SET=1 ;;
       effort) NEW_EFFORT=$control_arg; EFFORT_SET=1 ;;
       note) NOTE=$control_arg; NOTE_SET=1 ;;
+      resume-session) RESUME_SESSION=$control_arg; RESUME_SESSION_SET=1 ;;
       note_file)
         [ -f "$control_arg" ] || die "--note-file '$control_arg' is not a readable file"
         NOTE=$(cat "$control_arg")
@@ -275,6 +293,8 @@ for control_arg in "$@"; do
     --model=*) NEW_MODEL=${control_arg#--model=}; MODEL_SET=1 ;;
     --effort) control_want_value=effort ;;
     --effort=*) NEW_EFFORT=${control_arg#--effort=}; EFFORT_SET=1 ;;
+    --resume-session) control_want_value=resume-session ;;
+    --resume-session=*) RESUME_SESSION=${control_arg#--resume-session=}; RESUME_SESSION_SET=1 ;;
     --note) control_want_value=note ;;
     --note=*) NOTE=${control_arg#--note=}; NOTE_SET=1 ;;
     --note-file) control_want_value=note_file ;;
@@ -293,8 +313,11 @@ fi
 
 if [ "$VERB" != relaunch ]; then
   [ "$HARNESS_SET" = 0 ] && [ "$MODEL_SET" = 0 ] && [ "$EFFORT_SET" = 0 ] && [ "$NOTE_SET" = 0 ] \
-    || die "--harness, --model, --effort, and --note apply to 'relaunch' only"
+    && [ "$RESUME_SESSION_SET" = 0 ] \
+    || die "--harness, --model, --effort, --resume-session, and --note apply to 'relaunch' only"
 fi
+[ "$RESUME_SESSION_SET" = 0 ] || fm_control_claude_session_id_valid "$RESUME_SESSION" \
+  || die "--resume-session '$RESUME_SESSION' is not a well-formed Claude session id (lowercase 8-4-4-4-12 hex)"
 [ "$HARNESS_SET" = 0 ] || [ -n "$NEW_HARNESS" ] || die "--harness requires a non-empty value"
 [ "$MODEL_SET" = 0 ] || [ -n "$NEW_MODEL" ] || die "--model requires a non-empty value"
 [ "$EFFORT_SET" = 0 ] || [ -n "$NEW_EFFORT" ] || die "--effort requires a non-empty value"
@@ -777,6 +800,7 @@ RELAUNCH_META_PUBLISHED=0
 RELAUNCH_AGENT_CONFIRMED=0
 RELAUNCH_TX=
 RELAUNCH_BRIEF=
+RELAUNCH_SPAWN_ARGS=()
 PRIOR_HARNESS=$HARNESS
 PRIOR_RECORDED_HARNESS=$RECORDED_HARNESS
 CONFIG_HARNESS=
@@ -787,6 +811,7 @@ PRIOR_EFFORT=
 TARGET_HARNESS=$HARNESS
 TARGET_MODEL=
 TARGET_EFFORT=
+RELAUNCH_ACCOUNT=
 
 journal_write() {  # <phase> [extra-line]...
   local phase=$1
@@ -817,6 +842,11 @@ journal_write() {  # <phase> [extra-line]...
   return 1
 }
 
+relaunch_resume_recovery_hint() {
+  [ "$RESUME_SESSION_SET" = 1 ] || return 0
+  echo "error: to resume the exact Claude session $RESUME_SESSION once no live process owns it, run: $SCRIPT_DIR/fm-spawn.sh ${RELAUNCH_SPAWN_ARGS[*]}; a plain relaunch would start a fresh session and lose that conversation" >&2
+}
+
 relaunch_rollback() {
   local state
   [ "$RELAUNCH_ACTIVE" = 1 ] || return 0
@@ -845,6 +875,7 @@ relaunch_rollback() {
         dead)
           journal_write "failed:$RELAUNCH_PHASE" "rollback=prior-record-kept-agent-dead" || true
           echo "error: $ID's agent stopped but relaunch did not reach replacement launch; no agent is running, and its work plus progress note are preserved at $WT" >&2
+          relaunch_resume_recovery_hint
           ;;
         *)
           # The old agent was NOT proven stopped, so no replacement is coming
@@ -874,9 +905,11 @@ relaunch_rollback() {
         # worse inaccuracy.
         journal_write "failed:$RELAUNCH_PHASE" "rollback=none-new-record-kept" || true
         echo "error: $ID was relaunched on $TARGET_HARNESS but no running agent could be confirmed; its work is preserved at $WT" >&2
+        relaunch_resume_recovery_hint
       else
         journal_write "failed:$RELAUNCH_PHASE" "rollback=prior-record-kept" || true
         echo "error: $ID's agent was stopped but the replacement did not launch; no agent is running, and its work plus the recorded progress note are preserved at $WT" >&2
+        relaunch_resume_recovery_hint
       fi
       ;;
   esac
@@ -962,8 +995,8 @@ resolve_relaunch_profile() {
   # signed out must refuse here, while nothing has changed yet.
   local account_model=$TARGET_MODEL
   [ "$account_model" != default ] || account_model=
-  fm_worker_account_select "$TARGET_HARNESS" "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}" \
-    "$account_model" "$TARGET_HARNESS" >/dev/null || return 1
+  RELAUNCH_ACCOUNT=$(fm_worker_account_select "$TARGET_HARNESS" "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}" \
+    "$account_model" "$TARGET_HARNESS") || return 1
   # Likewise config/crew-exclude-tools: a malformed file, or a replacement
   # runtime that cannot hide the listed tools, refuses here, before the old
   # agent stops. Secondmate agents are not covered.
@@ -1072,8 +1105,7 @@ record_note() {
 }
 
 do_relaunch() {
-  local exit_result state note_line
-  local -a spawn_args
+  local exit_result state note_line resume_home resume_root
 
   require_state_verified_backend relaunch
   resolve_relaunch_profile
@@ -1102,6 +1134,27 @@ do_relaunch() {
     note_line="note=none"
   fi
   safe_checkpoint
+  if [ "$RESUME_SESSION_SET" = 1 ]; then
+    # Exact-session resume (fm_control_claude_session_verify owns the rules):
+    # proven here, before the old agent is touched, so a missing, mismatched,
+    # second-owned, or foreign-owned session refuses while nothing has
+    # changed. The launch owner re-checks it after the stop and never falls
+    # back to a fresh session.
+    [ "$PRIOR_RECORDED_HARNESS" = claude ] && [ "$TARGET_HARNESS" = claude ] \
+      || die "--resume-session resumes a Claude conversation on Claude, but task $ID records harness '$PRIOR_RECORDED_HARNESS' and the replacement would run '$TARGET_HARNESS'; refusing before anything is stopped"
+    resume_home=$FM_HOME
+    [ "$KIND" != secondmate ] || resume_home=$WT
+    resume_root=
+    [ "$(agent_state)" != alive ] || resume_root=$(fm_backend_pane_root_pid "$BACKEND" "$T") || resume_root=
+    fm_control_claude_session_verify owned "$(fm_control_claude_config_dir "$RELAUNCH_ACCOUNT")" "$RESUME_SESSION" "$WT" \
+        "$ID" "$KIND" "$STATE/$ID.inbox" "$resume_home" "$resume_root" \
+      || die "relaunch of $ID with --resume-session $RESUME_SESSION refused before its agent was touched"
+    CHECKPOINT_LINES+=("resume_session=$RESUME_SESSION")
+  fi
+  RELAUNCH_SPAWN_ARGS=("$ID" --relaunch --harness "$TARGET_HARNESS")
+  [ "$TARGET_MODEL" = default ] || RELAUNCH_SPAWN_ARGS+=(--model "$TARGET_MODEL")
+  [ "$TARGET_EFFORT" = default ] || RELAUNCH_SPAWN_ARGS+=(--effort "$TARGET_EFFORT")
+  [ "$RESUME_SESSION_SET" = 0 ] || RELAUNCH_SPAWN_ARGS+=(--resume-session "$RESUME_SESSION")
   cp -p "$META" "$META_PRIOR" || die "could not preserve task $ID's durable record before relaunching"
   RELAUNCH_ACTIVE=1
   journal_write checkpoint "${CHECKPOINT_LINES[@]}" "$note_line"
@@ -1117,11 +1170,8 @@ do_relaunch() {
   # per-task harness wiring before arming the new one, so nothing to do here.
   RELAUNCH_TX="${BASHPID:-$$}.$(date -u +%Y%m%dT%H%M%SZ).$RANDOM"
   journal_write launching "${CHECKPOINT_LINES[@]}" "$note_line" "relaunch_tx=$RELAUNCH_TX"
-  spawn_args=("$ID" --relaunch --harness "$TARGET_HARNESS")
-  [ "$TARGET_MODEL" = default ] || spawn_args+=(--model "$TARGET_MODEL")
-  [ "$TARGET_EFFORT" = default ] || spawn_args+=(--effort "$TARGET_EFFORT")
   if FM_CONTROL_RELAUNCH_TX="$RELAUNCH_TX" \
-      "$SCRIPT_DIR/fm-spawn.sh" "${spawn_args[@]}" >/dev/null; then
+      "$SCRIPT_DIR/fm-spawn.sh" "${RELAUNCH_SPAWN_ARGS[@]}" >/dev/null; then
     RELAUNCH_META_PUBLISHED=1
     # $T was resolved from the record before the launch. When the recorded
     # endpoint was gone, the launch owner created a fresh one and republished
@@ -1153,7 +1203,7 @@ do_relaunch() {
 
   journal_write complete "${CHECKPOINT_LINES[@]}" "$note_line" "exit_result=$exit_result"
   RELAUNCH_ACTIVE=0
-  echo "relaunched $ID harness=$TARGET_HARNESS from=$PRIOR_RECORDED_HARNESS model=$TARGET_MODEL effort=$TARGET_EFFORT backend=$BACKEND endpoint=$T worktree=$WT"
+  echo "relaunched $ID harness=$TARGET_HARNESS from=$PRIOR_RECORDED_HARNESS model=$TARGET_MODEL effort=$TARGET_EFFORT backend=$BACKEND endpoint=$T worktree=$WT${RESUME_SESSION:+ resumed_session=$RESUME_SESSION}"
 }
 
 # --- verbs ------------------------------------------------------------------
