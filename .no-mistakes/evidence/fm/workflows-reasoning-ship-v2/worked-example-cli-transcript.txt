@@ -1,0 +1,68 @@
+## Corrected CLI caller (documented commands)
+$ python3 tests/fixtures/reasoning-workflow/retry_budget.py {"delay_ms":12.5,"attempts":2}
+{"delays_ms": [12.5, 12.5]}
+[exit 0]
+$ env PYTHONPATH=tests/fixtures/reasoning-workflow python3 -c from retry_budget import retry_plan; print(retry_plan({"delay_ms":0,"attempts":3}).delays_ms)
+(0, 0, 0)
+[exit 0]
+$ python3 tests/fixtures/reasoning-workflow/retry_budget.py {"delay_ms":-1,"attempts":3}
+error: delay_ms must be a finite nonnegative number
+[exit 2]
+$ python3 tests/fixtures/reasoning-workflow/retry_budget.py {"delay_ms":0,"attempts":3}
+{"delays_ms": [0, 0, 0]}
+[exit 0]
+
+## Baseline failure reproduced: CLI masks unchecked imported API
+$ python3 tests/fixtures/reasoning-workflow/baseline.py {"delay_ms":-1,"attempts":3}
+error: delay_ms must be a finite nonnegative number
+[exit 2]
+$ env PYTHONPATH=tests/fixtures/reasoning-workflow python3 -c from baseline import retry_plan; print(retry_plan({"delay_ms":-1,"attempts":3}).delays_ms); print(retry_plan({"delay_ms":5,"attempts":True}).delays_ms)
+(-1, -1, -1)
+(5,)
+[exit 0]
+
+## Corrected imported API rejects same input, input unchanged
+$ env PYTHONPATH=tests/fixtures/reasoning-workflow python3 -c 
+from retry_budget import retry_plan
+for c in ({"delay_ms":-1,"attempts":3},{"delay_ms":5,"attempts":True},{"delay_ms":float("nan"),"attempts":1}):
+    o=dict(c)
+    try: retry_plan(c); print("ACCEPTED", c)
+    except ValueError as e: print("rejected", c, "->", e, "| unchanged:", c==o or str(c)==str(o))
+rejected {'delay_ms': -1, 'attempts': 3} -> delay_ms must be a finite nonnegative number | unchanged: True
+rejected {'delay_ms': 5, 'attempts': True} -> attempts must be a positive integer | unchanged: True
+rejected {'delay_ms': nan, 'attempts': 1} -> delay_ms must be a finite nonnegative number | unchanged: True
+[exit 0]
+
+## Counterexamples / adversarial CLI inputs
+$ python3 tests/fixtures/reasoning-workflow/retry_budget.py {"delay_ms":true,"attempts":1}
+error: delay_ms must be a finite nonnegative number
+[exit 2]
+$ python3 tests/fixtures/reasoning-workflow/retry_budget.py {"delay_ms":0,"attempts":2.0}
+error: attempts must be a positive integer
+[exit 2]
+$ python3 tests/fixtures/reasoning-workflow/retry_budget.py {"delay_ms":"0","attempts":1}
+error: delay_ms must be a finite nonnegative number
+[exit 2]
+$ python3 tests/fixtures/reasoning-workflow/retry_budget.py []
+error: config must be an object
+[exit 2]
+$ python3 tests/fixtures/reasoning-workflow/retry_budget.py {"delay_ms":
+error: Expecting value: line 1 column 13 (char 12)
+[exit 2]
+$ python3 tests/fixtures/reasoning-workflow/retry_budget.py {}
+error: delay_ms must be a finite nonnegative number
+[exit 2]
+
+## Valid neighbors on both callers
+$ python3 tests/fixtures/reasoning-workflow/baseline.py {"delay_ms":0,"attempts":3}
+{"delays_ms": [0, 0, 0]}
+[exit 0]
+$ python3 tests/fixtures/reasoning-workflow/baseline.py {"delay_ms":8,"attempts":1}
+{"delays_ms": [8]}
+[exit 0]
+$ python3 tests/fixtures/reasoning-workflow/retry_budget.py {"delay_ms":0,"attempts":3}
+{"delays_ms": [0, 0, 0]}
+[exit 0]
+$ python3 tests/fixtures/reasoning-workflow/retry_budget.py {"delay_ms":8,"attempts":1}
+{"delays_ms": [8]}
+[exit 0]

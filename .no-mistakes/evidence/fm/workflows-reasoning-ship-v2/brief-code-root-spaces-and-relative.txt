@@ -1,0 +1,18 @@
+## code root with spaces
+scaffolded: /tmp/fm-lab.QDUQaY/data/t-space/brief.md (ship, mode=no-mistakes; replace {TASK} and {FIRSTMATE_SPEC})
+rc=0
+# Conditional methods
+For reported bugs, load [diagnostic-reasoning](</tmp/fm-lab.QDUQaY/code root/fm copy/.agents/skills/diagnostic-reasoning/SKILL.md>) before scoping the bug or acting on a diagnostic report.
+Before choosing or materially changing an interface or ownership boundary, an internal migration, or a repeated mechanical operation whose implementation remains uncertain, load [caller-first-design](</tmp/fm-lab.QDUQaY/code root/fm copy/.agents/skills/caller-first-design/SKILL.md>).
+Apply the matching method within this task; routine edits stay on their direct path.
+resolves: /tmp/fm-lab.QDUQaY/code root/fm copy/.agents/skills/caller-first-design/SKILL.md
+
+## relative FM_ROOT_OVERRIDE resolved to absolute (run from /tmp/fm-lab.QDUQaY/code root)
+scaffolded: /tmp/fm-lab.QDUQaY/data/t-rel/brief.md (scout; replace {TASK} and {FIRSTMATE_SPEC})
+rc=0
+</tmp/fm-lab.QDUQaY/code root/fm copy/.agents/skills/caller-first-design/SKILL.md>
+
+## adversarial: unresolvable relative FM_ROOT_OVERRIDE
+error: FM_ROOT directory cannot be resolved: does-not-exist
+rc=1
+no brief created

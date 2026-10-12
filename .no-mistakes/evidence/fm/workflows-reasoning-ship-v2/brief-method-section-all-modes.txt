@@ -1,0 +1,36 @@
+=== /tmp/fm-lab.QDUQaY/data/t-direct-PR/brief.md
+16:# Conditional methods
+17-For reported bugs, load [diagnostic-reasoning](</home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/diagnostic-reasoning/SKILL.md>) before scoping the bug or acting on a diagnostic report.
+18-Before choosing or materially changing an interface or ownership boundary, an internal migration, or a repeated mechanical operation whose implementation remains uncertain, load [caller-first-design](</home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/caller-first-design/SKILL.md>).
+19-Apply the matching method within this task; routine edits stay on their direct path.
+20-
+3:# Task 10:# Task context and learning 13:# Product experience workflow 16:# Conditional methods 21:# Herdr lifecycle declaration - NOT ENABLED 26:# Setup 35:# Rules 92:# Firstmate instruction inbox 97:# Project memory 102:# Definition of done 
+exists: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/diagnostic-reasoning/SKILL.md
+exists: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/caller-first-design/SKILL.md
+=== /tmp/fm-lab.QDUQaY/data/t-local-only/brief.md
+16:# Conditional methods
+17-For reported bugs, load [diagnostic-reasoning](</home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/diagnostic-reasoning/SKILL.md>) before scoping the bug or acting on a diagnostic report.
+18-Before choosing or materially changing an interface or ownership boundary, an internal migration, or a repeated mechanical operation whose implementation remains uncertain, load [caller-first-design](</home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/caller-first-design/SKILL.md>).
+19-Apply the matching method within this task; routine edits stay on their direct path.
+20-
+3:# Task 10:# Task context and learning 13:# Product experience workflow 16:# Conditional methods 21:# Herdr lifecycle declaration - NOT ENABLED 26:# Setup 35:# Rules 92:# Firstmate instruction inbox 97:# Project memory 102:# Definition of done 
+exists: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/diagnostic-reasoning/SKILL.md
+exists: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/caller-first-design/SKILL.md
+=== /tmp/fm-lab.QDUQaY/data/t-no-mistakes/brief.md
+16:# Conditional methods
+17-For reported bugs, load [diagnostic-reasoning](</home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/diagnostic-reasoning/SKILL.md>) before scoping the bug or acting on a diagnostic report.
+18-Before choosing or materially changing an interface or ownership boundary, an internal migration, or a repeated mechanical operation whose implementation remains uncertain, load [caller-first-design](</home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/caller-first-design/SKILL.md>).
+19-Apply the matching method within this task; routine edits stay on their direct path.
+20-
+3:# Task 10:# Task context and learning 13:# Product experience workflow 16:# Conditional methods 21:# Herdr lifecycle declaration - NOT ENABLED 26:# Setup 36:# Rules 95:# Firstmate instruction inbox 100:# Project memory 105:# Definition of done 
+exists: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/diagnostic-reasoning/SKILL.md
+exists: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/caller-first-design/SKILL.md
+=== /tmp/fm-lab.QDUQaY/data/t-scout/brief.md
+16:# Conditional methods
+17-For reported bugs, load [diagnostic-reasoning](</home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/diagnostic-reasoning/SKILL.md>) before scoping the bug or acting on a diagnostic report.
+18-Before choosing or materially changing an interface or ownership boundary, an internal migration, or a repeated mechanical operation whose implementation remains uncertain, load [caller-first-design](</home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/caller-first-design/SKILL.md>).
+19-Apply the matching method within this task; routine edits stay on their direct path.
+20-
+3:# Task 10:# Task context and learning 13:# Product experience workflow 16:# Conditional methods 21:# Herdr lifecycle declaration - NOT ENABLED 26:# Setup 32:# Rules 83:# Firstmate instruction inbox 88:# Definition of done 
+exists: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/diagnostic-reasoning/SKILL.md
+exists: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QW3AEGE8S5EH5NZH9ZK1AM/.agents/skills/caller-first-design/SKILL.md
