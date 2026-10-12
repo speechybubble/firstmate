@@ -1,1 +1,3 @@
-scaffolded: /tmp/tmp.z1cQq5Jura/home with spaces/data/mate/brief.md (secondmate charter)
+$ FM_SECONDMATE_CHARTER=... bin/fm-brief.sh sm1 --secondmate --no-projects
+scaffolded: /tmp/tmp.bEdr0cBrgf/home with spaces/data/sm1/brief.md (secondmate charter)
+rc=0

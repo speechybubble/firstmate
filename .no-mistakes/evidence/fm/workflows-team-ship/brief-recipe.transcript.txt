@@ -1,0 +1,565 @@
++++ pwd -P
+++ BRIEF_REPO=/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA
++++ mktemp -d
+++ BRIEF_SCRATCH=/tmp/tmp.X0gsvrMn3M
+++ export BRIEF_REPO BRIEF_SCRATCH
+++ mkdir -p /home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe
+++ export 'FM_HOME=/tmp/tmp.X0gsvrMn3M/home with spaces'
+++ FM_HOME='/tmp/tmp.X0gsvrMn3M/home with spaces'
+++ unset FM_ROOT_OVERRIDE FM_DATA_OVERRIDE FM_STATE_OVERRIDE
+++ mkdir -p '/tmp/tmp.X0gsvrMn3M/home with spaces'
+++ git rev-parse HEAD
+++ git status --short
+++ test -x /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/bin/fm-brief.sh
+++ test '/tmp/tmp.X0gsvrMn3M/home with spaces' = '/tmp/tmp.X0gsvrMn3M/home with spaces'
+++ test -d '/tmp/tmp.X0gsvrMn3M/home with spaces'
+++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/bin/fm-brief.sh --help
+++ for mode in no-mistakes direct-PR local-only
+++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/bin/fm-brief.sh ship-no-mistakes fixture --mode no-mistakes
+++ brief='/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+++ test -s '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+++ grep -F 'Delivery contract: mode=no-mistakes' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F 'Delivery contract: mode=no-mistakes' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+Delivery contract: mode=no-mistakes
+++ grep -F '{TASK}' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '{TASK}' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+{TASK}
+++ grep -F '{FIRSTMATE_SPEC}' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '{FIRSTMATE_SPEC}' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+{FIRSTMATE_SPEC}
+++ grep -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-no-mistakes.status' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-no-mistakes.status' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+   `echo "{state} [at=<epoch>]: {one short line}" >> '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-no-mistakes.status' && { [ ! -e '/tmp/tmp.X0gsvrMn3M/home with spaces/config/fleet-ledger' ] || '/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/bin/fm-fleet-ledger.sh' appended '/tmp/tmp.X0gsvrMn3M/home with spaces/config' '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-no-mistakes.status' >/dev/null 2>&1 || true; }`
+++ grep -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-no-mistakes.inbox' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-no-mistakes.inbox' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+Firstmate steers you through durable message files in '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-no-mistakes.inbox'.
+When a terminal message says an instruction is waiting there - and at any natural checkpoint when you are unsure - list '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-no-mistakes.inbox'/*.msg, read and act on each message in numeric order, then acknowledge each handled message by moving it: `mv '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-no-mistakes.inbox'/NNN.msg '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-no-mistakes.inbox'/handled/`.
+++ grep -F /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/.agents/skills/task-execution/SKILL.md '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/.agents/skills/task-execution/SKILL.md '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/.agents/skills/task-execution/SKILL.md` before execution.
+++ test -r /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/.agents/skills/task-execution/SKILL.md
+++ grep -F '# Herdr lifecycle declaration - NOT ENABLED' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '# Herdr lifecycle declaration - NOT ENABLED' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md'
+# Herdr lifecycle declaration - NOT ENABLED
+++ cp '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-no-mistakes/brief.md' /home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/ship-no-mistakes.md
+++ for mode in no-mistakes direct-PR local-only
+++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/bin/fm-brief.sh ship-direct-PR fixture --mode direct-PR
+++ brief='/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+++ test -s '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+++ grep -F 'Delivery contract: mode=direct-PR' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F 'Delivery contract: mode=direct-PR' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+Delivery contract: mode=direct-PR
+++ grep -F '{TASK}' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '{TASK}' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+{TASK}
+++ grep -F '{FIRSTMATE_SPEC}' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '{FIRSTMATE_SPEC}' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+{FIRSTMATE_SPEC}
+++ grep -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-direct-PR.status' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-direct-PR.status' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+   `echo "{state} [at=<epoch>]: {one short line}" >> '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-direct-PR.status' && { [ ! -e '/tmp/tmp.X0gsvrMn3M/home with spaces/config/fleet-ledger' ] || '/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/bin/fm-fleet-ledger.sh' appended '/tmp/tmp.X0gsvrMn3M/home with spaces/config' '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-direct-PR.status' >/dev/null 2>&1 || true; }`
+++ grep -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-direct-PR.inbox' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-direct-PR.inbox' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+Firstmate steers you through durable message files in '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-direct-PR.inbox'.
+When a terminal message says an instruction is waiting there - and at any natural checkpoint when you are unsure - list '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-direct-PR.inbox'/*.msg, read and act on each message in numeric order, then acknowledge each handled message by moving it: `mv '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-direct-PR.inbox'/NNN.msg '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-direct-PR.inbox'/handled/`.
+++ grep -F /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/.agents/skills/task-execution/SKILL.md '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/.agents/skills/task-execution/SKILL.md '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/.agents/skills/task-execution/SKILL.md` before execution.
+++ test -r /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/.agents/skills/task-execution/SKILL.md
+++ grep -F '# Herdr lifecycle declaration - NOT ENABLED' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '# Herdr lifecycle declaration - NOT ENABLED' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md'
+# Herdr lifecycle declaration - NOT ENABLED
+++ cp '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-direct-PR/brief.md' /home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/ship-direct-PR.md
+++ for mode in no-mistakes direct-PR local-only
+++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/bin/fm-brief.sh ship-local-only fixture --mode local-only
+++ brief='/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+++ test -s '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+++ grep -F 'Delivery contract: mode=local-only' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F 'Delivery contract: mode=local-only' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+Delivery contract: mode=local-only
+++ grep -F '{TASK}' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '{TASK}' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+{TASK}
+++ grep -F '{FIRSTMATE_SPEC}' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '{FIRSTMATE_SPEC}' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+{FIRSTMATE_SPEC}
+++ grep -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-local-only.status' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-local-only.status' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+   `echo "{state} [at=<epoch>]: {one short line}" >> '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-local-only.status' && { [ ! -e '/tmp/tmp.X0gsvrMn3M/home with spaces/config/fleet-ledger' ] || '/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/bin/fm-fleet-ledger.sh' appended '/tmp/tmp.X0gsvrMn3M/home with spaces/config' '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-local-only.status' >/dev/null 2>&1 || true; }`
+++ grep -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-local-only.inbox' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-local-only.inbox' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+Firstmate steers you through durable message files in '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-local-only.inbox'.
+When a terminal message says an instruction is waiting there - and at any natural checkpoint when you are unsure - list '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-local-only.inbox'/*.msg, read and act on each message in numeric order, then acknowledge each handled message by moving it: `mv '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-local-only.inbox'/NNN.msg '/tmp/tmp.X0gsvrMn3M/home with spaces/state/ship-local-only.inbox'/handled/`.
+++ grep -F /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/.agents/skills/task-execution/SKILL.md '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/.agents/skills/task-execution/SKILL.md '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/.agents/skills/task-execution/SKILL.md` before execution.
+++ test -r /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/.agents/skills/task-execution/SKILL.md
+++ grep -F '# Herdr lifecycle declaration - NOT ENABLED' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '# Herdr lifecycle declaration - NOT ENABLED' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+# Herdr lifecycle declaration - NOT ENABLED
+++ cp '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md' /home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/ship-local-only.md
+++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/bin/fm-brief.sh scout fixture --scout
+++ brief='/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/brief.md'
+++ test -s '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/brief.md'
+++ grep -F 'This is a SCOUT task' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F 'This is a SCOUT task' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/brief.md'
+This is a SCOUT task: the deliverable is a written report, not a PR.
+++ grep -F '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/report.md' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/report.md' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/brief.md'
+Write your findings to `/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/report.md`.
+++ grep -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/scout.status' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/scout.status' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/brief.md'
+   `echo "{state} [at=<epoch>]: {one short line}" >> '/tmp/tmp.X0gsvrMn3M/home with spaces/state/scout.status' && { [ ! -e '/tmp/tmp.X0gsvrMn3M/home with spaces/config/fleet-ledger' ] || '/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/bin/fm-fleet-ledger.sh' appended '/tmp/tmp.X0gsvrMn3M/home with spaces/config' '/tmp/tmp.X0gsvrMn3M/home with spaces/state/scout.status' >/dev/null 2>&1 || true; }`
+++ grep -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/scout.inbox' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F '/tmp/tmp.X0gsvrMn3M/home with spaces/state/scout.inbox' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/brief.md'
+Firstmate steers you through durable message files in '/tmp/tmp.X0gsvrMn3M/home with spaces/state/scout.inbox'.
+When a terminal message says an instruction is waiting there - and at any natural checkpoint when you are unsure - list '/tmp/tmp.X0gsvrMn3M/home with spaces/state/scout.inbox'/*.msg, read and act on each message in numeric order, then acknowledge each handled message by moving it: `mv '/tmp/tmp.X0gsvrMn3M/home with spaces/state/scout.inbox'/NNN.msg '/tmp/tmp.X0gsvrMn3M/home with spaces/state/scout.inbox'/handled/`.
+++ grep -F /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/.agents/skills/task-execution/SKILL.md '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/.agents/skills/task-execution/SKILL.md '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/brief.md'
+When this assignment changes product behavior, verifies an existing fix, participates in authorized multi-worker work, or pursues a measurable long-task objective, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/.agents/skills/task-execution/SKILL.md` before execution.
+++ grep -F 'Delivery contract: mode=' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F 'Delivery contract: mode=' '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/brief.md'
+++ cp '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout/brief.md' /home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/scout.md
+++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/bin/fm-brief.sh invalid fixture --mode unsupported
+++ brief_rc=1
+++ printf '%s\n' 1
+++ test '!' -e '/tmp/tmp.X0gsvrMn3M/home with spaces/data/invalid/brief.md'
+++ cat /home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/invalid.out
+error: --mode must be one of no-mistakes, direct-PR, local-only (got 'unsupported')
+++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/bin/fm-brief.sh scout2 fixture --scout --mode local-only
+++ echo 'scout --mode rc=1'
+scout --mode rc=1
+++ test '!' -e '/tmp/tmp.X0gsvrMn3M/home with spaces/data/scout2/brief.md'
+++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/bin/fm-brief.sh ship-local-only fixture --mode local-only
+++ echo 'overwrite rc=1'
+overwrite rc=1
+++ cmp /home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/ship-local-only.md '/tmp/tmp.X0gsvrMn3M/home with spaces/data/ship-local-only/brief.md'
+++ FM_SECONDMATE_CHARTER='charter text'
+++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QZYVG7PW1MW37Z1T60THCA/bin/fm-brief.sh sm1 --no-projects
+++ cp '/tmp/tmp.X0gsvrMn3M/home with spaces/data/sm1/brief.md' /home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/secondmate.md
+cp: cannot stat '/tmp/tmp.X0gsvrMn3M/home with spaces/data/sm1/brief.md': No such file or directory
+++ grep -F task-execution/SKILL.md '/tmp/tmp.X0gsvrMn3M/home with spaces/data/sm1/brief.md'
+++ local _cc_a
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ for _cc_a in ${1+"$@"}
+++ case "$_cc_a" in
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a ugrep /home/denni/.local/share/claude/versions/2.1.296 -G --ignore-files --hidden -I --exclude-dir=.git --exclude-dir=.svn --exclude-dir=.hg --exclude-dir=.bzr --exclude-dir=.jj --exclude-dir=.sl -F task-execution/SKILL.md '/tmp/tmp.X0gsvrMn3M/home with spaces/data/sm1/brief.md'
+ugrep: warning: /tmp/tmp.X0gsvrMn3M/home with spaces/data/sm1/brief.md: No such file or directory
+++ rm -r -- /tmp/tmp.X0gsvrMn3M
+++ test -s /home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/revision.txt
+++ test -s /home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/help.txt
+++ find /home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe -type f -print
+++ local _cc_bin=/home/denni/.local/share/claude/versions/2.1.296
+++ [[ -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ ! -x /home/denni/.local/share/claude/versions/2.1.296 ]]
+++ [[ -n '' ]]
+++ [[ linux-gnu == msys ]]
+++ [[ linux-gnu == cygwin ]]
+++ [[ linux-gnu == win32 ]]
+++ exec -a bfs /home/denni/.local/share/claude/versions/2.1.296 -S dfs -regextype findutils-default /home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe -type f -print
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/ship-local-only.out
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/ship-no-mistakes.out
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/revision.txt
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/secondmate.out
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/overwrite.out
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/ship-no-mistakes.md
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/scout.md
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/scout-mode.out
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/ship-direct-PR.out
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/worktree.txt
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/ship-direct-PR.md
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/invalid.exit
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/scout.out
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/invalid.out
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/ship-local-only.md
+/home/denni/.no-mistakes/evidence/01M4QZYVG7PW1MW37Z1T60THCA/brief-recipe/help.txt
+++ echo RECIPE_OK
+RECIPE_OK
