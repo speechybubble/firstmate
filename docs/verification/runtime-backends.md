@@ -592,6 +592,7 @@ The guard runs by default when its tools are installed because it submits no mod
 The capability/refusal contract is owned by [`bin/fm-codex-effort-lib.sh`](../../bin/fm-codex-effort-lib.sh).
 Portable coverage in [`tests/fm-spawn-dispatch-profile.test.sh`](../../tests/fm-spawn-dispatch-profile.test.sh), [`tests/fm-dispatch-resolve.test.sh`](../../tests/fm-dispatch-resolve.test.sh), and [`tests/fm-bootstrap.test.sh`](../../tests/fm-bootstrap.test.sh) exercises support, refusal, ambiguity, silent offline diagnostics, target-directory discovery and ordinary-effort neighbors.
 No live result for remote hosts or another session-provider backend is established by this guard.
+A remote second mate refuses a model-less Codex max before readiness, sync or inheritance; a concrete-model max on a remote second mate is verified on the target host after sync, because no remote account-scoped discovery runs before it.
 
 ## Composer classification matrix
 

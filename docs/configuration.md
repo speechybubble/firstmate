@@ -468,7 +468,7 @@ Recorded effort is requested intent, not proof of native runtime or server-side 
 Bootstrap reports unsupported harness/model/effort combinations as a `CREW_DISPATCH` diagnostic when they are visible in the file.
 See [`docs/examples/crew-dispatch.json`](examples/crew-dispatch.json) for a starting point to copy into local `config/crew-dispatch.json`; its Pi default declares the `claude` provider required for typed resolution of that Anthropic model.
 When the file exists, bootstrap validates it with `jq`.
-Valid files stay silent by default; bootstrap never refreshes models, so it leaves explicit Codex max capability to native discovery and reports only a Codex max profile without a concrete model.
+Valid files stay silent by default; bootstrap never refreshes models, so it leaves explicit Codex max capability to native discovery, while a Codex max profile without a concrete model (missing or `default`) is an invalid effort.
 The dispatch and launch paths perform native discovery; an unavailable account, protocol or capability response is actionable uncertainty, not malformed profile JSON.
 With `FM_BOOTSTRAP_VERBOSE_FACTS=1`, bootstrap emits `BOOTSTRAP_INFO: crew dispatch active config/crew-dispatch.json`, one `BOOTSTRAP_INFO:` fact per rule, and one fact for the optional default profile set.
 Malformed JSON, malformed rules, an empty or malformed profile array, an unverified harness, or an effort value unsupported by that harness is reported as `CREW_DISPATCH: invalid config/crew-dispatch.json - ...`.

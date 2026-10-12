@@ -12,13 +12,10 @@
 #   Returns 0 supported, 1 unsupported, 2 unknown; FM_CODEX_EFFORT_REASON names
 #   the result. Missing/default models and unusable or ambiguous evidence are
 #   unknown. Only an exact native model and explicit advertised max pass.
-# fm_codex_max_profiles <validated-profile-file> offline|<discovery-directory>
+# fm_codex_max_profiles <validated-profile-file> <discovery-directory>
 #   Checks every declared Codex max profile against one snapshot taken in the
 #   discovery directory. An unknown profile is never selected around,
-#   including in a profile array. Offline never launches Codex or contacts a
-#   service: current Codex exposes no account-scoped offline discovery, so it
-#   rejects only a profile without a concrete model and leaves capability
-#   verification to the dispatch and launch paths.
+#   including in a profile array.
 #
 # Globals: FM_CODEX_EFFORT_MODELS (operation-local JSON, never persisted),
 #   FM_CODEX_EFFORT_REASON. Raw diagnostics/account data are never printed.
@@ -190,12 +187,9 @@ fm_codex_max_profiles() {
     | unique | .[] | @base64
   ' "$file") || return 2
   [ -n "$models" ] || return 0
-  [ "$directory" = offline ] || fm_codex_effort_snapshot "$directory" || true
+  fm_codex_effort_snapshot "$directory" || true
   while IFS= read -r encoded; do
     model=$(printf '%s' "$encoded" | jq -Rr '@base64d') || return 2
-    if [ "$directory" = offline ]; then
-      case "$model" in ''|default) ;; *) continue ;; esac
-    fi
     fm_codex_max_check "$model" && continue
     status=$?
     return "$status"

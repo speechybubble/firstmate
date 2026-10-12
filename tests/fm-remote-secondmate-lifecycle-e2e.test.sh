@@ -704,6 +704,24 @@ EOF
 remote_env "$ROOT/bin/fm-home-seed.sh" validate >/dev/null || fail "mixed local and remote registry validation failed"
 pass "mixed local and remote routes validate without migration"
 
+# A model-less Codex max can never pass native discovery, so the parent refuses
+# it before any readiness, sync or inheritance work reaches the remote host.
+printf 'codex default max\n' > "$PARENT/config/secondmate-harness"
+ssh_before_max=$(cat "$SSH_COUNT" 2>/dev/null || echo 0)
+cp "$PARENT/data/secondmates.md" "$TMP_ROOT/registry-before-max.md"
+if remote_env "$ROOT/bin/fm-spawn.sh" ios --secondmate > "$TMP_ROOT/spawn-modelless-max.out" 2>&1; then
+  fail "remote spawn accepted a model-less Codex max"
+fi
+assert_grep 'unable to verify Codex max: a concrete --model is required' "$TMP_ROOT/spawn-modelless-max.out" \
+  "remote spawn did not name the model-less Codex max refusal"
+[ "$(cat "$SSH_COUNT" 2>/dev/null || echo 0)" = "$ssh_before_max" ] \
+  || fail "remote spawn reached the remote host before refusing a model-less Codex max"
+assert_absent "$PARENT/state/ios.meta" "refused remote spawn published launch metadata"
+cmp -s "$TMP_ROOT/registry-before-max.md" "$PARENT/data/secondmates.md" \
+  || fail "refused remote spawn changed the registry route"
+printf 'codex\n' > "$PARENT/config/secondmate-harness"
+pass "remote spawn refuses a model-less Codex max before readiness, sync or inheritance"
+
 # Launch on the remote home's own configured backend. Parent metadata records
 # host placement separately from that backend and arms the reply source.
 printf 'pi\n' > "$PARENT/config/crew-harness"
@@ -1086,6 +1104,24 @@ assert_contains "$RELAUNCH_CHECKPOINT" 'refusing to relaunch without a checkout 
 cp "$TMP_ROOT/ios-before-relaunch.meta" "$RELAUNCH_ROUTE_META"
 [ "$(remote_env "$ROOT/bin/fm-on.sh" ios fm-remote-secondmate-control.sh state ios)" = alive ] \
   || fail "a refused remote restart must leave the running agent untouched"
+for verb in launch relaunch; do
+  for model in - default; do
+    cp "$RELAUNCH_ROUTE_META" "$TMP_ROOT/ios-before-max.meta"
+    if [ "$verb" = launch ]; then
+      MAX_OUT=$(remote_env "$ROOT/bin/fm-on.sh" ios fm-remote-secondmate-control.sh \
+        launch ios codex "$model" max herdr 2>&1) && fail "remote $verb accepted a model-less Codex max"
+    else
+      MAX_OUT=$(remote_env "$ROOT/bin/fm-on.sh" ios fm-remote-secondmate-control.sh \
+        relaunch ios codex "$model" max 2>&1) && fail "remote $verb accepted a model-less Codex max"
+    fi
+    assert_contains "$MAX_OUT" 'unable to verify Codex max: a concrete --model is required' \
+      "remote $verb did not refuse a model-less Codex max (model $model)"
+    cmp -s "$TMP_ROOT/ios-before-max.meta" "$RELAUNCH_ROUTE_META" \
+      || fail "remote $verb changed endpoint metadata before refusing a model-less Codex max"
+  done
+done
+[ "$(remote_env "$ROOT/bin/fm-on.sh" ios fm-remote-secondmate-control.sh state ios)" = alive ] \
+  || fail "a refused model-less Codex max must leave the running agent untouched"
 pass "the remote restart verb delegates to the host-local control plane and refuses before stopping anything"
 
 
