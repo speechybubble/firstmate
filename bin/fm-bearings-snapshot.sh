@@ -25,9 +25,11 @@
 # Contributions project cached coverage and required actors from fm-contributions.sh;
 # only captain rows are exposed, with counts for the other actors and unmeasured homes. It never infers
 # decisions from report or visual-review prose or reimplements snapshot semantics.
-# Underway (in_flight) projects every main live worker plus every active child
-# from every readable secondmate ledger, independently of that home's
-# bearings_state. Each row's name is the durable task title when nonblank and
+# Underway (in_flight) projects every main live worker plus every active child,
+# awaiting_merge child, and held_failed_runs child from every readable
+# secondmate ledger, independently of that home's bearings_state. On the home
+# row, awaiting_merge counts as child work while held_failed_runs rank with the
+# holds, so neither leaves a home reading "No active child work". Each row's name is the durable task title when nonblank and
 # its durable task id otherwise, so renderers always receive a task-identifying
 # label instead of having to substitute run status. A home classified
 # captain_decision because it has an open
@@ -470,16 +472,27 @@ MODEL=$(printf '%s' "$SNAP" | jq \
        | ([.decisions_open[]? | select(.source == "backlog" and .verb == "captain-hold"
             and live_captain_call)]) as $captain_holds
        | ([.holds[]? | select(.source == "backlog")]) as $backlog_holds
+       | ([.active_children[]? | .id + ": " + (.doing // .state)]
+          + [.awaiting_merge[]? | .id + ": awaiting merge " + .pr_url]) as $child_work
+       | ((if .current.state == "captain_decision" then $backlog_holds else .holds end) as $holds
+          | $holds + [.held_failed_runs[]?
+              | select(.id as $id | $holds | map(.id) | index($id) | not)
+              | {id,reason:("held failed run: " + .reason)}]) as $holds_view
        | . + {
            bearings_captain_holds:$captain_holds,
-           bearings_holds:(if .current.state == "captain_decision" then $backlog_holds else .holds end),
+           bearings_holds:$holds_view,
            bearings_state:(
              if .current.state == "captain_decision" then
                if ($captain_holds | length) > 0 then "captain_decision"
-               elif (.active_children | length) > 0 then "active_child_work"
-               elif ($backlog_holds | length) > 0 then "externally_held"
+               elif ($child_work | length) > 0 then "active_child_work"
+               elif ($holds_view | length) > 0 then "externally_held"
                else "unknown" end
-             else .current.state end)
+             elif .current.state == "no_active_work" then
+               if ($child_work | length) > 0 then "active_child_work"
+               elif ($holds_view | length) > 0 then "externally_held"
+               else "no_active_work" end
+             else .current.state end),
+           bearings_child_work:$child_work
          } ]) as $secondmate_views
   | ([ if .secondmate_current.registry.available == false then
          {id:"(registry)",state:"unknown",doing:(.secondmate_current.registry.reason // "Registered secondmate table unavailable"),
@@ -490,7 +503,7 @@ MODEL=$(printf '%s' "$SNAP" | jq \
      + [ $secondmate_views[]
        | {id,state:.bearings_state,
           doing:((if .bearings_state == "active_child_work" then
-                    ([.active_children[] | .id + ": " + (.doing // .state)] | join("; "))
+                    (.bearings_child_work | join("; "))
                   elif .bearings_state == "captain_decision" then
                     ([.bearings_captain_holds[] | .summary] | join("; "))
                   elif .bearings_state == "externally_held" then
@@ -522,7 +535,12 @@ MODEL=$(printf '%s' "$SNAP" | jq \
             name:((.name // "") as $name
                   | (if (($name | type) == "string" and ($name | test("[^[:space:]]")))
                      then $name else ($m.id + "/" + .id) end) | trunc(70)),
-            doing:((.doing // .state) | trunc(90))} ]) as $in_flight_all
+            doing:((.doing // .state) | trunc(90))} ]
+     + [ $secondmate_views[] as $m
+         | ($m.awaiting_merge[]? | {id, state:"done", doing:("awaiting merge " + .pr_url)}),
+           ($m.held_failed_runs[]? | {id, state:"failed", doing:("held failed run: " + .reason)})
+         | {id:($m.id + "/" + .id),kind:"secondmate",state,repo:null,
+            name:($m.id + "/" + .id),doing:(.doing | trunc(90))} ]) as $in_flight_all
   | ([ .backlog.records[]
          | . as $record
          | select(.structured and .hold_bucket != null)

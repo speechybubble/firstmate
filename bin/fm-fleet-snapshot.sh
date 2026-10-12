@@ -92,8 +92,9 @@
 #     above. An unreadable-home fallback reports freshness.age_seconds from the
 #     observed status file's mtime instead: freshness is how fresh this snapshot's
 #     own observation is, never when a worker emitted the event.
-#     Each structured-home record carries active_children, decisions_open, holds,
-#     queued, landed, endpoints, counts, and omitted. provenance.summary_source
+#     Each structured-home record carries active_children, awaiting_merge,
+#     held_failed_runs, decisions_open, holds, queued, landed, endpoints, counts,
+#     and omitted. provenance.summary_source
 #     distinguishes "local-ledger", "remote-ledger", and "remote-ledger-cache";
 #     freshness is "cached" only for the cache source, and observed_at/age_seconds
 #     come from the selected summary's generation. Every successfully sampled home also carries
@@ -167,7 +168,7 @@ esac
 # Cross-home bounds are explicit so one broken or unexpectedly large home cannot
 # hang or explode the parent snapshot.
 FM_SNAPSHOT_SECONDMATES=${FM_SNAPSHOT_SECONDMATES:-20}
-FM_SNAPSHOT_CREW_STATE_TIMEOUT=${FM_SNAPSHOT_CREW_STATE_TIMEOUT:-10}
+FM_SNAPSHOT_CREW_STATE_TIMEOUT=${FM_SNAPSHOT_CREW_STATE_TIMEOUT:-25}
 FM_SNAPSHOT_LOCAL_READ_CONCURRENCY=${FM_SNAPSHOT_LOCAL_READ_CONCURRENCY:-8}
 FM_SNAPSHOT_BUDGET=${FM_SNAPSHOT_BUDGET:-5}
 FM_SNAPSHOT_CACHE_DIR=${FM_SNAPSHOT_CACHE_DIR:-$STATE/secondmate-summary-cache}
@@ -266,6 +267,13 @@ aggregation, includes generated_epoch for freshness arithmetic, and marks
 inventory contradictions or unavailable child state invalid.
 kind=secondmate meta records are not child inventory for unowned_current or
 terminal_in_flight; they never have backlog rows.
+Two terminal in-flight children are expected states, not terminal_in_flight:
+a done child whose recorded PR the current-state read reports open (ready for
+review, held for merge, or run passed with the PR open) is listed in
+awaiting_merge, and a failed child that is backlog-held or whose status log
+declares a wait (fm-classify-lib.sh status_declared_wait_line) is listed in
+held_failed_runs. A done child without that open-PR evidence, or a failed child
+with neither hold nor declared wait, still invalidates the summary.
 Its invalidity object names the normalized failure kind and affected ids.
 Actionable tasks-axi captain holds appear as decisions_open and stay visible in
 queued with hold_reason, hold_kind, hold_until,
@@ -283,7 +291,7 @@ home with neither a valid current ledger nor a valid current cached copy is
 reported unreadable with the reason; collection never computes a summary in
 that home.
 Each local per-task current-state read is bounded by FM_SNAPSHOT_CREW_STATE_TIMEOUT
-(default 10 seconds); a read that hits the bound reports state unknown. Local task
+(default 25 seconds); a read that hits the bound reports state unknown. Local task
 observations and row composition run in a sliding window of up to
 FM_SNAPSHOT_LOCAL_READ_CONCURRENCY (default 8) tasks, so one slow read holds only
 its own slot. A task whose structured history records completion gets a
@@ -850,7 +858,7 @@ task_row_json() {  # <captured-meta>
   local remote_host remote_root current_file endpoint_file observation_line
   local pr pr_source event_json current_json endpoint_exists agent_alive meta_json status_json report_json worktree_json home_json
   local last_event_raw current_state current_source pending_decision blocked_event report_present=0 pr_from_status
-  local open_decisions_tsv open_decisions_json ownership_json branch
+  local open_decisions_tsv declared_wait open_decisions_json ownership_json branch
 
   id=$(basename "$meta" .meta)
   original_meta="$STATE/$id.meta"
@@ -915,6 +923,7 @@ task_row_json() {  # <captured-meta>
   # non-authoritative status-log/none read on a still-live task, keeps the fold's
   # open decision surfacing.
   open_decisions_tsv=$(status_open_decisions "$status_log" "$kind")
+  declared_wait=$(status_declared_wait_line "$status_log" 2>/dev/null || true)
   if [ "$kind" != secondmate ] && \
      { { { [ "$current_source" = run-step ] || [ "$current_source" = pane ]; } \
          && [ "$current_state" != parked ] && [ "$current_state" != blocked ]; } \
@@ -972,6 +981,7 @@ task_row_json() {  # <captured-meta>
     --arg agent_alive "$agent_alive" \
     --arg observed_at "$SNAPSHOT_NOW" \
     --arg last_event_raw "$last_event_raw" \
+    --arg declared_wait "$declared_wait" \
     --argjson ownership "$ownership_json" \
     --argjson current_state "$current_json" \
     --argjson meta_path "$meta_json" \
@@ -1016,7 +1026,8 @@ task_row_json() {  # <captured-meta>
         blocked_event:$blocked_event,
         open_decisions:$open_decisions,
         scout_report_present:$report_present,
-        last_event_text:$last_event_raw
+        last_event_text:$last_event_raw,
+        declared_wait:($declared_wait | if . == "" then null else . end)
       },
       actions:(
         if $kind == "secondmate" then
@@ -1160,7 +1171,25 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
     | ([ $owned_in_flight[] as $work
          | $tasks[]
          | select(.kind != "secondmate")
+         | select(.id == $work.id and .current_state.state == "done" and .pr.url != null)
+         | select((.current_state.detail // "")
+             | test("^(run passed: PR open|checks green: PR ready for review|checks green: PR held for merge)"))
+         | {id,pr_url:(.pr.url | trunc(500)),detail:((.current_state.detail // "") | trunc(120))} ]) as $awaiting_merge_all
+    | ([ $owned_in_flight[] as $work
+         | $tasks[]
+         | select(.kind != "secondmate")
+         | select(.id == $work.id and .current_state.state == "failed")
+         | select($work.current_role == "held" or (.hints.declared_wait // null) != null)
+         | {id,
+            reason:(((.hints.declared_wait // null) // $work.hold_reason // "held") | trunc(160)),
+            source:(if (.hints.declared_wait // null) != null then "status" else "backlog" end),
+            detail:((.current_state.detail // "") | trunc(120))} ]) as $held_failed_all
+    | (($awaiting_merge_all + $held_failed_all) | map(.id)) as $accepted_terminal_ids
+    | ([ $owned_in_flight[] as $work
+         | $tasks[]
+         | select(.kind != "secondmate")
          | select(.id == $work.id and (.current_state.state == "done" or .current_state.state == "failed"))
+         | select(.id as $id | $accepted_terminal_ids | index($id) | not)
          | {id,state:.current_state.state} ]) as $terminal_in_flight
     | ([if $backlog.present != true then
           {kind:"missing_backlog",ids:[],reason:"missing structured backlog"}
@@ -1244,6 +1273,8 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
         completed_retained:[$retained[:$child_n][] | {id,lifecycle,current_state,ownership}
           | walk(if type == "string" then trunc(240) else . end)],
         active_children:$active_all[:$child_n],
+        awaiting_merge:$awaiting_merge_all[:$child_n],
+        held_failed_runs:$held_failed_all[:$child_n],
         decisions_open:$decisions_all[:$decisions_n],
         holds:$holds_all[:$queued_n],
         queued:([$queued_all[] | {id:(.id | trunc(120)),title:(.title | trunc(120)),
@@ -1269,6 +1300,8 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
         counts:{
           completed_retained:($retained | length),
           active_children:($active_all | length),
+          awaiting_merge:($awaiting_merge_all | length),
+          held_failed_runs:($held_failed_all | length),
           decisions_open:($decisions_all | length),
           holds:($holds_all | length),
           queued:($queued_all | length),
@@ -1280,6 +1313,8 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
           ([$retained[:$child_n][] | {id,lifecycle,current_state,ownership} | .. | strings | select(length > 240)] | length
             | if . > 0 then {surface:"completed_retained_text",count:.} else empty end),
           (if ($active_all | length) > $child_n then {surface:"active_children",count:(($active_all | length) - $child_n)} else empty end),
+          (if ($awaiting_merge_all | length) > $child_n then {surface:"awaiting_merge",count:(($awaiting_merge_all | length) - $child_n)} else empty end),
+          (if ($held_failed_all | length) > $child_n then {surface:"held_failed_runs",count:(($held_failed_all | length) - $child_n)} else empty end),
           (if ($decisions_all | length) > $decisions_n then {surface:"decisions_open",count:(($decisions_all | length) - $decisions_n)} else empty end),
           (if ($queued_all | length) > $queued_n then {surface:"queued",count:(($queued_all | length) - $queued_n)} else empty end),
           (if ($tasks | length) > $child_n then {surface:"endpoints",count:(($tasks | length) - $child_n)} else empty end),
@@ -2025,6 +2060,7 @@ secondmate_current_json() {  # <parent-tasks-json-file> <output-file>
            trust:(if $summary_valid then "complete" else "partial-structured" end),parent_event_role:"historical-only"},
          freshness:{status:$summary_freshness,observed_at:$observed,age_seconds:$summary_age},
          active_children:$summary.active_children,
+         awaiting_merge:($summary.awaiting_merge // []),held_failed_runs:($summary.held_failed_runs // []),
          decisions_open:$summary.decisions_open,holds:$summary.holds,queued:$summary.queued,
          contributions:($summary.contributions // null),
          landed:$summary.landed,endpoints:$summary.endpoints,counts:$summary.counts,omitted:$summary.omitted,
@@ -2058,7 +2094,7 @@ secondmate_current_json() {  # <parent-tasks-json-file> <output-file>
          reconcile_inventory:(if $summary_sampled then $summary.invalidity else null end),
          provenance:{selected:$provenance,structured_home:($home | if . == "" then null else . end),parent_event_role:"fallback-only-not-current"},
          freshness:{status:$freshness,observed_at:$observed,age_seconds:$observed_age},
-         active_children:[],decisions_open:[],holds:[],queued:[],landed:[],endpoints:[],counts:{active_children:0,decisions_open:0,holds:0,queued:0,landed:0,endpoints:0},omitted:[],
+         active_children:[],awaiting_merge:[],held_failed_runs:[],decisions_open:[],holds:[],queued:[],landed:[],endpoints:[],counts:{active_children:0,awaiting_merge:0,held_failed_runs:0,decisions_open:0,holds:0,queued:0,landed:0,endpoints:0},omitted:[],
          parent_event:{raw:$event_raw,note:$event_note,age_seconds:$event_age,open_activities:$activities,open_decisions:$decisions,activity_scan:$activity_scan},
          terminal_evidence:$terminal,contradiction:false}' >> "$records_file" || return 1
     fi
