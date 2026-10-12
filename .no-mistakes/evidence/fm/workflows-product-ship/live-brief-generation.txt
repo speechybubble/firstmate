@@ -1,0 +1,48 @@
+## Disposable FM_HOME=/tmp/tmp.waolxgrMGw/op home  code root=/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QEFT8CHMHCZ9BT8JSNCA0J  destination=/tmp/tmp.waolxgrMGw/dest-proj
+ship no-mistakes exit=0
+ship direct-PR exit=0
+ship local-only exit=0
+scout exit=0
+secondmate exit=0
+
+### pe-no-mistakes: product-experience lines in generated brief
+9-
+10:# Product experience workflow
+11-If this task changes a user or caller experience, compares interaction alternatives, creates a tutorial, or explains a material technical decision, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QEFT8CHMHCZ9BT8JSNCA0J/.agents/skills/product-experience/SKILL.md`.
+12-
+pointer resolves to: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QEFT8CHMHCZ9BT8JSNCA0J/.agents/skills/product-experience/SKILL.md
+pointer readable: yes; first heading: # Product experience
+section order: 8:{FIRSTMATE_SPEC} 10:# Product experience workflow 13:# Herdr lifecycle declaration - NOT ENABLED 18:# Setup 81:# Definition of done 
+
+### pe-direct-PR: product-experience lines in generated brief
+9-
+10:# Product experience workflow
+11-If this task changes a user or caller experience, compares interaction alternatives, creates a tutorial, or explains a material technical decision, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QEFT8CHMHCZ9BT8JSNCA0J/.agents/skills/product-experience/SKILL.md`.
+12-
+pointer resolves to: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QEFT8CHMHCZ9BT8JSNCA0J/.agents/skills/product-experience/SKILL.md
+pointer readable: yes; first heading: # Product experience
+section order: 8:{FIRSTMATE_SPEC} 10:# Product experience workflow 13:# Herdr lifecycle declaration - NOT ENABLED 18:# Setup 78:# Definition of done 
+
+### pe-local-only: product-experience lines in generated brief
+9-
+10:# Product experience workflow
+11-If this task changes a user or caller experience, compares interaction alternatives, creates a tutorial, or explains a material technical decision, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QEFT8CHMHCZ9BT8JSNCA0J/.agents/skills/product-experience/SKILL.md`.
+12-
+pointer resolves to: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QEFT8CHMHCZ9BT8JSNCA0J/.agents/skills/product-experience/SKILL.md
+pointer readable: yes; first heading: # Product experience
+section order: 8:{FIRSTMATE_SPEC} 10:# Product experience workflow 13:# Herdr lifecycle declaration - NOT ENABLED 18:# Setup 78:# Definition of done 
+
+### pe-scout: product-experience lines in generated brief
+9-
+10:# Product experience workflow
+11-If this task changes a user or caller experience, compares interaction alternatives, creates a tutorial, or explains a material technical decision, read and follow `/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QEFT8CHMHCZ9BT8JSNCA0J/.agents/skills/product-experience/SKILL.md`.
+12-
+pointer resolves to: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QEFT8CHMHCZ9BT8JSNCA0J/.agents/skills/product-experience/SKILL.md
+/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4QEFT8CHMHCZ9BT8JSNCA0J/.agents/skills/captain-hold-lifecycle/SKILL.md
+section order: 8:{FIRSTMATE_SPEC} 10:# Product experience workflow 13:# Herdr lifecycle declaration - NOT ENABLED 18:# Setup 66:# Definition of done 
+
+### pe-sm: product-experience lines in generated brief
+(none)
+section order: 64:# Definition of done 
+
+### skill copied into destination project? ls: cannot access '/tmp/tmp.waolxgrMGw/dest-proj/.agents': No such file or directory
