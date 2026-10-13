@@ -22,6 +22,17 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Pi CLI pin: both Pi extension test installs run `npm ci` against the
+# committed .github/pi lockfile, which locks pi-coding-agent and its sibling
+# @earendil-works packages to one tested set, so a new Pi release cannot break
+# CI unannounced (1.2.0 removed BeforeAgentStartEvent's prompt field). Pi is
+# only a rollback harness here. To bump it, change the version in
+# .github/pi/package.json, regenerate the lockfile with
+# `npm install --package-lock-only --install-strategy=shallow` there, adapt the
+# Pi extensions in the same dedicated PR, and let CI prove the Pi extension
+# tests pass. The shallow strategy keeps Pi's dependencies nested under the
+# package, the layout the Pi extension tests link from.
+
 # Timeout policy: docs/fm-test-portable-shards.md "Timeouts" owns the three
 # tiers and their rationale; tests/fm-ci-workflow.test.sh guards this workflow.
 # Each job comment identifies the tier implemented by its executable value.
@@ -115,8 +126,13 @@ jobs:
       - name: Install the Pi package for the Pi extension tests
         run: |
           set -eu
-          npm install -g @earendil-works/pi-coding-agent
-          npm ls -g --depth 0 @earendil-works/pi-coding-agent
+          pi_root="$RUNNER_TEMP/pi"
+          mkdir -p "$pi_root"
+          cp .github/pi/package.json .github/pi/package-lock.json "$pi_root/"
+          npm ci --prefix "$pi_root" --no-audit --no-fund
+          npm ls --prefix "$pi_root" @earendil-works/pi-coding-agent
+          echo "FM_PI_PACKAGE_DIR=$pi_root/node_modules/@earendil-works/pi-coding-agent" >> "$GITHUB_ENV"
+          echo "$pi_root/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Run portable parallel shard 1
         run: |
           set -eu
@@ -219,8 +235,13 @@ jobs:
       - name: Install the Pi package for the Pi extension tests
         run: |
           set -eu
-          npm install -g @earendil-works/pi-coding-agent
-          npm ls -g --depth 0 @earendil-works/pi-coding-agent
+          pi_root="$RUNNER_TEMP/pi"
+          mkdir -p "$pi_root"
+          cp .github/pi/package.json .github/pi/package-lock.json "$pi_root/"
+          npm ci --prefix "$pi_root" --no-audit --no-fund
+          npm ls --prefix "$pi_root" @earendil-works/pi-coding-agent
+          echo "FM_PI_PACKAGE_DIR=$pi_root/node_modules/@earendil-works/pi-coding-agent" >> "$GITHUB_ENV"
+          echo "$pi_root/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Run portable serial shard ${{ matrix.shard }}
         env:
           # job-total rather than a literal, so shrinking or growing the matrix
