@@ -139,7 +139,7 @@ for _attempt in 1 2; do
       jq --argjson seq "$SEQ" '{thread,native_identity,seq:$seq}' "$OWNER_LOCK/target.json" > "$OWNER_LOCK/delivered" || fail 'watermark write failed'
       mv "$OWNER_LOCK/delivered" "$STATE/.codex-watch-delivered" || fail 'watermark commit failed'
     fi
-    rm -f "$STATE/.codex-watch-error"
+    fm_supervision_fault_clear "$STATE"
     exit 0
   fi
 done

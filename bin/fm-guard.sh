@@ -2,7 +2,10 @@
 # Watcher liveness and worktree-tangle guard, called by supervision scripts, by
 # fm-wake-drain.sh after it empties queued wakes, and by fm-session-start.sh in
 # read-only advisory mode whenever session-lock ownership was not verified.
-# First, always warn if the firstmate primary checkout (FM_ROOT) is on a named
+# First, print any supervision fault record (bin/fm-supervision-lib.sh owns
+# it), marked for the supervision branch while no captain report has carried it
+# to MAIN.
+# Then always warn if the firstmate primary checkout (FM_ROOT) is on a named
 # non-default branch, because that means firstmate-on-itself work landed in the
 # primary instead of an isolated worktree.
 # Then, if the home needs supervision (bin/fm-supervision-lib.sh owns that
@@ -52,9 +55,6 @@ FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
-if [ -f "$STATE/.codex-watch-error" ] && [ ! -L "$STATE/.codex-watch-error" ]; then
-  head -c 2048 "$STATE/.codex-watch-error" >&2
-fi
 WATCH="$SCRIPT_DIR/fm-watch.sh"
 GRACE=${FM_GUARD_GRACE:-300}
 queue_pending=false
@@ -79,6 +79,15 @@ STALE_BANNER_MARKER="$STATE/.guard-watcher-stale-banner"
 # The current actor (fm_lease_actor is the one owner of that identity); a
 # malformed value is a wiring bug elsewhere, so the guard just warns as main.
 GUARD_ACTOR=$(fm_lease_actor 2>/dev/null) || GUARD_ACTOR=main
+
+# The supervision fault record (bin/fm-supervision-lib.sh owns it) prints for
+# every actor. The branch's own chat never reaches MAIN, so while no captain
+# report has carried the fault, the branch is told its report must.
+if fm_supervision_fault_text "$STATE" >&2; then
+  if [ "$GUARD_ACTOR" = branch ] && fm_supervision_fault_unreported "$STATE" >/dev/null; then
+    printf 'SUPERVISION FAULT NOT YET REPORTED: no captain report has carried this fault to MAIN; report this wake'"'"'s outcome with --verdict captain and name the fault in its summary (bin/fm-branch-report.sh refuses routine and silent reports until one does).\n' >&2
+  fi
+fi
 
 # Deterministic episode key from the qualitative down-state (the failing
 # condition), NOT the beacon mtime: under the auto-arm model a healthy
