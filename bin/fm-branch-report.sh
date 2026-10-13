@@ -136,7 +136,7 @@ if ! SEQ=$("$SCRIPT_DIR/fm-branch-outcome.sh" "$@"); then
   exit 1
 fi
 if [ -n "$FAULT_KEY" ] && ! fm_supervision_fault_mark_reported "$STATE" "$FAULT_KEY"; then
-  echo "recorded seq $SEQ, but the supervision fault could not be marked reported, so later silent reports stay refused" >&2
+  echo "recorded seq $SEQ, but the supervision fault could not be marked reported, so later routine and silent reports stay refused" >&2
 fi
 printf '%s\t%s\t%s\t%s\n' "$TURN" "$SEQ" "$VERDICT" "$TASK" >> "$RECEIPTS" || {
   echo "recorded seq $SEQ, but the host receipt could not be written; the host will hand this wake to MAIN" >&2
