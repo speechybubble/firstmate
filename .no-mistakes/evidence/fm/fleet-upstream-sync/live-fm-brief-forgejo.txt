@@ -1,0 +1,15 @@
+$ FM_HOME=$LAB bin/fm-brief.sh t-forgejo demo --mode direct-PR --forge forgejo
+scaffolded: /tmp/fm-lab.GhtBzy/data/t-forgejo/brief.md (ship, mode=direct-PR forge=forgejo; replace {TASK} and {FIRSTMATE_SPEC})
+rc=0
+--- brief: forge CLI + fork workflow pointer lines
+13:# Product experience workflow
+36:1. First action: create your branch: `git checkout -b fm/t-forgejo --`
+39:1. Never push to the default branch (push only your `fm/t-forgejo` branch). Never merge a PR.
+40:2. Keep project edits inside this worktree; keep proof and scratch output outside it, under `/tmp/fm-lab.GhtBzy/data/t-forgejo/` or a temporary directory.
+43:3. Use tea for Forgejo operations and chrome-devtools-axi for browser operations.
+45:   `echo "{state} [at=<epoch>]: {one short line}" >> '/tmp/fm-lab.GhtBzy/state/t-forgejo.status' && { [ ! -e '/tmp/fm-lab.GhtBzy/config/fleet-ledger' ] || '/home/denni/.no-mistakes/worktrees/d567722de3ac/01M4T3YZX14GSGH6QDHMP6DN0M/bin/fm-fleet-ledger.sh' appended '/tmp/fm-lab.GhtBzy/config' '/tmp/fm-lab.GhtBzy/state/t-forgejo.status' >/dev/null 2>&1 || true; }`
+96:Firstmate steers you through durable message files in '/tmp/fm-lab.GhtBzy/state/t-forgejo.inbox'.
+97:When a terminal message says an instruction is waiting there - and at any natural checkpoint when you are unsure - list '/tmp/fm-lab.GhtBzy/state/t-forgejo.inbox'/*.msg, read and act on each message in numeric order, then acknowledge each handled message by moving it: `mv '/tmp/fm-lab.GhtBzy/state/t-forgejo.inbox'/NNN.msg '/tmp/fm-lab.GhtBzy/state/t-forgejo.inbox'/handled/`.
+106:Delivery contract: mode=direct-PR forge=forgejo
+107:Ship branch: fm/t-forgejo
+111:Before you report done, read the PR back from the forge and confirm it is not a draft (`tea api --repo <owner>/<repo> /repos/{owner}/{repo}/pulls/<number>` must show `draft` as false, where <owner>/<repo> and <number> come from your PR URL); Forgejo marks a draft by a work-in-progress title prefix such as `WIP:`, so if it is a draft, remove that prefix with `tea pulls edit <number> --repo <owner>/<repo> --title '<title without the prefix>'`.
