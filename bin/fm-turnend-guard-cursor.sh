@@ -37,7 +37,7 @@
 # order while wake lines keep the eight-line cap; "supervision-host stood
 # down:" ends the park silently; a host that died without a close is retried
 # instead of being judged by the healthy-watcher predicate; and a host that
-# reported a failed close (a nonzero exit with output) reaches the session as a
+# reported a failure (a nonzero exit with output) reaches the session as a
 # bounded repair follow-up even when the successor it left is healthy. On a home that does not run the host nothing below changes.
 #
 # LOOP BOUNDING IS DOUBLE, because either bound alone is insufficient:
@@ -380,8 +380,8 @@ while [ "$attempt" -lt "$ARM_ATTEMPTS" ]; do
       ARM_OUT=
       continue
     fi
-    # A failed hand-back cannot be dismissed just because its successor
-    # watcher is healthy: the close is still undelivered.
+    # A reported host failure cannot be dismissed just because a successor
+    # watcher is healthy: a failed hand-back leaves its close undelivered.
     if [ "$HOST_RC" -ne 0 ]; then
       HOST_FAILED=1
       break
@@ -431,12 +431,12 @@ if [ "$HEALTHY" -eq 1 ]; then
 fi
 
 # The shared predicate below would pass on the successor a failed hand-back
-# left running, so report that failure here: its close never reached main.
+# left running, so report the host's failure here: its close never reached main.
 if [ "$HOST_FAILED" -eq 1 ]; then
   ARM_TAIL=$(grep -E '^watcher:' "$ARM_OUT" 2>/dev/null | head -4)
   emit_repair_followup "Run bin/fm-wake-drain.sh first to pick up any wake that close left queued, then investigate the supervision host (docs/supervision-host.md) before ending the turn; do NOT launch a manual bin/fm-watch-arm.sh from this notice." \
     "$ARM_TAIL" "$attempt" \
-    "SUPERVISION HAND-BACK FAILED - the supervision host exited $HOST_RC without delivering a close that needs this session"
+    "SUPERVISION HOST FAILED - the supervision host exited $HOST_RC and reported a failure"
 fi
 
 # The park could not establish supervision. Ask the SHARED predicate whether

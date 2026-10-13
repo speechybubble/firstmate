@@ -621,7 +621,7 @@ test_park_host_failed_handback_reaches_main_despite_a_healthy_successor() {
   [ -n "$out" ] || fail "a failed hand-back ended the park silently because its successor was healthy"
   [ "$(kind_of_followup "$out")" = turn-end-guard ] || fail "a failed hand-back must arrive as a bounded repair follow-up, got: $out"
   body=$(followup_of "$out")
-  case "$body" in *'SUPERVISION HAND-BACK FAILED'*) ;; *) fail "the follow-up must say the hand-back failed: $body" ;; esac
+  case "$body" in *'SUPERVISION HOST FAILED - the supervision host exited 1 and reported a failure'*) ;; *) fail "the follow-up must say the host reported a failure: $body" ;; esac
   case "$body" in *'watcher: FAILED - watcher downtime could not be restored for the main hand-back'*) ;; *) fail "the follow-up must carry the host's failure line: $body" ;; esac
   pass "cursor park: a failed host hand-back reaches main despite a healthy successor"
 }
