@@ -1,0 +1,4 @@
+$ FM_SPAWN_WORKTREE_WAIT_SECS=20 bin/fm-spawn.sh labefc8ba51bcfe-shortwait projects/notes --mode local-only --yolo on --harness claude   [pane treehouse get delayed 80 s; start 23:15:55]
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+error: treehouse get did not enter an isolated worktree within 20s (last seen '/tmp/fmlab-slow-713013/home/projects/notes': it is the spawning project itself; spawning project '/tmp/fmlab-slow-713013/home/projects/notes'); inspect window firstmate:fm-labefc8ba51bcfe-shortwait
+exit=1 elapsed=26s end=23:16:21 meta_exists=no

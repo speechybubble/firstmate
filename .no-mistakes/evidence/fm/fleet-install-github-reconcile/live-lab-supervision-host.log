@@ -1,0 +1,16 @@
+1791896163	start	gen=host-872212-1791896162	primary=claude
+1791896200	pass-through	attended	branch eligibility could not be computed	signal: /tmp/fmlab-slow-713013/home/state/labefc8ba51bcfe-worker.status /tmp/fmlab-slow-713013/home/state/labefc8ba51bcfe-worker.turn-ended
+1791896214	start	gen=host-919567-1791896213	primary=claude
+1791896252	pass-through	attended	branch eligibility could not be computed	stale: firstmate:fm-labefc8ba51bcfe-worker
+1791896270	start	gen=host-982601-1791896269	primary=claude
+1791897124	pass-through	attended	config/supervision-node does not name an absolute Node path	signal: /tmp/fmlab-slow-713013/home/state/labefc8ba51bcfe-worker.status
+1791897137	start	gen=host-1994790-1791897136	primary=claude
+1791897173	pass-through	attended	config/supervision-node names a Node v22.22.1 without TypeScript type stripping	signal: /tmp/fmlab-slow-713013/home/state/labefc8ba51bcfe-worker.status
+1791897187	start	gen=host-2052370-1791897186	primary=claude
+1791897249	handled	turn=host-2052370-1791897186.1	posture=attended	rc=0	reports=1	error=0 cost=0.062489 conversation_cost=0.062489 input=8 cache_read=38493 cache_write=13371 output=514 turns=4	signal: /tmp/fmlab-slow-713013/home/state/labefc8ba51bcfe-worker.status
+1791897272	handled	turn=host-2052370-1791897186.2	posture=attended	rc=0	reports=1	error=0 cost=0.01159 conversation_cost=0.074079 input=6 cache_read=40838 cache_write=791 output=433 turns=3	stale: firstmate:fm-labefc8ba51bcfe-worker
+1791897381	handled	turn=host-2052370-1791897186.3	posture=attended	rc=0	reports=1	error=0 cost=0.025182 conversation_cost=0.099261 input=12 cache_read=89895 cache_write=2087 output=782 turns=6	signal: /tmp/fmlab-slow-713013/home/state/labefc8ba51bcfe-short.turn-ended
+1791897417	handled	turn=host-2052370-1791897186.4	posture=attended	rc=0	reports=1	error=0 cost=0.012202 conversation_cost=0.111463 input=6 cache_read=49382 cache_write=733 output=432 turns=3	stale: firstmate:fm-labefc8ba51bcfe-short
+1791897542	pass-through	attended	main-only	signal: /tmp/fmlab-slow-713013/home/state/labefc8ba51bcfe-slowget.turn-ended
+1791897542	pass-through	successor-unrecorded	signal: /tmp/fmlab-slow-713013/home/state/labefc8ba51bcfe-slowget.turn-ended
+1791897559	start	gen=host-2396534-1791897559	primary=claude

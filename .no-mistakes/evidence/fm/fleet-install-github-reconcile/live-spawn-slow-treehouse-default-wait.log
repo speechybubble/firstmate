@@ -1,0 +1,9 @@
+$  bin/fm-spawn.sh labefc8ba51bcfe-slowget projects/notes --mode local-only --yolo on --harness claude   [pane treehouse get delayed 80 s; start 23:16:21]
+spawned labefc8ba51bcfe-slowget harness=claude kind=ship mode=local-only yolo=on window=firstmate:fm-labefc8ba51bcfe-slowget worktree=/tmp/fmlab-slow-713013/treehouse/.treehouse/notes-59128e/4/notes
+exit=0 elapsed=94s end=23:17:55 meta_exists=yes
+slow-treehouse: get start 22:54:21
+slow-treehouse: get exec real 22:55:41
+slow-treehouse(fn): get start 23:16:00 pwd=/tmp/fmlab-slow-713013/home/projects/notes
+slow-treehouse(fn): get start 23:16:25 pwd=/tmp/fmlab-slow-713013/home/projects/notes
+slow-treehouse(fn): get exec real 23:17:20
+slow-treehouse(fn): get exec real 23:17:45

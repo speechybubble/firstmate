@@ -1,0 +1,18 @@
+22:53:32
+lab: /tmp/fmlab-slow-713013 (tear down with: bin/fm-live-lab.sh down /tmp/fmlab-slow-713013)
+tree: 74ed768057a6109443a84feb04e258f1074e2fb2 from /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4TMFV9G0STZP79K6ZXAQG1F
+spawned labefc8ba51bcfe-worker harness=claude kind=ship mode=local-only yolo=on window=firstmate:fm-labefc8ba51bcfe-worker worktree=/tmp/fmlab-slow-713013/treehouse/.treehouse/notes-59128e/1/notes
+gate: /tmp/fmlab-slow-713013/home/data/labefc8ba51bcfe-worker/gate (touch, then message the worker to resume)
+primary: claude --setting-sources project,local --model sonnet --effort medium --permission-mode auto
+ok primary: claude pid 743747 in /tmp/fmlab-slow-713013/home
+ok probe: the primary answered LABREADY-efc8ba51bcfe
+ok trust: /tmp/fmlab-slow-713013/home is trusted in the Claude store
+fail host: supervision host pid 982601 runs (expected none)
+ok watcher: live watcher with a fresh beacon
+ok worker: labefc8ba51bcfe-worker parked on /tmp/fmlab-slow-713013/home/data/labefc8ba51bcfe-worker/gate
+ok treehouse: ~/.treehouse unchanged
+not ready after 900s; the lab is left up for inspection: bin/fm-live-lab.sh pane /tmp/fmlab-slow-713013, then bin/fm-live-lab.sh down /tmp/fmlab-slow-713013
+up rc=1
+23:10:57
+
+NOTE (tester): this log is the lab setup only. The PATH wrapper did not reach the spawn pane (the pane .bashrc prepends ~/.local/bin), and the worker meta was written at 22:53:45, so this spawn was NOT delayed. The delayed-spawn evidence is live-spawn-slow-treehouse-default-wait.log, live-spawn-short-wait-refusal.log and live-spawn-base-f4b98abf-60s-refusal.log (exported bash function delay).

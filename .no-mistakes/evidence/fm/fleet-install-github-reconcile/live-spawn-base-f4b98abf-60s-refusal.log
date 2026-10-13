@@ -1,0 +1,3 @@
+$ (base f4b98abf) bin/fm-spawn.sh labefc8ba51bcfe-basewait projects/notes --mode local-only --yolo on --harness claude   [pane treehouse get delayed 80 s; start 23:18:07]
+error: treehouse get did not enter an isolated worktree within 60s (last seen '/tmp/fmlab-slow-713013/home/projects/notes': it is the spawning project itself; spawning project '/tmp/fmlab-slow-713013/home/projects/notes'); inspect window firstmate:fm-labefc8ba51bcfe-basewait
+exit=1 elapsed=66s meta_exists=no
