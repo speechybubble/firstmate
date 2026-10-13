@@ -1,0 +1,8 @@
+{
+  "name": "firstmate-ci-pi",
+  "private": true,
+  "description": "Pi CLI package set the Pi extension tests run against in CI.",
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "1.1.0"
+  }
+}
