@@ -1,0 +1,39 @@
+append rc=0
+queue:
+1791894053	1	signal	alpha.status	alpha: working
+seq=1
+activate rc=0
+publish rc=0
+
+== branch drain with an unreported fault
+
+$ /home/denni/.no-mistakes/evidence/01M4TAGJ136HT8R3Q3ATBZV0KX/drive-branch-drain.sh B /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4TAGJ136HT8R3Q3ATBZV0KX/bin/fm-wake-drain.sh
+1791894053	1	signal	alpha.status	alpha: working
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 1 --recovery-generation 279167.1791894053.KSXbh0
+wake annotation: latest wake-EVENT observed at drain, not current state: alpha.status: working
+Codex Stop-owned supervision failed: previous Stop owner did not release within 40s. Durable wakes remain unacknowledged; inspect the native hook and queue delivery.
+SUPERVISION FAULT NOT YET REPORTED: no captain report has carried this fault to MAIN; report this wake's outcome with --verdict captain and name the fault in its summary (bin/fm-branch-report.sh refuses routine and silent reports until one does).
+[exit 0]
+
+$ captain --summary supervision fault: previous Stop owner did not release within 40s; durable wakes remain unacknowledged
+recorded seq 1 [captain]; the captain has returned, so it is queued for MAIN to relay
+[exit 0]
+
+== branch drain after the captain report
+
+$ /home/denni/.no-mistakes/evidence/01M4TAGJ136HT8R3Q3ATBZV0KX/drive-branch-drain.sh B /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4TAGJ136HT8R3Q3ATBZV0KX/bin/fm-wake-drain.sh
+1791894053	1	signal	alpha.status	alpha: working
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 1 --recovery-generation 279167.1791894053.KSXbh0
+Codex Stop-owned supervision failed: previous Stop owner did not release within 40s. Durable wakes remain unacknowledged; inspect the native hook and queue delivery.
+[exit 0]
+
+== MAIN drain after the captain report
+
+$ /home/denni/.no-mistakes/evidence/01M4TAGJ136HT8R3Q3ATBZV0KX/drive-branch-drain.sh E /home/denni/.no-mistakes/worktrees/d567722de3ac/01M4TAGJ136HT8R3Q3ATBZV0KX/bin/fm-wake-drain.sh
+1791894056	2	check	supervision-host-return:1	check: supervision-host outcome 1 for alpha [captain] was recorded after the captain returned, so the return brief may not show it; relay it to the captain: supervision fault: previous Stop owner did not release within 40s; durable wakes remain unacknowledged
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 279167.1791894053.KSXbh0
+BRANCH OUTCOMES (captain outcomes the supervision session recorded for you, one line per task, oldest first; each says what was true when it was recorded, so check the task's current state first, including its still-open decisions listed above under OPEN DECISIONS, and sort them into still open and already settled, such as a decision since answered, a PR since merged, or a task since finished - process the still-open ones as firstmate: tell the captain, land or merge what is ready, answer or escalate a decision, or act on a blocker; your reply to the captain covers only those, as if the settled ones had never been listed, and a settled one needs only the acknowledgement):
+[seq 1, recorded 0m ago] alpha: supervision fault: previous Stop owner did not release within 40s; durable wakes remain unacknowledged
+BRANCH OUTCOMES: after processing them run bin/fm-branch-outcome.sh mark-processed --through 1; until then every drain presents them again
+Codex Stop-owned supervision failed: previous Stop owner did not release within 40s. Durable wakes remain unacknowledged; inspect the native hook and queue delivery.
+[exit 0]
