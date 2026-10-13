@@ -196,6 +196,8 @@ DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 . "$SCRIPT_DIR/fm-worker-account-lib.sh"
 # shellcheck source=bin/fm-exclude-tools-lib.sh
 . "$SCRIPT_DIR/fm-exclude-tools-lib.sh"
+# shellcheck source=bin/fm-codex-effort-lib.sh
+. "$SCRIPT_DIR/fm-codex-effort-lib.sh"
 
 POLL=${FM_CONTROL_POLL:-0.5}
 SETTLE_WAIT=${FM_CONTROL_SETTLE_WAIT:-5}
@@ -989,6 +991,16 @@ resolve_relaunch_profile() {
   fi
   if [ "$TARGET_EFFORT" = ultra ]; then
     "$SCRIPT_DIR/fm-harness.sh" validate-native-effort "$TARGET_HARNESS" "$TARGET_MODEL" "$TARGET_EFFORT" || return 1
+  fi
+  # The launch owner refuses an explicit Codex max that native discovery in
+  # this worktree does not verify for the exact model, but only after the old
+  # agent has been stopped, so the same check runs here first.
+  if [ "$TARGET_HARNESS" = codex ] && [ "$TARGET_EFFORT" = max ]; then
+    case "$TARGET_MODEL" in
+      ''|default) ;;
+      *) fm_codex_effort_snapshot "$WT" || true ;;
+    esac
+    fm_codex_max_check "$TARGET_MODEL" || die "$FM_CODEX_EFFORT_REASON"
   fi
   # The launch owner applies this home's worker account pin too, but only after
   # the old agent has been stopped, so a pin that no longer resolves or is

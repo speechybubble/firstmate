@@ -287,6 +287,15 @@ while [ "$i" -lt "${#IDS[@]}" ]; do
       i=$((i + 1))
       continue
     fi
+    if [ "${HARNESS[i]}" = codex ] && [ "${EFFORT[i]}" = max ]; then
+      case "${MODEL[i]}" in
+        ''|default)
+          REASON[i]="the configured Codex max profile names no concrete model, so its max effort cannot be verified"
+          i=$((i + 1))
+          continue
+          ;;
+      esac
+    fi
   fi
 
   if ! corr=$(fm_pending_reply_create "$FM_HOME" "$STATE" "$id" \

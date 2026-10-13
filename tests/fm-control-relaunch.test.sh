@@ -27,6 +27,8 @@ set -u
 . "$ROOT/bin/fm-trace-context-lib.sh"
 # shellcheck source=/dev/null
 . "$ROOT/bin/fm-tasks-axi-lib.sh"
+# shellcheck source=tests/codex-effort-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/codex-effort-helpers.sh"
 
 CONTROL="$ROOT/bin/fm-control.sh"
 SPAWN="$ROOT/bin/fm-spawn.sh"
@@ -780,6 +782,37 @@ test_native_ultra_relaunch_preserves_profile_and_rejects_before_stop() {
   assert_contains "$(cat "$dir/fake/literal")" "--codex-effort 'ultra'" "relaunch lost native flag"
   assert_not_contains "$(cat "$dir/fake/literal")" "--thinking 'ultra'" "relaunch used an invalid Pi level"
   pass "native Ultra relaunch preserves its profile and rejects an unsupported model before stopping"
+}
+
+test_codex_max_relaunch_refuses_before_stop_unless_verified() {
+  local dir out rc id=rl-codex-max
+  dir=$(new_case codex-max "$id")
+  add_ship_task "$dir" "$id" codex
+  printf codex > "$dir/fake/command"
+  printf codex > "$dir/fake/becomes"
+  fm_test_codex_catalog "$dir/catalog.json"
+  fm_test_fake_codex_discovery "$dir/fakebin" "$dir/catalog.json"
+  sed 's/^effort=default$/effort=max/' \
+    "$dir/home/state/$id.meta" > "$dir/home/state/$id.meta.tmp"
+  mv "$dir/home/state/$id.meta.tmp" "$dir/home/state/$id.meta"
+  out=$(run_control "$dir" "$id" relaunch --note "model-less max"); rc=$?
+  expect_code 1 "$rc" "a model-less Codex max relaunch must refuse"
+  assert_contains "$out" "a concrete --model is required" "model-less max refusal missing"
+  out=$(run_control "$dir" "$id" relaunch --model gpt-5 --note "unsupported max"); rc=$?
+  expect_code 1 "$rc" "an unsupported Codex max relaunch must refuse"
+  assert_contains "$out" "unsupported Codex max" "unsupported max refusal missing"
+  out=$(FM_TEST_CODEX_NATIVE_MODE="exit" run_control "$dir" "$id" relaunch --model gpt-6.1-sol --note "offline max"); rc=$?
+  expect_code 1 "$rc" "an unverifiable Codex max relaunch must refuse"
+  assert_contains "$out" "unable to verify Codex max" "unknown max refusal missing"
+  [ "$(cat "$dir/fake/command")" = codex ] || fail "a refused Codex max relaunch stopped the running agent"
+  [ ! -s "$dir/fake/literal" ] || fail "a refused Codex max relaunch sent lifecycle input"
+  [ "$(meta_field "$dir" "$id" model)" = default ] || fail "a refused Codex max relaunch changed the record"
+  [ ! -e "$dir/home/state/$id.control-relaunch" ] || fail "a refused Codex max relaunch created a journal"
+  out=$(run_control "$dir" "$id" relaunch --model gpt-6.1-sol --note "verified max"); rc=$?
+  expect_code 0 "$rc" "a verified Codex max relaunch failed: $out"
+  [ "$(meta_field "$dir" "$id" effort)" = max ] || fail "relaunch lost Codex max metadata"
+  assert_contains "$(cat "$dir/fake/literal")" "model_reasoning_effort=\"max\"" "relaunch omitted the verified max argument"
+  pass "fm-control relaunch: Codex max refuses before stopping unless native discovery verifies the model"
 }
 
 # A fake claude that answers `claude auth status` the way the real runner
@@ -3242,6 +3275,7 @@ test_harness_switch_resolves_a_prefixed_recorded_harness
 test_prefixed_recorded_harness_requires_explicit_replacement
 test_same_harness_relaunch_keeps_the_profile_axes
 test_native_ultra_relaunch_preserves_profile_and_rejects_before_stop
+test_codex_max_relaunch_refuses_before_stop_unless_verified
 test_signed_out_worker_account_pin_refuses_before_stop
 test_worker_account_pin_follows_the_relaunch
 test_pi_exclude_tools_follow_the_relaunch

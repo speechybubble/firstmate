@@ -104,7 +104,10 @@
 #   --model <name> and --effort <low|medium|high|xhigh|max|ultra> are concrete profile
 #   axes chosen by firstmate at intake. They are only threaded into harnesses whose
 #   installed CLIs were verified to support that axis; unsupported axes are omitted
-#   from that harness's launch rather than guessed. Ultra is the explicit
+#   from that harness's launch rather than guessed. Explicit Codex max requires
+#   a concrete model advertised by native account-scoped discovery; unsupported
+#   or unknown requests refuse before provisioning rather than omitting max.
+#   bin/fm-codex-effort-lib.sh owns that check. Ultra is the other explicit
 #   exception: bin/fm-harness.sh validate-native-effort owns its model scope;
 #   supported Pi launches receive --codex-effort ultra, never --thinking ultra.
 #   OpenCode has no interactive effort flag, so its effort is written as the
@@ -706,6 +709,8 @@ fm_backlog_directory_present "$STATE" "state directory" || {
 . "$SCRIPT_DIR/fm-busy-lib.sh"
 # shellcheck source=bin/fm-cursor-lib.sh
 . "$SCRIPT_DIR/fm-cursor-lib.sh"
+# shellcheck source=bin/fm-codex-effort-lib.sh
+. "$SCRIPT_DIR/fm-codex-effort-lib.sh"
 # shellcheck source=bin/fm-pr-lib.sh
 . "$SCRIPT_DIR/fm-pr-lib.sh"
 # shellcheck source=bin/fm-dod-lib.sh
@@ -1115,6 +1120,15 @@ spawn_remote_secondmate() {
   if [ "$effort" = ultra ] && ! "$SCRIPT_DIR/fm-harness.sh" validate-native-effort "$harness" "$model" "$effort"; then
     fm_lock_release "$registry_lock" || true
     fm_lock_release "$SPAWN_TASK_LOCK" || true
+    return 1
+  fi
+  # A concrete-model Codex max is verified on the target host after sync; only
+  # the model-less request is refused here, before readiness or inheritance.
+  if [ "$harness" = codex ] && [ "$effort" = max ] && { [ "$model" = - ] || [ "$model" = default ]; } &&
+    ! fm_codex_max_check default; then
+    fm_lock_release "$registry_lock" || true
+    fm_lock_release "$SPAWN_TASK_LOCK" || true
+    printf 'error: %s\n' "$FM_CODEX_EFFORT_REASON" >&2
     return 1
   fi
   meta="$STATE/$id.meta"
@@ -2577,6 +2591,23 @@ if [ "$EFFORT" = ultra ]; then
     exit 1
   }
 fi
+CODEX_MAX_EFFORT_FLAG=
+if [ "$HARNESS" = codex ] && [ "$EFFORT" = max ]; then
+  [ "$RAW_LAUNCH" = 0 ] || {
+    echo "error: --effort max requires the canonical --harness codex launch so its validated argument cannot be omitted" >&2
+    exit 1
+  }
+  # Missing/default is unknown without a discovery call. Concrete profiles
+  # are checked after pure path resolution below, before any provisioning.
+  case "$MODEL" in
+    ''|default)
+      fm_codex_max_check "$MODEL" || {
+        printf 'error: %s\n' "$FM_CODEX_EFFORT_REASON" >&2
+        exit 1
+      }
+      ;;
+  esac
+fi
 if [ "$HARNESS" = omp ]; then
   omp_model_validate "$OMP_BIN" "$MODEL" || exit 1
 fi
@@ -2810,14 +2841,12 @@ effort_flag_for_harness() {
     esac
     ;;
   codex)
-    # The installed codex config schema uses model_reasoning_effort. The
-    # installed model catalog supports max for gpt-5.6-luna; keep that level
-    # scoped to the model whose catalog entry advertises it.
+    # Max was validated once, before provisioning, against native discovery.
     case "$effort" in
     low | medium | high | xhigh) printf -- '-c %s ' "$(shell_quote "model_reasoning_effort=\"$effort\"")" ;;
     max)
-      [ "$model" = gpt-5.6-luna ] || return 0
-      printf -- '-c %s ' "$(shell_quote 'model_reasoning_effort="max"')"
+      [ -n "$CODEX_MAX_EFFORT_FLAG" ] || return 1
+      printf '%s' "$CODEX_MAX_EFFORT_FLAG"
       ;;
     esac
     ;;
@@ -3161,6 +3190,32 @@ if [ "$KIND" = secondmate ]; then
   if [ -z "$FIRSTMATE_HOME" ]; then
     FIRSTMATE_HOME=$(secondmate_registry_value "$ID" home || true)
   fi
+fi
+
+if [ "$HARNESS" = codex ] && [ "$EFFORT" = max ]; then
+  # Use the target's project config, not the controller checkout's provider.
+  # A relaunch already has its exact worktree; a fresh task uses the existing
+  # project root before Treehouse creates the new worktree. Secondmate checks
+  # precede even its inheritance/sync effects. Remote launches reach this block
+  # only in the target-host spawn path, so a concrete-model max on a remote
+  # second mate is verified on the target host after sync.
+  if [ "$RELAUNCH" -eq 1 ]; then
+    CODEX_DISCOVERY_DIRECTORY=$RELAUNCH_WT
+  elif [ "$KIND" = secondmate ]; then
+    [ -n "$FIRSTMATE_HOME" ] || {
+      echo "error: no firstmate home supplied or registered for $ID" >&2
+      exit 1
+    }
+    CODEX_DISCOVERY_DIRECTORY=$(validate_firstmate_home_for_spawn "$ID" "$FIRSTMATE_HOME") || exit 1
+  else
+    CODEX_DISCOVERY_DIRECTORY=$(cd "$(resolve_project_dir_arg "$PROJ")" && pwd) || exit 1
+  fi
+  fm_codex_effort_snapshot "$CODEX_DISCOVERY_DIRECTORY" || true
+  if ! fm_codex_max_check "$MODEL"; then
+    printf 'error: %s\n' "$FM_CODEX_EFFORT_REASON" >&2
+    exit 1
+  fi
+  CODEX_MAX_EFFORT_FLAG="-c 'model_reasoning_effort=\"max\"' "
 fi
 
 if [ "$KIND" = secondmate ]; then
