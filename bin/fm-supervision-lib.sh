@@ -111,3 +111,51 @@ fm_supervision_unhealthy() {
   fm_supervision_status "$@"
   [ "$FM_SUP_NEEDED" = true ] && [ "$FM_SUP_WATCHER_FRESH" = false ]
 }
+
+# The supervision fault record is state/.codex-watch-error: the failure
+# bin/fm-codex-stop-watch.sh leaves when its Stop-owned cycle could not run the
+# watcher or deliver a durable wake, and clears with fm_supervision_fault_clear
+# on its next successful delivery. bin/fm-guard.sh prints it at the top of
+# every drain, for MAIN and the supervision branch alike. A branch's chat never
+# reaches MAIN, so bin/fm-branch-report.sh refuses --silent true while the
+# printed fault is unreported, and a recorded non-silent report marks it
+# reported (state/.supervision-fault-reported, keyed to the fault's text). The
+# same text rewritten before a clear is the same fault; a different text, or
+# any fault after a clear, is a new one that must be reported again.
+
+# fm_supervision_fault_text <state-dir>
+# Prints the fault, bounded to 2048 bytes, and exits 0; exits 1 when none.
+fm_supervision_fault_text() {
+  local fault="$1/.codex-watch-error"
+  [ -f "$fault" ] && [ ! -L "$fault" ] && [ -s "$fault" ] || return 1
+  head -c 2048 "$fault"
+}
+
+# fm_supervision_fault_unreported <state-dir>
+# Prints the key of a fault no non-silent report has carried yet and exits 0;
+# exits 1 when there is no fault or it was already reported.
+fm_supervision_fault_unreported() {
+  local text key
+  text=$(fm_supervision_fault_text "$1") || return 1
+  key=$(printf '%s' "$text" | cksum | awk '{ print $1 "-" $2 }') || return 1
+  [ -n "$key" ] || return 1
+  [ "$(cat "$1/.supervision-fault-reported" 2>/dev/null)" != "$key" ] || return 1
+  printf '%s\n' "$key"
+}
+
+# fm_supervision_fault_mark_reported <state-dir> <key>
+# Records that a non-silent report carried the fault with this key.
+fm_supervision_fault_mark_reported() {
+  local tmp
+  tmp=$(mktemp "$1/.supervision-fault-reported.XXXXXX") || return 1
+  if ! { printf '%s\n' "$2" > "$tmp" && mv -f "$tmp" "$1/.supervision-fault-reported"; }; then
+    rm -f "$tmp"
+    return 1
+  fi
+}
+
+# fm_supervision_fault_clear <state-dir>
+# Ends the fault: removes the record and its reported mark together.
+fm_supervision_fault_clear() {
+  rm -f "$1/.codex-watch-error" "$1/.supervision-fault-reported"
+}

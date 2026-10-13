@@ -86,6 +86,7 @@ The other owners read the file at every arm.
 `bin/fm-branch-report.sh` appends to the outcome store (`bin/fm-branch-outcome.sh`) plus a per-turn receipt the host requires.
 A non-silent row an away turn records after the captain returned is also queued for main as a durable check wake.
 Silent outcomes remain in the store but are not queued or relayed as notes.
+While the drain prints a supervision fault that no non-silent report has carried to main, the report surface refuses a silent report, because the branch's chat never reaches main; `bin/fm-supervision-lib.sh` owns the fault record.
 An attended turn queues nothing: its captain rows reach main through the host's `branch-outcome` exit and the drain, and its routine rows stay in the store.
 
 ### Leases and authority

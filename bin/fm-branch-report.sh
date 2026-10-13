@@ -19,7 +19,11 @@
 #       --summary <text> [--silent true|false] [--wake <text>]
 #
 # The verdict criteria are owned by bin/fm-branch-prompt.sh ("Verdict: routine
-# or captain"); --silent true is legal only for a routine outcome.
+# or captain"); --silent true is legal only for a routine outcome, and is
+# refused while the drain prints a supervision fault no non-silent report has
+# carried to MAIN yet (bin/fm-supervision-lib.sh owns the fault record). A
+# recorded non-silent report marks that fault reported, so later silent
+# outcomes are accepted again until a new fault appears.
 # --wake defaults to the wake reason the host recorded for the turn.
 #
 # Only the branch actor of a live host turn may report: FM_SUPERVISION_ACTOR
@@ -27,7 +31,7 @@
 # record ($STATE/.supervision-host-turn), so a report typed after its turn
 # ended, or from any other shell, is refused. Exit codes: 0 recorded, 1 the
 # store refused or failed (nothing recorded), 2 usage, 3 refused (actor, turn,
-# or scope).
+# scope, or a silent report over an unreported supervision fault).
 #
 # A non-silent row an away turn recorded after the captain returned (the turn
 # record says posture=away, or predates the posture field, and no away record
@@ -52,6 +56,8 @@ TURN_FILE="$STATE/.supervision-host-turn"
 RECEIPTS="$STATE/.supervision-host-receipts"
 # shellcheck source=bin/fm-afk-contract.sh
 . "$SCRIPT_DIR/fm-afk-contract.sh"
+# shellcheck source=bin/fm-supervision-lib.sh
+. "$SCRIPT_DIR/fm-supervision-lib.sh"
 
 usage() {
   sed -n '/^# Usage:/,/^# --wake/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
@@ -115,6 +121,12 @@ if [ "$(turn_field unscoped)" != 1 ]; then
   esac
 fi
 
+if FAULT_KEY=$(fm_supervision_fault_unreported "$STATE"); then
+  [ "$SILENT" = false ] || refuse "no report has carried this supervision fault to MAIN yet; report again without --silent true and name the fault in --summary: $(fm_supervision_fault_text "$STATE" | tr '\n' ' ')"
+else
+  FAULT_KEY=
+fi
+
 [ "$WAKE_SET" -eq 1 ] || WAKE=$(turn_field wake)
 
 set -- append --task "$TASK" --verdict "$VERDICT" --summary "$SUMMARY" --silent "$SILENT"
@@ -122,6 +134,9 @@ set -- append --task "$TASK" --verdict "$VERDICT" --summary "$SUMMARY" --silent 
 if ! SEQ=$("$SCRIPT_DIR/fm-branch-outcome.sh" "$@"); then
   echo "outcome store append failed (nothing recorded)" >&2
   exit 1
+fi
+if [ -n "$FAULT_KEY" ] && ! fm_supervision_fault_mark_reported "$STATE" "$FAULT_KEY"; then
+  echo "recorded seq $SEQ, but the supervision fault could not be marked reported, so later silent reports stay refused" >&2
 fi
 printf '%s\t%s\t%s\t%s\n' "$TURN" "$SEQ" "$VERDICT" "$TASK" >> "$RECEIPTS" || {
   echo "recorded seq $SEQ, but the host receipt could not be written; the host will hand this wake to MAIN" >&2

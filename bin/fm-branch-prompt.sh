@@ -79,6 +79,7 @@ Report verdict captain for the finished result of work the captain requested, ev
 A start or still-working update on requested work that brings no new artifact, finding, or decision is verdict routine.
 Set silent true for a task-level routine outcome only when it says the worker is still busy, nothing new has happened since the last outcome, and no action was taken.
 Any routine outcome reporting an action, state change, or new result stays rendered; captain outcomes are never silent.
+A supervision fault the drain printed is never silent: your chat never reaches MAIN, so name the fault in the summary of a non-silent report; `bin/fm-branch-report.sh` refuses silent true until one has carried it.
 When in doubt, render.
 Also report verdict captain for:
 - work ready for review - include the PR's full https:// URL when the task's ready status or `pr=` metadata holds one, otherwise only the identifier you actually have;
