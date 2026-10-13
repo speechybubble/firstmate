@@ -15,8 +15,8 @@
 #   B) Inheritance. The primary pushes a declared, extensible set of LOCAL
 #      (gitignored) config items - config/crew-dispatch.json, config/crew-harness,
 #      config/backlog-backend, config/backend, config/herdr-presentation-spaces,
-#      config/startup-memory-budget, config/trace-context, and
-#      config/supervision-host-off -
+#      config/startup-memory-budget, config/trace-context,
+#      config/supervision-host-off, and config/supervision-node -
 #      down into each secondmate home's config/, so the secondmate's OWN crewmates,
 #      dispatch profiles, backlog backend, runtime-backend default, Herdr
 #      presentation choice, startup-memory budget, and trace context inherit the
@@ -429,6 +429,49 @@ test_propagate_lib() {
   [ "$(cat "$d/home2/config/supervision-host" 2>/dev/null)" = 'default haiku' ] \
     || fail "a secondmate's own supervision-host engine line was changed by convergence"
   rm -f "$src/supervision-host"
+
+  # 5c. the supervision host's Node selection is inherited and
+  # primary-authoritative, so a secondmate's host runs with the primary's Node on
+  # every ordinary launch; clearing the primary's file clears the mate's.
+  printf '/opt/node-v24/bin/node\n' > "$src/supervision-node"
+  printf '/usr/bin/node\n' > "$d/home2/config/supervision-node"
+  propagate_inheritable_config "$src" "$d/home2/config"
+  [ "$(cat "$d/home2/config/supervision-node" 2>/dev/null)" = /opt/node-v24/bin/node ] \
+    || fail "a primary's supervision-node was not inherited over the secondmate's own"
+  rm -f "$src/supervision-node"
+  propagate_inheritable_config "$src" "$d/home2/config"
+  [ -e "$d/home2/config/supervision-node" ] && fail "clearing the primary's supervision-node was not mirrored downstream"
+
+  # 5d. supervision-node is local-only: the remote item set both ends derive
+  # from leaves it out, so a sender never pushes it and the receiver inside a
+  # remote home refuses it, writing or removing nothing there.
+  local remote_items remote_home payload empty_hash out rc
+  remote_items=$(fm_config_inherit_items)
+  case "$remote_items" in
+    *config/supervision-node*) fail "the remote inherited set must not carry config/supervision-node" ;;
+  esac
+  case "$remote_items" in
+    *config/supervision-host-off*) ;;
+    *) fail "excluding supervision-node must leave the other inherited items on remote routes" ;;
+  esac
+  remote_home="$d/remote-home"
+  mkdir -p "$remote_home/config"
+  printf '/remote/host/node\n' > "$remote_home/config/supervision-node"
+  payload="$d/remote-node-payload"
+  printf '/opt/node-v24/bin/node\n' > "$payload"
+  payload_size=$(LC_ALL=C wc -c < "$payload" | tr -d ' ')
+  payload_hash=$(fm_inherit_sha256 "$payload")
+  rc=0
+  out=$(FM_HOME="$remote_home" "$ROOT/bin/fm-remote-inherit.sh" put config/supervision-node \
+    "$payload_size" "$payload_hash" 1 < "$payload" 2>&1) || rc=$?
+  [ "$rc" -ne 0 ] || fail "a remote receiver accepted config/supervision-node: $out"
+  assert_contains "$out" "path is not inherited material: config/supervision-node" "the remote refusal must name the item"
+  empty_hash=$(fm_inherit_sha256 /dev/null)
+  rc=0
+  out=$(FM_HOME="$remote_home" "$ROOT/bin/fm-remote-inherit.sh" absent config/supervision-node 0 "$empty_hash" 2 < /dev/null 2>&1) || rc=$?
+  [ "$rc" -ne 0 ] || fail "a remote receiver accepted an absence for config/supervision-node: $out"
+  [ "$(cat "$remote_home/config/supervision-node" 2>/dev/null)" = /remote/host/node ] \
+    || fail "propagation changed or removed a remote home's own supervision-node"
 
   # 6. nothing to propagate -> destination dir is never created (a true no-op)
   rm -rf "$d/src3" "$d/dest3"
