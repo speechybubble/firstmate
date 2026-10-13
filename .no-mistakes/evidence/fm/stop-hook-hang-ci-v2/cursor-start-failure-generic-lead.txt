@@ -1,0 +1,7 @@
+host runs: 1
+kind: turn-end-guard
+--- follow-up body ---
+⁣FIRSTMATE_OP: v1 turn-end-guard: SUPERVISION HOST FAILED - the supervision host exited 1 and reported a failure (nag 1 of 3).
+watcher: FAILED - the supervision host could not start a watcher cycle
+
+Run bin/fm-wake-drain.sh first to pick up any wake that close left queued, then investigate the supervision host (docs/supervision-host.md) before ending the turn; do NOT launch a manual bin/fm-watch-arm.sh from this notice.

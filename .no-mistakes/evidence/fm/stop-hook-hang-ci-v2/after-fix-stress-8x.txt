@@ -1,0 +1,40 @@
+## iteration 1
+ok - host+hook: failed at-turn downtime write notifies main despite a healthy successor
+ok - host+hook: failed at-turn downtime write notifies main even when the host streamed nothing first
+ok - host+hook: a close that turns main-only at its turn rewakes main and keeps its successor watcher
+ok - host+hook: the successor a close that turns main-only at its turn leaves for main survives the hook's process group teardown
+## iteration 2
+ok - host+hook: failed at-turn downtime write notifies main despite a healthy successor
+ok - host+hook: failed at-turn downtime write notifies main even when the host streamed nothing first
+ok - host+hook: a close that turns main-only at its turn rewakes main and keeps its successor watcher
+ok - host+hook: the successor a close that turns main-only at its turn leaves for main survives the hook's process group teardown
+## iteration 3
+ok - host+hook: failed at-turn downtime write notifies main despite a healthy successor
+ok - host+hook: failed at-turn downtime write notifies main even when the host streamed nothing first
+ok - host+hook: a close that turns main-only at its turn rewakes main and keeps its successor watcher
+ok - host+hook: the successor a close that turns main-only at its turn leaves for main survives the hook's process group teardown
+## iteration 4
+ok - host+hook: failed at-turn downtime write notifies main despite a healthy successor
+ok - host+hook: failed at-turn downtime write notifies main even when the host streamed nothing first
+ok - host+hook: a close that turns main-only at its turn rewakes main and keeps its successor watcher
+ok - host+hook: the successor a close that turns main-only at its turn leaves for main survives the hook's process group teardown
+## iteration 5
+ok - host+hook: failed at-turn downtime write notifies main despite a healthy successor
+ok - host+hook: failed at-turn downtime write notifies main even when the host streamed nothing first
+ok - host+hook: a close that turns main-only at its turn rewakes main and keeps its successor watcher
+ok - host+hook: the successor a close that turns main-only at its turn leaves for main survives the hook's process group teardown
+## iteration 6
+ok - host+hook: failed at-turn downtime write notifies main despite a healthy successor
+ok - host+hook: failed at-turn downtime write notifies main even when the host streamed nothing first
+ok - host+hook: a close that turns main-only at its turn rewakes main and keeps its successor watcher
+ok - host+hook: the successor a close that turns main-only at its turn leaves for main survives the hook's process group teardown
+## iteration 7
+ok - host+hook: failed at-turn downtime write notifies main despite a healthy successor
+ok - host+hook: failed at-turn downtime write notifies main even when the host streamed nothing first
+ok - host+hook: a close that turns main-only at its turn rewakes main and keeps its successor watcher
+ok - host+hook: the successor a close that turns main-only at its turn leaves for main survives the hook's process group teardown
+## iteration 8
+ok - host+hook: failed at-turn downtime write notifies main despite a healthy successor
+ok - host+hook: failed at-turn downtime write notifies main even when the host streamed nothing first
+ok - host+hook: a close that turns main-only at its turn rewakes main and keeps its successor watcher
+ok - host+hook: the successor a close that turns main-only at its turn leaves for main survives the hook's process group teardown
