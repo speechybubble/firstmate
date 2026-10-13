@@ -22,6 +22,14 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Pi CLI pin: both Pi extension test installs use this exact version so a new
+# Pi release cannot break CI unannounced (1.2.0 removed BeforeAgentStartEvent's
+# prompt field). Pi is only a rollback harness here. To bump it, adapt the Pi
+# extensions to the new release, change this value in a dedicated PR, and let
+# CI prove the Pi extension tests pass.
+env:
+  PI_CODING_AGENT_VERSION: 1.1.0
+
 # Timeout policy: docs/fm-test-portable-shards.md "Timeouts" owns the three
 # tiers and their rationale; tests/fm-ci-workflow.test.sh guards this workflow.
 # Each job comment identifies the tier implemented by its executable value.
@@ -115,7 +123,7 @@ jobs:
       - name: Install the Pi package for the Pi extension tests
         run: |
           set -eu
-          npm install -g @earendil-works/pi-coding-agent
+          npm install -g "@earendil-works/pi-coding-agent@$PI_CODING_AGENT_VERSION"
           npm ls -g --depth 0 @earendil-works/pi-coding-agent
       - name: Run portable parallel shard 1
         run: |
@@ -219,7 +227,7 @@ jobs:
       - name: Install the Pi package for the Pi extension tests
         run: |
           set -eu
-          npm install -g @earendil-works/pi-coding-agent
+          npm install -g "@earendil-works/pi-coding-agent@$PI_CODING_AGENT_VERSION"
           npm ls -g --depth 0 @earendil-works/pi-coding-agent
       - name: Run portable serial shard ${{ matrix.shard }}
         env:
