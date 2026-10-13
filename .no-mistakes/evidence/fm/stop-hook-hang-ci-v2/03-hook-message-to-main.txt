@@ -1,0 +1,23 @@
+--- [unstreamed] Stop hook exit code: 2
+--- [unstreamed] Stop hook stderr (delivered to main):
+firstmate watcher auto-arm FAILED - the Stop-owned automatic supervision mechanism is broken after 1 bounded attempts, and no live watcher with a fresh beacon was verified.
+watcher: FAILED - watcher downtime could not be restored for the main hand-back
+The supervision host (docs/supervision-host.md) ran these cycles; its last one exited 1 without a wake.
+Do not launch a manual background arm from this notice; investigate the automatic Stop hook and watcher startup before ending blind.
+--- [unstreamed] supervision host log:
+1791877864	start	gen=host-2725470-1791877863	primary=claude
+1791877872	pass-through	attended	main-only	signal: /tmp/fm-supervision-host.hyoMQY/hook-turns-main-only-write-fails-unstreamed/state/demo.status
+1791877872	pass-through	downtime-unrestored	signal: /tmp/fm-supervision-host.hyoMQY/hook-turns-main-only-write-fails-unstreamed/state/demo.status
+ok - host+hook: failed at-turn downtime write notifies main even when the host streamed nothing first
+--- [streamed] Stop hook exit code: 2
+--- [streamed] Stop hook stderr (delivered to main):
+firstmate watcher auto-arm FAILED - the Stop-owned automatic supervision mechanism is broken after 1 bounded attempts, and no live watcher with a fresh beacon was verified.
+watcher: started pid=2732860 (beacon fresh)
+watcher: FAILED - watcher downtime could not be restored for the main hand-back
+The supervision host (docs/supervision-host.md) ran these cycles; its last one exited 1 without a wake.
+Do not launch a manual background arm from this notice; investigate the automatic Stop hook and watcher startup before ending blind.
+--- [streamed] supervision host log:
+1791877875	start	gen=host-2732364-1791877874	primary=claude
+1791877886	pass-through	attended	main-only	signal: /tmp/fm-supervision-host.hyoMQY/hook-turns-main-only-write-fails/state/demo.status
+1791877886	pass-through	downtime-unrestored	signal: /tmp/fm-supervision-host.hyoMQY/hook-turns-main-only-write-fails/state/demo.status
+ok - host+hook: failed at-turn downtime write notifies main despite a healthy successor

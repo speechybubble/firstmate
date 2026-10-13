@@ -1,0 +1,5 @@
+not ok - hook write failure (unstreamed): the Stop hook did not finish: 1791877508	start	gen=host-2584285-1791877507	primary=claude
+1791877516	pass-through	attended	main-only	signal: /tmp/fm-supervision-host.PFfmi9/hook-turns-main-only-write-fails-unstreamed/state/demo.status
+1791877516	pass-through	downtime-unrestored	signal: /tmp/fm-supervision-host.PFfmi9/hook-turns-main-only-write-fails-unstreamed/state/demo.status
+1791877517	start	gen=host-2589482-1791877517	primary=claude
+1791877517	take-over	arm=2588361

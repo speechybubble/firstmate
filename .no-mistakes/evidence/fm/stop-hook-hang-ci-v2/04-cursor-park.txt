@@ -1,0 +1,13 @@
+ok - cursor park: the host's boundary wakes, its stand-down is silent, and a host that died is retried
+ok - cursor park: a failed host hand-back reaches main despite a healthy successor
+ok - cursor park: an opted-in home parks on the supervision host and relays every host line
+--- start-failure park stdout (Cursor hook JSON):
+{
+  "followup_message": "⁣FIRSTMATE_OP: v1 turn-end-guard: SUPERVISION HOST FAILED - the supervision host exited 1 and reported a failure (nag 1 of 3).\nwatcher: FAILED - the supervision host could not start a watcher cycle\n\nRun bin/fm-wake-drain.sh first to pick up any wake that close left queued, then investigate the supervision host (docs/supervision-host.md) before ending the turn; do NOT launch a manual bin/fm-watch-arm.sh from this notice."
+}
+ok - adversarial: cursor start failure gets generic host-failed lead, no hand-back claim
+--- failed hand-back park follow-up message:
+⁣FIRSTMATE_OP: v1 turn-end-guard: SUPERVISION HOST FAILED - the supervision host exited 1 and reported a failure (nag 1 of 3).
+watcher: FAILED - watcher downtime could not be restored for the main hand-back
+
+Run bin/fm-wake-drain.sh first to pick up any wake that close left queued, then investigate the supervision host (docs/supervision-host.md) before ending the turn; do NOT launch a manual bin/fm-watch-arm.sh from this notice.
