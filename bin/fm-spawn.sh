@@ -4641,10 +4641,20 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
   # misconfiguration would need machinery this path does not want - so the
   # refusal has to be self-explaining instead: carry the last path seen and the
   # reason it was rejected, and report both at the deadline.
+  #
+  # FM_SPAWN_WORKTREE_WAIT_SECS bounds the wait in one-second polls
+  # (docs/configuration.md "Environment variables" owns the setting and its
+  # default). The wait ends at the first settled read, so a large bound costs
+  # only a pane that never reaches an isolated worktree.
+  wt_wait=${FM_SPAWN_WORKTREE_WAIT_SECS:-240}
+  case "$wt_wait" in
+  '' | *[!0-9]*) wt_wait=240 ;;
+  esac
+  [ "$wt_wait" -gt 0 ] || wt_wait=240
   candidate=""
   last_seen=""
   last_reason="the pane reported no path"
-  for _ in $(seq 1 60); do
+  for _ in $(seq 1 "$wt_wait"); do
     p=$(spawn_current_path "$WT_TARGET" || true)
     [ -z "$p" ] || last_seen="$p"
     if [ -n "$p" ] && spawn_worktree_isolated "$p"; then
@@ -4662,7 +4672,7 @@ elif [ "$KIND" != secondmate ] && [ "$BACKEND" != orca ]; then
     sleep 1
   done
   if [ -z "$WT" ]; then
-    echo "error: treehouse get did not enter an isolated worktree within 60s (last seen '${last_seen:-none}': $last_reason; spawning project '$PROJ_ABS'); inspect window $T" >&2
+    echo "error: treehouse get did not enter an isolated worktree within ${wt_wait}s (last seen '${last_seen:-none}': $last_reason; spawning project '$PROJ_ABS'); inspect window $T" >&2
     exit 1
   fi
 

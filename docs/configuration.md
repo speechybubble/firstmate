@@ -326,15 +326,26 @@ Grok's arm command is rendered at session start, so a change to its host mode ta
 
 Only Claude has a verified engine of its own, so a Cursor, OpenCode, omp, Grok, or Codex home names `claude` in the file.
 
+### Supervision Node (config/supervision-node)
+
+The host runs its branch dispatch with Node, and that dispatch loads TypeScript, so the Node it uses must strip types: `process.features.typescript` must report a type-stripping mode such as `strip` or `transform`; a Node that reports `false`, `undefined` (Node before 22.10), or nothing does not strip types.
+Without `config/supervision-node` the host uses `node` from `PATH`, exactly as before the file existed.
+A Node without type stripping on `PATH` then fails each branch-eligibility computation, so every close reaches main as it would without the host.
+The optional local, gitignored `config/supervision-node` holds one line: the absolute path of the Node executable the host runs with, for example a Node 24 installation, without changing `PATH` or the system Node for anything else.
+When the file names a path that is not absolute, not an executable file, not runnable as Node, or a Node without type stripping, the host takes no wake: every close reaches main, an attended close's log names the problem, and each away-posture wake includes a line naming it.
+`fm_supervision_node` in `bin/fm-supervision-engine-lib.sh` implements this selection and check.
+
 ### Failures, when changes apply, and inheritance
 
 An unverified engine, a primary without a verified engine, or a malformed line leaves the host without an engine.
 It takes no wake, so every wake reaches main as it would without the host.
 Each away-posture wake includes a line naming the problem.
-The running host reads both files at every wake, so an engine change or an opt-out takes effect at the next wake without a restart.
+The running host reads these files at every wake, so an engine change or an opt-out takes effect at the next wake without a restart.
 
 The opt-out is inherited into secondmate homes: a primary that opts out also opts its secondmates out, and clearing it restores each mate's own host setting at its next spawn or convergence.
 The primary-authoritative propagation contract, including removal of a mate's local opt-out when the primary has none, is owned by [`secondmate-provisioning`](../.agents/skills/secondmate-provisioning/SKILL.md).
+`config/supervision-node` is inherited into local secondmate homes under the same primary-authoritative propagation, so a mate's host runs with the primary's Node selection on every ordinary launch and relaunch.
+It never crosses a remote route, because it names a path on the primary's machine: a remote secondmate home keeps its own `config/supervision-node`, or its absence and the `node` on its own `PATH`, and propagation neither writes nor removes that file there.
 `config/supervision-host` is local to each home and not inherited, because each home's engine and model are its own choice.
 While the home runs the host, main's lease-checked commands also take the per-task lease lock, so a claim by the host's engine cannot race a mutation main already started (`bin/fm-lease-lib.sh`).
 
@@ -1330,7 +1341,7 @@ Required tools come in two parts: a universal toolchain every home needs regardl
 
 Every home requires:
 
-- node and git.
+- node and git; the supervision host's Node must also strip TypeScript types (see [Supervision Node](#supervision-node-configsupervision-node)).
 - gh, with GitHub authentication through `gh auth login`.
 - no-mistakes v1.46.0 or newer.
 - Compatible gh-axi.
@@ -2374,6 +2385,7 @@ FM_BACKEND=             # optional runtime backend override for new spawns; tmux
 FM_TRACE_CONTEXT=       # optional trace-context override; see "Trace context propagation"
 FM_TASK_ID=             # internal task-worker marker fm-spawn.sh exports into ship and scout panes, never set by hand; bin/fm-test-run.sh refuses to execute in the repository primary checkout while it is set
 FM_TASK_INBOX=          # internal: absolute path of the task's steering inbox (state/<id>.inbox) that fm-spawn.sh exports into every ship, scout, and secondmate launch, never set by hand; the steering doorbell names "$FM_TASK_INBOX"
+FM_SPAWN_WORKTREE_WAIT_SECS=240   # one-second polls bin/fm-spawn.sh waits for a ship or scout pane to settle in its isolated worktree after `treehouse get` before refusing; nonpositive or invalid values fall back to 240; the default allows for a large pool on a slow filesystem, where `treehouse get` can take about two minutes (measured near 113 s on WSL2 with 25 pool worktrees whose repository sits on a Windows drive), and a healthy spawn ends the wait at its first settled read
 HERDR_SESSION=default  # herdr-only: named session for normal backend ops; not enough for destructive cleanup (docs/herdr-backend.md)
 FM_BACKEND_HERDR_SUBMIT_POLLS=6  # herdr-only: agent-state samples spread across each Enter attempt's budget when confirming a submit (docs/herdr-backend.md "Current transport behavior")
 FM_BACKEND_HERDR_SUBMIT_MIN_SLEEP=0.6  # herdr-only: minimum per-Enter confirmation budget before polling agent-state after an idle baseline

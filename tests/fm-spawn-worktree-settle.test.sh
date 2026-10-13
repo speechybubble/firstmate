@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Regression test for the fm-spawn.sh treehouse-get worktree-detection settle
-# loop (bin/fm-spawn.sh, the `for _ in $(seq 1 60)` loop after `treehouse get`).
+# loop (bin/fm-spawn.sh, the FM_SPAWN_WORKTREE_WAIT_SECS-bounded poll after
+# `treehouse get`).
 #
 # On some tmux/WSL setups a brand-new window's pane_current_path transiently
 # reports a stale, unrelated-but-real path on the very first poll, before the
@@ -125,7 +126,7 @@ test_single_stale_first_read_is_not_accepted() {
 
   out=$(run_settle_spawn "$id")
   status=$?
-  expect_code 0 "$status" "spawn should succeed once the pane settles"
+  expect_code 0 "$status" "spawn should succeed once the pane settles"$'\n'"$out"
   assert_contains "$out" "spawned $id" "spawn did not report success"
   assert_grep "worktree=$WT_DIR" "$HOME_DIR/state/$id.meta" \
     "meta did not record the settled worktree"
@@ -218,12 +219,58 @@ test_primary_checkout_that_never_settles_fails_at_the_deadline() {
   assert_contains "$out" "repository's primary checkout" \
     "the refusal did not say why that path was rejected"
   [ ! -e "$HOME_DIR/state/$id.meta" ] || fail "refused spawn published task metadata"
+  assert_contains "$out" "within 240s" "the refusal did not name the default wait"
+  [ "$(cat "$COUNTFILE")" -eq 240 ] || fail "the default wait polled $(cat "$COUNTFILE") times, expected 240"
   pass "a pane stuck on the primary checkout fails loudly at the deadline"
+}
+
+# `treehouse get` on a large pool over a slow filesystem can keep the pane on
+# the primary for well over a minute. A pane that settles after 100 polls must
+# still launch under the default wait.
+test_slow_treehouse_get_settles_within_the_default_wait() {
+  local rec id out status
+  id=settle-primary-slow-z5
+  rec=$(make_primary_case settle-primary-slow "$id" 100)
+  read_settle_record "$rec"
+  fm_test_fake_sleep_noop "$FAKEBIN_DIR"
+
+  out=$(run_settle_spawn "$id")
+  status=$?
+  expect_code 0 "$status" "spawn should wait out a slow treehouse get under the default"$'\n'"$out"
+  assert_grep "worktree=$WT_DIR" "$HOME_DIR/state/$id.meta" \
+    "meta did not record the slot the slow pane settled in"
+  pass "a pane that settles after 100 polls launches under the default wait"
+}
+
+# FM_SPAWN_WORKTREE_WAIT_SECS sets the number of polls; a value that is not a
+# positive integer keeps the default.
+test_worktree_wait_setting_bounds_the_poll() {
+  local rec id out status
+  id=settle-primary-short-z6
+  rec=$(make_primary_case settle-primary-short "$id" 100000)
+  read_settle_record "$rec"
+  fm_test_fake_sleep_noop "$FAKEBIN_DIR"
+
+  out=$(FM_SPAWN_WORKTREE_WAIT_SECS=5 run_settle_spawn "$id")
+  status=$?
+  [ "$status" -ne 0 ] || fail "spawn accepted a pane that never left the primary checkout"$'\n'"$out"
+  assert_contains "$out" "within 5s" "the refusal did not name the configured wait"
+  [ "$(cat "$COUNTFILE")" -eq 5 ] || fail "a 5-poll wait polled $(cat "$COUNTFILE") times"
+
+  rm -f "$COUNTFILE"
+  out=$(FM_SPAWN_WORKTREE_WAIT_SECS=0 run_settle_spawn "$id")
+  status=$?
+  [ "$status" -ne 0 ] || fail "spawn accepted a pane that never left the primary checkout"$'\n'"$out"
+  assert_contains "$out" "within 240s" "a zero wait did not fall back to the default"
+  [ "$(cat "$COUNTFILE")" -eq 240 ] || fail "a zero wait polled $(cat "$COUNTFILE") times, expected the default 240"
+  pass "FM_SPAWN_WORKTREE_WAIT_SECS bounds the poll and an invalid value keeps the default"
 }
 
 test_single_stale_first_read_is_not_accepted
 test_already_settled_pane_costs_one_confirm_read
 test_transient_primary_checkout_is_not_accepted
 test_primary_checkout_that_never_settles_fails_at_the_deadline
+test_slow_treehouse_get_settles_within_the_default_wait
+test_worktree_wait_setting_bounds_the_poll
 
 echo "# all fm-spawn-worktree-settle tests passed"
