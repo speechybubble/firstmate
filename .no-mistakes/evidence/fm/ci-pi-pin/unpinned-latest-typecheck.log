@@ -1,0 +1,6 @@
+== unpinned latest 1.2.0 typecheck
+../../../../../../tmp/fm-pi-primary-types.VLLFKg/fm-branch-supervision.ts(1742,26): error TS2339: Property 'prompt' does not exist on type 'BeforeAgentStartEvent'.
+  Property 'prompt' does not exist on type 'BeforeAgentStartCustomEvent'.
+../../../../../../tmp/fm-pi-primary-types.VLLFKg/fm-primary-pi-watch.ts(1208,35): error TS2339: Property 'prompt' does not exist on type 'BeforeAgentStartEvent'.
+  Property 'prompt' does not exist on type 'BeforeAgentStartCustomEvent'.
+exit=1

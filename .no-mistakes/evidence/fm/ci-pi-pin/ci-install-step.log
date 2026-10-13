@@ -1,0 +1,9 @@
+npm WARN deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+
+added 121 packages in 11s
+firstmate-ci-pi@ /tmp/fm-pi-ci.VE65bu/runner/pi
+└── @earendil-works/pi-coding-agent@1.1.0
+
+pi-ai 1.1.0
+pi-tui 1.1.0
+pi-agent-core 1.1.0

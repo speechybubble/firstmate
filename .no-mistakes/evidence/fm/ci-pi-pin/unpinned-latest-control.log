@@ -1,0 +1,25 @@
+ok - repeated and modified input can link a closed identity without resurrecting or duplicating work
+ok - dispatched workers cannot mutate native primary intake receipts
+ok - durable native receipts survive reopening the same session
+ok - a navigated branch without the intake boundary keeps reconciling its own input
+ok - real Pi native input retains omitted obligations without manufacturing task state or endless recovery
+file:///home/denni/.no-mistakes/worktrees/d567722de3ac/01M4T14SFBXF6SYPP7PJRWEV13/tests/fm-pi-outcome-delivery.mjs:73
+await session.bindExtensions({ mode: "rpc", onError: (error) => { throw new Error(JSON.stringify(error)); } });
+                                                                        ^
+
+Error: {"extensionPath":"/tmp/fm-pi-request-intake.IfY0Wd/repo/.pi/extensions/fm-branch-supervision.ts","event":"before_agent_start","error":"Cannot read properties of undefined (reading 'trim')","stack":"TypeError: Cannot read properties of undefined (reading 'trim')\n    at /tmp/fm-pi-request-intake.IfY0Wd/repo/.pi/extensions/fm-branch-supervision.ts:1744:28\n    at async ExtensionRunner.emitBeforeAgentStart (file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/runner.js:1141:43)\n    at async AgentSession._prepareRun (file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1456:24)\n    at async AgentSession._startRun (file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1396:24)\n    at async AgentSession.sendCustomMessage (file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1840:13)\n    at async file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1837:63\n    at async AgentSession._emitAgentSettled (file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:700:21)\n    at async AgentSession._startRun (file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1439:13)\n    at async AgentSession.prompt (file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1663:9)\n    at async file:///home/denni/.no-mistakes/worktrees/d567722de3ac/01M4T14SFBXF6SYPP7PJRWEV13/tests/fm-pi-outcome-delivery.mjs:78:1"}
+    at onError (file:///home/denni/.no-mistakes/worktrees/d567722de3ac/01M4T14SFBXF6SYPP7PJRWEV13/tests/fm-pi-outcome-delivery.mjs:73:73)
+    at ExtensionRunner.emitError (file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/runner.js:499:13)
+    at ExtensionRunner.emitBeforeAgentStart (file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/runner.js:1154:26)
+    at async AgentSession._prepareRun (file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1456:24)
+    at async AgentSession._startRun (file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1396:24)
+    at async AgentSession.sendCustomMessage (file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1840:13)
+    at async file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1837:63
+    at async AgentSession._emitAgentSettled (file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:700:21)
+    at async AgentSession._startRun (file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1439:13)
+    at async AgentSession.prompt (file:///tmp/fm-pi-ci.VE65bu/latest/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1663:9)
+    at async file:///home/denni/.no-mistakes/worktrees/d567722de3ac/01M4T14SFBXF6SYPP7PJRWEV13/tests/fm-pi-outcome-delivery.mjs:78:1
+
+Node.js v22.22.1
+not ok - native outcome acknowledgement must retain owner review and delivery obligations: expected exit 0, got 1
+exit=1
