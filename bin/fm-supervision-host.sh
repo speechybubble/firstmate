@@ -29,9 +29,10 @@
 # boundary prints nothing else); "supervision-host stood down: ..." means this
 # session or generation no longer owns supervision and the owner stands down
 # silently; an exit status above 128, or no output at all, means the host
-# itself died and the owner retries it. Any other close is judged exactly as
-# the arm's. --restart starts the first cycle with fm-watch-arm.sh --restart,
-# and an FM_WATCH_PREDECESSOR_ARM_PID the owner passes reaches that first
+# itself died and the owner retries it, so every deliberate nonzero exit
+# prints a line. Any other close is judged exactly as the arm's. --restart
+# starts the first cycle with fm-watch-arm.sh --restart, and an
+# FM_WATCH_PREDECESSOR_ARM_PID the owner passes reaches that first
 # cycle only, for owners that start their own successor after every close
 # (OpenCode, omp).
 #
@@ -1138,10 +1139,13 @@ while :; do
     detach_successor
     # Main handles this close after all, so hand back the downtime the handoff
     # above consumed: the re-arm owner delivers the close only while the
-    # recovery marker reads downtime (leave_successor_for_main).
+    # recovery marker reads downtime (leave_successor_for_main). If it cannot,
+    # say so in a non-actionable line: the close itself is not deliverable to
+    # the owner, and no output at all would read as a host that died (OUTPUT).
     if [ -n "$SUCCESSOR_GENERATION" ] \
       && ! fm_recovery_marker_publish "$STATE/.watcher-down" downtime >/dev/null 2>&1; then
       log_line "pass-through	downtime-unrestored	$(printf '%s\n' "$REASON" | head -n 1)"
+      echo "watcher: FAILED - watcher downtime could not be restored for the main hand-back"
       exit 1
     fi
     emit

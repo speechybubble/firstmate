@@ -36,7 +36,9 @@
 # actionable like a wake line, and the follow-up carries every such line in
 # order while wake lines keep the eight-line cap; "supervision-host stood
 # down:" ends the park silently; a host that died without a close is retried
-# instead of being judged by the healthy-watcher predicate. On a home that does not run the host nothing below changes.
+# instead of being judged by the healthy-watcher predicate; and a host that
+# reported a failure (a nonzero exit with output) reaches the session as a
+# bounded repair follow-up even when the successor it left is healthy. On a home that does not run the host nothing below changes.
 #
 # LOOP BOUNDING IS DOUBLE, because either bound alone is insufficient:
 #   - `loop_limit` in .cursor/hooks.json is Cursor's own ceiling. Once
@@ -198,15 +200,16 @@ budget_reset_if_ours() {
   fm_lock_release "$OWNER_LOCK"
 }
 
-emit_repair_followup() {  # <reason> <arm-tail> <attempt>
-  local reason=$1 arm_tail=$2 attempt_count=$3 prior count body encoded response
+emit_repair_followup() {  # <reason> <arm-tail> <attempt> [lead]
+  local reason=$1 arm_tail=$2 attempt_count=$3 lead=${4-} prior count body encoded response
   park_still_ours || exit 0
   budget_read
   [ "$BUDGET_COUNT" -lt "$BLOCK_BUDGET" ] || exit 0
   prior=$BUDGET_COUNT
   count=$((prior + 1))
 
-  body="TURN WOULD END BLIND - supervision is off. The hook-owned watcher park could not establish a live cycle after $attempt_count bounded attempts (nag $count of $BLOCK_BUDGET).
+  [ -n "$lead" ] || lead="TURN WOULD END BLIND - supervision is off. The hook-owned watcher park could not establish a live cycle after $attempt_count bounded attempts"
+  body="$lead (nag $count of $BLOCK_BUDGET).
 $arm_tail
 
 $reason"
@@ -312,6 +315,7 @@ HEALTHY=0
 STAND_DOWN=0
 HOST_MODE=0
 HOST_RC=0
+HOST_FAILED=0
 ACTIONABLE_RE='^(signal:|stale:|check:|heartbeat($|:))'
 if fm_supervision_host_enabled "$CONFIG" cursor; then
   HOST_MODE=1
@@ -376,6 +380,12 @@ while [ "$attempt" -lt "$ARM_ATTEMPTS" ]; do
       ARM_OUT=
       continue
     fi
+    # A reported host failure cannot be dismissed just because a successor
+    # watcher is healthy: a failed hand-back leaves its close undelivered.
+    if [ "$HOST_RC" -ne 0 ]; then
+      HOST_FAILED=1
+      break
+    fi
   fi
 
   # A non-actionable close is benign when another verified watcher already owns
@@ -418,6 +428,15 @@ fi
 if [ "$HEALTHY" -eq 1 ]; then
   budget_reset_if_ours
   exit 0
+fi
+
+# The shared predicate below would pass on the successor a failed hand-back
+# left running, so report the host's failure here: its close never reached main.
+if [ "$HOST_FAILED" -eq 1 ]; then
+  ARM_TAIL=$(grep -E '^watcher:' "$ARM_OUT" 2>/dev/null | head -4)
+  emit_repair_followup "Run bin/fm-wake-drain.sh first to pick up any wake that close left queued, then investigate the supervision host (docs/supervision-host.md) before ending the turn; do NOT launch a manual bin/fm-watch-arm.sh from this notice." \
+    "$ARM_TAIL" "$attempt" \
+    "SUPERVISION HOST FAILED - the supervision host exited $HOST_RC and reported a failure"
 fi
 
 # The park could not establish supervision. Ask the SHARED predicate whether

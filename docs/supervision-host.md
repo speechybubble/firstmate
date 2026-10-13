@@ -133,6 +133,7 @@ The engine turn runs beside a captain who is present, so its guarded actions tak
 Every close is checked against the shared offer rule before the engine may take it, including the original trigger's [durable backlog hold](pi-supervision-branch.md#durable-backlog-holds); an ineligible trigger returns to main even when unrelated rows remain eligible.
 Captain outcomes remain in the store until the return drain presents them (see [Captain outcomes](#captain-outcomes)).
 Every turn that starts attended meets the attended rule again at its start, and the offer's scan is the scope the turn claims: a close accepted away whose turn starts attended, because the captain returned in between, or an attended close whose task turned main-only (a decision appeared) while the successor started, reaches main unchanged and leaves that successor cycle running, with the handoff that turn had confirmed handed back to downtime.
+If that downtime cannot be published, the close is not deliverable, so the host prints a non-actionable `watcher: FAILED - watcher downtime could not be restored for the main hand-back` line instead and exits nonzero, so the Claude Stop hook and the Cursor park notify main of the failure rather than retrying the park or accepting the healthy successor in its place.
 A captain who leaves while an attended turn runs turns its captain outcomes into away outcomes: they wait for the return too.
 
 ### Quiet mode

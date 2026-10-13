@@ -496,6 +496,21 @@ write_host_fixture() {  # <dir> <kind>
         printf '[ "$(wc -l < "$FM_HOME/state/host-ran")" -gt 1 ] || kill -KILL $$\n'
         printf 'printf "stale: fixture-win after a retry\\n"\n'
         ;;
+      failed-handback)
+        # A hand-back that could not be delivered leaves a healthy successor
+        # watcher behind and reports its failure with a non-actionable line.
+        printf '. "$FM_HOME/bin/fm-wake-lib.sh"\n'
+        printf 'sleep 300 </dev/null >/dev/null 2>&1 &\n'
+        printf 'printf "%%s\\n" "$!" > "$FM_HOME/state/successor-pid"\n'
+        printf 'mkdir -p "$FM_HOME/state/.watch.lock"\n'
+        printf 'printf "%%s\\n" "$!" > "$FM_HOME/state/.watch.lock/pid"\n'
+        printf 'printf "%%s\\n" "$FM_HOME" > "$FM_HOME/state/.watch.lock/fm-home"\n'
+        printf 'printf "%%s\\n" "$FM_HOME/bin/fm-watch.sh" > "$FM_HOME/state/.watch.lock/watcher-path"\n'
+        printf 'fm_pid_identity "$!" > "$FM_HOME/state/.watch.lock/pid-identity"\n'
+        printf ': > "$FM_HOME/state/.last-watcher-beat"\n'
+        printf 'printf "watcher: FAILED - watcher downtime could not be restored for the main hand-back\\n"\n'
+        printf 'exit 1\n'
+        ;;
     esac
     printf 'exit 0\n'
   } > "$dir/bin/fm-supervision-host.sh"
@@ -586,6 +601,29 @@ test_park_host_boundary_stand_down_and_death() {
   [ "$(wc -l < "$dir/state/host-ran" | tr -d ' ')" -eq 2 ] || fail "a host that died without a close must be retried: $(cat "$dir/state/host-ran")"
   case "$(followup_of "$out")" in *'stale: fixture-win after a retry'*) ;; *) fail "the retried host's wake was not delivered: $out" ;; esac
   pass "cursor park: the host's boundary wakes, its stand-down is silent, and a host that died is retried"
+}
+
+# A failed hand-back is not dismissed just because the successor watcher it
+# left behind is healthy: the close it could not deliver must still reach main.
+test_park_host_failed_handback_reaches_main_despite_a_healthy_successor() {
+  local dir out body successor
+  dir=$(make_primary_dir "$TMP_ROOT/park-host-failed-handback")
+  : > "$dir/state/task1.meta"
+  mkdir -p "$dir/config"
+  : > "$dir/config/supervision-host"
+  write_host_fixture "$dir" failed-handback
+  out=$(run_park "$dir")
+  successor=$(cat "$dir/state/successor-pid" 2>/dev/null || true)
+  [ -n "$successor" ] && kill "$successor" 2>/dev/null
+  [ -n "$successor" ] || fail "fixture: the host left no successor watcher"
+  [ "$(wc -l < "$dir/state/host-ran" | tr -d ' ')" -eq 1 ] \
+    || fail "a host that reported a failed hand-back must not be retried: $(cat "$dir/state/host-ran")"
+  [ -n "$out" ] || fail "a failed hand-back ended the park silently because its successor was healthy"
+  [ "$(kind_of_followup "$out")" = turn-end-guard ] || fail "a failed hand-back must arrive as a bounded repair follow-up, got: $out"
+  body=$(followup_of "$out")
+  case "$body" in *'SUPERVISION HOST FAILED - the supervision host exited 1 and reported a failure'*) ;; *) fail "the follow-up must say the host reported a failure: $body" ;; esac
+  case "$body" in *'watcher: FAILED - watcher downtime could not be restored for the main hand-back'*) ;; *) fail "the follow-up must carry the host's failure line: $body" ;; esac
+  pass "cursor park: a failed host hand-back reaches main despite a healthy successor"
 }
 
 test_park_inert_under_pi_coding_agent() {
@@ -814,6 +852,7 @@ test_superseded_park_does_not_consume_nag_budget
 test_park_inert_when_afk
 test_park_runs_the_supervision_host_only_when_opted_in
 test_park_host_boundary_stand_down_and_death
+test_park_host_failed_handback_reaches_main_despite_a_healthy_successor
 test_park_inert_under_pi_coding_agent
 test_park_still_parks_with_pi_leak_and_cursor_identity
 test_park_stands_down_when_away_mode_activates_before_commit
