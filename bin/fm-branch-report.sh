@@ -19,11 +19,11 @@
 #       --summary <text> [--silent true|false] [--wake <text>]
 #
 # The verdict criteria are owned by bin/fm-branch-prompt.sh ("Verdict: routine
-# or captain"); --silent true is legal only for a routine outcome, and is
-# refused while the drain prints a supervision fault no non-silent report has
-# carried to MAIN yet (bin/fm-supervision-lib.sh owns the fault record). A
-# recorded non-silent report marks that fault reported, so later silent
-# outcomes are accepted again until a new fault appears.
+# or captain"); --silent true is legal only for a routine outcome. While the
+# drain prints a supervision fault no captain report has carried to MAIN yet
+# (bin/fm-supervision-lib.sh owns the fault record), only --verdict captain is
+# accepted. A recorded captain report marks that fault reported, so later
+# routine and silent outcomes are accepted again until a new fault appears.
 # --wake defaults to the wake reason the host recorded for the turn.
 #
 # Only the branch actor of a live host turn may report: FM_SUPERVISION_ACTOR
@@ -31,7 +31,7 @@
 # record ($STATE/.supervision-host-turn), so a report typed after its turn
 # ended, or from any other shell, is refused. Exit codes: 0 recorded, 1 the
 # store refused or failed (nothing recorded), 2 usage, 3 refused (actor, turn,
-# scope, or a silent report over an unreported supervision fault).
+# scope, or a non-captain report over an unreported supervision fault).
 #
 # A non-silent row an away turn recorded after the captain returned (the turn
 # record says posture=away, or predates the posture field, and no away record
@@ -122,7 +122,7 @@ if [ "$(turn_field unscoped)" != 1 ]; then
 fi
 
 if FAULT_KEY=$(fm_supervision_fault_unreported "$STATE"); then
-  [ "$SILENT" = false ] || refuse "no report has carried this supervision fault to MAIN yet; report again without --silent true and name the fault in --summary: $(fm_supervision_fault_text "$STATE" | tr '\n' ' ')"
+  [ "$VERDICT" = captain ] || refuse "no captain report has carried this supervision fault to MAIN yet; report again with --verdict captain and name the fault in --summary: $(fm_supervision_fault_text "$STATE" | tr '\n' ' ')"
 else
   FAULT_KEY=
 fi

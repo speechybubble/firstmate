@@ -117,8 +117,8 @@ fm_supervision_unhealthy() {
 # watcher or deliver a durable wake, and clears with fm_supervision_fault_clear
 # on its next successful delivery. bin/fm-guard.sh prints it at the top of
 # every drain, for MAIN and the supervision branch alike. A branch's chat never
-# reaches MAIN, so bin/fm-branch-report.sh refuses --silent true while the
-# printed fault is unreported, and a recorded non-silent report marks it
+# reaches MAIN, so bin/fm-branch-report.sh accepts only --verdict captain while
+# the printed fault is unreported, and a recorded captain report marks it
 # reported (state/.supervision-fault-reported, keyed to the fault's text). The
 # same text rewritten before a clear is the same fault; a different text, or
 # any fault after a clear, is a new one that must be reported again.
@@ -132,7 +132,7 @@ fm_supervision_fault_text() {
 }
 
 # fm_supervision_fault_unreported <state-dir>
-# Prints the key of a fault no non-silent report has carried yet and exits 0;
+# Prints the key of a fault no captain report has carried yet and exits 0;
 # exits 1 when there is no fault or it was already reported.
 fm_supervision_fault_unreported() {
   local text key
@@ -144,7 +144,7 @@ fm_supervision_fault_unreported() {
 }
 
 # fm_supervision_fault_mark_reported <state-dir> <key>
-# Records that a non-silent report carried the fault with this key.
+# Records that a captain report carried the fault with this key.
 fm_supervision_fault_mark_reported() {
   local tmp
   tmp=$(mktemp "$1/.supervision-fault-reported.XXXXXX") || return 1

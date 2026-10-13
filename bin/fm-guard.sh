@@ -3,7 +3,8 @@
 # fm-wake-drain.sh after it empties queued wakes, and by fm-session-start.sh in
 # read-only advisory mode whenever session-lock ownership was not verified.
 # First, print any supervision fault record (bin/fm-supervision-lib.sh owns
-# it), marked for the supervision branch while no report has carried it to MAIN.
+# it), marked for the supervision branch while no captain report has carried it
+# to MAIN.
 # Then always warn if the firstmate primary checkout (FM_ROOT) is on a named
 # non-default branch, because that means firstmate-on-itself work landed in the
 # primary instead of an isolated worktree.
@@ -80,11 +81,11 @@ STALE_BANNER_MARKER="$STATE/.guard-watcher-stale-banner"
 GUARD_ACTOR=$(fm_lease_actor 2>/dev/null) || GUARD_ACTOR=main
 
 # The supervision fault record (bin/fm-supervision-lib.sh owns it) prints for
-# every actor. The branch's own chat never reaches MAIN, so while no non-silent
+# every actor. The branch's own chat never reaches MAIN, so while no captain
 # report has carried the fault, the branch is told its report must.
 if fm_supervision_fault_text "$STATE" >&2; then
   if [ "$GUARD_ACTOR" = branch ] && fm_supervision_fault_unreported "$STATE" >/dev/null; then
-    printf 'SUPERVISION FAULT NOT YET REPORTED: no report has carried this fault to MAIN; report this wake'"'"'s outcome without --silent true and name the fault in its summary (bin/fm-branch-report.sh refuses a silent report until one does).\n' >&2
+    printf 'SUPERVISION FAULT NOT YET REPORTED: no captain report has carried this fault to MAIN; report this wake'"'"'s outcome with --verdict captain and name the fault in its summary (bin/fm-branch-report.sh refuses routine and silent reports until one does).\n' >&2
   fi
 fi
 

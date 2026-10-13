@@ -354,11 +354,12 @@ test_report_surface_enforces_actor_turn_and_scope() {
 }
 
 # A supervision fault the drain prints reaches main only through a branch
-# report, because the branch's chat never does: while no non-silent report has
-# carried the fault, a silent one is refused and the drain marks the fault for
-# the branch; once one has, silent reports are accepted again until the fault
-# clears and recurs. Without a fault, a silent report is unaffected.
-test_report_refuses_silence_over_an_unreported_supervision_fault() {
+# report, because the branch's chat never does and a routine note can be folded
+# away: while no captain report has carried the fault, silent and routine
+# reports are refused and the drain marks the fault for the branch; once one
+# has, they are accepted again until the fault clears and recurs. Without a
+# fault, silent and routine reports are unaffected.
+test_report_requires_captain_over_an_unreported_supervision_fault() {
   local home state out rc fault guard_out
   home="$TMP_ROOT/report-fault"
   state="$home/state"
@@ -368,6 +369,8 @@ test_report_refuses_silence_over_an_unreported_supervision_fault() {
 
   out=$(fault_report --verdict routine --summary 'still busy, nothing new, no action taken' --silent true); rc=$?
   expect_code 0 "$rc" "without a supervision fault a silent routine report must be accepted"
+  out=$(fault_report --verdict routine --summary 'started the review'); rc=$?
+  expect_code 0 "$rc" "without a supervision fault a visible routine report must be accepted"
 
   fault='Codex Stop-owned supervision failed: previous Stop owner did not release within 40s. Durable wakes remain unacknowledged; inspect the native hook and queue delivery.'
   printf '%s\n' "$fault" > "$state/.codex-watch-error"
@@ -380,23 +383,31 @@ test_report_refuses_silence_over_an_unreported_supervision_fault() {
 
   out=$(fault_report --verdict routine --summary 'still busy, nothing new, no action taken' --silent true); rc=$?
   expect_code 3 "$rc" "a silent report over an unreported supervision fault must be refused"
-  assert_contains "$out" "no report has carried this supervision fault to MAIN" "the refusal must say why"
+  assert_contains "$out" "no captain report has carried this supervision fault to MAIN" "the refusal must say why"
   assert_contains "$out" "previous Stop owner did not release within 40s" "the refusal must name the fault"
-  [ "$(grep -c '' "$state/branch-outcomes.jsonl")" -eq 1 ] || fail "a refused silent report changed the outcome store"
-
   out=$(fault_report --verdict routine --summary "supervision fault: $fault"); rc=$?
-  expect_code 0 "$rc" "a non-silent report over the fault must be accepted"
-  assert_grep '"silent":false' "$state/branch-outcomes.jsonl" "the fault report was not stored as a visible outcome"
+  expect_code 3 "$rc" "a routine report over an unreported supervision fault must be refused"
+  assert_contains "$out" "--verdict captain" "the refusal must ask for a captain report"
+  [ "$(grep -c '' "$state/branch-outcomes.jsonl")" -eq 2 ] || fail "a refused report changed the outcome store"
+  guard_out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch "$ROOT/bin/fm-guard.sh" 2>&1)
+  assert_contains "$guard_out" "NOT YET REPORTED" "a refused routine report must not mark the fault reported"
+
+  out=$(fault_report --verdict captain --summary "supervision fault: $fault"); rc=$?
+  expect_code 0 "$rc" "a captain report over the fault must be accepted"
+  [ "$(tail -n 1 "$state/branch-outcomes.jsonl" | jq -r '.verdict + " " + (.silent|tostring)')" = "captain false" ] \
+    || fail "the fault report was not stored as a visible captain outcome"
   guard_out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch "$ROOT/bin/fm-guard.sh" 2>&1)
   assert_not_contains "$guard_out" "NOT YET REPORTED" "a reported fault must not stay marked for the branch"
   out=$(fault_report --verdict routine --summary 'still busy, nothing new, no action taken' --silent true); rc=$?
-  expect_code 0 "$rc" "once a report carried the fault, a silent report must be accepted again"
+  expect_code 0 "$rc" "once a captain report carried the fault, a silent report must be accepted again"
+  out=$(fault_report --verdict routine --summary 'started the review'); rc=$?
+  expect_code 0 "$rc" "once a captain report carried the fault, a routine report must be accepted again"
 
   printf '%s\n' 'Codex Stop-owned supervision failed: hook interrupted. Durable wakes remain unacknowledged; inspect the native hook and queue delivery.' > "$state/.codex-watch-error"
   out=$(fault_report --verdict routine --summary 'still busy, nothing new, no action taken' --silent true); rc=$?
   expect_code 3 "$rc" "a different fault must be reported again"
-  out=$(fault_report --verdict routine --summary 'supervision fault: hook interrupted'); rc=$?
-  expect_code 0 "$rc" "a non-silent report over the new fault must be accepted"
+  out=$(fault_report --verdict captain --summary 'supervision fault: hook interrupted'); rc=$?
+  expect_code 0 "$rc" "a captain report over the new fault must be accepted"
 
   bash -c '. "$1/bin/fm-supervision-lib.sh" && fm_supervision_fault_clear "$2"' _ "$ROOT" "$state" \
     || fail "fixture: could not clear the fault"
@@ -405,7 +416,7 @@ test_report_refuses_silence_over_an_unreported_supervision_fault() {
   printf '%s\n' 'Codex Stop-owned supervision failed: hook interrupted. Durable wakes remain unacknowledged; inspect the native hook and queue delivery.' > "$state/.codex-watch-error"
   out=$(fault_report --verdict routine --summary 'still busy, nothing new, no action taken' --silent true); rc=$?
   expect_code 3 "$rc" "the same fault recurring after a clear must be reported again"
-  pass "report surface: a supervision fault refuses silence until a visible report carries it to main"
+  pass "report surface: a supervision fault requires a captain report to carry it to main"
 }
 
 # The return brief is rendered after the record is archived, so a non-silent
@@ -3138,7 +3149,7 @@ test_claude_stop_hook_notifies_when_closed_successor_downtime_restore_fails
 test_claude_stop_hook_notifies_when_closed_announced_successor_downtime_restore_fails
 test_park_exit_probe_uses_half_second_child_sleeps
 test_report_surface_enforces_actor_turn_and_scope
-test_report_refuses_silence_over_an_unreported_supervision_fault
+test_report_requires_captain_over_an_unreported_supervision_fault
 test_report_after_the_return_is_queued_for_main
 test_dispatch_entry_scopes_rows_and_renders_the_away_tail
 test_branch_outcomes_only_on_a_host_home_off_pi
