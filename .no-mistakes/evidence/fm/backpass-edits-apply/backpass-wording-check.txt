@@ -1,0 +1,6 @@
+e2 exact-line-present: True count: 1
+e3 exact-line-present: True count: 1
+e4 exact-line-present: True count: 1
+e5 exact-line-present: True count: 1
+e3 immediately follows UNREAD STATUS bullet: True
+em-dash in changed lines: False
