@@ -110,11 +110,40 @@ test_stale_enqueue_before_suppressor() {
   printf '1\n' > "$state/.count-$key"
   PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$capture_file" FM_STATE_OVERRIDE="$state" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
   wait_for_exit "$!" 40 || fail "watcher did not exit for stale pane"
-  grep -Fx "stale: $window" "$out" >/dev/null || fail "watcher did not print stale wake"
+  grep -Fx "stale: $window task=stale" "$out" >/dev/null || fail "watcher did not print stale wake"
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" || fail "drain after stale wake failed"
   grep "$(printf '\tstale\t')" "$drain_out" | grep -F "$window" >/dev/null || fail "stale wake was not queued"
   [ "$(cat "$state/.stale-$key" 2>/dev/null || true)" = "$pane_hash" ] || fail "stale suppressor was not written"
   pass "stale wake is queued before suppressor state is advanced"
+}
+
+# A stale wake names the task whose metadata records the window, so a supervisor
+# reads the task id instead of mistaking the window for one. The window name is
+# deliberately unrelated to the task id, so only the metadata mapping can name it.
+test_stale_reason_names_mapped_task_id() {
+  local dir state fakebin out drain_out capture_file window key want
+  dir=$(make_case stale-task-id)
+  state="$dir/state"
+  fakebin="$dir/fakebin"
+  out="$dir/watch.out"
+  drain_out="$dir/drain.out"
+  capture_file="$dir/pane.txt"
+  window="test:fm-pane7"
+  want="stale: $window task=alpha-task"
+  printf 'idle prompt' > "$capture_file"
+  printf 'window=%s\nkind=ship\n' "$window" > "$state/alpha-task.meta"
+  printf 'done: ready in branch fm/alpha-task\n' > "$state/alpha-task.status"
+  prime_status_seen "$state" "$state/alpha-task.status"
+  key=$(printf '%s' "$window" | tr ':/.' '___')
+  printf '%s' "$(hash_text "idle prompt")" > "$state/.hash-$key"
+  printf '1\n' > "$state/.count-$key"
+  PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$capture_file" FM_STATE_OVERRIDE="$state" FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
+  wait_for_exit "$!" 40 || fail "watcher did not exit for the mapped stale pane"
+  grep -Fx "$want" "$out" >/dev/null || fail "printed stale reason was not '$want': $(cat "$out")"
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" || fail "drain after the mapped stale wake failed"
+  grep "$(printf '\tstale\t')" "$drain_out" | grep -F "$want" >/dev/null \
+    || fail "queued stale reason did not carry '$want': $(cat "$drain_out")"
+  pass "a stale wake names the mapped task id next to the window"
 }
 
 # Absorb-only-when-provably-working adds a new actionable wake: a non-terminal stale
@@ -147,7 +176,7 @@ test_not_working_stale_enqueue_before_suppressor() {
     FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$fakebin/fm-crew-state.sh" \
     FM_STALE_ESCALATE_SECS=999 FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
   wait_for_exit "$!" 40 || fail "watcher did not surface a not-provably-working stale"
-  grep -Fx "stale: $window" "$out" >/dev/null || fail "watcher did not print the immediate stale wake"
+  grep -Fx "stale: $window task=stopped" "$out" >/dev/null || fail "watcher did not print the immediate stale wake"
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" || fail "drain after the immediate stale wake failed"
   grep "$(printf '\tstale\t')" "$drain_out" | grep -F "$window" >/dev/null || fail "immediate stale wake was not queued"
   [ "$(cat "$state/.stale-$key" 2>/dev/null || true)" = "$pane_hash" ] || fail "stale suppressor was not advanced after the enqueue"
@@ -3538,6 +3567,7 @@ test_historical_annotation_skips_announced_status
 test_concurrent_append_and_drain
 test_signal_catchup_without_running_watcher
 test_stale_enqueue_before_suppressor
+test_stale_reason_names_mapped_task_id
 test_not_working_stale_enqueue_before_suppressor
 test_check_output_is_queued
 test_atomic_double_drain

@@ -328,7 +328,7 @@ test_hung_observation_ages_beacon_then_surfaces() {
   wait_for_exit "$WATCHER_PID" 400
   rc=$?
   [ "$rc" -ne 124 ] || fail "the hung read was not ended by its total bound"
-  grep -Fx "stale: test:fm-a-hang" "$out" >/dev/null \
+  grep -Fx "stale: test:fm-a-hang task=a-hang" "$out" >/dev/null \
     || fail "a read that hit its bound was not surfaced as not working: $(cat "$out")"
   grep -F "crew-state observation for a-hang hit its" "$tlog" >/dev/null \
     || fail "the bounded read was not named in the triage log"

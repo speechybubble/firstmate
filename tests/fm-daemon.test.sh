@@ -800,6 +800,32 @@ test_stale_transient_self_records_marker() {
   pass "transient stale self-handles and records a persistence marker"
 }
 
+# The stale reason names a task only when metadata maps the window, and the
+# daemon's parse recovers the same window and detail with or without the tag.
+test_stale_reason_task_id_mapping_and_parse() {
+  local dir state reason
+  dir=$(make_supercase stale-reason-task-id)
+  state="$dir/state"
+  fm_write_meta "$state/alpha-task.meta" "window=kun:w0:p2" "backend=herdr"
+  reason=$(STATE="$state" stale_reason "kun:w0:p2" "idle 300s, possible wedge, escalation 1")
+  [ "$reason" = "stale: kun:w0:p2 task=alpha-task (idle 300s, possible wedge, escalation 1)" ] \
+    || fail "mapped stale reason did not name its task: $reason"
+  [ "$(stale_reason_window "${reason#stale: }")" = "kun:w0:p2" ] \
+    || fail "tagged stale reason parsed to the wrong window"
+  [ "$(stale_reason_detail "${reason#stale: }")" = "idle 300s, possible wedge, escalation 1)" ] \
+    || fail "tagged stale reason parsed to the wrong detail"
+  reason=$(STATE="$state" stale_reason "kun:w0:p2")
+  [ "$reason" = "stale: kun:w0:p2 task=alpha-task" ] || fail "bare mapped stale reason: $reason"
+  [ "$(stale_reason_window "${reason#stale: }")" = "kun:w0:p2" ] \
+    || fail "bare tagged stale reason parsed to the wrong window"
+  reason=$(STATE="$state" stale_reason "kun:w9:p4")
+  [ "$reason" = "stale: kun:w9:p4" ] || fail "unmapped stale reason named a guessed task: $reason"
+  [ "$(stale_reason_window "kun:w9:p4 (idle 5s)")" = "kun:w9:p4" ] \
+    || fail "untagged stale reason parsed to the wrong window"
+  [ -z "$(stale_reason_detail "kun:w9:p4")" ] || fail "a bare stale reason parsed a detail"
+  pass "stale reasons name only a mapped task id, and both forms parse to the same window"
+}
+
 test_stale_diagnostic_wedge_survives_busy_housekeeping() {
   local case_name dir state fakebin key task win pane reason status_line action_log
   for case_name in working prior-terminal paused; do
@@ -810,8 +836,10 @@ test_stale_diagnostic_wedge_survives_busy_housekeeping() {
     win="sess:fm-$task"
     pane="$dir/pane.txt"
     action_log="$dir/actions.log"
-    reason="stale: $win (idle 500s, possible wedge, escalation 3, demand-deep-inspection: same pane has wedge-escalated 3 times in a row - do not re-absorb on the run-step/pane state alone)"
     fm_write_meta "$state/$task.meta" "window=$win" "backend=tmux"
+    # Built by the format owner, so the reason carries task=<id> after the window.
+    reason=$(STATE="$state" stale_reason "$win" "idle 500s, possible wedge, escalation 3, demand-deep-inspection: same pane has wedge-escalated 3 times in a row - do not re-absorb on the run-step/pane state alone")
+    case "$reason" in "stale: $win task=$task ("*) ;; *) fail "mapped wedge reason did not name its task: $reason" ;; esac
     case "$case_name" in
       working) status_line='working: building' ;;
       prior-terminal) status_line='done: already surfaced' ;;
@@ -3238,6 +3266,7 @@ test_classify_check_and_unknown_escalate
 test_unknown_wake_ack_suppresses_handled_identity
 test_unknown_wake_ack_failure_still_clears_delivered_digest
 test_stale_transient_self_records_marker
+test_stale_reason_task_id_mapping_and_parse
 test_stale_diagnostic_wedge_survives_busy_housekeeping
 test_enriched_wedge_under_declared_wait_uses_pause_cadence
 test_stale_terminal_escalates
