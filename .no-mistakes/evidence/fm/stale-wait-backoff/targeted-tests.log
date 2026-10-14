@@ -1,0 +1,18 @@
+== test_wedge_threshold_defers_finished_work_awaiting_merge
+ok - finished work with a recorded PR is rechecked on the long cadence, while a done line with no recorded PR keeps the wedge ladder
+rc=0
+== test_wedge_threshold_defers_to_a_task_owned_board
+ok - a lane waiting on its own live task-owned source is rechecked on the long cadence, while a lane beside another task's source, one holding an unhandled captured round, and one whose source has no live runner keep the wedge ladder
+rc=0
+== test_deliberate_wait_bounds_stale_churn
+ok - finished work with a recorded PR and a worker waiting on its own live source surface once, absorb pane churn, then re-surface when the window elapses, while a lane beside another task's source, one holding an unhandled captured round, and one whose source has no live runner keep alarming
+rc=0
+== test_stale_churn_without_a_captain_call_still_alarms
+ok - a stale window with no open captain call keeps alarming on every new hash
+rc=0
+== test_wedge_threshold_defers_to_a_declared_wait_under_a_working_verdict
+ok - a declared wait is not wedge-escalated by a working verdict, while an elapsed declaration and an undeclared lane both keep the unchanged ladder
+rc=0
+== test_open_captain_call_bounds_stale_churn
+ok - work under an open captain call surfaces once, absorbs pane churn, then re-surfaces when the window elapses
+rc=0

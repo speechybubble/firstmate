@@ -1,0 +1,273 @@
+### scenario board-captured
+registered: lab-board (lavish, task=held-merge)
+reconciled: published=0 started=1 stopped=0 uncertain=0 failed=0
+retired: lab-board
+registered: lab-board (lavish, task=held-merge)
+reconciled: published=0 started=1 stopped=0 uncertain=0 failed=0
+[12:32:22] procevent list:
+SOURCE                       ADAPTER      OWNER      PENDING
+lab-board                    lavish       task:held-merge/round-open 1
+/tmp/fm-lab.RHXmv1/state/procevent:
+total 16
+drwx------ 2 denni denni 120 Oct 14 12:32 .
+drwx------ 5 denni denni 160 Oct 14 12:32 ..
+-rw------- 1 denni denni   6 Oct 14 12:32 .owner-guard-ready.VtUlio
+-rw------- 1 denni denni  13 Oct 14 12:32 .owner-lease
+-rw------- 1 denni denni  16 Oct 14 12:32 lab-board.71-728891.last-launch
+-rw------- 1 denni denni 117 Oct 14 12:32 lab-board.source
+
+/tmp/fm-lab.RHXmv1/state/procevent-inbox:
+total 12
+drwx------ 2 denni denni 100 Oct 14 12:32 .
+drwx------ 5 denni denni 160 Oct 14 12:32 ..
+-rw------- 1 denni denni   7 Oct 14 12:32 lab-board.1.adapter
+-rw------- 1 denni denni  11 Oct 14 12:32 lab-board.1.owner-task
+-rw------- 1 denni denni  28 Oct 14 12:32 lab-board.1.result
+[12:32:29] WAKE (watcher rc=0): 1791945146	2	signal	held-merge.status	signal: /tmp/fm-lab.RHXmv1/state/held-merge.status wake annotation: latest wake-EVENT observed at drain, not current state: held-merge.status: working: review board armed
+[12:32:46] WAKE (watcher rc=0): 1791945163	3	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:33:06] WAKE (watcher rc=0): 1791945183	4	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:33:20] WAKE (watcher rc=0): 1791945197	5	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:33:35] WAKE (watcher rc=0): 1791945212	6	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:33:37] RESULT board-captured: stale wakes surfaced to supervisor in 75s of pane churn = 4
+[12:33:37] triage log (stale lines):
+[12:33:37] pane:
+worker idle tick 10
+bash-5.3$ echo worker idle tick 11
+worker idle tick 11
+bash-5.3$
+### scenario board-dead
+registered: lab-board (lavish, task=held-merge)
+[12:33:40] procevent list:
+SOURCE                       ADAPTER      OWNER      PENDING
+lab-board                    lavish       task:held-merge/dead 0
+/tmp/fm-lab.RHXmv1/state/procevent:
+total 8
+drwx------ 2 denni denni  80 Oct 14 12:33 .
+drwx------ 3 denni denni 120 Oct 14 12:33 ..
+-rw------- 1 denni denni  13 Oct 14 12:33 .owner-lease
+-rw------- 1 denni denni  84 Oct 14 12:33 lab-board.source
+[12:33:48] WAKE (watcher rc=0): 1791945225	2	signal	held-merge.status	signal: /tmp/fm-lab.RHXmv1/state/held-merge.status wake annotation: latest wake-EVENT observed at drain, not current state: held-merge.status: working: review board armed
+[12:34:05] WAKE (watcher rc=0): 1791945242	3	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:34:19] WAKE (watcher rc=0): 1791945255	4	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:34:56] RESULT board-dead: stale wakes surfaced to supervisor in 75s of pane churn = 2
+[12:34:56] triage log (stale lines):
+[12:34:56] pane:
+worker idle tick 10
+bash-5.3$ echo worker idle tick 11
+worker idle tick 11
+bash-5.3$
+### scenario board-dead2
+registered: lab-board (lavish, task=held-merge)
+[12:35:15] procevent list:
+SOURCE                       ADAPTER      OWNER      PENDING
+lab-board                    lavish       task:held-merge/dead 0
+/tmp/fm-lab.RHXmv1/state/procevent:
+total 8
+drwx------ 2 denni denni  80 Oct 14 12:35 .
+drwx------ 3 denni denni 120 Oct 14 12:35 ..
+-rw------- 1 denni denni  13 Oct 14 12:35 .owner-lease
+-rw------- 1 denni denni  84 Oct 14 12:35 lab-board.source
+[12:35:23] WAKE (watcher rc=0): 1791945319	2	signal	held-merge.status	signal: /tmp/fm-lab.RHXmv1/state/held-merge.status wake annotation: latest wake-EVENT observed at drain, not current state: held-merge.status: working: review board armed
+[12:35:39] WAKE (watcher rc=0): 1791945336	3	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:35:55] WAKE (watcher rc=0): 1791945350	4	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:36:35] WAKE (watcher rc=0): 1791945392	5	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:36:50] WAKE (watcher rc=0): 1791945407	6	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:37:04] WAKE (watcher rc=0): 1791945421	7	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:37:38] WAKE (watcher rc=0): 1791945455	8	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:37:45] RESULT board-dead2: stale wakes surfaced to supervisor in 150s of pane churn = 6
+[12:37:45] triage log (stale lines):
+[12:37:45] pane:
+worker idle tick 21
+bash-5.3$ echo worker idle tick 22
+worker idle tick 22
+bash-5.3$
+### scenario board-foreign
+registered: lab-board (lavish, task=other-task)
+reconciled: published=0 started=1 stopped=0 uncertain=0 failed=0
+[12:38:09] procevent list:
+SOURCE                       ADAPTER      OWNER      PENDING
+lab-board                    lavish       task:other-task/listening 0
+/tmp/fm-lab.RHXmv1/state/procevent:
+total 12
+drwx------ 2 denni denni 100 Oct 14 12:38 .
+drwx------ 3 denni denni 160 Oct 14 12:38 ..
+-rw------- 1 denni denni  13 Oct 14 12:38 .owner-lease
+-rw------- 1 denni denni   8 Oct 14 12:38 lab-board.runner
+-rw------- 1 denni denni  87 Oct 14 12:38 lab-board.source
+[12:38:17] WAKE (watcher rc=0): 1791945493	3	signal	held-merge.status	signal: /tmp/fm-lab.RHXmv1/state/held-merge.status /tmp/fm-lab.RHXmv1/state/other-task.status 1791945494	4	signal	other-task.status	signal: /tmp/fm-lab.RHXmv1/state/held-merge.status /tmp/fm-lab.RHXmv1/state/other-task.status wake annotation: latest wake-EVENT observed at drain, not current state: held-merge.status: working: review board armed wake annotation:
+[12:38:31] WAKE (watcher rc=0): 1791945507	5	stale	lab:fm-other-task	stale: lab:fm-other-task task=other-task
+[12:38:54] WAKE (watcher rc=0): 1791945531	6	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:39:08] WAKE (watcher rc=0): 1791945545	7	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:39:23] WAKE (watcher rc=0): 1791945560	8	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:39:37] WAKE (watcher rc=0): 1791945573	9	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:39:39] RESULT board-foreign: stale wakes surfaced to supervisor in 90s of pane churn = 4
+[12:39:39] triage log (stale lines):
+    [2026-10-14T12:38:35+1000] absorbed non-terminal stale timer reset: lab:fm-other-task
+[12:39:39] pane:
+worker idle tick 12
+bash-5.3$ echo worker idle tick 13
+worker idle tick 13
+bash-5.3$
+### scenario board-live
+registered: lab-board (lavish, task=held-merge)
+reconciled: published=0 started=1 stopped=0 uncertain=0 failed=0
+[12:29:37] procevent list:
+SOURCE                       ADAPTER      OWNER      PENDING
+lab-board                    lavish       task:held-merge/listening 0
+/tmp/fm-lab.RHXmv1/state/procevent:
+total 12
+drwx------ 2 denni denni 100 Oct 14 12:29 .
+drwx------ 3 denni denni 120 Oct 14 12:29 ..
+-rw------- 1 denni denni  13 Oct 14 12:29 .owner-lease
+-rw------- 1 denni denni   8 Oct 14 12:29 lab-board.runner
+-rw------- 1 denni denni  87 Oct 14 12:29 lab-board.source
+[12:29:45] WAKE (watcher rc=0): 1791944981	2	signal	held-merge.status	signal: /tmp/fm-lab.RHXmv1/state/held-merge.status wake annotation: latest wake-EVENT observed at drain, not current state: held-merge.status: working: review board armed
+[12:30:01] WAKE (watcher rc=0): 1791944998	3	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:30:52] RESULT board-live: stale wakes surfaced to supervisor in 75s of pane churn = 1
+[12:30:52] triage log (stale lines):
+    [2026-10-14T12:30:12+1000] absorbed non-terminal stale (declared, held, or deliberate wait already re-surfaced this window): lab:fm-held-merge
+    [2026-10-14T12:30:19+1000] absorbed non-terminal stale (declared, held, or deliberate wait already re-surfaced this window): lab:fm-held-merge
+    [2026-10-14T12:30:26+1000] absorbed non-terminal stale (declared, held, or deliberate wait already re-surfaced this window): lab:fm-held-merge
+    [2026-10-14T12:30:33+1000] absorbed non-terminal stale (declared, held, or deliberate wait already re-surfaced this window): lab:fm-held-merge
+    [2026-10-14T12:30:40+1000] absorbed non-terminal stale (declared, held, or deliberate wait already re-surfaced this window): lab:fm-held-merge
+    [2026-10-14T12:30:48+1000] absorbed non-terminal stale (declared, held, or deliberate wait already re-surfaced this window): lab:fm-held-merge
+[12:30:52] pane:
+worker idle tick 10
+bash-5.3$ echo worker idle tick 11
+worker idle tick 11
+bash-5.3$
+### scenario finished-nopr
+[12:26:44] procevent list:
+no sources registered
+[12:26:51] WAKE (watcher rc=0): 1791944807	2	signal	held-merge.status	signal: /tmp/fm-lab.RHXmv1/state/held-merge.status wake annotation: latest wake-EVENT observed at drain, not current state: held-merge.status: done: PR https://example.invalid/pull/42 checks green STATUS OUTCOME BACKSTOP (newest captain-facing task event has no covering branch outcome): held-merge done: PR https://example.invalid/pull/42 checks green
+[12:27:00] WAKE (watcher rc=0): 1791944817	3	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:27:13] WAKE (watcher rc=0): 1791944830	4	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:27:27] WAKE (watcher rc=0): 1791944844	5	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:27:37] WAKE (watcher rc=0): 1791944854	6	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:27:49] WAKE (watcher rc=0): 1791944866	7	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:28:00] RESULT finished-nopr: stale wakes surfaced to supervisor in 75s of pane churn = 5
+[12:28:00] triage log (stale lines):
+[12:28:00] pane:
+worker idle tick 10
+bash-5.3$ echo worker idle tick 11
+worker idle tick 11
+bash-5.3$
+### scenario finished-pr
+[12:25:21] procevent list:
+error: process-event state root is not a private directory
+[12:25:27] WAKE (watcher rc=0): 1791944724	2	signal	held-merge.status	signal: /tmp/fm-lab.RHXmv1/state/held-merge.status wake annotation: latest wake-EVENT observed at drain, not current state: held-merge.status: done: PR https://example.invalid/pull/42 checks green STATUS OUTCOME BACKSTOP (newest captain-facing task event has no covering branch outcome): held-merge done: PR https://example.invalid/pull/42 checks green
+[12:25:38] WAKE (watcher rc=0): 1791944735	3	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:26:37] RESULT finished-pr: stale wakes surfaced to supervisor in 75s of pane churn = 1
+[12:26:37] triage log (stale lines):
+    [2026-10-14T12:25:47+1000] absorbed stale (deliberate wait already surfaced for this status): lab:fm-held-merge
+    [2026-10-14T12:25:55+1000] absorbed stale (deliberate wait already surfaced for this status): lab:fm-held-merge
+    [2026-10-14T12:26:01+1000] absorbed stale (deliberate wait already surfaced for this status): lab:fm-held-merge
+    [2026-10-14T12:26:09+1000] absorbed stale (deliberate wait already surfaced for this status): lab:fm-held-merge
+    [2026-10-14T12:26:15+1000] absorbed stale (deliberate wait already surfaced for this status): lab:fm-held-merge
+    [2026-10-14T12:26:22+1000] absorbed stale (deliberate wait already surfaced for this status): lab:fm-held-merge
+    [2026-10-14T12:26:31+1000] absorbed stale (deliberate wait already surfaced for this status): lab:fm-held-merge
+[12:26:37] pane:
+worker idle tick 10
+bash-5.3$ echo worker idle tick 11
+worker idle tick 11
+bash-5.3$
+### scenario wedge-board-captured
+registered: lab-board (lavish, task=held-merge)
+reconciled: published=0 started=1 stopped=0 uncertain=0 failed=0
+retired: lab-board
+registered: lab-board (lavish, task=held-merge)
+reconciled: published=0 started=1 stopped=0 uncertain=0 failed=0
+[12:55:11] procevent list:
+SOURCE                       ADAPTER      OWNER      PENDING
+lab-board                    lavish       task:held-merge/round-open 1
+/tmp/fm-lab.RHXmv1/state/procevent:
+total 12
+drwx------ 2 denni denni 100 Oct 14 12:55 .
+drwx------ 5 denni denni 160 Oct 14 12:55 ..
+-rw------- 1 denni denni  13 Oct 14 12:55 .owner-lease
+-rw------- 1 denni denni  16 Oct 14 12:55 lab-board.71-766821.last-launch
+-rw------- 1 denni denni 117 Oct 14 12:55 lab-board.source
+
+/tmp/fm-lab.RHXmv1/state/procevent-inbox:
+total 12
+drwx------ 2 denni denni 100 Oct 14 12:55 .
+drwx------ 5 denni denni 160 Oct 14 12:55 ..
+-rw------- 1 denni denni   7 Oct 14 12:55 lab-board.1.adapter
+-rw------- 1 denni denni  11 Oct 14 12:55 lab-board.1.owner-task
+-rw------- 1 denni denni  28 Oct 14 12:55 lab-board.1.result
+bash-5.3$
+[12:55:22] crew-state: state: working · source: pane · harness busy (fm-spawn)
+[12:55:49] WAKE (watcher rc=0): 1791946546	1	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge (idle 20s, agent dead - the endpoint is still there with no agent running in it, so this is not a wedge; reported once and not re-escalated while it stays that way - reconcile this record, and check for unlanded work before any cleanup)
+[12:56:44] WAKE (watcher rc=0): 1791946601	2	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge (unread firstmate instruction: /tmp/fm-lab.RHXmv1/state/held-merge.inbox/001.msg is unhandled and the worker's agent has exited or its endpoint is missing, so the doorbell was not typed; recover the worker)
+[12:57:02] RESULT wedge-board-captured: stale wakes surfaced to supervisor in 110s of pane churn = 2
+[12:57:02] triage log (stale lines):
+[12:57:02] pane:
+bash-5.3$
+### scenario wedge-board-dead
+registered: lab-board (lavish, task=held-merge)
+[12:57:03] procevent list:
+SOURCE                       ADAPTER      OWNER      PENDING
+lab-board                    lavish       task:held-merge/dead 0
+/tmp/fm-lab.RHXmv1/state/procevent:
+total 8
+drwx------ 2 denni denni  80 Oct 14 12:57 .
+drwx------ 3 denni denni 120 Oct 14 12:57 ..
+-rw------- 1 denni denni  13 Oct 14 12:57 .owner-lease
+-rw------- 1 denni denni  84 Oct 14 12:57 lab-board.source
+bash-5.3$
+[12:57:13] crew-state: state: working · source: pane · harness busy (fm-spawn)
+[12:57:43] WAKE (watcher rc=0): 1791946660	1	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge (idle 22s, agent dead - the endpoint is still there with no agent running in it, so this is not a wedge; reported once and not re-escalated while it stays that way - reconcile this record, and check for unlanded work before any cleanup)
+[12:58:53] RESULT wedge-board-dead: stale wakes surfaced to supervisor in 110s of pane churn = 1
+[12:58:53] triage log (stale lines):
+[12:58:53] pane:
+bash-5.3$
+### scenario wedge-board-live
+registered: lab-board (lavish, task=held-merge)
+reconciled: published=0 started=1 stopped=0 uncertain=0 failed=0
+[12:53:13] procevent list:
+SOURCE                       ADAPTER      OWNER      PENDING
+lab-board                    lavish       task:held-merge/listening 0
+/tmp/fm-lab.RHXmv1/state/procevent:
+total 12
+drwx------ 2 denni denni 100 Oct 14 12:53 .
+drwx------ 3 denni denni 120 Oct 14 12:53 ..
+-rw------- 1 denni denni  13 Oct 14 12:53 .owner-lease
+-rw------- 1 denni denni   8 Oct 14 12:53 lab-board.runner
+-rw------- 1 denni denni  87 Oct 14 12:53 lab-board.source
+bash-5.3$
+[12:53:24] crew-state: state: working · source: pane · harness busy (fm-spawn)
+[12:54:30] WAKE (watcher rc=0): 1791946467	1	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge (idle 20s, waiting 75s - live process-event wait, awaiting its own lavish source lab-board, rechecked on a long cadence not a wedge; confirm the source is still listening and the worker acts on its result)
+[12:55:04] RESULT wedge-board-live: stale wakes surfaced to supervisor in 110s of pane churn = 1
+[12:55:04] triage log (stale lines):
+[12:55:04] pane:
+bash-5.3$
+### scenario wedge-finished-nopr
+[12:49:18] procevent list:
+no sources registered
+ project, or work from your team). If not, take a moment to review what's in this folder first.
+ Claude Code'll be able to read, edit, and execute files here.
+ Security guide
+ ❯ No, exit
+   Yes, I trust this folder
+ Enter to confirm · Esc to cancel
+[12:49:28] crew-state: state: unknown · source: pane · harness state unavailable (unknown launch-prompt)
+[12:49:35] WAKE (watcher rc=0): 1791946171	2	signal	held-merge.status	signal: /tmp/fm-lab.RHXmv1/state/held-merge.status wake annotation: latest wake-EVENT observed at drain, not current state: held-merge.status: done: PR https://example.invalid/pull/42 checks green STATUS OUTCOME BACKSTOP (newest captain-facing task event has no covering branch outcome): held-merge done: PR https://example.invalid/pull/42 checks green
+[12:49:44] WAKE (watcher rc=0): 1791946182	3	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge
+[12:51:08] RESULT wedge-finished-nopr: stale wakes surfaced to supervisor in 110s of pane churn = 1
+[12:51:08] triage log (stale lines):
+[12:51:08] pane:
+ Security guide
+ ❯ No, exit
+   Yes, I trust this folder
+ Enter to confirm · Esc to cancel
+### scenario wedge-finished-pr
+[12:51:21] procevent list:
+no sources registered
+bash-5.3$
+[12:51:32] crew-state: state: working · source: pane · harness busy (fm-spawn)
+[12:51:38] WAKE (watcher rc=0): 1791946295	2	signal	held-merge.status	signal: /tmp/fm-lab.RHXmv1/state/held-merge.status wake annotation: latest wake-EVENT observed at drain, not current state: held-merge.status: done: PR https://example.invalid/pull/42 checks green STATUS OUTCOME BACKSTOP (newest captain-facing task event has no covering branch outcome): held-merge done: PR https://example.invalid/pull/42 checks green
+[12:52:25] WAKE (watcher rc=0): 1791946342	3	stale	lab:fm-held-merge	stale: lab:fm-held-merge task=held-merge (idle 20s, waiting 61s - finished work, done with PR https://example.invalid/pull/42 recorded, awaiting its merge, rechecked on a long cadence not a wedge; merge or close the PR, or steer the worker if more is owed)
+[12:53:11] RESULT wedge-finished-pr: stale wakes surfaced to supervisor in 110s of pane churn = 1
+[12:53:11] triage log (stale lines):
+[12:53:11] pane:
+bash-5.3$

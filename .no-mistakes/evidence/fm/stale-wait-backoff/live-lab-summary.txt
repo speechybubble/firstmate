@@ -1,0 +1,12 @@
+[12:37:45] RESULT board-dead2: stale wakes surfaced to supervisor in 150s of pane churn = 6
+[12:30:52] RESULT board-live: stale wakes surfaced to supervisor in 75s of pane churn = 1
+[12:34:56] RESULT board-dead: stale wakes surfaced to supervisor in 75s of pane churn = 2
+[12:28:00] RESULT finished-nopr: stale wakes surfaced to supervisor in 75s of pane churn = 5
+[12:26:37] RESULT finished-pr: stale wakes surfaced to supervisor in 75s of pane churn = 1
+[12:33:37] RESULT board-captured: stale wakes surfaced to supervisor in 75s of pane churn = 4
+[12:57:02] RESULT wedge-board-captured: stale wakes surfaced to supervisor in 110s of pane churn = 2
+[12:53:11] RESULT wedge-finished-pr: stale wakes surfaced to supervisor in 110s of pane churn = 1
+[12:58:53] RESULT wedge-board-dead: stale wakes surfaced to supervisor in 110s of pane churn = 1
+[12:51:08] RESULT wedge-finished-nopr: stale wakes surfaced to supervisor in 110s of pane churn = 1
+[12:39:39] RESULT board-foreign: stale wakes surfaced to supervisor in 90s of pane churn = 4
+[12:55:04] RESULT wedge-board-live: stale wakes surfaced to supervisor in 110s of pane churn = 1
