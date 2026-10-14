@@ -1315,9 +1315,11 @@ wait_record() {  # <kind> <subject> <whom> <action> <age-record>
 # The deliberate wait a lane is in WITHOUT having declared it, read from a record
 # another owner keeps, or nothing when it is in none. Two such records exist:
 #   - a task-owned process-event source the worker armed (its Lavish review
-#     board), recorded by bin/fm-procevent.sh: the worker is waiting on that
-#     source, whose result reaches it through its steering inbox, and the
-#     watcher's own reconcile already reports a source that stops listening;
+#     board), recorded by bin/fm-procevent.sh, while a live runner listens on
+#     it and no captured round of it is still unhandled: the worker is waiting
+#     on that source, whose result reaches it through its steering inbox. A
+#     captured round the worker has not handled, or a source nothing listens
+#     on, is not a wait, so its lane keeps the normal alarms;
 #   - finished work: the latest status event is `done` and firstmate recorded the
 #     task's PR (`pr=` in its meta, written only by bin/fm-pr-check.sh), so the
 #     lane is awaiting its merge. A green PR keeps its no-mistakes ci step
@@ -1331,7 +1333,7 @@ wait_record() {  # <kind> <subject> <whom> <action> <age-record>
 deliberate_wait_record() {  # <task> -> one wait_record on stdout
   local task=$1 found id adapter statusf last verb pr
   [ -n "$task" ] || return 1
-  if found=$(fm_procevent_task_owned_source "$STATE" "$task"); then
+  if found=$(fm_procevent_task_waiting_source "$STATE" "$task"); then
     id=${found%%$'\t'*}
     adapter=${found#*$'\t'}
     wait_record 'live process-event wait' "awaiting its own $adapter source $id" \

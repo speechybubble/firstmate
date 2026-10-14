@@ -425,17 +425,21 @@ fm_procevent_task_registration_publish_locked() {  # <state> <adapter> <source-i
   return 1
 }
 
-# fm_procevent_task_owned_source <state> <task>
+# fm_procevent_task_waiting_source <state> <task>
 # Print `<source-id><TAB><adapter>` for the first registered task-owned source
-# that <task> owns, in source-id order, or return 1 when it owns none. A pure,
-# lock-free read of the fields the publisher above writes, for supervisors that
-# must tell whether a quiet worker is waiting on its own source; ownership,
-# liveness and retirement stay with fm-procevent.sh.
-fm_procevent_task_owned_source() {  # <state> <task>
-  local task=$2 reg rec line id adapter kind owner
+# that <task> owns and is still waiting on, in source-id order, or return 1 when
+# there is none. A source is waited on only while a live runner holds its claim
+# and none of its captured rounds is still unhandled: a captured round is a
+# result the worker must act on, and a source nothing listens on delivers
+# nothing. A lock-free read of the fields the publisher above writes and of the
+# claim, for supervisors that must tell whether a quiet worker is waiting on its
+# own source; ownership, liveness and retirement stay with fm-procevent.sh.
+fm_procevent_task_waiting_source() {  # <state> <task>
+  local task=$2 reg rec line id adapter kind owner pending claim_state
   [ -n "$task" ] || return 1
   reg=$(fm_procevent_registry_dir "$1")
   [ -d "$reg" ] || return 1
+  pending=$(fm_procevent_pending "$1")
   for rec in "$reg"/*.source; do
     [ -f "$rec" ] && [ ! -L "$rec" ] || continue
     adapter='' kind='' owner=''
@@ -452,6 +456,10 @@ fm_procevent_task_owned_source() {  # <state> <task>
     id=${id%.source}
     fm_procevent_source_id_valid "$id" || continue
     fm_procevent_adapter_valid "$adapter" || continue
+    case "$pending" in */"$id".*) continue ;; esac
+    claim_state=0
+    fm_procevent_claim_state_locked "$id" || claim_state=$?
+    [ "$claim_state" -eq 0 ] || continue
     printf '%s\t%s\n' "$id" "$adapter"
     return 0
   done

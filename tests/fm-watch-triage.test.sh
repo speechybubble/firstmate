@@ -3165,6 +3165,25 @@ retire_task_owned_source() {  # <case-dir> <source-id>
   pe_case "$1" retire "$2" >/dev/null 2>&1 || true
 }
 
+# A captured round of <source-id> its owner has not handled yet, laid out the way
+# the runner's capture publishes one: the worker now holds a result to act on.
+capture_unhandled_round() {  # <case-dir> <source-id> <owner-task>
+  local inbox="$1/state/procevent-inbox"
+  mkdir -p "$inbox"
+  printf 'session:\n  status: feedback\n' > "$inbox/$2.1.result"
+  printf 'lavish\n' > "$inbox/$2.1.adapter"
+  printf '%s\n' "$3" > "$inbox/$2.1.owner-task"
+}
+
+# A task-owned registration no live runner listens on: its source command exits
+# at once, so every launch the watcher's own reconcile makes dies again and the
+# claim never stays held.
+register_dead_task_owned_source() {  # <case-dir> <source-id> <owner-task>
+  mkdir -p "$1/state/procevent"
+  printf 'adapter=lavish\nkind=task-owned\nowner_task=%s\nargc=3\nargv:\n/bin/sh\n-c\nexit 3\n' "$3" \
+    > "$1/state/procevent/$2.source"
+}
+
 # One wedge_threshold_round against a case whose runner lives in its own claim root.
 board_threshold_round() {  # <case-dir> <verdict> <exit|absorb>
   local dir=$1
@@ -3276,7 +3295,31 @@ test_wedge_threshold_defers_to_a_task_owned_board() {
   retire_task_owned_source "$dir" other-board
   grep -F 'possible wedge, escalation 1' "$out" >/dev/null \
     || fail "a lane beside another task's board lost the unchanged wedge wording: $(cat "$out")"
-  pass "a lane waiting on its own task-owned source is rechecked on the long cadence, while a lane beside another task's source keeps the wedge ladder"
+
+  # Neighbour: its own board already captured a round the worker has not handled.
+  dir=$(wedge_threshold_fixture board-captured 'working: review board armed' 0)
+  state="$dir/state"; out="$dir/watch.out"
+  arm_task_owned_source "$dir" wedge-board wedge || fail "could not arm a live task-owned source"
+  capture_unhandled_round "$dir" wedge-board wedge
+  board_threshold_round "$dir" "$working" exit \
+    || { retire_task_owned_source "$dir" wedge-board
+         fail "a lane holding an unhandled captured round stopped escalating: $(cat "$out")"; }
+  pe_case "$dir" handled wedge-board 1 >/dev/null 2>&1 || true
+  retire_task_owned_source "$dir" wedge-board
+  grep -F 'possible wedge, escalation 1' "$out" >/dev/null \
+    || fail "a lane holding an unhandled captured round lost the unchanged wedge wording: $(cat "$out")"
+
+  # Neighbour: its own board has no live runner listening on it.
+  dir=$(wedge_threshold_fixture board-dead 'working: review board armed' 0)
+  state="$dir/state"; out="$dir/watch.out"
+  register_dead_task_owned_source "$dir" wedge-board wedge
+  board_threshold_round "$dir" "$working" exit \
+    || { retire_task_owned_source "$dir" wedge-board
+         fail "a lane whose board has no live runner stopped escalating: $(cat "$out")"; }
+  retire_task_owned_source "$dir" wedge-board
+  grep -F 'possible wedge, escalation 1' "$out" >/dev/null \
+    || fail "a lane whose board has no live runner lost the unchanged wedge wording: $(cat "$out")"
+  pass "a lane waiting on its own live task-owned source is rechecked on the long cadence, while a lane beside another task's source, one holding an unhandled captured round, and one whose source has no live runner keep the wedge ladder"
 }
 
 # `fm-send --resolve-key default` answers a keyless decision by appending a
@@ -4325,7 +4368,21 @@ test_deliberate_wait_bounds_stale_churn() {
   arm_task_owned_source "$dir" other-board other-task || fail "could not arm a live task-owned source"
   FM_PROCEVENT_CLAIM_ROOT="$(cd "$dir" && pwd -P)/claims" deliberate_churn_round board-foreign "$dir" alarm
   retire_task_owned_source "$dir" other-board
-  pass "finished work with a recorded PR and a worker waiting on its own source surface once, absorb pane churn, then re-surface when the window elapses, while a lane beside another task's source keeps alarming"
+
+  dir=$(make_hold_home churn-board-captured 'working: review board armed' nohold) \
+    || fail "could not build a captured-round fixture"
+  arm_task_owned_source "$dir" held-board held-merge || fail "could not arm a live task-owned source"
+  capture_unhandled_round "$dir" held-board held-merge
+  FM_PROCEVENT_CLAIM_ROOT="$(cd "$dir" && pwd -P)/claims" deliberate_churn_round board-captured "$dir" alarm
+  pe_case "$dir" handled held-board 1 >/dev/null 2>&1 || true
+  retire_task_owned_source "$dir" held-board
+
+  dir=$(make_hold_home churn-board-dead 'working: review board armed' nohold) \
+    || fail "could not build a dead-runner fixture"
+  register_dead_task_owned_source "$dir" held-board held-merge
+  FM_PROCEVENT_CLAIM_ROOT="$(cd "$dir" && pwd -P)/claims" deliberate_churn_round board-dead "$dir" alarm
+  retire_task_owned_source "$dir" held-board
+  pass "finished work with a recorded PR and a worker waiting on its own live source surface once, absorb pane churn, then re-surface when the window elapses, while a lane beside another task's source, one holding an unhandled captured round, and one whose source has no live runner keep alarming"
 }
 
 # The cadence marker may never outlive the wake it claims to record. Recording it
