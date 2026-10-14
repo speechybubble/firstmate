@@ -28,6 +28,8 @@
 # Assert on submitted CONTENT (logged verbatim by the supervisor pane), not pane
 # appearance - terminal line-wrapping looks like newlines but isn't.
 set -u
+# shellcheck source=tests/env-isolation-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/env-isolation-helpers.sh"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DAEMON="$ROOT/bin/fm-supervise-daemon.sh"

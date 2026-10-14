@@ -29,6 +29,8 @@
 #   - teardown closing the right tab (and no other)
 #   - list-live recovery seeing only its own home's tabs, for both homes
 set -u
+# shellcheck source=tests/env-isolation-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/env-isolation-helpers.sh"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 

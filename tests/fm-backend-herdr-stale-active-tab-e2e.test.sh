@@ -3,6 +3,8 @@
 # .focused is not a live viewer. A pane on that tab must close when no
 # foreground client is attached.
 set -u
+# shellcheck source=tests/env-isolation-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/env-isolation-helpers.sh"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HERDR_LAB_HELPER=${HERDR_LAB_HELPER:-$ROOT/bin/fm-herdr-lab.sh}

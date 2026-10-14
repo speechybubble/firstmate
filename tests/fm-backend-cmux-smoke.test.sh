@@ -16,6 +16,8 @@
 # machines without cmux, or without the one-time password-mode setup
 # (docs/cmux-backend.md "Setup"), are unaffected.
 set -u
+# shellcheck source=tests/env-isolation-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/env-isolation-helpers.sh"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 

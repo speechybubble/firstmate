@@ -33,6 +33,8 @@
 # test's own isolated $SESSION explicitly via --session; the live `default`
 # session is never touched.
 set -u
+# shellcheck source=tests/env-isolation-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/env-isolation-helpers.sh"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 

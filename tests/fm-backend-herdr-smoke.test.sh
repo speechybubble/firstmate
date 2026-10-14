@@ -15,6 +15,8 @@
 # production because HERDR_SESSION-based targeting (env var OR inline prefix)
 # is not reliably honored once another herdr server is already running.
 set -u
+# shellcheck source=tests/env-isolation-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/env-isolation-helpers.sh"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
