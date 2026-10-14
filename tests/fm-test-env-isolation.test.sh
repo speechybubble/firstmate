@@ -123,7 +123,7 @@ test_runner_isolates_a_script_that_sources_nothing() {
 env > "$dump"
 echo "ok - probe"
 SH
-  out=$(live_env "$ROOT/bin/fm-test-run.sh" "$dir/fm-env-probe.test.sh" 2>&1) \
+  out=$(live_env env -u FM_TASK_ID "$ROOT/bin/fm-test-run.sh" "$dir/fm-env-probe.test.sh" 2>&1) \
     || fail "fm-test-run.sh could not run the probe script:"$'\n'"$out"
   [ -f "$dump" ] || fail "the probe script never ran under fm-test-run.sh:"$'\n'"$out"
   assert_isolated "$dump" "fm-test-run.sh"
