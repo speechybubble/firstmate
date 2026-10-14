@@ -26,6 +26,12 @@ if [ -n "${FM_TEST_LIB_SOURCED:-}" ]; then
 fi
 FM_TEST_LIB_SOURCED=1
 
+# Drop the caller's live fleet routing before anything below runs a bin/ helper;
+# the helper's header owns the variable set, the live-home refusal, and the opt-in.
+# Every fixture addresses its own home, backlog, and session explicitly.
+# shellcheck source=tests/env-isolation-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/env-isolation-helpers.sh"
+
 # Pin the fixture umask. Firstmate's state-root and process-event contracts
 # refuse group- or world-writable state directories, and a permissive ambient
 # umask (e.g. 0002) makes every `mkdir state` fixture fail that contract before
@@ -51,22 +57,6 @@ export FM_GATE_REFUSE_BYPASS=1
 # FM_TEST_HARNESS harness pin). Normal primary launches do not arm it, so a
 # leaked harness pin alone stays inert outside a suite.
 export FM_TEST_SEAM=1
-
-# Clear the task-worker marker bin/fm-spawn.sh exports into ship and scout
-# panes. This suite builds git-init fixture repositories whose primary checkout
-# it runs a copied bin/fm-test-run.sh in, and that runner refuses the primary
-# under the marker. A case that verifies the refusal sets FM_TASK_ID itself.
-unset FM_TASK_ID
-
-# Clear the tasks-axi env overrides. An operator shell exports TASKS_AXI_FILE
-# (and may export TASKS_AXI_BACKEND) at its real home's backlog, and tasks-axi
-# resolves that env AHEAD of the .tasks.toml a fixture copies, so a suite that
-# seeds a temp home with bare `tasks-axi` would silently write the operator's
-# live backlog instead - tests/fm-public-followup.test.sh did exactly that. Every
-# fixture addresses its own data/backlog.md through its copied .tasks.toml, an
-# explicit --file, or bin/fm-tasks-axi.sh; a case that verifies the wrapper
-# against an ambient override sets TASKS_AXI_FILE itself.
-unset TASKS_AXI_FILE TASKS_AXI_BACKEND
 
 # Write the tracked default backlog configuration into a fixture home. Never copy
 # "$ROOT/.tasks.toml": an operator's primary checkout keeps a gitignored override
@@ -164,6 +154,18 @@ FM_TEST_OWNER_IDENTITY=$(fm_test_pid_identity "$$") || {
   rm -f "$FM_TEST_CLEANUP_REGISTRY"
   return 1
 }
+
+# Private tmux socket directory and treehouse pool root for this suite (see
+# fm_test_env_private_backend_roots). It lives directly under /tmp because tmux
+# caps its socket path near 104 bytes and TMPDIR can be long; the cleanup
+# registry removes it. A child suite that inherits the root reuses it, so a
+# fixture script reaches the same tmux server its parent started.
+if [ -z "${FM_TEST_BACKEND_ROOT:-}" ] || [ ! -d "$FM_TEST_BACKEND_ROOT" ]; then
+  FM_TEST_BACKEND_ROOT=$(mktemp -d /tmp/fm-env.XXXXXX) || return 1
+  printf '%s\n' "$FM_TEST_BACKEND_ROOT" >> "$FM_TEST_CLEANUP_REGISTRY" || return 1
+  export FM_TEST_BACKEND_ROOT
+fi
+fm_test_env_private_backend_roots "$FM_TEST_BACKEND_ROOT"
 
 # --- process-event runner reaping -------------------------------------------
 #

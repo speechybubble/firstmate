@@ -65,6 +65,7 @@ Coordinate any workflow rollback with its required-check names so a retired chec
 - Helper scripts in `bin/` are plain bash.
   Each starts with a usage header comment; keep it accurate when you change behavior.
   Test scripts and helpers in `tests/` are plain bash too.
+  A test sources `tests/lib.sh`, or `tests/env-isolation-helpers.sh` when it cannot, so it never inherits a calling pane's live home, session, or backend; that helper's header owns the contract.
   `bin/fm-lint.sh` must pass: it is the single owner of the lint definition (the shellcheck file set, config, pinned shellcheck version, pinned actionlint workflow lint, and the backend-purity check rejecting direct Beads CLI calls in core `bin/` scripts).
   CI uses its full canonical partitions; the no-mistakes pre-push gate uses its context-selected default.
   `docs/fm-test-portable-shards.md` owns partition verification and performance evidence.

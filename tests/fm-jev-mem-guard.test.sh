@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # tests/fm-jev-mem-guard.test.sh - Regression tests for Pattern 46 (Jev Multi-Agent Memory RSS & Swap Thrashing Guard)
 set -euo pipefail
+# shellcheck source=tests/env-isolation-helpers.sh
+. "$(dirname "${BASH_SOURCE[0]}")/env-isolation-helpers.sh"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GUARD_SH="$SCRIPT_DIR/../bin/fm-jev-mem-guard.sh"
