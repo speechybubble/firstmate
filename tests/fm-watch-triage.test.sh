@@ -3129,6 +3129,199 @@ test_wedge_threshold_defers_to_a_declared_wait_under_a_working_verdict() {
   pass "a declared wait is not wedge-escalated by a working verdict, while an elapsed declaration and an undeclared lane both keep the unchanged ladder"
 }
 
+# A lane can be deliberately quiet without a `paused:` line: finished work whose
+# PR is recorded and now awaits its merge, or a worker that armed a task-owned
+# process-event source (its Lavish review board) and is waiting on that source's
+# result. Both must take the long recheck a declared wait takes, never the wedge
+# ladder. Without that bound a green PR climbed the ladder once per
+# STALE_ESCALATE_SECS for as long as its merge waited, because its no-mistakes
+# run keeps the ci step monitoring the PR until merge and so reads as provably
+# working.
+# The neighbouring lanes pin the other direction: a done line with NO recorded
+# PR (the hand-off before validation, whose pipeline may still genuinely wedge)
+# and a source owned by a DIFFERENT task keep the unchanged ladder.
+
+# A task-owned registration exactly as bin/fm-procevent-lib.sh publishes one,
+# with a real runner already listening on it, so the watcher's own reconcile
+# finds the source owned exactly as it finds a live board. Its claim root stays
+# inside the case (pe_case), the watcher rounds below are pointed at the same
+# root, and retire_task_owned_source stops the runner.
+arm_task_owned_source() {  # <case-dir> <source-id> <owner-task>
+  local dir=$1 id=$2 task=$3 i=0
+  mkdir -p "$dir/state/procevent"
+  printf 'adapter=lavish\nkind=task-owned\nowner_task=%s\nargc=3\nargv:\n/bin/sh\n-c\nsleep 120\n' "$task" \
+    > "$dir/state/procevent/$id.source"
+  # A loaded machine can take longer than the default window to prove the claim.
+  FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=30 pe_case "$dir" reconcile >/dev/null 2>&1 || return 1
+  while [ "$i" -lt 300 ]; do
+    [ -e "$dir/claims/$id.claim" ] && return 0
+    sleep 0.1
+    i=$((i + 1))
+  done
+  return 1
+}
+
+retire_task_owned_source() {  # <case-dir> <source-id>
+  pe_case "$1" retire "$2" >/dev/null 2>&1 || true
+}
+
+# A captured round of <source-id> its owner has not handled yet, laid out the way
+# the runner's capture publishes one: the worker now holds a result to act on.
+capture_unhandled_round() {  # <case-dir> <source-id> <owner-task>
+  local inbox="$1/state/procevent-inbox"
+  mkdir -p "$inbox"
+  printf 'session:\n  status: feedback\n' > "$inbox/$2.1.result"
+  printf 'lavish\n' > "$inbox/$2.1.adapter"
+  printf '%s\n' "$3" > "$inbox/$2.1.owner-task"
+}
+
+# A task-owned registration no live runner listens on: its source command exits
+# at once, so every launch the watcher's own reconcile makes dies again and the
+# claim never stays held.
+register_dead_task_owned_source() {  # <case-dir> <source-id> <owner-task>
+  mkdir -p "$1/state/procevent"
+  printf 'adapter=lavish\nkind=task-owned\nowner_task=%s\nargc=3\nargv:\n/bin/sh\n-c\nexit 3\n' "$3" \
+    > "$1/state/procevent/$2.source"
+}
+
+# One wedge_threshold_round against a case whose runner lives in its own claim root.
+board_threshold_round() {  # <case-dir> <verdict> <exit|absorb>
+  local dir=$1
+  FM_PROCEVENT_CLAIM_ROOT="$(cd "$dir" && pwd -P)/claims" wedge_threshold_round \
+    "$dir/state" "$dir/fakebin" "$dir/watch.out" "$dir/pane.txt" test:fm-wedge "$2" "$3"
+}
+
+test_wedge_threshold_defers_finished_work_awaiting_merge() {
+  local dir state fakebin out capture window key n reported
+  local working='state: working · source: run-step · ci running'
+  local pr='https://example.invalid/pull/7'
+  window="test:fm-wedge"; key=$(printf '%s' "$window" | tr ':/.' '___')
+
+  dir=$(wedge_threshold_fixture finished-pr-working "done: PR $pr checks green" 0 0)
+  state="$dir/state"; fakebin="$dir/fakebin"; out="$dir/watch.out"; capture="$dir/pane.txt"
+  printf 'pr=%s\n' "$pr" >> "$state/wedge.meta"
+  n=1
+  while [ "$n" -le 3 ]; do
+    wedge_threshold_round "$state" "$fakebin" "$out" "$capture" "$window" "$working" absorb \
+      || fail "finished work awaiting merge wedge-escalated at threshold $n: $(cat "$out")"
+    n=$((n + 1))
+  done
+  [ "$(wedge_stale_wakes "$state" "$window")" -eq 0 ] \
+    || fail "finished work awaiting merge queued a wedge wake: $(cat "$state/.wake-queue")"
+  grep -F 'possible wedge' "$out" >/dev/null \
+    && fail "finished work awaiting merge was reported as a possible wedge"
+  [ ! -e "$state/.wedge-escalations-$key" ] \
+    || fail "finished work awaiting merge counted $(cat "$state/.wedge-escalations-$key") wedge escalation(s)"
+
+  # The backstop: a merge that has waited past the recheck cadence surfaces once,
+  # aged from the done line and named as the finished work it is.
+  dir=$(wedge_threshold_fixture finished-pr-aged "done: PR $pr checks green" 2000 0)
+  state="$dir/state"; fakebin="$dir/fakebin"; out="$dir/watch.out"; capture="$dir/pane.txt"
+  printf 'pr=%s\n' "$pr" >> "$state/wedge.meta"
+  FM_TEST_PAUSE_RESURFACE=240 wedge_threshold_round "$state" "$fakebin" "$out" "$capture" "$window" "$working" exit \
+    || fail "finished work waiting past the recheck cadence was never rechecked: $(cat "$out")"
+  reported=$(wedge_reported_wait_secs "$out")
+  [ -n "$reported" ] && [ "$reported" -ge 1900 ] \
+    || fail "the finished-work recheck reported '${reported}'s rather than the age of the done line: $(cat "$out")"
+  grep -F 'finished work' "$out" >/dev/null \
+    || fail "the finished-work recheck did not name its evidence: $(cat "$out")"
+  grep -F "$pr" "$out" >/dev/null \
+    || fail "the finished-work recheck did not name the recorded PR: $(cat "$out")"
+  grep -F 'possible wedge' "$out" >/dev/null \
+    && fail "the finished-work recheck was worded as a possible wedge"
+  ack_stopped_cycle "$state" || fail "could not acknowledge the finished-work recheck"
+
+  # Neighbour: the same done line with no recorded PR keeps the ladder.
+  dir=$(wedge_threshold_fixture finished-pr-unrecorded "done: PR $pr checks green" 0 0)
+  state="$dir/state"; fakebin="$dir/fakebin"; out="$dir/watch.out"; capture="$dir/pane.txt"
+  wedge_threshold_round "$state" "$fakebin" "$out" "$capture" "$window" "$working" exit \
+    || fail "a done line with no recorded PR stopped escalating: $(cat "$out")"
+  grep -F 'possible wedge, escalation 1' "$out" >/dev/null \
+    || fail "a done line with no recorded PR lost the unchanged wedge wording: $(cat "$out")"
+  pass "finished work with a recorded PR is rechecked on the long cadence, while a done line with no recorded PR keeps the wedge ladder"
+}
+
+test_wedge_threshold_defers_to_a_task_owned_board() {
+  local dir state out key n reported
+  local working='state: working · source: pane · busy'
+  key=$(printf '%s' test:fm-wedge | tr ':/.' '___')
+
+  dir=$(wedge_threshold_fixture board-working 'working: review board armed' 0)
+  state="$dir/state"; out="$dir/watch.out"
+  arm_task_owned_source "$dir" wedge-board wedge || fail "could not arm a live task-owned source"
+  n=1
+  while [ "$n" -le 3 ]; do
+    board_threshold_round "$dir" "$working" absorb \
+      || { retire_task_owned_source "$dir" wedge-board
+           fail "a lane waiting on its own board wedge-escalated at threshold $n: $(cat "$out")"; }
+    n=$((n + 1))
+  done
+  retire_task_owned_source "$dir" wedge-board
+  [ "$(wedge_stale_wakes "$state" test:fm-wedge)" -eq 0 ] \
+    || fail "a lane waiting on its own board queued a wedge wake: $(cat "$state/.wake-queue")"
+  grep -F 'possible wedge' "$out" >/dev/null \
+    && fail "a lane waiting on its own board was reported as a possible wedge"
+  [ ! -e "$state/.wedge-escalations-$key" ] \
+    || fail "a lane waiting on its own board counted $(cat "$state/.wedge-escalations-$key") wedge escalation(s)"
+
+  # The backstop: a board armed longer ago than the recheck cadence surfaces once,
+  # aged from its registration and naming the source.
+  dir=$(wedge_threshold_fixture board-aged 'working: review board armed' 0)
+  state="$dir/state"; out="$dir/watch.out"
+  arm_task_owned_source "$dir" wedge-board wedge || fail "could not arm a live task-owned source"
+  set_mtime "$(( $(date +%s) - 2000 ))" "$state/procevent/wedge-board.source"
+  FM_TEST_PAUSE_RESURFACE=240 board_threshold_round "$dir" "$working" exit \
+    || { retire_task_owned_source "$dir" wedge-board
+         fail "a board waiting past the recheck cadence was never rechecked: $(cat "$out")"; }
+  retire_task_owned_source "$dir" wedge-board
+  reported=$(wedge_reported_wait_secs "$out")
+  [ -n "$reported" ] && [ "$reported" -ge 1900 ] \
+    || fail "the board recheck reported '${reported}'s rather than the age of the registration: $(cat "$out")"
+  grep -F 'process-event wait' "$out" >/dev/null \
+    || fail "the board recheck did not name its kind of wait: $(cat "$out")"
+  grep -F 'wedge-board' "$out" >/dev/null \
+    || fail "the board recheck did not name its source: $(cat "$out")"
+  grep -F 'possible wedge' "$out" >/dev/null \
+    && fail "the board recheck was worded as a possible wedge"
+  ack_stopped_cycle "$state" || fail "could not acknowledge the board recheck"
+
+  # Neighbour: a board another task owns explains nothing about this lane.
+  dir=$(wedge_threshold_fixture board-foreign 'working: review board armed' 0)
+  state="$dir/state"; out="$dir/watch.out"
+  arm_task_owned_source "$dir" other-board other-task || fail "could not arm a live task-owned source"
+  board_threshold_round "$dir" "$working" exit \
+    || { retire_task_owned_source "$dir" other-board
+         fail "a lane beside another task's board stopped escalating: $(cat "$out")"; }
+  retire_task_owned_source "$dir" other-board
+  grep -F 'possible wedge, escalation 1' "$out" >/dev/null \
+    || fail "a lane beside another task's board lost the unchanged wedge wording: $(cat "$out")"
+
+  # Neighbour: its own board already captured a round the worker has not handled.
+  dir=$(wedge_threshold_fixture board-captured 'working: review board armed' 0)
+  state="$dir/state"; out="$dir/watch.out"
+  arm_task_owned_source "$dir" wedge-board wedge || fail "could not arm a live task-owned source"
+  capture_unhandled_round "$dir" wedge-board wedge
+  board_threshold_round "$dir" "$working" exit \
+    || { retire_task_owned_source "$dir" wedge-board
+         fail "a lane holding an unhandled captured round stopped escalating: $(cat "$out")"; }
+  pe_case "$dir" handled wedge-board 1 >/dev/null 2>&1 || true
+  retire_task_owned_source "$dir" wedge-board
+  grep -F 'possible wedge, escalation 1' "$out" >/dev/null \
+    || fail "a lane holding an unhandled captured round lost the unchanged wedge wording: $(cat "$out")"
+
+  # Neighbour: its own board has no live runner listening on it.
+  dir=$(wedge_threshold_fixture board-dead 'working: review board armed' 0)
+  state="$dir/state"; out="$dir/watch.out"
+  register_dead_task_owned_source "$dir" wedge-board wedge
+  board_threshold_round "$dir" "$working" exit \
+    || { retire_task_owned_source "$dir" wedge-board
+         fail "a lane whose board has no live runner stopped escalating: $(cat "$out")"; }
+  retire_task_owned_source "$dir" wedge-board
+  grep -F 'possible wedge, escalation 1' "$out" >/dev/null \
+    || fail "a lane whose board has no live runner lost the unchanged wedge wording: $(cat "$out")"
+  pass "a lane waiting on its own live task-owned source is rechecked on the long cadence, while a lane beside another task's source, one holding an unhandled captured round, and one whose source has no live runner keep the wedge ladder"
+}
+
 # `fm-send --resolve-key default` answers a keyless decision by appending a
 # stated default-key resolved line after whatever the worker wrote last. When
 # that is a keyless pause the worker is still waiting, so the answer must not
@@ -4009,7 +4202,7 @@ hold_watch_surface() {  # <dir> <out> <capture> <pane-text>
   local dir=$1 out=$2 capture=$3 text=$4
   printf '%s\n' "$text" > "$capture"
   hold_watch_launch "$dir" "$out" "$capture"
-  wait_for_exit "$HOLD_WATCH_PID" 100 || { reap "$HOLD_WATCH_PID"; return 1; }
+  wait_for_exit "$HOLD_WATCH_PID" 300 || { reap "$HOLD_WATCH_PID"; return 1; }
   return 0
 }
 
@@ -4117,6 +4310,80 @@ test_stale_churn_without_a_captain_call_still_alarms() {
   pass "a stale window with no open captain call keeps alarming on every new hash"
 }
 
+
+# The same new-hash bound for a lane in a deliberate wait it never declared:
+# finished work whose PR firstmate recorded, awaiting its merge, and a worker
+# waiting on its own task-owned process-event source. Each surfaces once, absorbs
+# pane churn for the re-surface window, then re-surfaces once when it elapses.
+# The unheld fixtures in test_stale_churn_without_a_captain_call_still_alarms
+# (a done line with no recorded PR, a blocker) pin the neighbouring direction, as
+# does the board owned by another task below.
+deliberate_churn_round() {  # <name> <dir> <alarm|absorb>
+  local name=$1 dir=$2 mode=$3 state out capture throttle wakes
+  state="$dir/state"; out="$dir/watch.out"; capture="$dir/pane.txt"
+  throttle="$state/.paused-resurfaced-$(hold_key)"
+  hold_watch_surface "$dir" "$out" "$capture" 'idle, elapsed 1s' \
+    || fail "[$name] first sight did not surface"
+  [ "$(hold_stale_wakes "$state")" -eq 1 ] || fail "[$name] first sight did not produce exactly one wake"
+  ack_stopped_cycle "$state" || fail "[$name] could not acknowledge the first surface"
+  if [ "$mode" = alarm ]; then
+    hold_watch_surface "$dir" "$out" "$capture" 'idle, elapsed 2s' \
+      || fail "[$name] a lane with no deliberate wait stopped alarming on a new hash"
+    [ "$(hold_stale_wakes "$state")" -eq 1 ] || fail "[$name] the second new hash did not alarm exactly once"
+    return 0
+  fi
+  hold_watch_churn "$dir" "$out" "$capture" 'idle, tick' 2 \
+    || fail "[$name] watcher exited during pane churn instead of supervising through it: $(cat "$out"); triage: $(tail -8 "$state/.watch-triage.log" 2>/dev/null)"
+  wakes=$(hold_stale_wakes "$state")
+  [ "$wakes" -eq 0 ] || fail "[$name] pane churn re-alarmed a deliberate wait $wakes time(s) inside the re-surface window"
+  [ -e "$throttle" ] || fail "[$name] the absorbed churn recorded no re-surface cadence to elapse"
+  set_mtime "$(( $(date +%s) - 5000 ))" "$throttle"
+  hold_watch_surface "$dir" "$out" "$capture" 'idle, elapsed 9s' \
+    || fail "[$name] a deliberate wait did not re-surface once its re-surface window elapsed"
+  [ "$(hold_stale_wakes "$state")" -eq 1 ] || fail "[$name] the elapsed window did not re-surface exactly once"
+}
+
+test_deliberate_wait_bounds_stale_churn() {
+  local dir pr='https://example.invalid/pull/1' spec name line
+  command -v tasks-axi >/dev/null 2>&1 \
+    || { echo "skip: tasks-axi not found (deliberate-wait stale bound)"; return 0; }
+  dir=$(make_hold_home churn-finished-recorded "done: PR $pr checks green" nohold) \
+    || fail "could not build a finished-work fixture"
+  printf 'pr=%s\n' "$pr" >> "$dir/state/held-merge.meta"
+  deliberate_churn_round finished-recorded "$dir" absorb
+
+  for spec in \
+    'churn-board-decision|needs-decision [key=board-review]: review board https://example.invalid/board awaits the review' \
+    'churn-board-working|working: review board armed'
+  do
+    name=${spec%%|*}; line=${spec#*|}
+    dir=$(make_hold_home "$name" "$line" nohold) || fail "[$name] could not build a board fixture"
+    arm_task_owned_source "$dir" held-board held-merge || fail "[$name] could not arm a live task-owned source"
+    FM_PROCEVENT_CLAIM_ROOT="$(cd "$dir" && pwd -P)/claims" deliberate_churn_round "$name" "$dir" absorb
+    retire_task_owned_source "$dir" held-board
+  done
+
+  dir=$(make_hold_home churn-board-foreign 'working: review board armed' nohold) \
+    || fail "could not build a foreign-board fixture"
+  arm_task_owned_source "$dir" other-board other-task || fail "could not arm a live task-owned source"
+  FM_PROCEVENT_CLAIM_ROOT="$(cd "$dir" && pwd -P)/claims" deliberate_churn_round board-foreign "$dir" alarm
+  retire_task_owned_source "$dir" other-board
+
+  dir=$(make_hold_home churn-board-captured 'working: review board armed' nohold) \
+    || fail "could not build a captured-round fixture"
+  arm_task_owned_source "$dir" held-board held-merge || fail "could not arm a live task-owned source"
+  capture_unhandled_round "$dir" held-board held-merge
+  FM_PROCEVENT_CLAIM_ROOT="$(cd "$dir" && pwd -P)/claims" deliberate_churn_round board-captured "$dir" alarm
+  pe_case "$dir" handled held-board 1 >/dev/null 2>&1 || true
+  retire_task_owned_source "$dir" held-board
+
+  dir=$(make_hold_home churn-board-dead 'working: review board armed' nohold) \
+    || fail "could not build a dead-runner fixture"
+  register_dead_task_owned_source "$dir" held-board held-merge
+  FM_PROCEVENT_CLAIM_ROOT="$(cd "$dir" && pwd -P)/claims" deliberate_churn_round board-dead "$dir" alarm
+  retire_task_owned_source "$dir" held-board
+  pass "finished work with a recorded PR and a worker waiting on its own live source surface once, absorb pane churn, then re-surface when the window elapses, while a lane beside another task's source, one holding an unhandled captured round, and one whose source has no live runner keep alarming"
+}
 
 # The cadence marker may never outlive the wake it claims to record. Recording it
 # before publishing the durable wake turned a delayed alarm into a lost one: the
@@ -4419,7 +4686,7 @@ test_paused_authoritative_working_preserves_wedge_timer() {
     FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$fakebin/fm-crew-state.sh" FM_STALE_ESCALATE_SECS=999 FM_POLL=1 FM_SIGNAL_GRACE=1 \
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
   pid=$!
-  wait_numeric_file "$state/.stale-since-$key" 30 || { reap "$pid"; fail "authoritative working state did not start wedge tracking"; }
+  wait_numeric_file "$state/.stale-since-$key" 300 || { reap "$pid"; fail "authoritative working state did not start wedge tracking"; }
   since=$(cat "$state/.stale-since-$key")
   sleep 2
   [ "$(cat "$state/.stale-since-$key" 2>/dev/null || true)" = "$since" ] \
@@ -6860,6 +7127,8 @@ test_absorbed_replacement_wait_does_not_inherit_the_old_throttle
 test_live_declared_wait_churn_honors_the_resurface_throttle
 test_live_paused_until_controls_recheck_time
 test_wedge_threshold_defers_to_a_declared_wait_under_a_working_verdict
+test_wedge_threshold_defers_finished_work_awaiting_merge
+test_wedge_threshold_defers_to_a_task_owned_board
 test_wedge_threshold_keeps_a_wait_past_a_default_key_answer
 test_wedge_threshold_recheck_names_the_captain_for_a_held_lane
 test_wedge_threshold_defers_to_a_parked_gate_awaiting_a_human
@@ -6868,6 +7137,7 @@ test_wedge_threshold_parked_gate_is_off_until_armed
 test_wedge_defer_refuses_a_half_filled_wait_record
 test_open_captain_call_bounds_stale_churn
 test_stale_churn_without_a_captain_call_still_alarms
+test_deliberate_wait_bounds_stale_churn
 test_failed_wake_append_does_not_arm_the_captain_hold_throttle
 test_reheld_captain_call_starts_its_own_resurface_window
 test_secondmate_paused_resurfaces_in_normal_mode

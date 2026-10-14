@@ -42,7 +42,10 @@
 #                          resume. Unless afk is active. A pane about to escalate
 #                          that can account for its quiet - a `paused:` external
 #                          wait or a verified `captain-held` transfer its worker
-#                          declared, or, where config/wedge-defer-parked-gate
+#                          declared, a deliberate wait another owner records
+#                          (finished work whose PR is recorded, or a task-owned
+#                          process-event source; deliberate_wait_record), or,
+#                          where config/wedge-defer-parked-gate
 #                          arms it, a validation gate of its own awaiting a
 #                          supervisor decision nobody has answered yet - is
 #                          deferred to that same long recheck cadence instead
@@ -1309,12 +1312,53 @@ wait_record() {  # <kind> <subject> <whom> <action> <age-record>
   printf '%s\037%s\037%s\037%s\037%s' "$1" "$2" "$3" "$4" "$5"
 }
 
+# The deliberate wait a lane is in WITHOUT having declared it, read from a record
+# another owner keeps, or nothing when it is in none. Two such records exist:
+#   - a task-owned process-event source the worker armed (its Lavish review
+#     board), recorded by bin/fm-procevent.sh, while a live runner listens on
+#     it and no captured round of it is still unhandled: the worker is waiting
+#     on that source, whose result reaches it through its steering inbox. A
+#     captured round the worker has not handled, or a source nothing listens
+#     on, is not a wait, so its lane keeps the normal alarms;
+#   - finished work: the latest status event is `done` and firstmate recorded the
+#     task's PR (`pr=` in its meta, written only by bin/fm-pr-check.sh), so the
+#     lane is awaiting its merge. A green PR keeps its no-mistakes ci step
+#     monitoring until merge, which reads as provably working, so without this
+#     record the wedge ladder climbed for the whole of the merge wait. A `done`
+#     with no recorded PR - the hand-off before validation, whose pipeline may
+#     still genuinely wedge - is not this evidence.
+# Both are file reads, so this is cheap enough for every alarm site. A source is
+# anchored on its registration (re-written on every re-arm) and finished work on
+# the status file, so the published wait age is the age of the record itself.
+deliberate_wait_record() {  # <task> -> one wait_record on stdout
+  local task=$1 found id adapter statusf last verb pr
+  [ -n "$task" ] || return 1
+  if found=$(fm_procevent_task_waiting_source "$STATE" "$task"); then
+    id=${found%%$'\t'*}
+    adapter=${found#*$'\t'}
+    wait_record 'live process-event wait' "awaiting its own $adapter source $id" \
+      external 'confirm the source is still listening and the worker acts on its result' \
+      "$(fm_procevent_registry_dir "$STATE")/$id.source"
+    return 0
+  fi
+  statusf="$STATE/$task.status"
+  last=$(last_status_line "$statusf")
+  [ -n "$last" ] || return 1
+  status_line_verb "$last" verb
+  [ "$verb" = "done" ] || return 1
+  pr=$(sed -n 's/^pr=//p' "$STATE/$task.meta" 2>/dev/null | tail -1)
+  [ -n "$pr" ] || return 1
+  wait_record 'finished work' "done with PR $pr recorded, awaiting its merge" \
+    supervisor 'merge or close the PR, or steer the worker if more is owed' "$statusf"
+}
+
 # The evidence that a quiet pane is a BOUNDED WAIT rather than a wedge suspect,
 # read at the one moment it decides anything: when an escalation is about to
-# fire. Two records answer it, and they are independent: the worker's own status
-# line - a declared `paused:` external wait, or a verified `captain-held`
-# transfer - and, when that line explains nothing, the crew's authoritative
-# current state.
+# fire. Three records answer it, and they are independent: the worker's own
+# status line - a declared `paused:` external wait, or a verified `captain-held`
+# transfer - then, when that line explains nothing, the deliberate wait another
+# owner records for the lane (deliberate_wait_record above), and last the crew's
+# authoritative current state.
 #
 # The generated brief promises that declaring one buys the long recheck cadence
 # instead of a wedge, and the wedge timer is reachable while that declaration
@@ -1399,6 +1443,7 @@ wedge_wait_evidence() {  # <task> -> one wait_record on stdout
       external 'confirm the wait still holds' "$statusf"
     return 0
   fi
+  deliberate_wait_record "$task" && return 0
   [ -e "$CONFIG/wedge-defer-parked-gate" ] || return 1
   if status_has_open_needs_decision "$statusf" \
     && run=$(crew_gate_awaits_human_decision "$task") \
@@ -1967,6 +2012,21 @@ captain_call_stale_bound() {  # <window-key> <task>
   stale_wait_throttled "$key" "$STALE_WAIT_DECLARATION"
 }
 
+# Bound a due stale alarm for a lane in a deliberate wait (deliberate_wait_record)
+# the way captain_call_stale_bound bounds held work: the first sight alarms and
+# records the throttle, a new pane hash of the same wait and status-log state
+# inside PAUSE_RESURFACE_SECS is absorbed, and one after it alarms once more.
+# Runs only when no earlier bound claimed this sighting, so a captain call keeps
+# its own scope. Returns 0 to absorb; 1 to alarm, with STALE_WAIT_DECLARATION set
+# when a deliberate wait scopes the throttle the caller records after its append.
+deliberate_wait_stale_bound() {  # <window-key> <task>
+  local key=$1 task=$2 record
+  [ -z "$STALE_WAIT_DECLARATION" ] || return 1
+  record=$(deliberate_wait_record "$task") || return 1
+  STALE_WAIT_DECLARATION="deliberate:${record%$'\037'*}:$(fm_wake_signal_sig "$STATE/$task.status" || true)"
+  stale_wait_throttled "$key" "$STALE_WAIT_DECLARATION"
+}
+
 # Surface a stale pane no classifier could resolve, so firstmate inspects it: it
 # may have finished through an interactive menu that wrote no status, be waiting on
 # a decision, or be wedged. pause_state_class deliberately answers `none` for a
@@ -1983,9 +2043,10 @@ captain_call_stale_bound() {  # <window-key> <task>
 # and the throttle is read BEFORE anything is queued and advanced only by a wake
 # that really fires - a throttle written by the wake it should have prevented, or
 # read after that wake was already appended, bounds nothing.
-# Both records of an ordinary crew wait bound it (see task_captain_call_open
-# above): the status line the worker declared, and the backlog hold firstmate
-# recorded once the captain took the work in hand.
+# Every record of an ordinary crew wait bounds it: the status line the worker
+# declared, the backlog hold firstmate recorded once the captain took the work in
+# hand (see task_captain_call_open above), and a deliberate wait another owner
+# records (deliberate_wait_record).
 surface_nonterminal_stale() {  # <window> <hash>
   local win=$1 h=$2 key task last declared=1 bounded=1 throttled=1 until now reason
   key=$(window_key "$win")
@@ -2021,6 +2082,11 @@ surface_nonterminal_stale() {  # <window> <hash>
     throttled=0
   elif [ -n "$STALE_WAIT_DECLARATION" ]; then
     bounded=0
+  elif deliberate_wait_stale_bound "$key" "$task"; then
+    bounded=0
+    throttled=0
+  elif [ -n "$STALE_WAIT_DECLARATION" ]; then
+    bounded=0
   fi
   if [ "$throttled" -ne 0 ]; then
     reason=$(stale_reason "$win")
@@ -2045,7 +2111,7 @@ surface_nonterminal_stale() {  # <window> <hash>
     clear_pause_state "$key"
   fi
   if [ "$throttled" -eq 0 ]; then
-    triage_log "absorbed non-terminal stale (declared wait or open captain call already re-surfaced this window): $win"
+    triage_log "absorbed non-terminal stale (declared, held, or deliberate wait already re-surfaced this window): $win"
     return 0
   fi
   wake "$reason"
@@ -3388,6 +3454,13 @@ EOF
               rm -f "$ssf"
               clear_write_tracking "$key"
               triage_log "absorbed stale (open captain call already surfaced for this status): $w"
+            elif deliberate_wait_stale_bound "$key" "$task"; then
+              # The same bound for a lane in a deliberate wait: finished work
+              # awaiting its merge, or a worker waiting on its own source.
+              printf '%s' "$h" > "$sf"
+              rm -f "$ssf"
+              clear_write_tracking "$key"
+              triage_log "absorbed stale (deliberate wait already surfaced for this status): $w"
             else
               stale_wake_reason=$(stale_reason "$w")
               fm_wake_append stale "$w" "$stale_wake_reason" || exit 1
