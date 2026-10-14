@@ -1,0 +1,13 @@
+== case: mapped-window-names-task  (window=lab:pane7, meta task=alpha-task)
+== tmux list-windows (private fm-lab socket):
+lab:pane7
+== fm-watch.sh exit=0 stdout:
+stale: lab:pane7 task=alpha-task
+== durable wake queue (/tmp/fm-lab.JHadnH/state/.wake-queue):
+1791935433	1	stale	lab:pane7	stale: lab:pane7 task=alpha-task
+== consumer: fm-crew-state.sh <window from wake: lab:pane7>
+state: unknown · source: none · no metadata for lab:pane7
+== consumer: fm-crew-state.sh <task= from wake: alpha-task>
+state: unknown · source: none · worktree gone (torn down?)
+== supervisor daemon parse of the queued reason (stale_reason_window / window_to_task):
+window=lab:pane7 detail=[] task=alpha-task

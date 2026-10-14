@@ -1,0 +1,9 @@
+== case: unmapped-window-no-guessed-task  (window=lab:fm-orphan, meta task=<none>)
+== tmux list-windows (private fm-lab socket):
+lab:fm-orphan
+== fm-watch.sh exit=124 stdout:
+== durable wake queue (/tmp/fm-lab.ObHMIm/state/.wake-queue):
+== consumer: fm-crew-state.sh <window from wake: >
+usage: fm-crew-state.sh <id>
+== supervisor daemon parse of the queued reason (stale_reason_window / window_to_task):
+window= detail=[] task=
