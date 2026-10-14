@@ -2132,9 +2132,9 @@ status_open_activities() {  # <status-file-or-dash>
   _fm_status_open_activities_stream < "$f"
 }
 
-# task id from a recorded window target, falling back to the tmux-shaped
-# "<session>:fm-<id>" form when no metadata state is available.
-window_to_task() {
+# task id whose metadata records <window> as its window= or terminal= target;
+# returns 1 with no output when no task metadata maps it.
+window_mapped_task() {
   local w=$1 state=${2:-${STATE:-${FM_STATE_OVERRIDE:-}}} meta mw mt t line
   if [ -n "$state" ]; then
     for meta in "$state"/*.meta; do
@@ -2158,7 +2158,38 @@ window_to_task() {
       return 0
     done
   fi
+  return 1
+}
+
+# task id from a recorded window target, falling back to the tmux-shaped
+# "<session>:fm-<id>" form when no metadata maps it.
+window_to_task() {
+  local w=$1 t
+  window_mapped_task "$w" "${2:-}" && return 0
   t="${w##*:}"; t="${t#fm-}"; printf '%s' "$t"
+}
+
+# The single owner of the stale wake reason format:
+#   stale: <window>[ task=<id>][ (<detail>)]
+# task=<id> appears only when task metadata maps the window, so a supervisor
+# reads the task id instead of mistaking the window for one. The window stays
+# the first token, so readers that take the first word after "stale:" keep
+# working; stale_reason_window recovers it from the text after "stale: ".
+stale_reason() {  # <window> [<detail>]
+  local w=$1 detail=${2:-} task reason
+  reason="stale: $w"
+  task=$(window_mapped_task "$w") && reason="$reason task=$task"
+  [ -z "$detail" ] || reason="$reason ($detail)"
+  printf '%s' "$reason"
+}
+
+stale_reason_window() {  # <reason-without-"stale: "-prefix>
+  local arg=${1%% \(*}
+  printf '%s' "${arg% task=*}"
+}
+
+stale_reason_detail() {  # <reason-without-"stale: "-prefix>; empty when none
+  case "$1" in *" ("*) printf '%s' "${1#*" ("}" ;; esac
 }
 
 # --- home-owned status-append ledger ----------------------------------------
