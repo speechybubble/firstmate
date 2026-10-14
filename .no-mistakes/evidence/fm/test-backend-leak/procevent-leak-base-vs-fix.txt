@@ -1,0 +1,12 @@
+# Process-event leak: a lib.sh-sourcing fixture runs 'bin/fm-procevent.sh register lavish leak-probe' without pinning a home, caller env FM_HOME/FM_STATE_OVERRIDE=$LAB/live
+
+## base
+registered: leak-probe (lavish)
+register rc=0 (FM_HOME=$LAB/live FM_STATE_OVERRIDE=/tmp/fm-leak-lab.rWcnsV/live/state FM_BACKEND=herdr)
+
+## fix
+registered: leak-probe (lavish)
+register rc=0 (FM_HOME=<unset> FM_STATE_OVERRIDE=<unset> FM_BACKEND=<unset>)
+
+base: live state gained $LAB/live/state/procevent/{.owner-lease,leak-probe.source}
+fix:  live state stayed empty (write resolved to the disposable checkout's own state/, removed afterwards)

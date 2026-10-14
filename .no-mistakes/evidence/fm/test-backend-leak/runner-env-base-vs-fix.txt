@@ -1,0 +1,19 @@
+# Env visible to a script that sources no helper, run via bin/fm-test-run.sh under the worker-pane env
+
+## base
+FM_BACKEND=herdr
+FM_DATA_OVERRIDE=$LAB/live/data
+FM_HOME=$LAB/live
+FM_STATE_OVERRIDE=$LAB/live/state
+FM_TASK_INBOX=$LAB/live/state/task.inbox
+HERDR_ENV=1
+HERDR_PANE_ID=w1:p1
+HERDR_SESSION=live-kun
+HERDR_SOCKET_PATH=$LAB/live/herdr.sock
+HERDR_WORKSPACE_ID=w1
+TASKS_AXI_FILE=$LAB/live/data/backlog.md
+TMUX_TMPDIR=$LAB/live/tmux
+TREEHOUSE_ROOT=$LAB/live/pools
+
+## fix
+(fix: no routing variables)

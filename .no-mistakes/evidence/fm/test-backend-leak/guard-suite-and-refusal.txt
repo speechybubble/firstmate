@@ -1,0 +1,24 @@
+## linked worktree, via bin/fm-test-run.sh
+ok - a suite sourcing tests/lib.sh cannot see the caller's live home, session, or backend
+ok - a top-level suite gets a private tmux socket directory and treehouse pool root, removed at exit
+ok - an inherited FM_BACKEND=herdr and Herdr pane no longer select the live backend inside a suite
+ok - a suite sourcing only the isolation helper cannot see the caller's live routing
+ok - the isolation helper's exec mode hands its command a clean environment
+ok - fm-test-run.sh starts a script that sources no helper without the caller's live routing
+ok - a suite refuses to run when the caller's home is the checkout under test
+# all fm-test-env-isolation tests passed
+FM_TEST_END 2026-10-14T02:39:03Z tests/fm-test-env-isolation.test.sh exit=0 duration_ms=1192 gate_skip=false
+
+## primary checkout (git init copy of HEAD), FM_TASK_ID=ci-like
+ok - a suite sourcing tests/lib.sh cannot see the caller's live home, session, or backend
+ok - a top-level suite gets a private tmux socket directory and treehouse pool root, removed at exit
+ok - an inherited FM_BACKEND=herdr and Herdr pane no longer select the live backend inside a suite
+ok - a suite sourcing only the isolation helper cannot see the caller's live routing
+ok - the isolation helper's exec mode hands its command a clean environment
+ok - fm-test-run.sh starts a script that sources no helper without the caller's live routing
+ok - a suite refuses to run when the caller's home is the checkout under test
+# all fm-test-env-isolation tests passed
+
+## live-home refusal: FM_HOME=<checkout> bash tests/fm-spawn-worktree-settle.test.sh
+not ok - refusing to run tests in the live Firstmate home $LAB/primary (FM_HOME names it); run them from a disposable worktree
+rc=1

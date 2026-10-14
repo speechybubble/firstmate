@@ -1,0 +1,20 @@
+# Leak reproduction: tests/fm-spawn-worktree-settle.test.sh under a worker-pane env (FM_BACKEND=herdr, HERDR_SESSION=live-kun, FM_HOME=$LAB/live); herdr/codex/claude/treehouse on PATH are logging stand-ins that exit 1, ~/.local/bin removed from PATH
+
+## BASE 3fe8bcf4 - herdr calls reaching the 'live' session:
+not ok - spawn should succeed once the pane settles
+warning: the selected herdr release could not be read, so the 0.8.0 floor for presentation spaces cannot be verified; using the ordinary flat layout instead. Upgrade herdr to 0.8.0 or newer (herdr update) to restore the projection, or write "on" into config/herdr-presentation-spaces to force it on this release.
+error: 'herdr status --json' failed; is herdr installed correctly?: expected exit 0, got 1
+LIVE-CALLS.log at base:
+herdr status --json --session live-kun
+herdr status --json
+
+## FIX d2b4b911 (bash caller):
+ok - a pane stuck on the primary checkout fails loudly at the deadline
+ok - a pane that settles after 100 polls launches under the default wait
+ok - FM_SPAWN_WORKTREE_WAIT_SECS bounds the poll and an invalid value keeps the default
+# all fm-spawn-worktree-settle tests passed
+LIVE-CALLS.log: (empty)
+
+## FIX d2b4b911 (zsh -f caller re-exporting FM_BACKEND=herdr):
+# all fm-spawn-worktree-settle tests passed
+LIVE-CALLS.log: (empty); live home untouched
