@@ -350,19 +350,26 @@ EOF
   printf '%s\n' "$1"
 }
 
-# Accept the current two-subsection contract only when both bodies have content;
-# briefs predating that contract remain valid when their # Task body has content.
+# Accept the current two-subsection contract only when both bodies have content,
+# the spec's outside its `### Expert prompt` subsection; briefs predating that
+# contract remain valid when their # Task body has content.
 fm_brief_task_content_valid() {  # <file>
-  local file=$1 intent spec task has_intent=0 has_spec=0
+  local file=$1 intent spec expert task has_intent=0 has_spec=0
   [ -f "$file" ] && [ -r "$file" ] || return 1
   fm_brief_task_heading_present "$file" "## Captain's intent" && has_intent=1
   fm_brief_task_heading_present "$file" "## Firstmate spec" && has_spec=1
   if [ "$has_intent" -eq 1 ] || [ "$has_spec" -eq 1 ]; then
     [ "$has_intent" -eq 1 ] && [ "$has_spec" -eq 1 ] || return 1
     intent=$(fm_brief_task_heading_body "$file" "## Captain's intent")
-    spec=$(fm_brief_task_heading_own_body "$file" "## Firstmate spec")
+    spec=$(fm_brief_task_heading_body "$file" "## Firstmate spec")
     [ -n "$(printf '%s' "$intent" | tr -d '[:space:]')" ] || return 1
-    [ -n "$(printf '%s' "$spec" | tr -d '[:space:]')" ] || return 1
+    if fm_brief_heading_parse - "### Expert prompt" present >/dev/null <<<"$spec"; then
+      expert=$(fm_brief_heading_parse - "### Expert prompt" body <<<"$spec")
+      expert="### Expert prompt$expert"
+    fi
+    spec=$(printf '%s' "$spec" | tr -d '[:space:]')
+    [ -n "$spec" ] || return 1
+    [ "$spec" != "$(printf '%s' "${expert-}" | tr -d '[:space:]')" ] || return 1
     return 0
   fi
   task=$(fm_brief_heading_body "$file" "# Task")

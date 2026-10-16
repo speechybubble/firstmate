@@ -875,6 +875,15 @@ EOF
     "a filled expert prompt stood in for an empty Firstmate spec"
   assert_absent "$home/state/$id.meta" "empty-spec spawn wrote task metadata"
 
+  id=delivery-subheading-spec-ship
+  FM_HOME="$home" "$BRIEF" "$id" proj --mode direct-PR >/dev/null 2>&1 \
+    || fail "subheading-spec brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Ship the narrow fix." $'### Steps\n1. Edit foo.' "Act as a release engineer."
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode direct-PR --yolo off)
+  assert_not_contains "$out" "must contain nonempty" \
+    "a Firstmate spec made entirely of its own subheadings was refused as empty"
+  assert_present "$home/data/$id/launch-brief.md" "a subheading-only Firstmate spec did not reach launch"
+
   id=promote-unfilled-e1
   meta="$home/state/$id.meta"
   mkdir -p "$home/state"
