@@ -1989,6 +1989,8 @@ launch_settled() {  # <stamp-value>
 # Public readiness for one source: a result captured since the call began, a
 # live claim bound to this registration generation whose source command has
 # been running for the settle, or that claim still held when the wait ends.
+# Only a stamp written after the claim counts toward the settle, so a new
+# runner is not credited with an earlier runner's launch.
 # Returns as soon as the first two appear. A fixed sleep is not success, and
 # neither is a launch stamp or a first sight of the claim: the runner holds its
 # claim while the source command runs and writes the stamp just before starting
@@ -1997,9 +1999,10 @@ launch_settled() {  # <stamp-value>
 # captured, which this reports as an exit.
 cmd_ensure_listening() {
   local id=${1-} identity before before_results mark stamp deadline window started_once=0 listening
-  local runner_seen=0 last_live=0
+  local runner_seen=0 last_live=0 claim
   [ "$#" -eq 1 ] || usage
   fm_procevent_source_id_valid "$id" || die "source id must be path-safe: $id"
+  claim=$(fm_procevent_claim_path "$id")
   window=$(fm_procevent_launch_confirm_seconds) \
     || die "FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS must be whole seconds from $FM_PROCEVENT_LAUNCH_CONFIRM_MIN_SECONDS to $FM_PROCEVENT_LAUNCH_CONFIRM_MAX_SECONDS"
   [ -f "$(source_file "$id")" ] && [ ! -L "$(source_file "$id")" ] \
@@ -2019,7 +2022,8 @@ cmd_ensure_listening() {
     if stamp=$(fm_procevent_launch_floor_stamp_path "$STATE" "$id" "$identity"); then
       mark=$(cat -- "$stamp" 2>/dev/null || true)
     fi
-    if [ "$listening" -eq 0 ] && [ -n "$mark" ] && launch_settled "$mark"; then
+    if [ "$listening" -eq 0 ] && [ -n "$mark" ] && [ "$stamp" -nt "$claim" ] \
+      && launch_settled "$mark"; then
       return 0
     fi
     if [ -n "$mark" ] && [ "$mark" != "$before" ]; then

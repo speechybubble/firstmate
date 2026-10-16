@@ -5117,6 +5117,29 @@ truth_owner=$(pe "$TRUTH" list | awk '$1 == "truth-dies" { print $3 }')
 pe "$TRUTH" retire truth-dies >/dev/null
 pass "ensure-listening fails for a listener whose source command dies without a result"
 
+# A registration that listened once keeps its earlier launch stamp. When its
+# runner is killed and the source now fails at once, the replacement runner
+# holds a live claim before it writes its own stamp; the earlier stamp must
+# not count as the replacement's settle.
+truth_flag="$TRUTH/stale-ran-once"
+pe_register "$TRUTH" lavish truth-stale -- /bin/sh -c \
+  'if [ -e "$1" ]; then echo gone >&2; exit 1; fi; : > "$1"; exec "$2" "$3" payload' \
+  sh "$truth_flag" "$BLOCKER" "$TRUTH_TRIGGER" >/dev/null
+pe "$TRUTH" ensure-listening truth-stale || fail "fixture invalid: the first run was not listening"
+[ -e "$truth_flag" ] || fail "fixture invalid: the first run did not mark itself"
+truth_pid=$(sed -n '2p' "$FM_PROCEVENT_CLAIM_ROOT/truth-stale.claim")
+kill -KILL -- "-$truth_pid" 2>/dev/null || fail "fixture invalid: cannot kill the runner group"
+wait_gone "-$truth_pid" || fail "fixture invalid: the killed runner group survived"
+sleep 1.5
+set +e
+FM_PROCEVENT_LAUNCH_FLOOR_SECONDS=3 pe "$TRUTH" ensure-listening truth-stale >/dev/null 2>&1
+truth_rc=$?
+set -e
+[ "$truth_rc" -ne 0 ] \
+  || fail "ensure-listening credited a replacement runner with an earlier launch stamp"
+pe "$TRUTH" retire truth-stale >/dev/null 2>&1 || true
+pass "ensure-listening does not count an earlier runner's launch stamp as listening"
+
 # A source that answers at once is a captured result, not a dead listener.
 pe_register "$TRUTH" lavish truth-answers -- /bin/sh -c 'echo answered' >/dev/null
 pe "$TRUTH" ensure-listening truth-answers \
