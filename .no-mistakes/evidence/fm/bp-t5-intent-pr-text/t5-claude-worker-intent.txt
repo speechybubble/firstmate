@@ -1,0 +1,19 @@
+Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.
+1) The `--intent` string, taken from the "Captain intent authorized for --intent" section at `launch-brief.md:175-178` and identical to the `## Captain's intent` body at lines 15-18:
+
+```
+yes build all the backpass fixes
+
+That answered Firstmate's reading, which the captain confirmed: build every problem at its source, starting with the double replies.
+```
+
+2) I would not remove or reword "captain". Three places decide it:
+- `launch-brief.md:136-137` says to preserve the actual words unchanged "even where they name the captain". It calls them a quotation and says the direct-address rule "governs only text you author".
+- `launch-brief.md:170-171` and the line 4 role contract repeat this.
+- `AGENTS.md`, in the Role exception and non-chat artifact bullets, limits the ban to non-chat artifacts and exempts "the captain's own words quoted as task intent" under `bin/fm-dod-lib.sh`.
+
+Also, "the captain confirmed" is a third-person mention, not direct address.
+
+3) I see no conflict over the word "captain". There are two smaller points:
+- **Supervisor contract:** `AGENTS.md` is the supervisor contract, but `launch-brief.md:7` tells me to follow the brief instead of it. Where they differ, the brief wins.
+- **Self-sufficiency:** the brief requires the string to be self-sufficient (lines 141-142). This string is not. "The backpass fixes", "Firstmate's reading" and "the double replies" point to context that is not in the brief. The brief also forbids adding my own decisions or Firstmate's spec. I would not invent the substance. Before running no-mistakes I would send `needs-decision` to firstmate, asking for the substance of those fixes in the captain's terms. I would also wait for firstmate's instruction to run `/no-mistakes` after my first `done:`.

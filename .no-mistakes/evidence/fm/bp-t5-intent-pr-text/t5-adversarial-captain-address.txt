@@ -1,0 +1,3 @@
+$ fm-spawn.sh t5-adv (intent line opens with "Captain,")
+error: /tmp/fm-lab.cRh9li/data/t5-adv/brief.md ## Captain's intent has an operator-address line: Captain, build every backpass fix.; write the captain's actual words without a Captain label or address before spawn, since the heading already records provenance
+exit=1
