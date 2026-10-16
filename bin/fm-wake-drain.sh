@@ -7,6 +7,9 @@
 # a supervision-host home the supervision session's new and unprocessed
 # outcomes (BRANCH OUTCOMES), then assert liveness.
 #
+# A completed --ack-through prints one confirmation line on stdout naming its
+# cutoff and consumed rows; refusals and warnings stay on stderr.
+#
 # Keep sequence-bound row consumption independent from generation-bound episode
 # retirement; docs/watcher-continuity.md owns the recovery contract.
 # Every scratch file this script mints (.main-eligible-rows.tmp.*,
@@ -976,6 +979,10 @@ if [ -n "$ACK_THROUGH" ]; then
   elif [ "$RECOVERY_ACK_MOVED" = true ]; then
     printf 'wake drain: acknowledged wakes through %s (%s row(s) consumed), but a newer recovery episode is pending; re-run bin/fm-wake-drain.sh and use the new WAKE_ACK_REQUIRED command\n' \
       "$ACK_THROUGH" "$ACK_REMOVED" >&2
+  else
+    # A completed acknowledgement states its effect, so a caller never re-runs
+    # it to find out whether a silent exit 0 registered.
+    printf 'wake drain: acknowledged wakes through %s (%s row(s) consumed)\n' "$ACK_THROUGH" "$ACK_REMOVED"
   fi
   exit 0
 fi

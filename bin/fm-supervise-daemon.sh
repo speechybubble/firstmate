@@ -1692,7 +1692,7 @@ handle_wake() {  # <reason> <state>
 
 handle_durable_wakes() {  # <watcher-reason> <state>
   local fallback_reason=$1 state=$2 out err tab epoch sequence kind key payload rest
-  local handled=0 failed=0 ack_through ack_generation
+  local handled=0 failed=0 ack_through ack_generation ack_out
   out=$(mktemp "$state/.subsuper-wake-drain.XXXXXX") || return 1
   err=$(mktemp "$state/.subsuper-wake-drain.XXXXXX") || { rm -f "$out"; return 1; }
   if ! "$FM_DAEMON_DIR/fm-wake-drain.sh" > "$out" 2> "$err"; then
@@ -1723,8 +1723,11 @@ handle_durable_wakes() {  # <watcher-reason> <state>
     log "wake drain omitted its generation-bound acknowledgement; retaining durable wakes"
     return 1
   fi
-  "$FM_DAEMON_DIR/fm-wake-drain.sh" --ack-through "$ack_through" \
-    --recovery-generation "$ack_generation"
+  # The acknowledgement's confirmation line belongs in the daemon log, not the
+  # pane the daemon runs in; its diagnostics still reach stderr.
+  ack_out=$("$FM_DAEMON_DIR/fm-wake-drain.sh" --ack-through "$ack_through" \
+    --recovery-generation "$ack_generation") || return 1
+  [ -z "$ack_out" ] || log "$ack_out"
 }
 
 # --- log --------------------------------------------------------------------
