@@ -250,6 +250,11 @@ cmd_arm() {
   id=$(cmd_source_id "$artifact") || exit 1
   real=$(perl -MCwd=realpath -e '$p = realpath($ARGV[0]); defined($p) or exit 1; print "$p\n"' "$artifact" 2>/dev/null) \
     || die "cannot resolve the artifact path: $artifact"
+  # The listener resolves its server from the board's saved session on every
+  # poll, so without one it would die at once. Refuse before registering, so
+  # nothing is left for reconcile to restart into the same failure.
+  (apply_session_host "$real") \
+    || die "open the board with lavish-axi so it has a saved session, then arm it again: $real"
   listener=("$SCRIPT_DIR/fm-procevent-lavish.sh" poll "$real")
   [ -z "$reply_file" ] || listener+=(--agent-reply-file "$reply_file")
   if [ -n "$task" ]; then

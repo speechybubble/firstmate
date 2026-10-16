@@ -46,8 +46,13 @@
 #            package identity captured with them.
 # ensure-listening
 #            Confirm the current registration generation's listener is running.
-#            Starts one when nothing live is in the way, and returns only after
-#            that generation's live claim or its launch stamp says it started.
+#            Starts one when nothing live is in the way, and returns 0 only on
+#            a result captured since the call began, or on that generation's
+#            live claim once its source command has run for a short settle or
+#            when the wait ends. A runner seen exiting with no result is a
+#            nonzero result that says so; one that fails after the wait is
+#            outside what this confirmation can see. A runner first seen late
+#            in the window extends the wait once, by the window plus the settle.
 #            The wait is the reconcile confirm window and ends early on evidence.
 #            No evidence within the window is a nonzero result. Exit 3 means a
 #            live listener from another registration generation still held the
@@ -1923,18 +1928,33 @@ confirm_launched_runners() {  # <source-id><TAB><registration-identity><TAB><lau
 }
 
 # 0 when this registration generation holds a live claim, 3 when another
-# generation does, 1 otherwise.
+# generation does, 1 when the source was observed with no live owner, 2 when
+# ownership could not be observed (the lock was busy or the claim is in any
+# other state).
 generation_is_listening() {  # <source-id> <registration-identity>
-  local id=$1 identity=$2 state result=1
-  fm_procevent_source_lock_try_acquire "$id" || return 1
+  local id=$1 identity=$2 state result=2
+  fm_procevent_source_lock_try_acquire "$id" || return 2
   fm_procevent_claim_state_locked "$id"
   state=$?
-  if [ "$state" -eq 0 ]; then
-    result=3
-    [ "$FM_PROCEVENT_CLAIM_REG_IDENTITY" != "$identity" ] || result=0
-  fi
+  case "$state" in
+    0)
+      result=3
+      [ "$FM_PROCEVENT_CLAIM_REG_IDENTITY" != "$identity" ] || result=0
+      ;;
+    1) result=1 ;;
+  esac
   fm_procevent_source_lock_release "$id"
   return "$result"
+}
+
+# Every captured result file name for one source, so a caller can tell whether
+# a runner captured anything since an earlier snapshot.
+source_result_names() {  # <source-id>
+  local result
+  for result in "$(fm_procevent_inbox_dir "$STATE")/$1".*.result; do
+    [ -e "$result" ] || continue
+    printf '%s\n' "${result##*/}"
+  done
 }
 
 # 0 when no live, uncertain, leaderless, terminal, or undisplaceable claim
@@ -1951,12 +1971,33 @@ generation_can_launch() {  # <source-id>
   return "$result"
 }
 
-# Public readiness for one source. Same evidence reconcile uses after a launch:
-# a live claim bound to this registration generation, or that generation's
-# launch stamp advancing. Returns as soon as either appears. A fixed sleep is
-# not success.
+# How long a listener's source command must have been running under a live
+# claim before ensure-listening calls it listening.
+ENSURE_LISTENING_SETTLE_SECONDS=1
+
+# True once the monotonic launch stamp value is at least the settle old. A
+# stamp ahead of the clock predates a reboot and is never settled.
+launch_settled() {  # <stamp-value>
+  perl -MTime::HiRes=clock_gettime,CLOCK_MONOTONIC -e '
+    my ($mark, $settle) = @ARGV;
+    $mark =~ /\A[0-9]+(?:\.[0-9]+)?\z/ or exit 1;
+    my $now = clock_gettime(CLOCK_MONOTONIC);
+    exit($now >= $mark && $now - $mark >= $settle ? 0 : 1);
+  ' "$1" "$ENSURE_LISTENING_SETTLE_SECONDS"
+}
+
+# Public readiness for one source: a result captured since the call began, a
+# live claim bound to this registration generation whose source command has
+# been running for the settle, or that claim still held when the wait ends.
+# Returns as soon as the first two appear. A fixed sleep is not success, and
+# neither is a launch stamp or a first sight of the claim: the runner holds its
+# claim while the source command runs and writes the stamp just before starting
+# it, so a command that fails at once - a Lavish poll with no server or saved
+# session to reach - shows both for an instant and then exits with nothing
+# captured, which this reports as an exit.
 cmd_ensure_listening() {
-  local id=${1-} identity before mark stamp deadline window started_once=0 listening
+  local id=${1-} identity before before_results mark stamp deadline window started_once=0 listening
+  local runner_seen=0 last_live=0
   [ "$#" -eq 1 ] || usage
   fm_procevent_source_id_valid "$id" || die "source id must be path-safe: $id"
   window=$(fm_procevent_launch_confirm_seconds) \
@@ -1969,17 +2010,39 @@ cmd_ensure_listening() {
   if stamp=$(fm_procevent_launch_floor_stamp_path "$STATE" "$id" "$identity"); then
     before=$(cat -- "$stamp" 2>/dev/null || true)
   fi
+  before_results=$(source_result_names "$id")
   deadline=$((SECONDS + 10#$window + 1))
   while :; do
     listening=0
     generation_is_listening "$id" "$identity" || listening=$?
-    [ "$listening" -ne 0 ] || return 0
     mark=
     if stamp=$(fm_procevent_launch_floor_stamp_path "$STATE" "$id" "$identity"); then
       mark=$(cat -- "$stamp" 2>/dev/null || true)
     fi
-    if [ -n "$mark" ] && [ "$mark" != "$before" ]; then
+    if [ "$listening" -eq 0 ] && [ -n "$mark" ] && launch_settled "$mark"; then
       return 0
+    fi
+    if [ -n "$mark" ] && [ "$mark" != "$before" ]; then
+      # A runner captures before it releases its claim, so ownership is read
+      # first and the capture check after it cannot miss one that just landed.
+      [ "$(source_result_names "$id")" = "$before_results" ] || return 0
+      if [ "$listening" -eq 1 ]; then
+        printf 'error: listener exited without listening or capturing a result: %s\n' "$id" >&2
+        return 1
+      fi
+    fi
+    case "$listening" in
+      0) last_live=1 ;;
+      1|3) last_live=0 ;;
+    esac
+    # A runner first seen late in the window, by its claim or its stamp, still
+    # gets a full window plus the settle, so a slow machine is not mistaken
+    # for a listener that cannot start. Extended once, so bounded.
+    if [ "$runner_seen" -eq 0 ] \
+      && { [ "$listening" -eq 0 ] || { [ -n "$mark" ] && [ "$mark" != "$before" ]; }; }; then
+      runner_seen=1
+      [ "$deadline" -ge $((SECONDS + 10#$window + ENSURE_LISTENING_SETTLE_SECONDS + 1)) ] \
+        || deadline=$((SECONDS + 10#$window + ENSURE_LISTENING_SETTLE_SECONDS + 1))
     fi
     if [ "$started_once" -eq 0 ] && generation_can_launch "$id"; then
       detach_runner "$id"
@@ -1988,6 +2051,10 @@ cmd_ensure_listening() {
     [ "$SECONDS" -lt "$deadline" ] || break
     sleep 0.05
   done
+  # A claim still held when the wait ends is listening as far as this can see:
+  # a loaded machine may not have reached the source command yet, and nothing
+  # showed it exiting.
+  [ "$last_live" -eq 0 ] || return 0
   [ "$listening" -ne 3 ] || return 3
   printf 'error: listener is not running: %s\n' "$id" >&2
   return 1

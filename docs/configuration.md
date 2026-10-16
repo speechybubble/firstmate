@@ -1972,6 +1972,7 @@ A long-polling external process is registered as a *source* through its adapter,
 **Open the Lavish artifact first**
 
 Before arming any Lavish source, open its artifact with `lavish-axi` so the saved session identifies the board's server; reply and poll attempts derive their host and port from that session and refuse missing or invalid session evidence before posting or consuming a staged worker reply.
+`arm` refuses a board without exactly one valid saved session before registering anything, naming that missing session, so no listener is left for `reconcile` to restart into the same failure.
 
 **Retry interrupted Lavish polls**
 
@@ -1990,7 +1991,9 @@ After opening the artifact as required above, the worker arms it with `bin/fm-pr
 
 `arm` prints `armed` only after the process-event owner confirms this registration generation's listener is running, and otherwise returns nonzero without that line.
 
-- The confirmation is the same live claim or launch-stamp evidence `reconcile` already uses, bounded by `FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS`, and a failed confirmation retires a source that never started unless `retire` refuses because something may still own it, in which case the registration stays for `reconcile` or a human.
+- The confirmation, bounded by `FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS`, is stricter than the launch evidence `reconcile` uses: it needs a result captured since the arm began, or this generation's live claim after its source command has run for a one-second settle or still held when the wait ends, because a source command that fails at once shows a claim and a launch stamp for an instant before exiting with nothing captured.
+- A runner first seen late in the window extends the wait once, by the window plus the settle, and a runner that exits without a result is reported as having exited rather than as never starting.
+- A failed confirmation retires a source that never started unless `retire` refuses because something may still own it, in which case the registration stays for `reconcile` or a human.
 - An earlier registration's listener that releases the board inside the confirm window lets the new registration start, and `arm` then reports `armed` as usual.
 - When a live listener from an earlier registration of the same board still holds it when the window ends, `arm` exits zero with `still-listening` instead of `armed`, because that earlier listener keeps serving the board and the new registration takes effect only after the source is retired and armed again.
 - The arm is refused unless that task id has valid, identity-matching endpoint metadata, because a board whose owner has no endpoint would collect feedback nobody can be told about.
