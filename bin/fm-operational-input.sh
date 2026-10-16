@@ -330,6 +330,48 @@ fm_operational_doorbell_kind() {  # <message> <state-dir> <result-var>
   fm_operational_record_kind "$named_record" "$result_var"
 }
 
+# --- steering-inbox doorbell ---------------------------------------------------
+# bin/fm-task-inbox-lib.sh rings a task's durable steering inbox with this
+# constant line; it is built and recognized only here so the ring and the
+# Claude continuity guard cannot drift apart. It names the inbox by the literal
+# "$FM_TASK_INBOX", which bin/fm-spawn.sh exports into every launch, and by the
+# inbox directory's short name, single-quoted with ' written as '\''. Like the
+# operational doorbell the text proves nothing alone: a consumer counts it as
+# Firstmate's only when the named inbox is that session's own $FM_TASK_INBOX,
+# so a verbatim copy of a session's own doorbell is treated as Firstmate's.
+FM_STEERING_DOORBELL_PREFIX=": Firstmate instruction waiting: list \"\$FM_TASK_INBOX\"/*.msg in your '"
+FM_STEERING_DOORBELL_SUFFIX="' steering inbox, read and act on each in numeric order, then mv each into its handled/."
+FM_STEERING_DOORBELL_QUOTE="'\\''"
+
+# The doorbell line for the inbox named <inbox-name>; exits 1 for a name a
+# printable-ASCII line cannot carry.
+fm_steering_doorbell_build() {  # <inbox-name> <result-var>
+  local inbox_name=${1-} result_var=${2-} LC_ALL=C
+  [ -n "$result_var" ] || return 2
+  case "$inbox_name" in
+    ''|*[![:print:]]*) return 1 ;;
+  esac
+  printf -v "$result_var" '%s%s%s' "$FM_STEERING_DOORBELL_PREFIX" \
+    "${inbox_name//\'/"$FM_STEERING_DOORBELL_QUOTE"}" "$FM_STEERING_DOORBELL_SUFFIX"
+}
+
+# The inbox name an exact doorbell line carries; no filesystem access.
+fm_steering_doorbell_inbox() {  # <message> <result-var>
+  local message=${1-} result_var=${2-} carried inbox_name rebuilt LC_ALL=C
+  [ -n "$result_var" ] || return 2
+  case "$message" in
+    "$FM_STEERING_DOORBELL_PREFIX"?*"$FM_STEERING_DOORBELL_SUFFIX") ;;
+    *) return 1 ;;
+  esac
+  carried=${message#"$FM_STEERING_DOORBELL_PREFIX"}
+  carried=${carried%"$FM_STEERING_DOORBELL_SUFFIX"}
+  inbox_name=${carried//"$FM_STEERING_DOORBELL_QUOTE"/\'}
+  # Only text the builder could have produced: a stray quote does not round-trip.
+  fm_steering_doorbell_build "$inbox_name" rebuilt || return 1
+  [ "$rebuilt" = "$message" ] || return 1
+  printf -v "$result_var" '%s' "$inbox_name"
+}
+
 fm_operational_home_state() {
   local root
   if [ -n "${FM_STATE_OVERRIDE:-}" ]; then

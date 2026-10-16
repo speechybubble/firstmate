@@ -233,6 +233,26 @@ test_record_backed_doorbell_carrier() {
   pass "record-backed carrier: Claude-only selection, an ASCII doorbell naming an exact envelope record, home-bound open, and no recognition without the record"
 }
 
+test_steering_doorbell_round_trip() {
+  local name doorbell parsed near
+  for name in t1.inbox "sm-design.inbox" "it's.inbox" x; do
+    fm_steering_doorbell_build "$name" doorbell || fail "could not build a steering doorbell for '$name'"
+    printf '%s' "$doorbell" | LC_ALL=C grep -q '[^[:print:]]' \
+      && fail "the steering doorbell is not one printable-ASCII line: $doorbell"
+    fm_steering_doorbell_inbox "$doorbell" parsed || fail "the owner cannot parse its own steering doorbell: $doorbell"
+    [ "$parsed" = "$name" ] || fail "steering doorbell round trip changed '$name' into '$parsed'"
+  done
+  fm_steering_doorbell_build "$(printf 'bad\tname')" doorbell \
+    && fail "a non-printable inbox name produced a steering doorbell"
+  fm_steering_doorbell_build t1.inbox doorbell
+  for near in "Why did I get this? $doorbell" "$doorbell more" " $doorbell" \
+      "${doorbell/t1.inbox/a\'b}" "${doorbell/\'t1.inbox\'/\'\'}"; do
+    fm_steering_doorbell_inbox "$near" parsed \
+      && fail "a steering doorbell near miss was recognized as '$parsed': $near"
+  done
+  pass "steering doorbell builds and parses back exactly, and near misses stay unrecognized"
+}
+
 test_record_prune_outgrows_one_argument_list() {
   local tmp state pad left
   tmp=$(fm_test_tmproot fm-operational-input-flood)
@@ -255,4 +275,5 @@ test_genuine_near_misses_remain_unclassified
 test_cross_language_adapter_uses_the_owner
 test_invalid_current_encodings_are_rejected
 test_record_backed_doorbell_carrier
+test_steering_doorbell_round_trip
 test_record_prune_outgrows_one_argument_list
