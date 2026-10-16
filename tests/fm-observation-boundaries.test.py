@@ -285,10 +285,8 @@ exit 0
                     f"PR {gerrit_url} published for review · ungated history claim: "),
                     current["detail"])
             else:
-                # A no-mistakes ship done naming no PR is the validation handoff.
                 self.assertEqual(current["state"], "done")
-                self.assertEqual(current["detail"],
-                                 f"finished {task_id} · handoff ready: instruct /no-mistakes")
+                self.assertEqual(current["detail"], f"finished {task_id}")
         self.assertEqual([row["id"] for row in summary["active_children"]], ["active"])
         self.assertIn("held", [row["id"] for row in summary["decisions_open"]])
         self.assertEqual(sorted(row["id"] for row in summary["endpoints"]), ["active", "held"])

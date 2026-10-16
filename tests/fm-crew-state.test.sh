@@ -2482,6 +2482,9 @@ test_no_mistakes_prevalidation_done_stays_done() {
   assert_not_contains "$out" "state: blocked" "pre-validation done: must not be the named-head gate"
   assert_contains "$out" "implementation complete · handoff ready: instruct /no-mistakes" \
     "the pipeline handoff must tell the supervisor to start validation"
+  out=$(FM_CREW_STATE_HISTORY_ONLY=1 run_crew_state "$d" preval)
+  assert_contains "$out" "state: done" "a completed task's pre-validation done: reads done"
+  assert_not_contains "$out" "handoff ready" "a task recorded complete is not told to start validation"
   pass "no-mistakes pre-validation done: stays current-state done and reads handoff-ready"
 }
 
