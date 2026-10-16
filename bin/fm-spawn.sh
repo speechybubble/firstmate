@@ -22,7 +22,8 @@
 #   ship or scout spawn also refuses leftover `{TASK}` / `{FIRSTMATE_SPEC}`
 #   placeholders, an empty Task, an incomplete pair of Task subsections, a
 #   `## Captain's intent` line opening with a Captain label or address, or a
-#   `### Expert prompt` that bin/fm-dod-lib.sh does not accept; a brief
+#   `### Expert prompt` that bin/fm-dod-lib.sh does not accept, including one
+#   missing from a brief carrying its version marker; an unmarked brief
 #   scaffolded before that subsection existed warns and launches.
 #   Every ship or scout spawn renders `launch-brief.md`; for a no-mistakes ship
 #   it also carries the current `--intent` contract and the extracted captain
@@ -3371,9 +3372,7 @@ if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
     fm_brief_expert_prompt_refusal "$BRIEF" "$EXPERT_PROMPT_PROBLEM" spawn
     exit 1
   fi
-  if ! fm_brief_expert_prompt_present "$BRIEF"; then
-    echo "warning: $BRIEF has no ### Expert prompt subsection (scaffolded before briefs carried one); launching without an expert prompt" >&2
-  fi
+  fm_brief_expert_prompt_legacy_warning "$BRIEF"
   if ADDRESS_LINE=$(fm_brief_intent_address_line "$BRIEF"); then
     echo "error: $BRIEF ## Captain's intent has an operator-address line: $ADDRESS_LINE; write the captain's actual words without a Captain label or address before spawn, since the heading already records provenance" >&2
     exit 1

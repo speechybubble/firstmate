@@ -220,6 +220,7 @@ if EXPERT_PROMPT_PROBLEM=$(fm_brief_expert_prompt_problem "$SCOUT_BRIEF"); then
   fm_brief_expert_prompt_refusal "$SCOUT_BRIEF" "$EXPERT_PROMPT_PROBLEM" promotion
   exit 1
 fi
+fm_brief_expert_prompt_legacy_warning "$SCOUT_BRIEF"
 if ADDRESS_LINE=$(fm_brief_intent_address_line "$SCOUT_BRIEF"); then
   echo "error: $SCOUT_BRIEF ## Captain's intent has an operator-address line: $ADDRESS_LINE; write the captain's actual words without a Captain label or address before promotion, since the heading already records provenance" >&2
   exit 1

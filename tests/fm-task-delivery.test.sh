@@ -62,6 +62,13 @@ fill_brief_subsections() {  # <file> <intent> <spec> [<expert-prompt; \n separat
   printf '%s\n' "$content" > "$file"
 }
 
+# Remove the scaffolded `### Expert prompt` heading and the default skip line
+# fill_brief_subsections writes under it.
+delete_expert_prompt() {  # <file>
+  grep -v -x -F -e '### Expert prompt' -e 'routine: skipped - delivery fixture' "$1" > "$1.deleted"
+  mv "$1.deleted" "$1"
+}
+
 run_spawn() {  # <home> <fakebin> <spawn-args...>
   local home=$1 fakebin=$2
   shift 2
@@ -629,6 +636,19 @@ EOF
   [ "$status" -ne 0 ] || fail "scout spawn should refuse an unfilled expert prompt"
   assert_contains "$out" "still contains {EXPERT_PROMPT}" "scout refusal did not name the placeholder"
 
+  id="expert-deleted-ship"
+  FM_HOME="$home" "$BRIEF" "$id" proj --mode no-mistakes >/dev/null 2>&1 \
+    || fail "deleted-heading ship brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Ship the expert prompt slot." "Extend the placeholder check."
+  delete_expert_prompt "$home/data/$id/brief.md"
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off)
+  status=$?
+  [ "$status" -ne 0 ] || fail "spawn should refuse a scaffolded brief whose expert prompt was deleted"
+  assert_contains "$out" "### Expert prompt is missing" "deleted-heading refusal did not name the missing subsection"
+  assert_contains "$out" "before spawn" "deleted-heading refusal did not name its step"
+  assert_not_contains "$out" "warning:" "a deleted expert prompt took the pre-change path"
+  assert_absent "$home/state/$id.meta" "deleted-heading spawn wrote task metadata"
+
   id="expert-legacy-ship"
   write_brief "$home" "$id" direct-PR
   out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode direct-PR --yolo off)
@@ -637,6 +657,31 @@ EOF
   assert_contains "$out" "has no ### Expert prompt subsection" \
     "a pre-change brief launched without naming the missing expert prompt"
   assert_present "$home/data/$id/launch-brief.md" "a pre-change brief did not reach launch"
+
+  id="expert-promote-deleted"
+  meta="$home/state/$id.meta"
+  printf 'window=fm-%s\nkind=scout\nworktree=/tmp/wt\n' "$id" > "$meta"
+  FM_HOME="$home" "$BRIEF" "$id" proj --scout >/dev/null 2>&1 \
+    || fail "deleted-heading scout brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Investigate the slot." "Report only."
+  delete_expert_prompt "$home/data/$id/brief.md"
+  out=$(FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$PROMOTE" "$id" --mode direct-PR --yolo off 2>&1)
+  status=$?
+  [ "$status" -ne 0 ] || fail "promotion should refuse a scaffolded brief whose expert prompt was deleted"
+  assert_contains "$out" "### Expert prompt is missing" "deleted-heading promotion did not name the missing subsection"
+  assert_contains "$out" "before promotion" "deleted-heading promotion did not name its step"
+  assert_grep 'kind=scout' "$meta" "refused deleted-heading promotion changed the task record"
+
+  id="expert-promote-legacy"
+  meta="$home/state/$id.meta"
+  printf 'window=fm-%s\nkind=scout\nworktree=/tmp/wt\n' "$id" > "$meta"
+  write_brief "$home" "$id"
+  out=$(FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$PROMOTE" "$id" --mode direct-PR --yolo off 2>&1)
+  status=$?
+  expect_code 0 "$status" "promotion of a pre-change scout brief should succeed"
+  assert_contains "$out" "warning: $home/data/$id/brief.md has no ### Expert prompt subsection" \
+    "a pre-change promotion did not name the missing expert prompt"
+  assert_grep 'kind=ship' "$meta" "pre-change promotion did not change the task record"
 
   id="expert-promote-unfilled"
   meta="$home/state/$id.meta"
@@ -818,6 +863,17 @@ EOF
   assert_contains "$out" "must contain nonempty ## Captain's intent and ## Firstmate spec" \
     "empty Task subsections were not rejected semantically"
   assert_absent "$home/state/$id.meta" "empty-subsection spawn wrote task metadata"
+
+  id=delivery-empty-spec-ship
+  FM_HOME="$home" "$BRIEF" "$id" proj --mode direct-PR >/dev/null 2>&1 \
+    || fail "empty-spec brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Ship the narrow fix." "" "Act as a release engineer."
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode direct-PR --yolo off)
+  status=$?
+  [ "$status" -ne 0 ] || fail "spawn of an empty Firstmate spec with a filled expert prompt should exit non-zero"
+  assert_contains "$out" "must contain nonempty ## Captain's intent and ## Firstmate spec" \
+    "a filled expert prompt stood in for an empty Firstmate spec"
+  assert_absent "$home/state/$id.meta" "empty-spec spawn wrote task metadata"
 
   id=promote-unfilled-e1
   meta="$home/state/$id.meta"

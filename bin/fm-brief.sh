@@ -10,8 +10,9 @@
 # under `## Firstmate spec` (build instructions, which are never the captain's
 # intent), whose nested `### Expert prompt` holds `{EXPERT_PROMPT}`: the expert
 # prompt Firstmate wrote for this work, or one `routine: skipped - <reason>`
-# line. bin/fm-dod-lib.sh owns the no-mistakes `--intent` contract those
-# subsections feed and the accepted expert-prompt fillings; bin/fm-spawn.sh
+# line. `# Task` opens with the expert-prompt version marker. bin/fm-dod-lib.sh
+# owns that marker, the no-mistakes `--intent` contract those subsections feed,
+# and the accepted expert-prompt fillings; bin/fm-spawn.sh
 # refuses leftover placeholders, an unaccepted expert prompt, and a
 # `## Captain's intent` line opening with a Captain label or address. Secondmate
 # charters still use a single `{TASK}` charter fill. Firstmate may adjust other
@@ -581,8 +582,9 @@ EOF
 HERDR_SECTION=${HERDR_SECTION%$'\n'}
 fi
 
-IFS= read -r -d '' TASK_SECTION <<'EOF' || true
+IFS= read -r -d '' TASK_SECTION <<EOF || true
 # Task
+$FM_BRIEF_EXPERT_PROMPT_MARKER
 ## Captain's intent
 {TASK}
 
