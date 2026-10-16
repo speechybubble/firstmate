@@ -1,0 +1,6 @@
+$ [base 02da2cf8] fm-pr-merge.sh expert-prompt-slot -- --merge
+error: invalid PR merge request
+[exit 2]
+$ [base 02da2cf8] fm-pr-merge.sh --help
+error: invalid PR merge request
+[exit 2]
