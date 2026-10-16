@@ -151,6 +151,38 @@ test_decisions_flag_lists_everything_without_consuming_anything() {
   pass "--decisions lists every open decision in full and consumes nothing"
 }
 
+test_decisions_flag_skips_the_drain_byte_caps() {
+  local dir state out err list long i
+  dir=$(make_case list-uncapped)
+  state="$dir/state"; out="$dir/drain.out"; err="$dir/drain.err"; list="$dir/list.out"
+  long="answer the long question $(printf 'x%.0s' $(seq 1 300)) end-of-question"
+  printf 'needs-decision [key=long]: %s\n' "$long" > "$state/long.status"
+  for i in $(seq 1 30); do
+    printf 'needs-decision [key=k%s]: decision number %s %s\n' "$i" "$i" "$(printf 'y%.0s' $(seq 1 150))" \
+      > "$state/many$i.status"
+  done
+
+  drain_with_wake "$state" "$out" "$err" capped
+  if grep -F 'end-of-question' "$out" >/dev/null; then
+    fail "setup error: the drain printed the long decision without its per-item cap"
+  fi
+  grep -F 'more omitted (byte cap)' "$out" >/dev/null \
+    || fail "setup error: the drain printed every decision without its section cap: $(cat "$out")"
+
+  FM_STATE_OVERRIDE="$state" "$DRAIN" --decisions > "$list" 2> "$err" \
+    || fail "--decisions failed: $(cat "$err")"
+  grep -F "long [key=long] needs-decision: $long" "$list" >/dev/null \
+    || fail "--decisions truncated a long decision: $(cat "$list")"
+  for i in $(seq 1 30); do
+    grep -F "many$i [key=k$i] needs-decision: decision number $i " "$list" >/dev/null \
+      || fail "--decisions omitted decision $i: $(cat "$list")"
+  done
+  if grep -F 'omitted (byte cap)' "$list" >/dev/null; then
+    fail "--decisions applied the drain's section byte cap: $(cat "$list")"
+  fi
+  pass "--decisions prints every open decision untruncated while drains keep their caps"
+}
+
 test_new_session_sees_every_decision_in_full_again() {
   local dir state out err
   dir=$(make_case new-session)
@@ -178,9 +210,11 @@ test_branch_acknowledgement_does_not_fold_for_main() {
   append_wake "$state" signal trelume.status "signal: trelume" || fail "queueing the branch wake failed"
   sleep 30 &
   owner=$!
-  FM_STATE_OVERRIDE="$state" "$ROOT/bin/fm-wake-grant.sh" activate "$owner" fold-owner >/dev/null \
-    && FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$ROOT/bin/fm-wake-grant.sh" publish fold-owner --tasks trelume --rows 1 >/dev/null \
-    || { kill "$owner" 2>/dev/null || true; fail "publishing the branch grant failed"; }
+  if ! FM_STATE_OVERRIDE="$state" "$ROOT/bin/fm-wake-grant.sh" activate "$owner" fold-owner >/dev/null \
+    || ! FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$ROOT/bin/fm-wake-grant.sh" publish fold-owner --tasks trelume --rows 1 >/dev/null; then
+    kill "$owner" 2>/dev/null || true
+    fail "publishing the branch grant failed"
+  fi
 
   FM_STATE_OVERRIDE="$state" FM_SUPERVISION_ACTOR=branch "$DRAIN" > "$out" 2> "$err" \
     || { kill "$owner" 2>/dev/null || true; fail "the branch drain failed: $(cat "$err")"; }
@@ -234,6 +268,7 @@ test_unacknowledged_repeat_stays_in_full
 test_acknowledged_repeat_folds_into_one_line
 test_changed_and_new_decisions_print_in_full_beside_the_fold
 test_decisions_flag_lists_everything_without_consuming_anything
+test_decisions_flag_skips_the_drain_byte_caps
 test_new_session_sees_every_decision_in_full_again
 test_branch_acknowledgement_does_not_fold_for_main
 test_truncated_read_re_presents_unread_status_until_acknowledged

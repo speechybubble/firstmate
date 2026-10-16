@@ -279,8 +279,8 @@ assert_watcher_liveness() {
 # The helper ignores non-presentation and legacy keys, so this is a narrow
 # receipt path rather than a second interpretation of general check wakes.
 inactive_outcome_fingerprints() { # <sequence> <key-prefix> [<rows-file>]
-  local cutoff=$1 prefix=$2 rows=${3:-} epoch seq kind key payload
-  while IFS=$(printf '\t') read -r epoch seq kind key payload; do
+  local cutoff=$1 prefix=$2 rows=${3:-} seq kind key
+  while IFS=$(printf '\t') read -r _ seq kind key _; do
     [ "$kind" = check ] || continue
     case "$seq" in ''|*[!0-9]*) continue ;; esac
     [ "$seq" -le "$cutoff" ] || continue
@@ -496,7 +496,8 @@ EOF
 # acknowledged drain already printed in full, in this same session and with the
 # same text, is named on one fold line instead of repeated; DECISIONS_PRESENTED
 # collects what this presentation showed (in full or folded) for the baseline
-# its acknowledgement records. Mode `full` (--decisions) prints every one.
+# its acknowledgement records. Mode `full` (--decisions) prints every one in
+# full, with no per-item or section byte cap.
 print_open_decisions_section() {  # <snapshot> <fold|full>
   local snapshot=${1:-} mode=${2:-fold} open task key verb note line item_bytes=220 global_bytes=4000
   local output='' used=0 shown=0 omitted=0 bytes hash='' seen='' seen_since='' folded='' folded_count=0 label
@@ -537,19 +538,21 @@ print_open_decisions_section() {  # <snapshot> <fold|full>
     line="$task"
     [ "$key" = default ] || line="$line [key=$key]"
     line="$line $verb: $note"
-    # The shared cut counts the item's own characters; the trailing newline this
-    # section's global budget also pays for is this caller's, so the per-item
-    # allowance passed down is one short of the cap.
-    fm_cap_line_var "$line" $((item_bytes - 1))
-    line=$FM_LINE_CAP_LINE
-    bytes=$(( ${#line} + 1 ))
-    if [ $((used + bytes)) -gt "$global_bytes" ]; then
-      omitted=$((omitted + 1))
-      continue
+    if [ "$mode" = fold ]; then
+      # The shared cut counts the item's own characters; the trailing newline this
+      # section's global budget also pays for is this caller's, so the per-item
+      # allowance passed down is one short of the cap.
+      fm_cap_line_var "$line" $((item_bytes - 1))
+      line=$FM_LINE_CAP_LINE
+      bytes=$(( ${#line} + 1 ))
+      if [ $((used + bytes)) -gt "$global_bytes" ]; then
+        omitted=$((omitted + 1))
+        continue
+      fi
+      used=$((used + bytes))
     fi
     output="$output$line
 "
-    used=$((used + bytes))
     shown=$((shown + 1))
     [ "$mode" != fold ] || DECISIONS_PRESENTED="${DECISIONS_PRESENTED}decision	$task	$key	$hash
 "
