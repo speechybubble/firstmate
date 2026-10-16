@@ -52,11 +52,13 @@ write_brief() {  # <home> <id> [<recorded-mode>]
   } > "$home/data/$id/brief.md"
 }
 
-fill_brief_subsections() {  # <file> <intent> <spec>
-  local file=$1 intent=$2 spec=$3 content
+fill_brief_subsections() {  # <file> <intent> <spec> [<expert-prompt; \n separates lines>]
+  local file=$1 intent=$2 spec=$3 expert content
+  expert=$(printf '%b' "${4-routine: skipped - delivery fixture}")
   content=$(cat "$file")
   content=${content//'{TASK}'/$intent}
   content=${content//'{FIRSTMATE_SPEC}'/$spec}
+  content=${content//'{EXPERT_PROMPT}'/$expert}
   printf '%s\n' "$content" > "$file"
 }
 
@@ -565,6 +567,91 @@ EOF
   err=$(FM_HOME="$home" "$PROJECT_MODE" typoproj 2>&1 >/dev/null)
   assert_contains "$err" "unknown mode" "a typo'd registry mode stopped warning"
   pass "fm-project-mode: the conditional policy is accepted, mapped for mechanical callers, and readable raw"
+}
+
+# Every scaffolded ship or scout brief carries `### Expert prompt` under
+# `## Firstmate spec`; spawn and promotion launch it only with the expert prompt
+# or one reasoned `routine: skipped - ` line, while a brief scaffolded before the
+# subsection existed still launches with a warning.
+test_spawn_requires_an_expert_prompt_or_reasoned_skip() {
+  local rec home proj fakebin out status id label expert expect meta authorized
+  rec=$(make_home expert)
+  IFS='|' read -r home proj fakebin <<EOF
+$rec
+EOF
+
+  while IFS='|' read -r label expert expect; do
+    [ -n "$label" ] || continue
+    id="expert-refused-$label"
+    FM_HOME="$home" "$BRIEF" "$id" proj --mode no-mistakes >/dev/null 2>&1 \
+      || fail "$label: ship brief should scaffold"
+    fill_brief_subsections "$home/data/$id/brief.md" "Ship the expert prompt slot." "Extend the placeholder check." "$expert"
+    out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off)
+    status=$?
+    [ "$status" -ne 0 ] || fail "$label: spawn should refuse the expert prompt"
+    assert_contains "$out" "### Expert prompt $expect" "$label: refusal did not name the problem"
+    assert_contains "$out" "expert-prompt-before-work rule" "$label: refusal did not name the rule"
+    assert_contains "$out" "the expert prompt Firstmate wrote for this work" "$label: refusal did not name the expert-prompt form"
+    assert_contains "$out" "routine: skipped - <reason>" "$label: refusal did not name the skip form"
+    assert_absent "$home/state/$id.meta" "$label: refused spawn wrote task metadata"
+  done <<'EOF'
+placeholder|{EXPERT_PROMPT}|still contains {EXPERT_PROMPT}
+empty||is empty
+skip-no-reason|routine: skipped - |has a routine: skipped line with no reason
+skip-no-separator|routine: skipped|has a routine: skipped line with no reason
+skip-mixed|Act as a release engineer.\nroutine: skipped - also routine|mixes a routine: skipped line with other text
+EOF
+
+  while IFS='|' read -r label expert; do
+    [ -n "$label" ] || continue
+    id="expert-accepted-$label"
+    FM_HOME="$home" "$BRIEF" "$id" proj --mode no-mistakes >/dev/null 2>&1 \
+      || fail "$label: ship brief should scaffold"
+    fill_brief_subsections "$home/data/$id/brief.md" "Ship the expert prompt slot." "Extend the placeholder check." "$expert"
+    out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off)
+    assert_not_contains "$out" "### Expert prompt" "$label: an accepted expert prompt was refused or warned"
+    assert_present "$home/data/$id/launch-brief.md" "$label: accepted brief did not reach launch"
+    authorized=$(awk '$0 == "## Captain intent authorized for --intent" { emit=1; next } emit { print }' "$home/data/$id/launch-brief.md")
+    assert_contains "$authorized" "Ship the expert prompt slot." "$label: launch lost the captain intent"
+    assert_not_contains "$authorized" "release engineer" "$label: the expert prompt leaked into --intent"
+    assert_not_contains "$authorized" "routine: skipped" "$label: the skip line leaked into --intent"
+  done <<'EOF'
+prompt|Act as a release engineer who has shipped this gate before.\nOutcome: no brief launches without the slot.
+skip|routine: skipped - verbatim capture with nothing to design
+EOF
+
+  id="expert-unfilled-scout"
+  FM_HOME="$home" "$BRIEF" "$id" proj --scout >/dev/null 2>&1 \
+    || fail "scout brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Investigate the slot." "Report only." '{EXPERT_PROMPT}'
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --scout)
+  status=$?
+  [ "$status" -ne 0 ] || fail "scout spawn should refuse an unfilled expert prompt"
+  assert_contains "$out" "still contains {EXPERT_PROMPT}" "scout refusal did not name the placeholder"
+
+  id="expert-legacy-ship"
+  write_brief "$home" "$id" direct-PR
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode direct-PR --yolo off)
+  assert_not_contains "$out" "error: $home/data/$id/brief.md ### Expert prompt" \
+    "a brief scaffolded before the expert prompt existed was refused"
+  assert_contains "$out" "has no ### Expert prompt subsection" \
+    "a pre-change brief launched without naming the missing expert prompt"
+  assert_present "$home/data/$id/launch-brief.md" "a pre-change brief did not reach launch"
+
+  id="expert-promote-unfilled"
+  meta="$home/state/$id.meta"
+  mkdir -p "$home/state"
+  printf 'window=fm-%s\nkind=scout\nworktree=/tmp/wt\n' "$id" > "$meta"
+  FM_HOME="$home" "$BRIEF" "$id" proj --scout >/dev/null 2>&1 \
+    || fail "promotion scout brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Investigate the slot." "Report only." ''
+  out=$(FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$PROMOTE" "$id" --mode direct-PR --yolo off 2>&1)
+  status=$?
+  [ "$status" -ne 0 ] || fail "promotion should refuse an empty expert prompt"
+  assert_contains "$out" "### Expert prompt is empty" "promotion refusal did not name the empty subsection"
+  assert_contains "$out" "before promotion" "promotion refusal did not name its step"
+  assert_grep 'kind=scout' "$meta" "refused promotion changed the task record"
+  pass "fm-spawn/fm-promote: a brief launches only with an expert prompt or a reasoned routine skip"
 }
 
 # Spawn and promotion refuse leftover Task-subsection placeholders through the
@@ -1702,5 +1789,6 @@ test_spawn_refuses_a_registry_forge_it_cannot_read
 test_promotion_carries_the_forge_binding
 test_forge_forgejo_rides_the_same_binding
 test_spawn_and_promote_require_filled_task_subsections
+test_spawn_requires_an_expert_prompt_or_reasoned_skip
 test_project_mode_resolves_branch_prefix
 echo "# all fm-task-delivery tests passed"
