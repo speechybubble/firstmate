@@ -20,7 +20,7 @@ These skills are not captain-invocable; load them only at their precise triggers
 - `task-execution` - load when briefing, executing, or accepting a product behavior change, existing-fix verification, authorized multi-worker assignment, or long task with a measurable objective.
 - `verify-firstmate-brief` - load when changing brief generation or auditing the brief feature map.
 - `ask-user-authority` - load before deciding any ask-user finding.
-- `validation-supervision` - load when a ship starts or already has an active no-mistakes validation run, including a mid-run requirement change or finding, and before deciding or answering any ask-user finding.
+- `validation-supervision` - load when a ship starts, reports its no-mistakes implementation handoff (a first `done:` with no PR), or already has an active no-mistakes validation run, including a mid-run requirement change or finding, and before deciding or answering any ask-user finding.
 - `ship-landing` - load when a ship reports a PR or ready branch, when deciding or monitoring landing, and before task cleanup.
 - `scout-completion` - load when a scout reports completion, presents a visual artifact for iteration, or is being considered for promotion to implementation.
 - `quota-array-dispatch` - load before choosing among a matched crew-dispatch profile array from current quota-axi default TOON.

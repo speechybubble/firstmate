@@ -2480,7 +2480,38 @@ test_no_mistakes_prevalidation_done_stays_done() {
   out=$(run_crew_state "$d" preval)
   assert_contains "$out" "state: done" "no-mistakes pre-validation done: remains done"
   assert_not_contains "$out" "state: blocked" "pre-validation done: must not be the named-head gate"
-  pass "no-mistakes pre-validation done: stays current-state done"
+  assert_contains "$out" "implementation complete · handoff ready: instruct /no-mistakes" \
+    "the pipeline handoff must tell the supervisor to start validation"
+  pass "no-mistakes pre-validation done: stays current-state done and reads handoff-ready"
+}
+
+# The handoff detail belongs only to the no-mistakes pre-validation done: a
+# direct-PR done is the finished delivery, and a no-mistakes CI-ready done has
+# already been through the pipeline.
+test_finished_ship_done_is_not_a_handoff() {
+  reset_fakes
+  local d mode note out
+  for mode in direct-PR no-mistakes; do
+    d=$(new_case "finished-$mode")
+    make_repo_on_branch "$d/wt" fm/finished
+    git -C "$d/wt" commit -q --allow-empty -m 'the fix'
+    git -C "$d/wt" update-ref refs/remotes/origin/fm/finished HEAD
+    make_fakebin "$d" >/dev/null
+    fm_write_meta "$d/state/finished.meta" \
+      "window=fm:fm-finished" "worktree=$d/wt" "project=$d/wt" \
+      "kind=ship" "mode=$mode" "harness=claude"
+    note='PR https://example.test/o/r/pull/5'
+    [ "$mode" = direct-PR ] || note="$note checks green"
+    printf 'done: %s\n' "$note" > "$d/state/finished.status"
+    FM_FAKE_AXI_STATUS=""
+    FM_FAKE_RUNS_LIST=""
+    FM_FAKE_BUSY=0
+    arm_idle_record "$d/state" finished
+    out=$(run_crew_state "$d" finished)
+    assert_contains "$out" "state: done" "$mode delivered done: reads done"
+    assert_not_contains "$out" "handoff ready" "$mode delivered done: is not the validation handoff"
+  done
+  pass "direct-PR and CI-ready ship done: lines are not read as the validation handoff"
 }
 
 test_moved_remote_branch_without_named_head_is_blocked() {
@@ -5916,6 +5947,7 @@ test_other_branch_run_ignored
 test_unpushed_ship_done_is_blocked
 test_merged_pr_reads_done_under_captured_meta
 test_no_mistakes_prevalidation_done_stays_done
+test_finished_ship_done_is_not_a_handoff
 test_moved_remote_branch_without_named_head_is_blocked
 test_no_run_busy_pane
 test_no_run_launch_prompt_parked_is_not_working
