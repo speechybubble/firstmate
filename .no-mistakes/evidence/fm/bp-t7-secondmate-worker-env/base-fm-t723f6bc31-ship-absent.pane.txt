@@ -1,0 +1,60 @@
+treehouse get
+denni@DESKTOP-AIPT1HN:/tmp/fmt7.RWC8fZ/mate/projects/notes$ treehouse get
+A new version of treehouse is available: v3.1.2 → v3.1.4
+Run "treehouse update" to update
+
+🌳 Setting up worktree...
+🌳 Entered worktree at /tmp/fmt7.RWC8fZ/treehouse/.treehouse/notes-ddc9d2/1/notes. Type 'exit' to return.
+denni@DESKTOP-AIPT1HN:/tmp/fmt7.RWC8fZ/treehouse/.treehouse/notes-ddc9d2/1/notes$ cd -- '/tmp/fmt7.RWC8fZ/treehouse/.treehouse/notes-ddc9d2/1/notes'
+denni@DESKTOP-AIPT1HN:/tmp/fmt7.RWC8fZ/treehouse/.treehouse/notes-ddc9d2/1/notes$ export GOTMPDIR=/tmp/fm-t723f6bc31-ship-absent/gotmp
+export COMPACT_ADVISER_DISABLE=1
+denni@DESKTOP-AIPT1HN:/tmp/fmt7.RWC8fZ/treehouse/.treehouse/notes-ddc9d2/1/notes$ export COMPACT_ADVISER_DISABLE=1
+export FM_TASK_ID=t723f6bc31-ship-absent
+denni@DESKTOP-AIPT1HN:/tmp/fmt7.RWC8fZ/treehouse/.treehouse/notes-ddc9d2/1/notes$ export FM_TASK_ID=t723f6bc31-ship-absent
+denni@DESKTOP-AIPT1HN:/tmp/fmt7.RWC8fZ/treehouse/.treehouse/notes-ddc9d2/1/notes$ . '/tmp/fm-t723f6bc31-ship-absent+b460f28bc98ac99ce0f6bed963d87ac21324fe54edc0ff0aa950c4bea74fd4c7/launch.s1792145256.1532187.734.sh'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

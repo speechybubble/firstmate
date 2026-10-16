@@ -1,0 +1,24 @@
+tmux server global env: FM_HOME=/tmp/fmt7.RMIULx/home FM_STATE_OVERRIDE=/tmp/fmt7.RMIULx/home/state
+main home=/tmp/fmt7.RMIULx/home
+mate home=/tmp/fmt7.RMIULx/mate
+spawn t76bd65fcc-ship-absent: spawned t76bd65fcc-ship-absent harness=claude kind=ship mode=local-only yolo=on window=firstmate:fm-t76bd65fcc-ship-absent worktree=/tmp/fmt7.RMIULx/treehouse/.treehouse/notes-dc09c7/1/notes
+RESULT fixed ship allowlist=absent worker pid=1588310 env: FM_HOME=/tmp/fmt7.RMIULx/mate FM_STATE_OVERRIDE=/tmp/fmt7.RMIULx/mate/state 
+RESULT fixed ship allowlist=absent probe fleet-script write landed in:  mate
+spawn t76bd65fcc-scout-absent: spawned t76bd65fcc-scout-absent harness=claude kind=scout window=firstmate:fm-t76bd65fcc-scout-absent worktree=/tmp/fmt7.RMIULx/treehouse/.treehouse/notes-dc09c7/2/notes
+RESULT fixed scout allowlist=absent worker pid=1614205 env: FM_HOME=/tmp/fmt7.RMIULx/mate FM_STATE_OVERRIDE=/tmp/fmt7.RMIULx/mate/state 
+RESULT fixed scout allowlist=absent probe fleet-script write landed in:  mate
+spawn t76bd65fcc-ship-enabled: spawned t76bd65fcc-ship-enabled harness=claude kind=ship mode=local-only yolo=on window=firstmate:fm-t76bd65fcc-ship-enabled worktree=/tmp/fmt7.RMIULx/treehouse/.treehouse/notes-dc09c7/3/notes
+RESULT fixed ship allowlist=enabled worker pid=1637868 env: FM_HOME=/tmp/fmt7.RMIULx/mate FM_STATE_OVERRIDE=/tmp/fmt7.RMIULx/mate/state 
+RESULT fixed ship allowlist=enabled probe fleet-script write landed in:  mate
+relaunch: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode. relaunched t76bd65fcc-ship-absent harness=claude from=claude model=haiku effort=low backend=tmux endpoint=firstmate:fm-t76bd65fcc-ship-absent worktree=/tmp/fmt7.RMIULx/treehouse/.treehouse/notes-dc09c7/1/notes
+RESULT fixed relaunch old pid=1588310 new pid=1672189 env: FM_HOME=/tmp/fmt7.RMIULx/mate FM_STATE_OVERRIDE=/tmp/fmt7.RMIULx/mate/state 
+secondmate spawn: spawned t76bd65fcc-mate harness=claude kind=secondmate mode=secondmate yolo=off window=firstmate:fm-t76bd65fcc-mate worktree=/tmp/fmt7.RMIULx/mate
+RESULT fixed secondmate pid=1688013 env: FM_HOME=/tmp/fmt7.RMIULx/mate FM_STATE_OVERRIDE= 
+--- window list
+firstmate:lab
+firstmate:fm-t76bd65fcc-ship-absent
+firstmate:fm-t76bd65fcc-scout-absent
+firstmate:fm-t76bd65fcc-ship-enabled
+firstmate:fm-t76bd65fcc-mate
+done
+removed 5 lab trust entries

@@ -1,0 +1,11 @@
+tmux server global env: FM_HOME=/tmp/fmt7.RWC8fZ/home FM_STATE_OVERRIDE=/tmp/fmt7.RWC8fZ/home/state
+main home=/tmp/fmt7.RWC8fZ/home
+mate home=/tmp/fmt7.RWC8fZ/mate
+spawn t723f6bc31-ship-absent: spawned t723f6bc31-ship-absent harness=claude kind=ship mode=local-only yolo=on window=firstmate:fm-t723f6bc31-ship-absent worktree=/tmp/fmt7.RWC8fZ/treehouse/.treehouse/notes-ddc9d2/1/notes
+RESULT base ship allowlist=absent worker pid=1549085 env: FM_HOME=/tmp/fmt7.RWC8fZ/home FM_STATE_OVERRIDE=/tmp/fmt7.RWC8fZ/home/state 
+RESULT base ship allowlist=absent probe fleet-script write landed in: main
+--- window list
+firstmate:lab
+firstmate:fm-t723f6bc31-ship-absent
+done
+removed 2 lab trust entries
