@@ -16,8 +16,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
-# shellcheck source=bin/fm-brief-heading-lib.sh
-. "$ROOT/bin/fm-brief-heading-lib.sh"
+# shellcheck source=bin/fm-dod-lib.sh
+. "$ROOT/bin/fm-dod-lib.sh"
 
 # Every scaffold below belongs to a fixture home; inherited supervisor path
 # overrides must not redirect generated inbox/status paths to the live fleet.
@@ -140,8 +140,8 @@ assert_expert_prompt_slot() {  # <brief> <label>
     "$label: expert prompt is not nested under Firstmate spec"
   assert_not_contains "$(fm_brief_task_heading_body "$brief" "## Captain's intent")" 'EXPERT_PROMPT' \
     "$label: expert prompt landed in Captain's intent"
-  [ "$(fm_brief_task_heading_own_body "$brief" '## Firstmate spec')" = '{FIRSTMATE_SPEC}' ] \
-    || fail "$label: Firstmate spec's own body is not just its placeholder"
+  [ "$(fm_brief_firstmate_spec_body "$brief" | tr -d '[:space:]')" = '{FIRSTMATE_SPEC}' ] \
+    || fail "$label: Firstmate spec outside its expert prompt is not just its placeholder"
 }
 
 # fm-brief.sh must exit 0 and produce a brief with no unreplaced shell
@@ -1533,7 +1533,7 @@ test_task_context_activation_and_intent_boundary() {
       fail "$kind: filled brief still has task placeholders"
     fi
     intent_body=$(fm_brief_task_heading_body "$brief.filled" "## Captain's intent")
-    spec_body=$(fm_brief_task_heading_own_body "$brief.filled" '## Firstmate spec')
+    spec_body=$(fm_brief_firstmate_spec_body "$brief.filled")
     [ "$intent_body" = "$intent" ] || fail "$kind: context or specification leaked into authorized intent"
     [ "$spec_body" = "$spec" ] || fail "$kind: context entry point leaked into the specification body"
     assert_no_grep '# Task context and learning' <(fm_brief_heading_body "$brief.filled" '# Task') \

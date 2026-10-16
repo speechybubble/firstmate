@@ -234,7 +234,7 @@ fm_brief_task_placeholders_present() {  # <file>
   local file=$1 intent spec
   [ -f "$file" ] || return 1
   intent=$(fm_brief_task_heading_body "$file" "## Captain's intent")
-  spec=$(fm_brief_task_heading_own_body "$file" "## Firstmate spec")
+  spec=$(fm_brief_firstmate_spec_body "$file")
   [ "$(printf '%s' "$intent" | tr -d '[:space:]')" = '{TASK}' ] && return 0
   [ "$(printf '%s' "$spec" | tr -d '[:space:]')" = '{FIRSTMATE_SPEC}' ] && return 0
   return 1
@@ -243,6 +243,20 @@ fm_brief_task_placeholders_present() {  # <file>
 # The `# Task` line bin/fm-brief.sh writes into every ship and scout brief that
 # carries the `### Expert prompt` subsection.
 FM_BRIEF_EXPERT_PROMPT_MARKER='<!-- fm-brief: expert-prompt v1 -->'
+
+# Print a brief's `## Firstmate spec` body without its `### Expert prompt`
+# subsection, keeping every other nested subsection.
+fm_brief_firstmate_spec_body() {  # <file>
+  local spec expert block
+  spec=$(fm_brief_task_heading_body "$1" "## Firstmate spec")
+  if fm_brief_heading_parse - "### Expert prompt" present >/dev/null <<<"$spec"; then
+    expert=$(fm_brief_heading_parse - "### Expert prompt" body <<<"$spec")
+    block='### Expert prompt'
+    [ -z "$expert" ] || block="$block"$'\n'"$expert"
+    spec=${spec/"$block"/}
+  fi
+  printf '%s\n' "$spec"
+}
 
 # Print why a brief's `### Expert prompt` subsection cannot launch and return 0;
 # return 1 when it is filled, or absent from an unmarked brief scaffolded before
@@ -354,22 +368,16 @@ EOF
 # the spec's outside its `### Expert prompt` subsection; briefs predating that
 # contract remain valid when their # Task body has content.
 fm_brief_task_content_valid() {  # <file>
-  local file=$1 intent spec expert task has_intent=0 has_spec=0
+  local file=$1 intent spec task has_intent=0 has_spec=0
   [ -f "$file" ] && [ -r "$file" ] || return 1
   fm_brief_task_heading_present "$file" "## Captain's intent" && has_intent=1
   fm_brief_task_heading_present "$file" "## Firstmate spec" && has_spec=1
   if [ "$has_intent" -eq 1 ] || [ "$has_spec" -eq 1 ]; then
     [ "$has_intent" -eq 1 ] && [ "$has_spec" -eq 1 ] || return 1
     intent=$(fm_brief_task_heading_body "$file" "## Captain's intent")
-    spec=$(fm_brief_task_heading_body "$file" "## Firstmate spec")
+    spec=$(fm_brief_firstmate_spec_body "$file")
     [ -n "$(printf '%s' "$intent" | tr -d '[:space:]')" ] || return 1
-    if fm_brief_heading_parse - "### Expert prompt" present >/dev/null <<<"$spec"; then
-      expert=$(fm_brief_heading_parse - "### Expert prompt" body <<<"$spec")
-      expert="### Expert prompt$expert"
-    fi
-    spec=$(printf '%s' "$spec" | tr -d '[:space:]')
-    [ -n "$spec" ] || return 1
-    [ "$spec" != "$(printf '%s' "${expert-}" | tr -d '[:space:]')" ] || return 1
+    [ -n "$(printf '%s' "$spec" | tr -d '[:space:]')" ] || return 1
     return 0
   fi
   task=$(fm_brief_heading_body "$file" "# Task")

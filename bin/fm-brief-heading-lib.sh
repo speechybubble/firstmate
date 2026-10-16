@@ -9,15 +9,14 @@
 # consumer sees the same section bodies.
 
 # Parse an exact ATX heading outside fenced blocks. Body mode prints through
-# the next unfenced heading at the same or a higher level; own mode stops at the
-# next unfenced heading of any level, leaving out nested subsections; present
-# mode reports whether the heading exists.
-fm_brief_heading_parse() {  # <file|-> <heading> <body|own|present>
+# the next unfenced heading at the same or a higher level; present mode reports
+# whether the heading exists.
+fm_brief_heading_parse() {  # <file|-> <heading> <body|present>
   local file=$1 heading=$2 mode=$3 input=$1
   if [ "$file" = - ]; then
     input=/dev/stdin
   else
-    [ -f "$file" ] || { [ "$mode" != present ]; return; }
+    [ -f "$file" ] || { [ "$mode" = body ]; return; }
   fi
   awk -v heading="$heading" -v mode="$mode" '
     BEGIN {
@@ -65,7 +64,7 @@ fm_brief_heading_parse() {  # <file|-> <heading> <body|own|present>
 
       level = 0
       while (substr(scan, level + 1, 1) == "#") level++
-      if (level > 0 && (level <= target_level || mode == "own") && substr(scan, level + 1, 1) ~ /^[[:space:]]?$/) exit
+      if (level > 0 && level <= target_level && substr(scan, level + 1, 1) ~ /^[[:space:]]?$/) exit
       print line
     }
     END {
@@ -86,13 +85,6 @@ fm_brief_task_heading_body() {  # <file> <heading>
   local task
   task=$(fm_brief_heading_body "$1" "# Task")
   fm_brief_heading_parse - "$2" body <<<"$task"
-}
-
-# Like fm_brief_task_heading_body, without nested subsections.
-fm_brief_task_heading_own_body() {  # <file> <heading>
-  local task
-  task=$(fm_brief_heading_body "$1" "# Task")
-  fm_brief_heading_parse - "$2" own <<<"$task"
 }
 
 fm_brief_task_heading_present() {  # <file> <heading>
