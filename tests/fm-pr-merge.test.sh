@@ -1771,6 +1771,56 @@ test_malformed_url_refuses_before_merge() {
   pass "fm-pr-merge refuses malformed PR URLs before calling gh-axi"
 }
 
+test_help_prints_usage_and_succeeds() {
+  local case_dir flag rc
+  case_dir=$(make_case help)
+  add_gh_mocks "$case_dir" 4444444444444444444444444444444444444444
+
+  for flag in --help -h; do
+    set +e
+    run_pr_merge "$case_dir" "$flag" > "$case_dir/stdout" 2> "$case_dir/stderr"
+    rc=$?
+    set -e
+
+    expect_code 0 "$rc" "help: fm-pr-merge $flag should succeed"
+    assert_grep 'Usage: fm-pr-merge.sh <task-id> <pr-url> ' "$case_dir/stdout" \
+      "help: fm-pr-merge $flag did not print the usage line"
+    assert_no_grep 'invalid PR merge request' "$case_dir/stderr" \
+      "help: fm-pr-merge $flag was treated as an invalid request"
+  done
+  assert_no_grep 'pr merge' "$case_dir/gh.log" "help: a forge merge was invoked"
+  pass "fm-pr-merge --help and -h print the usage and exit 0"
+}
+
+test_invalid_request_prints_usage() {
+  local case_dir rc label
+  case_dir=$(make_case invalid-request-usage)
+  add_gh_mocks "$case_dir" 4444444444444444444444444444444444444444
+
+  # No arguments, a task id with no URL (the observed call shape, with merge
+  # args after the separator), and a malformed URL each refuse with the usage.
+  for label in none missing-url malformed-url; do
+    set +e
+    case "$label" in
+      none) run_pr_merge "$case_dir" ;;
+      missing-url) run_pr_merge "$case_dir" task-x1 -- --merge ;;
+      malformed-url) run_pr_merge "$case_dir" task-x1 'https://gitlab.com/example/-/merge_requests/1' ;;
+    esac > "$case_dir/stdout" 2> "$case_dir/stderr"
+    rc=$?
+    set -e
+
+    expect_code 2 "$rc" "invalid-request-usage ($label): fm-pr-merge should refuse"
+    assert_grep 'error: invalid PR merge request' "$case_dir/stderr" \
+      "invalid-request-usage ($label): the refusal changed"
+    assert_grep 'Usage: fm-pr-merge.sh <task-id> <pr-url> ' "$case_dir/stderr" \
+      "invalid-request-usage ($label): the refusal did not print the usage line"
+  done
+  assert_no_grep 'pr=' "$case_dir/state/task-x1.meta" \
+    "invalid-request-usage: an invalid request recorded a PR"
+  assert_no_grep 'pr merge' "$case_dir/gh.log" "invalid-request-usage: a forge merge was invoked"
+  pass "fm-pr-merge prints the usage line with an invalid request"
+}
+
 test_rejects_unsafe_url_segments_before_recording() {
   local case_dir rc
   case_dir=$(make_case unsafe-url-segment)
@@ -2958,6 +3008,8 @@ test_github_queue_required_refusal_names_retry_flags
 test_extra_merge_args_forwarded
 test_missing_meta_refuses_before_merge
 test_malformed_url_refuses_before_merge
+test_help_prints_usage_and_succeeds
+test_invalid_request_prints_usage
 test_rejects_unsafe_url_segments_before_recording
 test_repo_override_args_refuse_before_recording
 test_bundled_repo_override_args_refuse_before_recording

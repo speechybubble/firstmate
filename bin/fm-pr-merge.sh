@@ -194,15 +194,28 @@ STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 # shellcheck source=bin/fm-afk-contract.sh
 . "$SCRIPT_DIR/fm-afk-contract.sh"
 
-if [ "$#" -lt 2 ]; then
+usage() {
+  # The whole leading comment block, ending at the first non-comment line.
+  sed -n '2,${/^#/!q;p;}' "$0" | sed 's/^# \{0,1\}//'
+}
+
+# The refusal names the call shape so a wrong call is corrected without a
+# second guess; the usage line comes from the header above, never a copy.
+refuse_invalid_request() {
   echo "error: invalid PR merge request" >&2
+  usage | grep '^Usage: ' >&2
   exit 2
-fi
+}
+
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+esac
+
+[ "$#" -ge 2 ] || refuse_invalid_request
 ID=$1
 RAW_URL=$2
 if ! fm_pr_task_id_valid "$ID" || ! fm_pr_url_parse "$RAW_URL"; then
-  echo "error: invalid PR merge request" >&2
-  exit 2
+  refuse_invalid_request
 fi
 URL=$FM_PR_URL
 PROVIDER=$FM_PR_PROVIDER

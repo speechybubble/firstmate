@@ -564,7 +564,7 @@ EOF
 }
 
 test_invalid_entrypoints_have_zero_side_effects() {
-  local dir before after value rc
+  local dir before after value rc merge_refusal
   dir=$(make_case invalid-entrypoints)
   write_task_meta "$dir"
   printf 'existing-check\n' > "$dir/home/state/task-a.check.sh"
@@ -594,6 +594,10 @@ test_invalid_entrypoints_have_zero_side_effects() {
     [ "$after" = "$before" ] || fail "invalid task ID changed state or traversed a path"
   done
 
+  # The refusal is the fixed diagnostic plus the script's own usage line, so
+  # it never echoes the rejected input.
+  merge_refusal='error: invalid PR merge request
+Usage: fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--allow-red <check-name>] [--allow-missing <check-name>] [-- <extra forge merge args>]'
   for value in "${INVALID_URLS[@]}"; do
     before=$(state_snapshot "$dir/home/state")
     set +e
@@ -601,7 +605,7 @@ test_invalid_entrypoints_have_zero_side_effects() {
     rc=$?
     set -e
     [ "$rc" -ne 0 ] || fail "merge entrypoint accepted invalid URL"
-    [ "$(cat "$dir/stderr")" = 'error: invalid PR merge request' ] || fail "merge invalid URL diagnostic was not fixed"
+    [ "$(cat "$dir/stderr")" = "$merge_refusal" ] || fail "merge invalid URL diagnostic was not fixed"
     after=$(state_snapshot "$dir/home/state")
     [ "$after" = "$before" ] || fail "merge invalid URL changed prior state"
   done
