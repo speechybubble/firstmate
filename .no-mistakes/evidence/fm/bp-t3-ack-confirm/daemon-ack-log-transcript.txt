@@ -1,0 +1,10 @@
+## Scenario: supervision daemon logs the ack confirmation, pane stays quiet (lab FM_HOME=/tmp/fm-lab.cSjR2k)
+handle_durable_wakes exit: 0
+--- daemon pane stdout (expected empty):
+--- daemon pane stderr (expected empty):
+--- wakes handled:
+[stub handle_wake] check: alpha wake
+[stub handle_wake] check: beta wake
+--- daemon.log:
+[2026-10-16T20:56:13+1000] wake drain: acknowledged wakes through 6 (2 row(s) consumed)
+--- queue bytes after: 0

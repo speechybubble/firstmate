@@ -1,0 +1,34 @@
+## Scenario: wake drain acknowledgement confirmation (lab FM_HOME=/tmp/fm-lab.cSjR2k)
+$ bin/fm-wake-drain.sh
+[stdout] 1792148131	1	check	first	check: first wake
+[stdout] 1792148131	2	check	second	check: second wake
+[stdout] 1792148132	3	check	third	check: third wake
+[stderr] WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 3981113.1792148131.Qm8C8Y
+[exit 0]
+
+# extracted ack args: --ack-through 3 --recovery-generation 3981113.1792148131.Qm8C8Y
+$ bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 3981113.1792148131.Qm8C8Y
+[stdout] wake drain: acknowledged wakes through 3 (3 row(s) consumed)
+[exit 0]
+
+# queue after ack: 0 bytes
+## Replay same ack
+$ bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 3981113.1792148131.Qm8C8Y
+[stdout] wake drain: acknowledged wakes through 3 (0 row(s) consumed)
+[exit 0]
+
+## Adversarial: stale ack after a newer wake arrives (wrong/old cutoff)
+$ bin/fm-wake-drain.sh
+[stdout] 1792148136	4	check	fourth	check: fourth wake
+[stderr] WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 4 --recovery-generation 3986860.1792148136.kcdx9Z
+[exit 0]
+
+$ bin/fm-wake-drain.sh --ack-through 1 --recovery-generation bogusgen
+[stderr] wake drain: nothing was acknowledged through 1 (none of your presented wake rows is at or below it); the current wake is row 4: run bin/fm-wake-drain.sh --ack-through 4 --recovery-generation 3986860.1792148136.kcdx9Z after handling it
+[exit 0]
+
+## Adversarial: malformed ack
+$ bin/fm-wake-drain.sh --ack-through notanumber
+[stderr] wake drain: invalid acknowledgement sequence
+[exit 2]
+

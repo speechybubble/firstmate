@@ -1,0 +1,49 @@
+## Scenario: lease release confirmation (lab FM_HOME=/tmp/fm-lab.cSjR2k)
+$ bin/fm-lease.sh claim fm-demo-task
+[exit 0]
+
+$ bin/fm-lease.sh check fm-demo-task
+[stdout] main 3999503 1792148148 stale
+[exit 0]
+
+$ bin/fm-lease.sh release fm-demo-task
+[stdout] lease release: released the main supervision actor's lease on 'fm-demo-task'
+[exit 0]
+
+$ bin/fm-lease.sh check fm-demo-task
+[exit 1]
+
+## Retry release (already released)
+$ bin/fm-lease.sh release fm-demo-task
+[stdout] lease release: the main supervision actor held no lease on 'fm-demo-task'; nothing released
+[exit 0]
+
+## Adversarial: main releasing while branch holds the lease
+$ bash -c bin/fm-lease.sh claim fm-demo-task --actor branch
+[exit 0]
+
+$ bin/fm-lease.sh check fm-demo-task
+[stdout] branch 4000800 1792148149 stale
+[exit 0]
+
+$ bin/fm-lease.sh release fm-demo-task
+[stdout] lease release: the main supervision actor held no lease on 'fm-demo-task'; nothing released
+[exit 0]
+
+$ bin/fm-lease.sh check fm-demo-task
+[stdout] branch 4000800 1792148149 stale
+[exit 0]
+
+## Adversarial: main naming the other actor
+$ bin/fm-lease.sh release fm-demo-task --actor branch
+[stderr] error: release refused - the main supervision actor cannot release a lease as branch on 'fm-demo-task'
+[exit 6]
+
+## Branch releases its own lease
+$ bin/fm-lease.sh release fm-demo-task --actor branch
+[stdout] lease release: released the branch supervision actor's lease on 'fm-demo-task'
+[exit 0]
+
+$ bin/fm-lease.sh check fm-demo-task
+[exit 1]
+
