@@ -1,0 +1,20 @@
+ok - a session that does not own the home records and blocks nothing
+ok - activation records a boundary, so earlier chat is never reinterpreted as new instructions
+ok - an omitted request blocks the stop once, stays visible afterwards, and Firstmate's doorbells are not captain input, even once pruned
+ok - a steering doorbell for this session's own inbox is not captain input, while other inboxes, quotes and unexported sessions still block
+ok - recorded links need a readable task; a reply stays provisional until a turn-ending reply, and interruption invalidates it
+ok - compaction keeps unresolved input restorable from the full transcript, independent of the summary, and only commands the model receives count as input
+ok - a staged outcome acknowledgement commits only after a turn-ending reply, a topic switch, interruption or Firstmate input invalidates it, and replay is idempotent
+all fm-request-continuity tests passed
+exit=0
+ok - operational input: every current generic envelope retains its exact structured kind
+ok - operational input: the established from-firstmate carrier remains structurally typed and byte-compatible
+ok - operational input: untyped landed FIRSTMATE_OP transcripts are explicit legacy-operational input
+ok - operational input: historical prose compatibility is isolated from current parsing
+ok - operational input: quoted, ASCII-only, arbitrary-U+2063, altered-legacy, and label-only near misses stay genuine
+ok - operational input: the OpenCode adapter constructs through the canonical owner
+ok - operational input: current construction rejects legacy kinds and empty bodies
+ok - record-backed carrier: Claude-only selection, an ASCII doorbell naming an exact envelope record, home-bound open, and no recognition without the record
+ok - steering doorbell builds and parses back exactly, and near misses stay unrecognized
+ok - record pruning: expired records past one argument list are all pruned on a write
+exit=0

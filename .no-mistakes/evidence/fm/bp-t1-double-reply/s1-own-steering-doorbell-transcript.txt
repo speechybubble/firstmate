@@ -1,0 +1,7 @@
+# intake receipt log (/tmp/fm-lab.1jLiIV/state/request-intake)
+{"type":"start","after":0}
+# transcript: user prompts and turn-ending assistant replies
+{"line":10,"type":"user","text":": Firstmate instruction waiting: list \"$FM_TASK_INBOX\"/*.msg in your 'sm-lab.inbox' steering inbox, read and act on each in numeric order, then mv each into its handled/."}
+{"line":50,"type":"assistant","stop":"end_turn","text":["Captain, 2026-10-16 is a Friday."]}
+# transcript lines mentioning 'Unreconciled native captain input':
+0
