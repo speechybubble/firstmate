@@ -266,8 +266,8 @@ No turn ends blind while work is under way, including turns described as holding
 - At the start of every wake-handling turn, drain the durable wake queue before peeking, reading beyond the reason line, steering, or starting work.
 - Session start is the only exception because its one-shot digest already presented the queue while locked or deliberately left it untouched in lock-refused read-only mode.
 - Treat any `OPEN DECISIONS` section from the drain as actionable reconciliation input even when no wake record was queued.
-- Treat any `UNREAD STATUS` section as newly surfaced status that must be read this turn; those lines are not re-printed after this presentation.
-- Read the drain's complete output; never pipe it through `head`, `tail`, `grep`, or `cut`, because a filtered drain silently discards these once-only sections.
+- Treat any `UNREAD STATUS` section as newly surfaced status that must be read this turn; those lines are not re-printed once the acknowledgement that drain asks for runs.
+- Read the drain's complete output; never pipe it through `head`, `tail`, `grep`, or `cut`, because a filtered drain hides sections this turn must handle.
 - Treat any `RECORD DIVERGENCE` section as a contradiction between two records of one captain call, never as proof the captain ruled; load `captain-hold-lifecycle` and reconcile it in whichever direction the evidence supports.
 - After handling all emitted wakes and reconciling the OPEN DECISIONS and UNREAD STATUS sections, run the exact generation-bound `--ack-through` command printed as `WAKE_ACK_REQUIRED`; interruption before that acknowledgement deliberately leaves the work durable for idempotent re-handling.
 - After any supervision-branch acknowledgement succeeds or reports that a sequence is already processed, never acknowledge that sequence again or retry the refusal.

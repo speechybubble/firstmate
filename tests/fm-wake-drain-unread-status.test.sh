@@ -142,14 +142,16 @@ test_pending_reply_resolution_surfaces_once() {
   printf 'blocked [key=pending-reply-abcdef0123456789]: pending-reply-missed: task=task5 pending-reply-id=abcdef0123456789 request=ship it\n' >> "$status"
   append_wake "$state" signal task5.status "signal: task5.status" \
     || fail "queueing the pending-reply request signal failed"
-  FM_STATE_OVERRIDE="$state" "$DRAIN" >/dev/null \
+  FM_STATE_OVERRIDE="$state" "$DRAIN" >/dev/null 2> "$dir/drain.err" \
     || fail "drain failed while acknowledging the pending-reply request"
+  ack_drain_err "$state" "$dir/drain.err" >/dev/null 2>&1 \
+    || fail "acknowledging the pending-reply request drain failed"
   {
     printf 'resolved [key=pending-reply-abcdef0123456789]: pending-reply-resolved: task=task5 pending-reply-id=abcdef0123456789 via=status\n'
     printf 'note: re-read acknowledgement\n'
   } >> "$status"
 
-  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" || fail "drain failed on a pending-reply resolution"
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" 2> "$dir/drain.err" || fail "drain failed on a pending-reply resolution"
 
   grep -F 'pending-reply-resolved: task=task5 pending-reply-id=abcdef0123456789 via=status' "$out" >/dev/null \
     || fail "the pending-reply resolution was buried under the later note: $(cat "$out")"
@@ -157,6 +159,12 @@ test_pending_reply_resolution_surfaces_once() {
     || fail "the trailing note was not surfaced with the pending-reply resolution: $(cat "$out")"
   if grep -F 'OPEN DECISIONS' "$out" >/dev/null; then
     fail "the pending-reply resolution did not close its open decision: $(cat "$out")"
+  fi
+  # The resolution arrived without a wake, so this drain may ask for no
+  # acknowledgement; when it does, the handling turn runs it.
+  if grep -F 'WAKE_ACK_REQUIRED:' "$dir/drain.err" >/dev/null; then
+    ack_drain_err "$state" "$dir/drain.err" >/dev/null 2>&1 \
+      || fail "acknowledging the pending-reply resolution drain failed"
   fi
 
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" || fail "second drain after pending-reply presentation failed"
