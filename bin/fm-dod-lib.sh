@@ -808,6 +808,16 @@ fm_dod_should_gate_ship_done() {  # <kind> <mode> <line>
   esac
 }
 
+# 0 when <line> is a no-mistakes ship's implementation handoff: a done: the gate
+# above leaves ungated that names no PR, after which the supervisor starts
+# validation on the same worker.
+fm_dod_ship_done_is_nm_handoff() {  # <kind> <mode> <line>
+  case "$2" in no-mistakes|'') ;; *) return 1 ;; esac
+  [ "$1" = ship ] && [ "$(status_line_verb "$3")" = "done" ] || return 1
+  ! fm_dod_should_gate_ship_done "$@" \
+    && ! fm_dod_pr_url_from_done_note "$(status_line_note "$3")" >/dev/null
+}
+
 # The PR/MR URL from a `done: PR <url>...` note, or empty.
 fm_dod_pr_url_from_done_note() {  # <note>
   local note=$1 url

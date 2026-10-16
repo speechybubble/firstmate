@@ -303,6 +303,31 @@ test_non_done_lines_are_not_gated() {
   pass "non-done lines are not gated"
 }
 
+# Only a no-mistakes ship's pre-validation done is the validation handoff.
+test_only_no_mistakes_prevalidation_done_is_the_handoff() {
+  local case kind mode line
+  fm_dod_ship_done_is_nm_handoff ship no-mistakes 'done [key=fix]: implementation committed' \
+    || fail "no-mistakes pre-validation done: is not the handoff"
+  fm_dod_ship_done_is_nm_handoff ship '' 'done: implementation committed' \
+    || fail "unregistered-mode pre-validation done: is not the handoff"
+  for case in \
+    'ship|direct-PR|done: PR https://github.com/o/r/pull/5' \
+    'ship|local-only|done: ready in branch fm/x' \
+    'ship|no-mistakes|done: PR https://github.com/o/r/pull/5 checks green' \
+    'ship|no-mistakes|done: PR https://github.com/o/r/pull/5' \
+    'ship|no-mistakes|done: PR https://review.example/c/p/+/5 published for review' \
+    'ship|no-mistakes|working: implementing' \
+    'scout|no-mistakes|done: report written'; do
+    kind=${case%%|*}
+    mode=${case#*|}; mode=${mode%%|*}
+    line=${case#*|*|}
+    if fm_dod_ship_done_is_nm_handoff "$kind" "$mode" "$line"; then
+      fail "$kind $mode line read as the validation handoff: $line"
+    fi
+  done
+  pass "only a no-mistakes ship's pre-validation done: is the validation handoff"
+}
+
 # Issue 3608: a legacy `# Task` body's provenance marker must be read the way
 # bin/fm-brief-heading-lib.sh reads headings - outside fenced blocks and never
 # from an indented example - or a fenced `Captain:` sample becomes the ship
@@ -440,6 +465,7 @@ test_local_only_linked_branch_is_accepted
 test_local_only_detached_head_is_refused
 test_standalone_local_only_needs_project_ref
 test_non_done_lines_are_not_gated
+test_only_no_mistakes_prevalidation_done_is_the_handoff
 test_fenced_and_indented_captain_lines_are_not_intent
 test_pr_based_dod_draft_check_uses_gh_axi
 test_promotion_keeps_the_recorded_base_branch
