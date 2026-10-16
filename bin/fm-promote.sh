@@ -15,9 +15,9 @@
 # `## Captain's intent` preserved from the scout brief and promotion's ship-time
 # instructions under `## Firstmate spec`; the scout-time spec remains context but
 # is not relabeled as the ship spec. Promotion refuses leftover `{TASK}` /
-# `{FIRSTMATE_SPEC}` placeholders, an unaccepted `### Expert prompt`, and a
-# `## Captain's intent` line opening with a Captain label or address
-# (bin/fm-dod-lib.sh). A pre-subsection scout
+# `{FIRSTMATE_SPEC}` placeholders, an unaccepted `## Confirmed intent` or
+# `### Expert prompt`, and a `## Captain's intent` line opening with a Captain
+# label or address (bin/fm-dod-lib.sh). A pre-subsection scout
 # brief contributes only Task lines explicitly marked as captain words to intent,
 # read outside fenced blocks and indented examples so a quoted `Captain:` sample
 # never passes the provenance gate as the ask (bin/fm-dod-lib.sh).
@@ -216,11 +216,7 @@ if ! fm_brief_task_content_valid "$SCOUT_BRIEF"; then
   echo "error: $SCOUT_BRIEF must contain nonempty ## Captain's intent and ## Firstmate spec subsections (or a nonempty legacy # Task body) before promotion" >&2
   exit 1
 fi
-if EXPERT_PROMPT_PROBLEM=$(fm_brief_expert_prompt_problem "$SCOUT_BRIEF"); then
-  fm_brief_expert_prompt_refusal "$SCOUT_BRIEF" "$EXPERT_PROMPT_PROBLEM" promotion
-  exit 1
-fi
-fm_brief_expert_prompt_legacy_warning "$SCOUT_BRIEF"
+fm_brief_task_slots_check "$SCOUT_BRIEF" promotion || exit 1
 if ADDRESS_LINE=$(fm_brief_intent_address_line "$SCOUT_BRIEF"); then
   echo "error: $SCOUT_BRIEF ## Captain's intent has an operator-address line: $ADDRESS_LINE; write the captain's actual words without a Captain label or address before promotion, since the heading already records provenance" >&2
   exit 1

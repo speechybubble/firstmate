@@ -10,10 +10,12 @@
 # under `## Firstmate spec` (build instructions, which are never the captain's
 # intent), whose nested `### Expert prompt` holds `{EXPERT_PROMPT}`: the expert
 # prompt Firstmate wrote for this work, or one `routine: skipped - <reason>`
-# line. `# Task` opens with the expert-prompt version marker. bin/fm-dod-lib.sh
-# owns that marker, the no-mistakes `--intent` contract those subsections feed,
-# and the accepted expert-prompt fillings; bin/fm-spawn.sh
-# refuses leftover placeholders, an unaccepted expert prompt, and a
+# line. Between them `## Confirmed intent` holds `{CONFIRMED_INTENT}`: the
+# reading of the ask the captain confirmed plus one `captain confirmed: <words>`
+# line, or one `not captain-originated - <reason>` line. `# Task` opens with the
+# Task slot version marker. bin/fm-dod-lib.sh owns that marker, the no-mistakes
+# `--intent` contract those subsections feed, and the accepted slot fillings;
+# bin/fm-spawn.sh refuses leftover placeholders, an unaccepted slot, and a
 # `## Captain's intent` line opening with a Captain label or address. Secondmate
 # charters still use a single `{TASK}` charter fill. Firstmate may adjust other
 # sections when the task genuinely deviates (e.g. working an existing external
@@ -44,7 +46,7 @@
 #   Set FM_SECONDMATE_SCOPE='<scope>' to write a routing scope distinct from the charter text.
 #   --herdr-lab is mandatory when the task will issue Herdr lifecycle commands.
 #   It adds the hard isolation contract backed by bin/fm-herdr-lab.sh.
-#   The flag must be explicit because {TASK}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT} are filled
+#   The flag must be explicit because {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT} are filled
 #   after scaffolding and the caller-supplied repo string cannot reliably
 #   identify this repo. Briefs made without it carry a loud declaration so an
 #   omitted contract cannot be silent.
@@ -584,9 +586,12 @@ fi
 
 IFS= read -r -d '' TASK_SECTION <<EOF || true
 # Task
-$FM_BRIEF_EXPERT_PROMPT_MARKER
+$FM_BRIEF_TASK_SLOTS_MARKER
 ## Captain's intent
 {TASK}
+
+## Confirmed intent
+{CONFIRMED_INTENT}
 
 ## Firstmate spec
 {FIRSTMATE_SPEC}
@@ -712,7 +717,7 @@ When the report is complete, append \`done [at=<epoch>]: {one-line conclusion}\`
 If your findings reveal work that should ship (e.g. you reproduced a bug and the fix is clear), say so in the report; firstmate may promote this task in place, and you would then receive mode-specific ship instructions as a follow-up message.
 EOF
 append_brief_include
-echo "scaffolded: $BRIEF (scout; replace {TASK}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
+echo "scaffolded: $BRIEF (scout; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
 exit 0
 fi
 
@@ -800,9 +805,9 @@ $DOD
 EOF
 append_brief_include
 if [ "$FORGE" = none ]; then
-  echo "scaffolded: $BRIEF (ship, mode=$MODE; replace {TASK}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
+  echo "scaffolded: $BRIEF (ship, mode=$MODE; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
 elif [ "$FORGE" = gerrit ]; then
-  echo "scaffolded: $BRIEF (ship, mode=$MODE forge=$FORGE shape=$SHAPE; replace {TASK}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
+  echo "scaffolded: $BRIEF (ship, mode=$MODE forge=$FORGE shape=$SHAPE; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
 else
-  echo "scaffolded: $BRIEF (ship, mode=$MODE forge=$FORGE; replace {TASK}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
+  echo "scaffolded: $BRIEF (ship, mode=$MODE forge=$FORGE; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
 fi
