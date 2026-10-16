@@ -77,7 +77,12 @@
 # `## Firstmate spec` and never the worker's own tradeoffs.
 # Author the subsection body and later relays as the actual words, without
 # adding speaker labels or direct address: the heading supplies provenance and
-# is not part of --intent. A legacy mixed Task instead marks each captain line
+# is not part of --intent. Those words are a quotation, not text Firstmate or
+# the worker authors, so they reach --intent and the PR unchanged even where
+# they name the captain; the AGENTS.md rule keeping direct address out of
+# non-chat artifacts governs authored text, and the address check below keeps
+# any quoted line from opening with a Captain label or address.
+# A legacy mixed Task instead marks each captain line
 # with `[captain] `; the selector returns its words, not that metadata prefix.
 # That selector skips fenced blocks and indented examples like the heading
 # reader, so a quoted `Captain:` sample is never authorized intent.
@@ -355,7 +360,7 @@ fm_brief_intent_overlay() {  # <captain-intent>
 # Current no-mistakes intent contract
 This section supersedes every earlier brief instruction about constructing `--intent`, but not later clarifications actually supplied by the captain.
 Use everything under `## Captain intent authorized for --intent` through the end of this brief, including any nested subheadings but excluding that heading, plus any later words the captain actually supplied as `--intent`; never include Firstmate specification or other mixed Task content.
-Preserve those words without adding speaker labels or direct address.
+Preserve those words unchanged even where they name the captain, without adding speaker labels or direct address: they are a quotation, and the rule against direct address in non-chat artifacts governs only text you author.
 Firstmate-authored constraints, acceptance criteria, implementation details, decisions, and tradeoffs are specification, not captain intent.
 The Definition of done's rule that `--intent` must be self-sufficient still governs the string you pass: resolve any report, decision, or PR the intent below refers to into its substance rather than passing the pointer.
 
@@ -516,7 +521,7 @@ EOF
   fm_nm_review_routing
   cat <<EOF
 When starting no-mistakes, pass \`--intent\` as only this brief's \`## Captain's intent\` subsection body, not its heading, plus any later words the captain actually said.
-Preserve the actual words without adding speaker labels or direct address; the subsection heading supplies provenance outside the pipeline input.
+Preserve the actual words unchanged even where they name the captain, without adding speaker labels or direct address: they are a quotation, and the rule against direct address in non-chat artifacts governs only text you author; the subsection heading supplies provenance outside the pipeline input.
 For a legacy brief with no such subsection, include only words on lines marked \`[captain] \`, excluding that metadata prefix; never copy its mixed \`# Task\` wholesale.
 If it has no provenance-marked captain words, stop and ask firstmate instead of starting no-mistakes.
 Do not include \`## Firstmate spec\`, later Firstmate build constraints, or your own decisions and tradeoffs.

@@ -1070,6 +1070,26 @@ EOF
   authorized=$(awk '$0 == "## Captain intent authorized for --intent" { emit=1; next } emit { print }' "$home/data/intent-literal/launch-brief.md")
   [ "$authorized" = "$words" ] || fail "literal words in the request were scrubbed"
 
+  # Words that name the captain are a quotation bound for the PR, which the
+  # non-chat no-direct-address rule would otherwise forbid. The worker must be
+  # told, in both the brief and its superseding overlay, to keep them unchanged.
+  id='intent-names-captain'
+  words=$(printf '%s\n' 'yes build all the fixes' '' \
+    'That answered the reading the captain confirmed: route every merge the captain approves through one guard.')
+  FM_HOME="$home" "$BRIEF" "$id" proj --mode no-mistakes >/dev/null 2>&1 \
+    || fail "captain-naming intent brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "$words" 'Keep the change narrow.'
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off)
+  assert_not_contains "$out" "operator-address line" "a third-person mention of the captain was refused as address"
+  authorized=$(awk '$0 == "## Captain intent authorized for --intent" { emit=1; next } emit { print }' "$home/data/$id/launch-brief.md")
+  [ "$authorized" = "$words" ] || fail "words naming the captain were changed: $authorized"
+  overlay=$(awk '$0 == "# Current no-mistakes intent contract" { emit=1; next } $0 == "## Captain intent authorized for --intent" { exit } emit { print }' "$home/data/$id/launch-brief.md")
+  dod=$(awk '$0 == "# Definition of done" { emit=1; next } emit && /^# / { exit } emit { print }' "$home/data/$id/brief.md")
+  assert_contains "$overlay" "unchanged even where they name the captain" \
+    "the intent overlay leaves the worker choosing between the quotation and the no-direct-address rule"
+  assert_contains "$dod" "unchanged even where they name the captain" \
+    "the Definition of done leaves the worker choosing between the quotation and the no-direct-address rule"
+
   # A body line that opens with operator address is refused, never rewritten.
   for marker in 'Captain:' "Captain's words:" "Captain's ask:" "Captain's intent:" 'Captain,'; do
     n=$((n + 1))
