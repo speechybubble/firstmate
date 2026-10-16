@@ -335,7 +335,7 @@ Reparenting and pid reuse can invalidate a remembered chain, and this answer dec
 ## Lost-wake outcome backstop
 
 Every main-actor wake drain checks each task's newest non-blank status event against the latest supervision-branch outcome that causally covers that task's status log.
-When that event is terminal or otherwise captain-facing and remains uncovered, the drain prints it in `STATUS OUTCOME BACKSTOP` and presents it again until the acknowledgement that drain asks for runs.
+When that event is terminal or otherwise captain-facing and remains uncovered, the drain prints it in `STATUS OUTCOME BACKSTOP` and presents it again until the acknowledgement that drain asks for runs; an empty-queue drain that shows it asks for the zero-row `--ack-through 0` acknowledgement of the current recovery generation.
 It does so even if the original queue row was already acknowledged.
 Routine events stay silent, and valid open decisions remain owned by `OPEN DECISIONS`.
 

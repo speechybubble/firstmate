@@ -17,8 +17,10 @@
 # touching the queue or any receipt. A drain that prints WAKE_ACK_REQUIRED
 # stages its status-presentation receipt and decision baseline instead of
 # committing them, and only that acknowledgement commits them, so a filtered or
-# truncated read is presented again rather than lost. A drain that asks for no
-# acknowledgement commits its receipt once its output is written.
+# truncated read is presented again rather than lost. A drain that consumes no
+# row asks for the zero-row acknowledgement of the current recovery generation
+# only when it shows UNREAD STATUS or STATUS OUTCOME BACKSTOP content; otherwise
+# it asks for none and commits its receipt once its output is written.
 #
 # Keep sequence-bound row consumption independent from generation-bound episode
 # retirement; docs/watcher-continuity.md owns the recovery contract.
@@ -68,7 +70,10 @@ BRANCH_OUTCOMES_RC=0
 LIST_DECISIONS=false
 # "<generation>\t<sequence>" of the acknowledgement this drain asks for; empty
 # when it asks for none, which commits the presentation receipt immediately.
+# With PRESENTATION_ACK_IF_ONCE_ONLY, a drain that consumes no row asks for it
+# only when it shows UNREAD STATUS or STATUS OUTCOME BACKSTOP content.
 PRESENTATION_ACK_TOKEN=
+PRESENTATION_ACK_IF_ONCE_ONLY=false
 DECISIONS_PRESENTED=
 case "$PRESENTATION_LOCK_TIMEOUT" in ''|*[!0-9]*|0) PRESENTATION_LOCK_TIMEOUT=10 ;; esac
 
@@ -847,17 +852,26 @@ cap_outcome_line() {  # <line> <max-bytes>
 }
 
 print_status_sections() {
-  local snapshot=${1:-} fully_presented=${2:-} acknowledged prepared
+  local snapshot=${1:-} fully_presented=${2:-} acknowledged prepared once_only=false
   if [ -z "$snapshot" ]; then snapshot=$(status_presentation_snapshot "$STATE") || return 1; fi
   [ -n "$snapshot" ] || return 0
   acknowledged=$(status_acknowledge_presented_snapshot "$STATE" "$snapshot" "$fully_presented") || return 1
   prepared=$(mktemp "$STATE/.status-presentation.prepared.XXXXXX") || return 1
   if ! {
     print_unread_status_section "$snapshot" \
-      && print_status_outcome_backstop_section "$snapshot" \
-      && print_open_decisions_section "$snapshot" \
-      && print_record_divergence_section
+      && print_status_outcome_backstop_section "$snapshot"
   } > "$prepared"; then
+    rm -f -- "$prepared"
+    return 1
+  fi
+  [ ! -s "$prepared" ] || once_only=true
+  if [ "$PRESENTATION_ACK_IF_ONCE_ONLY" = true ] && [ "$once_only" = false ]; then
+    PRESENTATION_ACK_TOKEN=
+  fi
+  if ! {
+    print_open_decisions_section "$snapshot" \
+      && print_record_divergence_section
+  } >> "$prepared"; then
     rm -f -- "$prepared"
     return 1
   fi
@@ -872,10 +886,24 @@ print_status_sections() {
   # Bytes reaching stdout do not prove a reader kept them, so a drain that asks
   # for an acknowledgement stages the receipt for that acknowledgement instead.
   if [ -n "$PRESENTATION_ACK_TOKEN" ]; then
-    stage_presentation_receipt "$acknowledged"
+    stage_presentation_receipt "$acknowledged" || return 1
+    [ "$PRESENTATION_ACK_IF_ONCE_ONLY" = false ] \
+      || printf 'WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 0 --recovery-generation %s\n' "${PRESENTATION_ACK_TOKEN%%$'\t'*}" >&2
     return
   fi
   status_commit_presentation_snapshot "$STATE" "$acknowledged"
+}
+
+# A drain that consumes no row asks for the generation-bound acknowledgement
+# only when it shows once-only content; a home whose recovery marker was never
+# written has no generation to name and commits its receipt immediately.
+ask_ack_if_once_only() {
+  case "$RECOVERY_MARKER_TOKEN" in
+    pending:*|announced:*|acked:*) ;;
+    *) return 0 ;;
+  esac
+  PRESENTATION_ACK_TOKEN="${RECOVERY_MARKER_TOKEN##*:}$(printf '\t')0"
+  PRESENTATION_ACK_IF_ONCE_ONLY=true
 }
 
 # Stage this presentation's receipt for the acknowledgement it asks for:
@@ -1191,6 +1219,8 @@ if [ ! -s "$FM_WAKE_QUEUE" ]; then
   DRAIN_LOCK_HELD=false
   if [ "$RECOVERY_ACK_REQUIRED" = true ]; then
     PRESENTATION_ACK_TOKEN="${RECOVERY_MARKER_TOKEN##*:}$(printf '\t')0"
+  elif [ "$ACTOR" = main ]; then
+    ask_ack_if_once_only
   fi
   (print_status_presentation) || true
   print_branch_outcomes_section || BRANCH_OUTCOMES_RC=1
@@ -1212,8 +1242,11 @@ if [ "$ACTOR" = main ]; then
     # drain that prints nothing while the queue is visibly non-empty reads as a
     # lost wake, and leaves the caller with no idea who owns what is queued.
     print_branch_held_notice
+    fm_recovery_marker_snapshot "$RECOVERY_MARKER" || true
+    RECOVERY_MARKER_TOKEN=$FM_RECOVERY_MARKER_TOKEN
     fm_lock_release "$FM_WAKE_QUEUE_LOCK"
     DRAIN_LOCK_HELD=false
+    ask_ack_if_once_only
     (print_status_presentation) || true
     print_branch_outcomes_section || BRANCH_OUTCOMES_RC=1
     assert_watcher_liveness
