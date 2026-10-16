@@ -616,6 +616,7 @@ The Pi and Claude Code primaries also check native conversational intake.
 This is separate from the watcher-liveness predicate: a healthy watcher cannot recover a commitment that was never filed.
 After activation, each native captain message in the current session remains unresolved until its handling has a disposition in that same session.
 Firstmate's own operational input, classified by `bin/fm-operational-input.sh` and its record-backed doorbells, does not create another intake obligation.
+On the Claude Code primary, a steering-inbox doorbell naming the session's own `$FM_TASK_INBOX`, as a second mate's parent sends it, is Firstmate's input too; a doorbell naming any other inbox, or arriving in a session launched without that export, stays captain input.
 An unrelated reply does not acknowledge earlier input.
 
 For work that outlives the reply, first update the existing backlog records, including scope, owner, wait and next action, then record their IDs with disposition `recorded` and a handling summary.

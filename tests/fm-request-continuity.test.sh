@@ -12,6 +12,9 @@
 #   3. An omitted request blocks the stop exactly once, stays visible to later
 #      context, and Firstmate's own doorbell input is not captain input, even
 #      after its record is pruned.
+#   3b. A steering-inbox doorbell built for this session's own $FM_TASK_INBOX is
+#      not captain input; one naming another inbox, quoted inside captain
+#      text, or reaching a session without that export still blocks.
 #   4. `recorded` requires a readable existing task; `reply` stays provisional
 #      until a normal nonempty reply, narration before a tool call is not that
 #      reply, and interruption or a later captain message invalidates it.
@@ -170,6 +173,48 @@ test_omission_recovers_once_and_stays_visible() {
   pass "an omitted request blocks the stop once, stays visible afterwards, and Firstmate's doorbells are not captain input, even once pruned"
 }
 
+# A second mate is a primary home that its parent steers through a durable
+# inbox under the parent's state, ringing a constant doorbell that names the
+# inbox by its short name and "$FM_TASK_INBOX", which every launch exports.
+test_steering_doorbell_is_not_captain_input() {
+  local home="$TMP_ROOT/steered" parent="$TMP_ROOT/steered-parent/state" rec doorbell other out
+  make_home "$home"
+  mkdir -p "$parent"
+  : > "$home/transcript.jsonl"
+  FM_TASK_INBOX="$parent/sm-design.inbox" stop_hook "$home" >/dev/null
+  rec=$(FM_STATE_OVERRIDE="$parent" bash -c '. "$1"; fm_task_inbox_write "$2" sm-design "review the backlog"' \
+    _ "$ROOT/bin/fm-task-inbox-lib.sh" "$parent") || fail "could not write a steering record"
+  doorbell=$(bash -c '. "$1"; fm_task_inbox_doorbell_line "$2"' _ "$ROOT/bin/fm-task-inbox-lib.sh" "$rec") \
+    || fail "could not build the steering doorbell"
+  say "$home" u-steer "$doorbell"
+  reply "$home" "Reviewed the backlog; nothing is stale."
+  out=$(FM_TASK_INBOX="$parent/sm-design.inbox" stop_hook "$home")
+  [ -z "$out" ] || fail "a steering doorbell for this session's own inbox blocked the stop: $out"
+
+  # Near misses stay captain input: a doorbell naming another inbox, the same
+  # doorbell quoted inside captain text, and a doorbell in a session launched
+  # without the inbox export, which cannot prove which inbox is its own.
+  other=$(bash -c '. "$1"; fm_task_inbox_doorbell_line "$2"' _ "$ROOT/bin/fm-task-inbox-lib.sh" "$parent/sm-other.inbox/1.msg") \
+    || fail "could not build another inbox's doorbell"
+  say "$home" u-other "$other"
+  say "$home" u-quote "Why did you get this? $doorbell"
+  reply "$home" "Answered."
+  out=$(FM_TASK_INBOX="$parent/sm-design.inbox" stop_hook "$home")
+  printf '%s' "$out" | jq -e '.decision == "block"' >/dev/null || fail "near-miss doorbells did not block the stop: $out"
+  case "$out" in *u-other*u-quote*) ;; *) fail "near-miss doorbells were not both captain input: $out" ;; esac
+  case "$out" in *u-steer*) fail "the own-inbox steering doorbell resurfaced as captain input: $out" ;; esac
+
+  local bare="$TMP_ROOT/steered-bare"
+  make_home "$bare"
+  : > "$bare/transcript.jsonl"
+  stop_hook "$bare" >/dev/null
+  say "$bare" u-bare "$doorbell"
+  reply "$bare" "Done."
+  out=$(unset FM_TASK_INBOX; stop_hook "$bare")
+  printf '%s' "$out" | jq -e '.decision == "block"' >/dev/null || fail "a doorbell without the inbox export did not block: $out"
+  pass "a steering doorbell for this session's own inbox is not captain input, while other inboxes, quotes and unexported sessions still block"
+}
+
 test_dispositions_are_verified_and_reply_is_provisional() {
   local home="$TMP_ROOT/dispose" out
   make_home "$home"
@@ -287,6 +332,7 @@ test_outcome_ack_commits_only_after_reply() {
 test_non_owner_is_inert
 test_activation_is_not_retroactive
 test_omission_recovers_once_and_stays_visible
+test_steering_doorbell_is_not_captain_input
 test_dispositions_are_verified_and_reply_is_provisional
 test_compaction_keeps_input_restorable
 test_outcome_ack_commits_only_after_reply

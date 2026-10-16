@@ -93,13 +93,15 @@
 #   FM_TASK_INBOX_BUSY_MAX     default 2; consecutive busy-deferred due polls before escalation
 
 _FM_TASK_INBOX_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Both dependencies are canonical lint roots in their own right. Keep them as
+# These dependencies are canonical lint roots in their own right. Keep them as
 # analysis boundaries here so ShellCheck's external-source traversal does not
 # recursively duplicate the full backend graph for every inbox consumer.
 # shellcheck source=/dev/null
 . "$_FM_TASK_INBOX_LIB_DIR/fm-wake-lib.sh"
 # shellcheck source=/dev/null
 . "$_FM_TASK_INBOX_LIB_DIR/fm-backend.sh"
+# shellcheck source=/dev/null
+. "$_FM_TASK_INBOX_LIB_DIR/fm-operational-input.sh"
 
 FM_TASK_INBOX_SCHEMA='fm-task-inbox.v1'
 FM_TASK_INBOX_GRACE_DEFAULT=90
@@ -308,7 +310,8 @@ fm_task_inbox_body() {  # <record-path>
   return 1
 }
 
-# The constant self-describing doorbell line for the inbox containing a record.
+# The constant self-describing doorbell line for the inbox containing a record,
+# whose wire form bin/fm-operational-input.sh owns beside its recognizer.
 # It names the inbox by the literal "$FM_TASK_INBOX", which bin/fm-spawn.sh
 # exports into every launch as the inbox's absolute path, so the worker can
 # resolve it from its own environment even after losing its brief context.
@@ -323,16 +326,11 @@ fm_task_inbox_body() {  # <record-path>
 # non-printable inbox name fails without output so terminal controls never
 # reach the pane's line discipline.
 fm_task_inbox_doorbell_line() {  # <record-path>
-  local dir=${1%/*} abs name quoted LC_ALL=C
+  local dir=${1%/*} abs line
   abs=$(cd "$dir" 2>/dev/null && pwd) || abs=$dir
   abs=${abs%/handled}
-  name=${abs##*/}
-  case "$name" in
-    ''|*[![:print:]]*) return 1 ;;
-  esac
-  quoted=$(printf '%s' "$name" | sed "s/'/'\\\\''/g")
-  printf ": Firstmate instruction waiting: list \"\$FM_TASK_INBOX\"/*.msg in your '%s' steering inbox, read and act on each in numeric order, then mv each into its handled/." \
-    "$quoted"
+  fm_steering_doorbell_build "${abs##*/}" line || return 1
+  printf '%s' "$line"
 }
 
 # Ring the doorbell, best-effort: one endpoint-liveness pre-check, one advisory

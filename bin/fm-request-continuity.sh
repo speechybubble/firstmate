@@ -172,12 +172,18 @@ numbered_events() {  # <transcript> <after>
 }
 
 # True when <text> is Firstmate's own operational input rather than the
-# captain's: a current envelope, or a well-formed doorbell naming <inbox>, this
-# home's physical operational inbox. Intake re-reads the whole session on every hook, so a
-# doorbell stays Firstmate's after its record is pruned.
-is_operational() {  # <text> <inbox>
-  local kind record
+# captain's: a current envelope, a well-formed doorbell naming <inbox>, this
+# home's physical operational inbox, or a steering-inbox doorbell naming
+# <steering>, the short name of this session's own $FM_TASK_INBOX (a second
+# mate's parent steers it that way). Intake re-reads the whole session on every
+# hook, so a doorbell stays Firstmate's after its record is pruned or handled.
+is_operational() {  # <text> <inbox> <steering>
+  local kind record name
   fm_operational_input_kind "$1" kind && return 0
+  if fm_steering_doorbell_inbox "$1" name; then
+    [ -n "$3" ] && [ "$name" = "$3" ]
+    return
+  fi
   fm_operational_doorbell_path "$1" record || return 1
   [ -n "$2" ] && [ "${record%/*}" = "$2" ]
 }
@@ -204,11 +210,13 @@ pending_requests() {  # <session> <transcript>
   # extracts every candidate's line and text, so no process runs per entry.
   # Firstmate's own input is not captain input, and like an interruption it
   # invalidates a staged reply or acknowledgement.
-  local user_lines=() user_texts=() retag="" i=0 inbox
+  local user_lines=() user_texts=() retag="" i=0 inbox steering=${FM_TASK_INBOX:-}
   inbox=$(cd -P "$STATE/$FM_OPERATIONAL_RECORD_DIRNAME" 2>/dev/null && pwd -P) || inbox=""
+  steering=${steering%/}
+  steering=${steering##*/}
   eval "$(printf '%s\n' "$events" | jq -r 'select(.kind == "user") | "user_lines+=(\(.line)); user_texts+=(\(.text | @sh))"' 2>/dev/null)"
   while [ "$i" -lt "${#user_lines[@]}" ]; do
-    if is_operational "${user_texts[$i]}" "$inbox"; then
+    if is_operational "${user_texts[$i]}" "$inbox" "$steering"; then
       retag="$retag,\"${user_lines[$i]}\":\"break\""
     fi
     i=$((i + 1))
