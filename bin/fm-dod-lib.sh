@@ -247,6 +247,7 @@ fm_brief_task_placeholders_present() {  # <file>
 # `### Expert prompt` (written as `<!-- fm-brief: expert-prompt v1 -->`) and v2
 # added `## Confirmed intent`. A slot is required on every brief marked at or
 # above the version that added it; an older brief launches without it and warns.
+# shellcheck disable=SC2034 # Read by bin/fm-brief.sh, which sources this library.
 FM_BRIEF_TASK_SLOTS_MARKER='<!-- fm-brief: task-slots v2 -->'
 
 # Print the highest Task slot version a brief's `# Task` marker names, or 0.
