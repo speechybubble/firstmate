@@ -5122,6 +5122,7 @@ pass "ensure-listening fails for a listener whose source command dies without a 
 # holds a live claim before it writes its own stamp; the earlier stamp must
 # not count as the replacement's settle.
 truth_flag="$TRUTH/stale-ran-once"
+# shellcheck disable=SC2016  # single quotes are deliberate: the inner sh expands this.
 pe_register "$TRUTH" lavish truth-stale -- /bin/sh -c \
   'if [ -e "$1" ]; then echo gone >&2; exit 1; fi; : > "$1"; exec "$2" "$3" payload' \
   sh "$truth_flag" "$BLOCKER" "$TRUTH_TRIGGER" >/dev/null
