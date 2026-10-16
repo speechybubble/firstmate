@@ -404,8 +404,8 @@ fm_control_claude_pid_descends_from() {  # <pid> <ancestor>
 #     owner must sit in the process tree of the task's recorded endpoint
 #     (<endpoint-root-pid>, from fm_backend_pane_root_pid), and carry the
 #     identity that launch gave its kind: a ship or scout's FM_TASK_ID must be
-#     the task id, and its FM_HOME, which production launches leave unset, must
-#     be <task-home> (the firstmate home owning the task) when present; a
+#     the task id, and its FM_HOME, which launches that old also left unset,
+#     must be <task-home> (the firstmate home owning the task) when present; a
 #     secondmate's FM_HOME must be its own home, <task-home>.
 # An unreadable environment proves nothing and refuses, so on a platform
 # without /proc an exact-session resume always refuses before the stop.
