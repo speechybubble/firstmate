@@ -1,0 +1,4 @@
+# BEFORE (base 3583387a) - same lab, same records:
+state: done · source: status-log · implementation committed on fm/preval, stopping for /no-mistakes
+# AFTER (target 754ee513):
+state: done · source: status-log · implementation committed on fm/preval, stopping for /no-mistakes · handoff ready: instruct /no-mistakes

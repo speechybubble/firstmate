@@ -1,0 +1,26 @@
+# lab tmux windows (each a real idle Claude Code pane):
+fm-preval  claude
+fm-nomode  claude
+fm-directpr  claude
+fm-ciready  claude
+fm-scout  claude
+fm-working  claude
+
+$ FM_HOME=$LAB bin/fm-crew-state.sh preval   # mode=no-mistakes kind=ship status='done: implementation committed on fm/preval, stopping for /no-mistakes'
+state: done · source: status-log · implementation committed on fm/preval, stopping for /no-mistakes · handoff ready: instruct /no-mistakes
+
+$ FM_HOME=$LAB bin/fm-crew-state.sh nomode   # mode= kind=ship status='done: implementation complete'
+state: done · source: status-log · implementation complete · handoff ready: instruct /no-mistakes
+
+$ FM_HOME=$LAB bin/fm-crew-state.sh directpr   # mode=direct-PR kind=ship status='done: PR https://example.test/o/r/pull/5'
+state: done · source: status-log · PR https://example.test/o/r/pull/5
+
+$ FM_HOME=$LAB bin/fm-crew-state.sh ciready   # mode=no-mistakes kind=ship status='done: PR https://example.test/o/r/pull/6 checks green'
+state: done · source: status-log · PR https://example.test/o/r/pull/6 checks green
+
+$ FM_HOME=$LAB bin/fm-crew-state.sh scout   # mode=no-mistakes kind=scout status='done: report written'
+state: done · source: status-log · report written
+
+$ FM_HOME=$LAB bin/fm-crew-state.sh working   # mode=no-mistakes kind=ship status='working: implementing'
+state: working · source: status-log · implementing
+
