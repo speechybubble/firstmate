@@ -363,7 +363,9 @@
 #   An enabled task trace also retains TRACEPARENT. Explicit Firstmate launch
 #   assignments still apply inside the filtered environment, including the
 #   FM_TASK_INBOX export every launch carries (the absolute state/<id>.inbox
-#   path the steering doorbell names). Raw commands must
+#   path the steering doorbell names) and the FM_HOME and FM_STATE_OVERRIDE
+#   exports naming the dispatching home that every ship and scout launch
+#   carries. Raw commands must
 #   be POSIX sh compatible under this opt-in; the absent-file path is unchanged.
 #   This is an exec environment boundary, not a sandbox for the pane's startup
 #   shell, credential files, same-user processes, or later shell initialization.
@@ -5707,6 +5709,14 @@ fi
 # kill switch below it is an export statement, so it survives a compound raw
 # launch and the launch-env-allowlist `env -i` wrapper.
 LAUNCH="export FM_TASK_INBOX=$(shell_quote "$STATE_REAL/$ID.inbox"); $LAUNCH"
+# A ship or scout worker reports to and writes in the home that launched it, so
+# its launch names that home and state root explicitly. The pane otherwise takes
+# them from the terminal server, which another home can share: a second mate's
+# workers once started with the main home's values and wrote a decision row into
+# its backlog. A secondmate gets its own home from the launch prefix above.
+if [ "$KIND" != secondmate ]; then
+  LAUNCH="export FM_HOME=$(shell_quote "$(cd "$FM_HOME" && pwd -P)") FM_STATE_OVERRIDE=$(shell_quote "$STATE_REAL"); $LAUNCH"
+fi
 LAUNCH="export COMPACT_ADVISER_DISABLE=1; $LAUNCH"
 # When the live-harness gate has exported DISABLE_AUTOUPDATER into this spawn's
 # own environment, carry it into the launch command text so Claude Code's
