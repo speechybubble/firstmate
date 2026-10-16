@@ -1972,7 +1972,7 @@ A long-polling external process is registered as a *source* through its adapter,
 **Open the Lavish artifact first**
 
 Before arming any Lavish source, open its artifact with `lavish-axi` so the saved session identifies the board's server; reply and poll attempts derive their host and port from that session and refuse missing or invalid session evidence before posting or consuming a staged worker reply.
-`arm` refuses a board without exactly one valid saved session before registering anything, naming that missing session, so no listener is left for `reconcile` to restart into the same failure.
+`arm` refuses a board without exactly one valid saved session before registering anything, naming the board and why its session is unusable, so no listener is left for `reconcile` to restart into the same failure.
 
 **Retry interrupted Lavish polls**
 
