@@ -144,6 +144,20 @@ assert_expert_prompt_slot() {  # <brief> <label>
     || fail "$label: Firstmate spec outside its expert prompt is not just its placeholder"
 }
 
+# The confirmed-intent slot is its own Task subsection between the captain's
+# words and the spec, so neither reads it as their own body.
+assert_confirmed_intent_slot() {  # <brief> <label>
+  local brief=$1 label=$2
+  [ "$(fm_brief_task_heading_body "$brief" '## Confirmed intent')" = '{CONFIRMED_INTENT}' ] \
+    || fail "$label: brief missing the {CONFIRMED_INTENT} placeholder under ## Confirmed intent"
+  [ "$(fm_brief_task_heading_body "$brief" "## Captain's intent" | tr -d '[:space:]')" = '{TASK}' ] \
+    || fail "$label: confirmed intent landed in Captain's intent"
+  assert_not_contains "$(fm_brief_task_heading_body "$brief" '## Firstmate spec')" 'CONFIRMED_INTENT' \
+    "$label: confirmed intent landed in Firstmate spec"
+  [ "$(fm_brief_task_slots_version "$brief")" = 2 ] \
+    || fail "$label: brief does not carry the version 2 Task slot marker"
+}
+
 # fm-brief.sh must exit 0 and produce a brief with no unreplaced shell
 # metacharacter corruption for every ship delivery mode. This also guards
 # against any *new* unescaped apostrophe or unbalanced quote later added to
@@ -169,6 +183,7 @@ test_ship_modes_generate_clean_briefs() {
     assert_grep "## Captain's intent" "$brief" "$id: brief missing Captain's intent subsection"
     assert_grep "## Firstmate spec" "$brief" "$id: brief missing Firstmate spec subsection"
     assert_expert_prompt_slot "$brief" "$id"
+    assert_confirmed_intent_slot "$brief" "$id"
     assert_grep 'never a bare number such as "PR 108"' "$brief" "$id: brief missing the full-PR-URL rule"
     assert_grep "mid-task \`working:\` line (including setup complete) is nonterminal" "$brief" \
       "$id: brief missing nonterminal working:/setup-complete gate protection"
@@ -677,12 +692,13 @@ test_herdr_lab_omission_is_loud_for_ship_and_scout() {
 # see the task text. Each placeholder must exist only at its genuine fill site,
 # so the documented fill leaves the gate intact and each body appears once.
 test_documented_global_replace_leaves_the_herdr_gate_intact() {
-  local home id brief kind count content filled body spec expert
+  local home id brief kind count content filled body spec expert confirmed
   home="$TMP_ROOT/task-fill-site-home"
   mkdir -p "$home/data"
   body='Restart the herdr session, then profile it'
   spec='Use the isolated lab helper for every lifecycle call'
   expert='Act as a Herdr maintainer who profiles sessions in a named lab'
+  confirmed=$'Profile one named lab session.\ncaptain confirmed: yes, profile it'
   for kind in ship scout; do
     id="brief-fill-site-$kind"
     if [ "$kind" = scout ]; then
@@ -701,10 +717,14 @@ test_documented_global_replace_leaves_the_herdr_gate_intact() {
     count=$(grep -c -F '{EXPERT_PROMPT}' "$brief")
     [ "$count" = 1 ] \
       || fail "$kind brief must carry exactly one {EXPERT_PROMPT} fill site, found $count"
+    count=$(grep -c -F '{CONFIRMED_INTENT}' "$brief")
+    [ "$count" = 1 ] \
+      || fail "$kind brief must carry exactly one {CONFIRMED_INTENT} fill site, found $count"
     content=$(cat "$brief")
     filled=${content//'{TASK}'/$body}
     filled=${filled//'{FIRSTMATE_SPEC}'/$spec}
     filled=${filled//'{EXPERT_PROMPT}'/$expert}
+    filled=${filled//'{CONFIRMED_INTENT}'/$confirmed}
     count=$(printf '%s\n' "$filled" | grep -c -F "$body")
     [ "$count" = 1 ] \
       || fail "$kind brief: the documented {TASK} replace duplicated the intent body $count times"
@@ -714,10 +734,13 @@ test_documented_global_replace_leaves_the_herdr_gate_intact() {
     count=$(printf '%s\n' "$filled" | grep -c -F "$expert")
     [ "$count" = 1 ] \
       || fail "$kind brief: the {EXPERT_PROMPT} replace duplicated the expert prompt $count times"
+    count=$(printf '%s\n' "$filled" | grep -c -F 'captain confirmed: yes, profile it')
+    [ "$count" = 1 ] \
+      || fail "$kind brief: the {CONFIRMED_INTENT} replace duplicated the confirmation $count times"
     printf '%s\n' "$filled" | grep -qF 'this scaffold cannot inspect the task text' \
       || fail "$kind brief: the Herdr safety gate did not survive the documented fill"
   done
-  pass "fm-brief.sh: the documented {TASK}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT} fills cannot corrupt the Herdr safety gate"
+  pass "fm-brief.sh: the documented {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT} fills cannot corrupt the Herdr safety gate"
 }
 
 test_secondmate_no_projects_charter() {
@@ -1117,6 +1140,7 @@ test_scout_and_secondmate_scaffold() {
   assert_grep "## Firstmate spec" "$brief" "scout brief missing Firstmate spec subsection"
   assert_grep "{FIRSTMATE_SPEC}" "$brief" "scout brief missing the spec placeholder"
   assert_expert_prompt_slot "$brief" scout
+  assert_confirmed_intent_slot "$brief" scout
 
   FM_SECONDMATE_CHARTER='Supervise the alpha domain.' \
     FM_HOME="$BRIEF_HOME" "$ROOT/bin/fm-brief.sh" brief-sm-q6 --secondmate alpha >/dev/null 2>&1 \
@@ -1527,7 +1551,7 @@ test_task_context_activation_and_intent_boundary() {
     [ -r "$skill" ] || fail "$kind: generated context skill cannot be read outside the fleet home"
     assert_no_grep "$home/.agents/skills/task-context" "$brief" "$kind: skill resolved against the operational home"
     fm_brief_task_placeholders_present "$brief" || fail "$kind: scaffold placeholders lost their ordinary meaning"
-    sed -e "s/{TASK}/$intent/" -e "s/{FIRSTMATE_SPEC}/$spec/" -e "s/{EXPERT_PROMPT}/routine: skipped - context fixture/" "$brief" > "$brief.filled"
+    sed -e "s/{TASK}/$intent/" -e "s/{FIRSTMATE_SPEC}/$spec/" -e "s/{EXPERT_PROMPT}/routine: skipped - context fixture/" -e "s/{CONFIRMED_INTENT}/not captain-originated - context fixture/" "$brief" > "$brief.filled"
     fm_brief_task_content_valid "$brief.filled" || fail "$kind: filled brief is not valid for launch"
     if fm_brief_task_placeholders_present "$brief.filled"; then
       fail "$kind: filled brief still has task placeholders"

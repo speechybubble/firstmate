@@ -96,14 +96,16 @@
 # and a `## Captain's intent` line opening with a Captain label or address
 # through the helpers below. Other mentions of `--intent` point here rather than
 # restating the rule.
-# The scaffold also nests `### Expert prompt` under `## Firstmate spec`, so the
-# expert prompt Firstmate wrote for the work is specification and never part of
-# --intent. fm_brief_expert_prompt_problem below owns its accepted fillings: the
-# expert prompt itself, or exactly one `routine: skipped - <reason>` line. Every
-# such scaffold also carries FM_BRIEF_EXPERT_PROMPT_MARKER, so a marked brief
-# whose subsection is gone is refused. Only an unmarked brief, scaffolded before
-# the subsection existed, stays launchable without one; bin/fm-spawn.sh and
-# bin/fm-promote.sh name that omission in one shared warning.
+# The scaffold also writes two required slots that are never part of --intent.
+# `## Confirmed intent`, a sibling after `## Captain's intent`, records the
+# reading of the ask the captain confirmed before work began;
+# fm_brief_confirmed_intent_problem below owns its accepted fillings. `### Expert
+# prompt`, nested under `## Firstmate spec` because it is specification, holds
+# the expert prompt Firstmate wrote; fm_brief_expert_prompt_problem owns its
+# fillings. Every such scaffold carries FM_BRIEF_TASK_SLOTS_MARKER, so a marked
+# brief whose slot is gone is refused. A brief scaffolded before a slot existed
+# stays launchable without it; fm_brief_task_slots_check is the one gate
+# bin/fm-spawn.sh and bin/fm-promote.sh share, refusals and warnings included.
 # Every heredoc here stays outside a command substitution: `VAR=$(cat <<EOF ...)`
 # breaks parsing of the whole file on Bash 3.2 (tests/fm-brief.test.sh).
 # fm_brief_worker_role owns the ship/scout role scope. bin/fm-spawn.sh is its one
@@ -245,9 +247,26 @@ fm_brief_task_placeholders_present() {  # <file>
   return 1
 }
 
-# The `# Task` line bin/fm-brief.sh writes into every ship and scout brief that
-# carries the `### Expert prompt` subsection.
-FM_BRIEF_EXPERT_PROMPT_MARKER='<!-- fm-brief: expert-prompt v1 -->'
+# The `# Task` line bin/fm-brief.sh writes into every ship and scout brief,
+# naming the Task slot version the brief was scaffolded with: v1 added
+# `### Expert prompt` (written as `<!-- fm-brief: expert-prompt v1 -->`) and v2
+# added `## Confirmed intent`. A slot is required on every brief marked at or
+# above the version that added it; an older brief launches without it and warns.
+# shellcheck disable=SC2034 # Read by bin/fm-brief.sh, which sources this library.
+FM_BRIEF_TASK_SLOTS_MARKER='<!-- fm-brief: task-slots v2 -->'
+
+# Print the highest Task slot version a brief's `# Task` marker names, or 0.
+fm_brief_task_slots_version() {  # <file>
+  fm_brief_heading_body "$1" "# Task" | awk '
+    match($0, /^<!-- fm-brief: [a-z-]+ v[0-9]+ -->$/) {
+      v = $0
+      sub(/^<!-- fm-brief: [a-z-]+ v/, "", v)
+      sub(/ -->$/, "", v)
+      if (v + 0 > max) max = v + 0
+    }
+    END { print max + 0 }
+  '
+}
 
 # Print a brief's `## Firstmate spec` body without its `### Expert prompt`
 # subsection, keeping every other nested subsection.
@@ -263,57 +282,113 @@ fm_brief_firstmate_spec_body() {  # <file>
   printf '%s\n' "$spec"
 }
 
-# Print why a brief's `### Expert prompt` subsection cannot launch and return 0;
-# return 1 when it is filled, or absent from an unmarked brief scaffolded before
-# the subsection existed.
-fm_brief_expert_prompt_problem() {  # <file>
-  local file=$1 body compact skip_lines other_lines
-  if ! fm_brief_expert_prompt_present "$file"; then
-    fm_brief_expert_prompt_marked "$file" || return 1
+# Print why a `# Task` slot cannot launch and return 0: it is missing from a
+# brief marked at or above <since-version>, empty, or still its placeholder.
+# Return 1 otherwise; the caller then checks the slot's own accepted forms.
+fm_brief_task_slot_problem() {  # <file> <heading> <placeholder> <since-version>
+  local file=$1 heading=$2 placeholder=$3 since=$4 compact
+  if ! fm_brief_task_heading_present "$file" "$heading"; then
+    [ "$(fm_brief_task_slots_version "$file")" -ge "$since" ] || return 1
     echo "is missing"
     return 0
   fi
-  body=$(fm_brief_task_heading_body "$file" "### Expert prompt")
-  compact=$(printf '%s' "$body" | tr -d '[:space:]')
+  compact=$(fm_brief_task_heading_body "$file" "$heading" | tr -d '[:space:]')
   if [ -z "$compact" ]; then
     echo "is empty"
     return 0
   fi
-  if [ "$compact" = '{EXPERT_PROMPT}' ]; then
-    echo "still contains {EXPERT_PROMPT}"
-    return 0
-  fi
-  skip_lines=$(printf '%s\n' "$body" | grep -c '^[[:space:]]*routine: skipped')
-  [ "$skip_lines" -eq 0 ] && return 1
-  other_lines=$(printf '%s\n' "$body" | grep -c -v -e '^[[:space:]]*$' -e '^[[:space:]]*routine: skipped')
-  if [ "$skip_lines" -ne 1 ] || [ "$other_lines" -ne 0 ]; then
-    echo "mixes a routine: skipped line with other text"
-    return 0
-  fi
-  if ! printf '%s\n' "$body" | grep -q '^[[:space:]]*routine: skipped - .*[^[:space:]]'; then
-    echo "has a routine: skipped line with no reason"
+  if [ "$compact" = "$placeholder" ]; then
+    echo "still contains $placeholder"
     return 0
   fi
   return 1
 }
 
-# The one wording of an expert-prompt refusal, shared by spawn and promotion.
-fm_brief_expert_prompt_refusal() {  # <file> <problem> <before-what>
-  printf "error: %s ### Expert prompt %s; the expert-prompt-before-work rule requires that subsection to carry either the expert prompt Firstmate wrote for this work or exactly one line \`routine: skipped - <reason>\` naming why the work needs none, before %s\n" "$1" "$2" "$3" >&2
+# Print why a slot body that uses its one-line exemption cannot launch and
+# return 0; return 1 when the body is exactly one `<prefix> - <reason>` line
+# with a nonblank reason. Callers use it once some line opens with <prefix>.
+fm_brief_slot_exemption_problem() {  # <body> <prefix>
+  local body=$1 prefix=$2 lines other
+  lines=$(printf '%s\n' "$body" | grep -c "^[[:space:]]*$prefix")
+  other=$(printf '%s\n' "$body" | grep -c -v -e '^[[:space:]]*$' -e "^[[:space:]]*$prefix")
+  if [ "$lines" -ne 1 ] || [ "$other" -ne 0 ]; then
+    echo "mixes a $prefix line with other text"
+    return 0
+  fi
+  if ! printf '%s\n' "$body" | grep -q "^[[:space:]]*$prefix - .*[^[:space:]]"; then
+    echo "has a $prefix line with no reason"
+    return 0
+  fi
+  return 1
 }
 
-# The one wording of the pre-change warning, shared by spawn and promotion.
-fm_brief_expert_prompt_legacy_warning() {  # <file>
-  fm_brief_expert_prompt_present "$1" && return 0
-  echo "warning: $1 has no ### Expert prompt subsection (scaffolded before briefs carried one); launching without an expert prompt" >&2
+# Print why a brief's `### Expert prompt` subsection cannot launch and return 0;
+# return 1 when it carries an expert prompt or one reasoned
+# `routine: skipped - <reason>` line, or is absent from a brief scaffolded
+# before the subsection existed.
+fm_brief_expert_prompt_problem() {  # <file>
+  local file=$1 body
+  fm_brief_task_slot_problem "$file" "### Expert prompt" '{EXPERT_PROMPT}' 1 && return 0
+  fm_brief_task_heading_present "$file" "### Expert prompt" || return 1
+  body=$(fm_brief_task_heading_body "$file" "### Expert prompt")
+  printf '%s\n' "$body" | grep -q '^[[:space:]]*routine: skipped' || return 1
+  fm_brief_slot_exemption_problem "$body" 'routine: skipped'
 }
 
-fm_brief_expert_prompt_present() {  # <file>
-  fm_brief_task_heading_present "$1" "### Expert prompt"
+# Print why a brief's `## Confirmed intent` subsection cannot launch and return
+# 0; return 1 when it carries the confirmed reading plus exactly one
+# `captain confirmed: <words>` line, or exactly one reasoned
+# `not captain-originated - <reason>` line, or is absent from a brief scaffolded
+# before the subsection existed. Whether the reading is right, and whether the
+# words match what was said, stays Firstmate's responsibility.
+fm_brief_confirmed_intent_problem() {  # <file>
+  local file=$1 body confirmed other
+  fm_brief_task_slot_problem "$file" "## Confirmed intent" '{CONFIRMED_INTENT}' 2 && return 0
+  fm_brief_task_heading_present "$file" "## Confirmed intent" || return 1
+  body=$(fm_brief_task_heading_body "$file" "## Confirmed intent")
+  if printf '%s\n' "$body" | grep -q '^[[:space:]]*not captain-originated'; then
+    fm_brief_slot_exemption_problem "$body" 'not captain-originated'
+    return
+  fi
+  confirmed=$(printf '%s\n' "$body" | grep -c '^[[:space:]]*captain confirmed:')
+  if [ "$confirmed" -eq 0 ]; then
+    echo "has no captain confirmed: line"
+    return 0
+  fi
+  if [ "$confirmed" -ne 1 ]; then
+    echo "has more than one captain confirmed: line"
+    return 0
+  fi
+  if ! printf '%s\n' "$body" | grep -q '^[[:space:]]*captain confirmed:[[:space:]]*[^[:space:]]'; then
+    echo "has a captain confirmed: line with no words"
+    return 0
+  fi
+  other=$(printf '%s\n' "$body" | grep -c -v -e '^[[:space:]]*$' -e '^[[:space:]]*captain confirmed:')
+  if [ "$other" -eq 0 ]; then
+    echo "has no confirmed reading"
+    return 0
+  fi
+  return 1
 }
 
-fm_brief_expert_prompt_marked() {  # <file>
-  fm_brief_heading_body "$1" "# Task" | grep -Fxq "$FM_BRIEF_EXPERT_PROMPT_MARKER"
+# The one Task slot gate shared by spawn and promotion: print the refusal and
+# return 1 when either slot cannot launch, otherwise warn once for each slot a
+# brief scaffolded before it existed lacks.
+fm_brief_task_slots_check() {  # <file> <before-what>
+  local file=$1 step=$2 problem
+  if problem=$(fm_brief_confirmed_intent_problem "$file"); then
+    printf "error: %s ## Confirmed intent %s; the confirm-intent-before-real-work rule requires that subsection to carry either the reading of the captain's intent that the captain confirmed plus exactly one line \`captain confirmed: <the captain's confirming words, verbatim>\`, or exactly one line \`not captain-originated - <reason>\` for work that does not come from a captain request, before %s\n" "$file" "$problem" "$step" >&2
+    return 1
+  fi
+  if problem=$(fm_brief_expert_prompt_problem "$file"); then
+    printf "error: %s ### Expert prompt %s; the expert-prompt-before-work rule requires that subsection to carry either the expert prompt Firstmate wrote for this work or exactly one line \`routine: skipped - <reason>\` naming why the work needs none, before %s\n" "$file" "$problem" "$step" >&2
+    return 1
+  fi
+  fm_brief_task_heading_present "$file" "## Confirmed intent" \
+    || echo "warning: $file has no ## Confirmed intent subsection (scaffolded before briefs carried one); launching without a confirmed intent" >&2
+  fm_brief_task_heading_present "$file" "### Expert prompt" \
+    || echo "warning: $file has no ### Expert prompt subsection (scaffolded before briefs carried one); launching without an expert prompt" >&2
+  return 0
 }
 
 # Print the words of every provenance-marked line in a legacy `# Task` body.

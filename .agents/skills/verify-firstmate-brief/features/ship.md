@@ -3,7 +3,7 @@
 ## Sub-features
 
 Explicit `no-mistakes`, `direct-PR`, and `local-only` delivery modes produce a brief with the corresponding delivery contract.
-The brief retains user-intent, specification, and expert-prompt placeholders, status and inbox paths, conditional task execution, and the Herdr lifecycle declaration.
+The brief retains user-intent, confirmed-intent, specification, and expert-prompt placeholders, status and inbox paths, conditional task execution, and the Herdr lifecycle declaration.
 
 ## How to get to it (user POV)
 
@@ -24,6 +24,9 @@ for mode in no-mistakes direct-PR local-only; do
   grep -F '{FIRSTMATE_SPEC}' "$brief"
   grep -Fx '### Expert prompt' "$brief"
   grep -Fx '{EXPERT_PROMPT}' "$brief"
+  grep -Fx '## Confirmed intent' "$brief"
+  grep -Fx '{CONFIRMED_INTENT}' "$brief"
+  grep -Fx '<!-- fm-brief: task-slots v2 -->' "$brief"
   grep -F "$FM_HOME/state/ship-$mode.status" "$brief"
   grep -F "$FM_HOME/state/ship-$mode.inbox" "$brief"
   grep -F "$BRIEF_REPO/.agents/skills/task-execution/SKILL.md" "$brief"
