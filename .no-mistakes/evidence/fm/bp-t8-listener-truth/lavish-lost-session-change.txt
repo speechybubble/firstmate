@@ -1,0 +1,40 @@
+=== Scenario 8 [change]: armed board loses its saved Lavish session, runner killed, ensure-listening
+
+$ lavish-axi board.html
+  url: "http://127.0.0.1:4419/session/8651170884216ea2"
+  status: opened
+
+$ fm-procevent-lavish.sh arm board.html
+registered: lavish-8651170884216ea2 (lavish)
+armed: lavish-8651170884216ea2
+artifact: /tmp/fm-lab.hYQsJf/boards/board.html
+rc=0
+
+$ fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+lavish-8651170884216ea2      lavish       live       1
+(drop every saved session from the isolated Lavish store)
+killing runner group 2057289
+
+$ fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+lavish-8651170884216ea2      lavish       none       1
+
+$ fm-procevent.sh ensure-listening lavish-8651170884216ea2
+error: listener exited without listening or capturing a result: lavish-8651170884216ea2
+rc=1
+
+$ fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+lavish-8651170884216ea2      lavish       none       1
+
+=== Scenario 5b [change]: Lavish store exists but holds no session for a second board
+
+$ fm-procevent-lavish.sh arm board2.html
+board must have one saved Lavish session
+error: cannot resolve the board server from its Lavish session: /tmp/fm-lab.hYQsJf/boards/board2.html
+error: open the board with lavish-axi so it has a saved session, then arm it again: /tmp/fm-lab.hYQsJf/boards/board2.html
+rc=1
+
+$ fm-procevent.sh list
+no sources registered

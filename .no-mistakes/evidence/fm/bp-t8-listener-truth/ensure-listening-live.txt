@@ -1,0 +1,70 @@
+=== Scenario 1: register a blocking source, kill its runner, list, ensure-listening (N4 repro)
+
+$ fm-procevent.sh register lavish s1 -- sleep 600
+registered: s1 (lavish)
+
+$ fm-procevent.sh ensure-listening s1
+rc=0
+
+$ fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+s1                           lavish       live       0
+runner pid=1921352; killing its process group
+
+$ fm-procevent.sh list   (after kill)
+SOURCE                       ADAPTER      OWNER      PENDING
+s1                           lavish       none       0
+
+$ fm-procevent.sh ensure-listening s1   (after kill)
+
+real	0m3.412s
+user	0m0.903s
+sys	0m1.887s
+rc=0
+new runner pid=1925119 old=1921352 alive=yes
+
+$ fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+s1                           lavish       live       0
+
+=== Scenario 2: source that fails at once (Lavish poll with no server)
+
+$ fm-procevent.sh register lavish s2 -- sh -c 'echo gone >&2; exit 1'
+registered: s2 (lavish)
+
+$ fm-procevent.sh ensure-listening s2
+error: listener exited without listening or capturing a result: s2
+
+real	0m4.109s
+user	0m1.055s
+sys	0m2.424s
+rc=1
+
+$ fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+s2                           lavish       none       0
+
+=== Scenario 3 (adversarial, review fix): listened once, runner killed, now fails at once, old stamp >1s old
+registered: s3 (lavish)
+
+$ fm-procevent.sh ensure-listening s3  (first run, blocks)
+rc=0
+
+$ FM_PROCEVENT_LAUNCH_FLOOR_SECONDS=0 fm-procevent.sh ensure-listening s3  (source now fails at once)
+error: listener is not running: s3
+rc=1
+
+$ FM_PROCEVENT_LAUNCH_FLOOR_SECONDS=3 fm-procevent.sh ensure-listening s3  (source now fails at once)
+error: listener exited without listening or capturing a result: s3
+rc=1
+
+$ fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+s3                           lavish       none       0
+
+=== Scenario 4: source that answers at once is accepted
+registered: s4 (lavish)
+
+$ fm-procevent.sh ensure-listening s4
+rc=0
+/tmp/fm-lab.hYQsJf/state/procevent-inbox/s4.1.result

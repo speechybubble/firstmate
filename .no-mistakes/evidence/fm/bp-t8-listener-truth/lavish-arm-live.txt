@@ -1,0 +1,52 @@
+=== Scenario 5: arm a board with no saved Lavish session
+
+$ fm-procevent-lavish.sh arm board.html   (never opened in lavish-axi)
+cannot read Lavish session store
+error: cannot resolve the board server from its Lavish session: /tmp/fm-lab.hYQsJf/boards/board.html
+error: open the board with lavish-axi so it has a saved session, then arm it again: /tmp/fm-lab.hYQsJf/boards/board.html
+rc=1
+
+$ fm-procevent.sh list
+no sources registered
+
+=== Scenario 6: open the board in a real (isolated) lavish-axi server, then arm
+
+$ lavish-axi board.html
+  url: "http://127.0.0.1:4419/session/8651170884216ea2"
+  status: opened
+
+$ fm-procevent-lavish.sh arm board.html
+registered: lavish-8651170884216ea2 (lavish)
+armed: lavish-8651170884216ea2
+artifact: /tmp/fm-lab.hYQsJf/boards/board.html
+
+real	0m4.571s
+user	0m1.368s
+sys	0m2.591s
+rc=0
+
+$ fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+lavish-8651170884216ea2      lavish       live       0
+
+=== Scenario 7 (N4 end-to-end): server gone, runner killed, ensure-listening on the existing registration
+
+$ lavish-axi stop
+server:
+  status: stopped
+runner pid=2019258 alive=yes
+
+$ fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+lavish-8651170884216ea2      lavish       none       1
+
+$ fm-procevent.sh ensure-listening lavish-8651170884216ea2
+
+real	0m4.809s
+user	0m1.175s
+sys	0m2.492s
+rc=0
+
+$ fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+lavish-8651170884216ea2      lavish       live       1
