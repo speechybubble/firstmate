@@ -1,0 +1,90 @@
+[
+ {
+  "id": "directpr",
+  "current_state": {
+   "state": "done",
+   "source": "status-log",
+   "detail": "PR https://github.com/o/r/pull/7",
+   "raw": "state: done · source: status-log · PR https://github.com/o/r/pull/7",
+   "observed_at": "2026-10-16T10:53:19Z",
+   "freshness": "fresh"
+  }
+ },
+ {
+  "id": "localonly",
+  "current_state": {
+   "state": "done",
+   "source": "status-log",
+   "detail": "ready in branch fm/localonly",
+   "raw": "state: done · source: status-log · ready in branch fm/localonly",
+   "observed_at": "2026-10-16T10:53:19Z",
+   "freshness": "fresh"
+  }
+ },
+ {
+  "id": "nmgreen",
+  "current_state": {
+   "state": "done",
+   "source": "status-log",
+   "detail": "PR https://github.com/o/r/pull/5 checks green",
+   "raw": "state: done · source: status-log · PR https://github.com/o/r/pull/5 checks green",
+   "observed_at": "2026-10-16T10:53:19Z",
+   "freshness": "fresh"
+  }
+ },
+ {
+  "id": "nmhandoff",
+  "current_state": {
+   "state": "done",
+   "source": "status-log",
+   "detail": "implementation committed on fm/nmhandoff; stopping until told to run /no-mistakes · handoff ready: instruct /no-mistakes",
+   "raw": "state: done · source: status-log · implementation committed on fm/nmhandoff; stopping until told to run /no-mistakes · handoff ready: instruct /no-mistakes",
+   "observed_at": "2026-10-16T10:53:19Z",
+   "freshness": "fresh"
+  }
+ },
+ {
+  "id": "nmprnote",
+  "current_state": {
+   "state": "done",
+   "source": "status-log",
+   "detail": "PR https://github.com/o/r/pull/6",
+   "raw": "state: done · source: status-log · PR https://github.com/o/r/pull/6",
+   "observed_at": "2026-10-16T10:53:19Z",
+   "freshness": "fresh"
+  }
+ },
+ {
+  "id": "nmworking",
+  "current_state": {
+   "state": "working",
+   "source": "status-log",
+   "detail": "implementing",
+   "raw": "state: working · source: status-log · implementing",
+   "observed_at": "2026-10-16T10:53:19Z",
+   "freshness": "fresh"
+  }
+ },
+ {
+  "id": "nomode",
+  "current_state": {
+   "state": "done",
+   "source": "status-log",
+   "detail": "implementation committed · handoff ready: instruct /no-mistakes",
+   "raw": "state: done · source: status-log · implementation committed · handoff ready: instruct /no-mistakes",
+   "observed_at": "2026-10-16T10:53:19Z",
+   "freshness": "fresh"
+  }
+ },
+ {
+  "id": "scoutdone",
+  "current_state": {
+   "state": "done",
+   "source": "status-log",
+   "detail": "report written",
+   "raw": "state: done · source: status-log · report written",
+   "observed_at": "2026-10-16T10:53:19Z",
+   "freshness": "fresh"
+  }
+ }
+]

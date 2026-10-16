@@ -1,0 +1,11 @@
+nmhandoff  live:    state: done · source: status-log · implementation committed on fm/nmhandoff; stopping until told to run /no-mistakes · handoff ready: instruct /no-mistakes
+nomode     live:    state: done · source: status-log · implementation committed · handoff ready: instruct /no-mistakes
+nmgreen    live:    state: done · source: status-log · PR https://github.com/o/r/pull/5 checks green
+nmprnote   live:    state: done · source: status-log · PR https://github.com/o/r/pull/6
+directpr   live:    state: done · source: status-log · PR https://github.com/o/r/pull/7
+localonly  live:    state: done · source: status-log · ready in branch fm/localonly
+scoutdone  live:    state: done · source: status-log · report written
+nmworking  live:    state: working · source: status-log · implementing
+nmhandoff  history: state: done · source: status-log · implementation committed on fm/nmhandoff; stopping until told to run /no-mistakes
+snapshot rc=0
+DRIVE-DONE
