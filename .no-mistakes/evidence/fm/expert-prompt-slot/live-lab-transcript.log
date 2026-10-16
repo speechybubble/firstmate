@@ -1,0 +1,238 @@
+
+========== S1 scaffold: scout and ship briefs carry marker + ### Expert prompt ==========
+scaffolded: /tmp/fm-lab.n3WW8A/data/s1-scout/brief.md (scout; replace {TASK}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})
+# Task
+<!-- fm-brief: expert-prompt v1 -->
+## Captain's intent
+{TASK}
+
+## Firstmate spec
+{FIRSTMATE_SPEC}
+
+### Expert prompt
+{EXPERT_PROMPT}
+
+scaffolded: /tmp/fm-lab.n3WW8A/data/s1-ship/brief.md (ship, mode=no-mistakes; replace {TASK}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})
+# Task
+<!-- fm-brief: expert-prompt v1 -->
+## Captain's intent
+{TASK}
+
+## Firstmate spec
+{FIRSTMATE_SPEC}
+
+### Expert prompt
+{EXPERT_PROMPT}
+
+
+========== S2 unfilled {EXPERT_PROMPT} refused at spawn ==========
+--- Task section:
+# Task
+<!-- fm-brief: expert-prompt v1 -->
+## Captain's intent
+Find why the README is short.
+
+## Firstmate spec
+Read README.md and report.
+
+### Expert prompt
+{EXPERT_PROMPT}
+
+--- spawn:
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.n3WW8A
+error: /tmp/fm-lab.n3WW8A/data/s2-unfilled/brief.md ### Expert prompt still contains {EXPERT_PROMPT}; the expert-prompt-before-work rule requires that subsection to carry either the expert prompt Firstmate wrote for this work or exactly one line `routine: skipped - <reason>` naming why the work needs none, before spawn
+[exit=1]
+--- meta present? no
+
+========== S3a empty expert prompt refused ==========
+--- Task section:
+# Task
+<!-- fm-brief: expert-prompt v1 -->
+## Captain's intent
+Find why the README is short.
+
+## Firstmate spec
+Read README.md and report.
+
+### Expert prompt
+
+
+--- spawn:
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.n3WW8A
+error: /tmp/fm-lab.n3WW8A/data/s3a-empty/brief.md ### Expert prompt is empty; the expert-prompt-before-work rule requires that subsection to carry either the expert prompt Firstmate wrote for this work or exactly one line `routine: skipped - <reason>` naming why the work needs none, before spawn
+[exit=1]
+--- meta present? no
+
+========== S3b skip with no reason refused ==========
+--- Task section:
+# Task
+<!-- fm-brief: expert-prompt v1 -->
+## Captain's intent
+Find why the README is short.
+
+## Firstmate spec
+Read README.md and report.
+
+### Expert prompt
+routine: skipped
+
+--- spawn:
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.n3WW8A
+error: /tmp/fm-lab.n3WW8A/data/s3b-noreason/brief.md ### Expert prompt has a routine: skipped line with no reason; the expert-prompt-before-work rule requires that subsection to carry either the expert prompt Firstmate wrote for this work or exactly one line `routine: skipped - <reason>` naming why the work needs none, before spawn
+[exit=1]
+--- meta present? no
+
+========== S3c skip mixed with text refused ==========
+--- Task section:
+# Task
+<!-- fm-brief: expert-prompt v1 -->
+## Captain's intent
+Find why the README is short.
+
+## Firstmate spec
+Read README.md and report.
+
+### Expert prompt
+routine: skipped - trivial
+Also act as an expert.
+
+--- spawn:
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.n3WW8A
+error: /tmp/fm-lab.n3WW8A/data/s3c-mixed/brief.md ### Expert prompt mixes a routine: skipped line with other text; the expert-prompt-before-work rule requires that subsection to carry either the expert prompt Firstmate wrote for this work or exactly one line `routine: skipped - <reason>` naming why the work needs none, before spawn
+[exit=1]
+--- meta present? no
+
+========== S5 empty spec (only expert prompt) refused ==========
+--- Task section:
+# Task
+<!-- fm-brief: expert-prompt v1 -->
+## Captain's intent
+Find why the README is short.
+
+## Firstmate spec
+
+
+### Expert prompt
+routine: skipped - trivial
+
+--- spawn:
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.n3WW8A
+error: /tmp/fm-lab.n3WW8A/data/s5-emptyspec/brief.md must contain nonempty ## Captain's intent and ## Firstmate spec subsections (or a nonempty legacy # Task body) before spawn
+[exit=1]
+--- meta present? no
+
+========== S4 marked brief with ### Expert prompt deleted refused at spawn ==========
+--- Task section:
+# Task
+<!-- fm-brief: expert-prompt v1 -->
+## Captain's intent
+Find why the README is short.
+
+## Firstmate spec
+Read README.md and report.
+
+
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.n3WW8A
+error: /tmp/fm-lab.n3WW8A/data/s4-deleted/brief.md ### Expert prompt is missing; the expert-prompt-before-work rule requires that subsection to carry either the expert prompt Firstmate wrote for this work or exactly one line `routine: skipped - <reason>` naming why the work needs none, before spawn
+[exit=1]
+
+========== S6 ship no-mistakes with real expert prompt and structured spec launches; expert prompt stays out of --intent ==========
+--- Task section:
+# Task
+<!-- fm-brief: expert-prompt v1 -->
+## Captain's intent
+Make the README explain what labproj is.
+
+## Firstmate spec
+### Steps
+1. Edit README.md to add one paragraph.
+
+### Expert prompt
+You are a senior technical writer. Outcome: a newcomer understands labproj in 20 seconds. Write one paragraph, concrete, no marketing words.
+
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.n3WW8A
+spawned s6-ship harness=claude kind=ship mode=no-mistakes yolo=off window=primary:fm-s6-ship worktree=/home/denni/.treehouse/labproj-44c9e9/1/labproj
+[exit=0]
+--- launch-brief.md intent section:
+15:## Captain's intent
+16-Make the README explain what labproj is.
+17-
+18-## Firstmate spec
+--
+135:When starting no-mistakes, pass `--intent` as only this brief's `## Captain's intent` subsection body, not its heading, plus any later words the captain actually said.
+136-Preserve the actual words without adding speaker labels or direct address; the subsection heading supplies provenance outside the pipeline input.
+137-For a legacy brief with no such subsection, include only words on lines marked `[captain] `, excluding that metadata prefix; never copy its mixed `# Task` wholesale.
+138-If it has no provenance-marked captain words, stop and ask firstmate instead of starting no-mistakes.
+--
+140:The `--intent` string you pass must be self-sufficient: that string plus the codebase must let a reader reconstruct roughly the same specification, without depending on a separate report, a PR, or context that lives only in this conversation.
+141:When the captain's intent refers to a report, decision, or PR ("do items 1, 2, 3, and 7 of the report"), write the substance of the referenced items into `--intent` in the captain's terms, not only the pointer; that substance is the captain's ask by reference, while Firstmate's build instructions and your own decisions still stay out.
+142:This replaces the no-mistakes skill's advice to enrich `--intent` with decisions and tradeoffs; that advice does not apply to Firstmate-dispatched work.
+143-Do not hand-edit, commit, or fix findings yourself while a run is active - the pipeline applies every fix.
+144-
+145-One drive call blocks until the next gate or outcome, which routinely outlives what your harness lets a single command run: Claude Code kills a command at ten minutes maximum, while one fix round is capped around thirty minutes and up to three rounds chain.
+--
+167:# Current no-mistakes intent contract
+168:This section supersedes every earlier brief instruction about constructing `--intent`, but not later clarifications actually supplied by the captain.
+169:Use everything under `## Captain intent authorized for --intent` through the end of this brief, including any nested subheadings but excluding that heading, plus any later words the captain actually supplied as `--intent`; never include Firstmate specification or other mixed Task content.
+170-Preserve those words without adding speaker labels or direct address.
+171:Firstmate-authored constraints, acceptance criteria, implementation details, decisions, and tradeoffs are specification, not captain intent.
+172:The Definition of done's rule that `--intent` must be self-sufficient still governs the string you pass: resolve any report, decision, or PR the intent below refers to into its substance rather than passing the pointer.
+173-
+174:## Captain intent authorized for --intent
+175-Make the README explain what labproj is.
+--- 'senior technical writer' occurrences in launch-brief: 1
+
+========== S7 scout with routine skip launches ==========
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.n3WW8A
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+spawned s7-scout harness=claude kind=scout window=primary:fm-s7-scout worktree=/home/denni/.treehouse/labproj-44c9e9/2/labproj
+[exit=0]
+
+========== S8 unmarked pre-change brief warns and launches at spawn ==========
+--- Task section:
+# Task
+## Captain's intent
+Say hello in the report.
+
+## Firstmate spec
+Write hello to the report.
+
+
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.n3WW8A
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+warning: /tmp/fm-lab.n3WW8A/data/s8-legacy/brief.md has no ### Expert prompt subsection (scaffolded before briefs carried one); launching without an expert prompt
+spawned s8-legacy harness=claude kind=scout window=primary:fm-s8-legacy worktree=/home/denni/.treehouse/labproj-44c9e9/3/labproj
+[exit=0]
+
+========== S9 promotion gate ==========
+--- S9a promote filled scout s7-scout:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+promoted s7-scout to ship mode=local-only yolo=off (teardown protection restored)
+wrote ship instructions for mode=local-only: /tmp/fm-lab.n3WW8A/data/s7-scout/ship-instructions.md
+next: FM_HOME=/tmp/fm-lab.n3WW8A bin/fm-send.sh fm-s7-scout "$(cat /tmp/fm-lab.n3WW8A/data/s7-scout/ship-instructions.md)"
+[exit=0]
+--- S9b promote marked scout whose expert prompt was deleted (s4-deleted, given scout meta):
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: /tmp/fm-lab.n3WW8A/data/s4-deleted/brief.md ### Expert prompt is missing; the expert-prompt-before-work rule requires that subsection to carry either the expert prompt Firstmate wrote for this work or exactly one line `routine: skipped - <reason>` naming why the work needs none, before promotion
+[exit=1]
+kind=scout
+--- S9c promote unmarked legacy scout s8-legacy:
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+warning: /tmp/fm-lab.n3WW8A/data/s8-legacy/brief.md has no ### Expert prompt subsection (scaffolded before briefs carried one); launching without an expert prompt
+promoted s8-legacy to ship mode=local-only yolo=off (teardown protection restored)
+wrote ship instructions for mode=local-only: /tmp/fm-lab.n3WW8A/data/s8-legacy/ship-instructions.md
+next: FM_HOME=/tmp/fm-lab.n3WW8A bin/fm-send.sh fm-s8-legacy "$(cat /tmp/fm-lab.n3WW8A/data/s8-legacy/ship-instructions.md)"
+[exit=0]
+--- S9d promote marked scout with empty expert prompt (s3a-empty):
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: /tmp/fm-lab.n3WW8A/data/s3a-empty/brief.md ### Expert prompt is empty; the expert-prompt-before-work rule requires that subsection to carry either the expert prompt Firstmate wrote for this work or exactly one line `routine: skipped - <reason>` naming why the work needs none, before promotion
+[exit=1]
+
+========== DONE ==========
+DRIVER-FINISHED
