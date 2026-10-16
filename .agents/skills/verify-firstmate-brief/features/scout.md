@@ -3,7 +3,7 @@
 ## Sub-features
 
 Scout scaffolding produces a written-report assignment without a ship delivery contract.
-It retains conditional task execution and report, status, and inbox paths.
+It retains the intent, specification, and expert-prompt placeholders, conditional task execution, and report, status, and inbox paths.
 
 ## How to get to it (user POV)
 
@@ -19,6 +19,8 @@ After Launch and Doctor, run:
 brief="$FM_HOME/data/scout/brief.md"
 test -s "$brief"
 grep -F 'This is a SCOUT task' "$brief"
+grep -Fx '### Expert prompt' "$brief"
+grep -Fx '{EXPERT_PROMPT}' "$brief"
 grep -F "$FM_HOME/data/scout/report.md" "$brief"
 grep -F "$FM_HOME/state/scout.status" "$brief"
 grep -F "$FM_HOME/state/scout.inbox" "$brief"

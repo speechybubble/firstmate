@@ -16,6 +16,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=bin/fm-dod-lib.sh
+. "$ROOT/bin/fm-dod-lib.sh"
 
 # Every scaffold below belongs to a fixture home; inherited supervisor path
 # overrides must not redirect generated inbox/status paths to the live fleet.
@@ -128,6 +130,20 @@ test_product_workflow_pointer_is_portable_and_worker_only() {
   pass "fm-brief.sh: product pointer is readable across homes/modes and excludes supervisor charters"
 }
 
+# The expert prompt slot is a Firstmate-authored subsection of the spec, so it
+# never reads as captain intent and its placeholder is the whole subsection body.
+assert_expert_prompt_slot() {  # <brief> <label>
+  local brief=$1 label=$2
+  [ "$(fm_brief_task_heading_body "$brief" '### Expert prompt')" = '{EXPERT_PROMPT}' ] \
+    || fail "$label: brief missing the {EXPERT_PROMPT} placeholder under ### Expert prompt"
+  assert_contains "$(fm_brief_task_heading_body "$brief" '## Firstmate spec')" '### Expert prompt' \
+    "$label: expert prompt is not nested under Firstmate spec"
+  assert_not_contains "$(fm_brief_task_heading_body "$brief" "## Captain's intent")" 'EXPERT_PROMPT' \
+    "$label: expert prompt landed in Captain's intent"
+  [ "$(fm_brief_firstmate_spec_body "$brief" | tr -d '[:space:]')" = '{FIRSTMATE_SPEC}' ] \
+    || fail "$label: Firstmate spec outside its expert prompt is not just its placeholder"
+}
+
 # fm-brief.sh must exit 0 and produce a brief with no unreplaced shell
 # metacharacter corruption for every ship delivery mode. This also guards
 # against any *new* unescaped apostrophe or unbalanced quote later added to
@@ -152,6 +168,7 @@ test_ship_modes_generate_clean_briefs() {
     assert_grep "{FIRSTMATE_SPEC}" "$brief" "$id: brief missing the {FIRSTMATE_SPEC} placeholder"
     assert_grep "## Captain's intent" "$brief" "$id: brief missing Captain's intent subsection"
     assert_grep "## Firstmate spec" "$brief" "$id: brief missing Firstmate spec subsection"
+    assert_expert_prompt_slot "$brief" "$id"
     assert_grep 'never a bare number such as "PR 108"' "$brief" "$id: brief missing the full-PR-URL rule"
     assert_grep "mid-task \`working:\` line (including setup complete) is nonterminal" "$brief" \
       "$id: brief missing nonterminal working:/setup-complete gate protection"
@@ -660,11 +677,12 @@ test_herdr_lab_omission_is_loud_for_ship_and_scout() {
 # see the task text. Each placeholder must exist only at its genuine fill site,
 # so the documented fill leaves the gate intact and each body appears once.
 test_documented_global_replace_leaves_the_herdr_gate_intact() {
-  local home id brief kind count content filled body spec
+  local home id brief kind count content filled body spec expert
   home="$TMP_ROOT/task-fill-site-home"
   mkdir -p "$home/data"
   body='Restart the herdr session, then profile it'
   spec='Use the isolated lab helper for every lifecycle call'
+  expert='Act as a Herdr maintainer who profiles sessions in a named lab'
   for kind in ship scout; do
     id="brief-fill-site-$kind"
     if [ "$kind" = scout ]; then
@@ -680,19 +698,26 @@ test_documented_global_replace_leaves_the_herdr_gate_intact() {
     count=$(grep -c -F '{FIRSTMATE_SPEC}' "$brief")
     [ "$count" = 1 ] \
       || fail "$kind brief must carry exactly one {FIRSTMATE_SPEC} fill site, found $count"
+    count=$(grep -c -F '{EXPERT_PROMPT}' "$brief")
+    [ "$count" = 1 ] \
+      || fail "$kind brief must carry exactly one {EXPERT_PROMPT} fill site, found $count"
     content=$(cat "$brief")
     filled=${content//'{TASK}'/$body}
     filled=${filled//'{FIRSTMATE_SPEC}'/$spec}
+    filled=${filled//'{EXPERT_PROMPT}'/$expert}
     count=$(printf '%s\n' "$filled" | grep -c -F "$body")
     [ "$count" = 1 ] \
       || fail "$kind brief: the documented {TASK} replace duplicated the intent body $count times"
     count=$(printf '%s\n' "$filled" | grep -c -F "$spec")
     [ "$count" = 1 ] \
       || fail "$kind brief: the {FIRSTMATE_SPEC} replace duplicated the spec body $count times"
+    count=$(printf '%s\n' "$filled" | grep -c -F "$expert")
+    [ "$count" = 1 ] \
+      || fail "$kind brief: the {EXPERT_PROMPT} replace duplicated the expert prompt $count times"
     printf '%s\n' "$filled" | grep -qF 'this scaffold cannot inspect the task text' \
       || fail "$kind brief: the Herdr safety gate did not survive the documented fill"
   done
-  pass "fm-brief.sh: the documented {TASK} and {FIRSTMATE_SPEC} fills cannot corrupt the Herdr safety gate"
+  pass "fm-brief.sh: the documented {TASK}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT} fills cannot corrupt the Herdr safety gate"
 }
 
 test_secondmate_no_projects_charter() {
@@ -1091,6 +1116,7 @@ test_scout_and_secondmate_scaffold() {
   assert_grep "## Captain's intent" "$brief" "scout brief missing Captain's intent subsection"
   assert_grep "## Firstmate spec" "$brief" "scout brief missing Firstmate spec subsection"
   assert_grep "{FIRSTMATE_SPEC}" "$brief" "scout brief missing the spec placeholder"
+  assert_expert_prompt_slot "$brief" scout
 
   FM_SECONDMATE_CHARTER='Supervise the alpha domain.' \
     FM_HOME="$BRIEF_HOME" "$ROOT/bin/fm-brief.sh" brief-sm-q6 --secondmate alpha >/dev/null 2>&1 \
@@ -1501,13 +1527,13 @@ test_task_context_activation_and_intent_boundary() {
     [ -r "$skill" ] || fail "$kind: generated context skill cannot be read outside the fleet home"
     assert_no_grep "$home/.agents/skills/task-context" "$brief" "$kind: skill resolved against the operational home"
     fm_brief_task_placeholders_present "$brief" || fail "$kind: scaffold placeholders lost their ordinary meaning"
-    sed -e "s/{TASK}/$intent/" -e "s/{FIRSTMATE_SPEC}/$spec/" "$brief" > "$brief.filled"
+    sed -e "s/{TASK}/$intent/" -e "s/{FIRSTMATE_SPEC}/$spec/" -e "s/{EXPERT_PROMPT}/routine: skipped - context fixture/" "$brief" > "$brief.filled"
     fm_brief_task_content_valid "$brief.filled" || fail "$kind: filled brief is not valid for launch"
     if fm_brief_task_placeholders_present "$brief.filled"; then
       fail "$kind: filled brief still has task placeholders"
     fi
     intent_body=$(fm_brief_task_heading_body "$brief.filled" "## Captain's intent")
-    spec_body=$(fm_brief_task_heading_body "$brief.filled" '## Firstmate spec')
+    spec_body=$(fm_brief_firstmate_spec_body "$brief.filled")
     [ "$intent_body" = "$intent" ] || fail "$kind: context or specification leaked into authorized intent"
     [ "$spec_body" = "$spec" ] || fail "$kind: context entry point leaked into the specification body"
     assert_no_grep '# Task context and learning' <(fm_brief_heading_body "$brief.filled" '# Task') \

@@ -8,8 +8,12 @@
 # report, decision, or PR the ask refers to, without added speaker labels or
 # direct address) and `{FIRSTMATE_SPEC}`
 # under `## Firstmate spec` (build instructions, which are never the captain's
-# intent). bin/fm-dod-lib.sh owns the no-mistakes `--intent` contract those
-# subsections feed; bin/fm-spawn.sh refuses leftover placeholders and a
+# intent), whose nested `### Expert prompt` holds `{EXPERT_PROMPT}`: the expert
+# prompt Firstmate wrote for this work, or one `routine: skipped - <reason>`
+# line. `# Task` opens with the expert-prompt version marker. bin/fm-dod-lib.sh
+# owns that marker, the no-mistakes `--intent` contract those subsections feed,
+# and the accepted expert-prompt fillings; bin/fm-spawn.sh
+# refuses leftover placeholders, an unaccepted expert prompt, and a
 # `## Captain's intent` line opening with a Captain label or address. Secondmate
 # charters still use a single `{TASK}` charter fill. Firstmate may adjust other
 # sections when the task genuinely deviates (e.g. working an existing external
@@ -40,7 +44,7 @@
 #   Set FM_SECONDMATE_SCOPE='<scope>' to write a routing scope distinct from the charter text.
 #   --herdr-lab is mandatory when the task will issue Herdr lifecycle commands.
 #   It adds the hard isolation contract backed by bin/fm-herdr-lab.sh.
-#   The flag must be explicit because {TASK} and {FIRSTMATE_SPEC} are filled
+#   The flag must be explicit because {TASK}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT} are filled
 #   after scaffolding and the caller-supplied repo string cannot reliably
 #   identify this repo. Briefs made without it carry a loud declaration so an
 #   omitted contract cannot be silent.
@@ -578,13 +582,17 @@ EOF
 HERDR_SECTION=${HERDR_SECTION%$'\n'}
 fi
 
-IFS= read -r -d '' TASK_SECTION <<'EOF' || true
+IFS= read -r -d '' TASK_SECTION <<EOF || true
 # Task
+$FM_BRIEF_EXPERT_PROMPT_MARKER
 ## Captain's intent
 {TASK}
 
 ## Firstmate spec
 {FIRSTMATE_SPEC}
+
+### Expert prompt
+{EXPERT_PROMPT}
 EOF
 TASK_SECTION=${TASK_SECTION%$'\n'}
 
@@ -704,7 +712,7 @@ When the report is complete, append \`done [at=<epoch>]: {one-line conclusion}\`
 If your findings reveal work that should ship (e.g. you reproduced a bug and the fix is clear), say so in the report; firstmate may promote this task in place, and you would then receive mode-specific ship instructions as a follow-up message.
 EOF
 append_brief_include
-echo "scaffolded: $BRIEF (scout; replace {TASK} and {FIRSTMATE_SPEC})"
+echo "scaffolded: $BRIEF (scout; replace {TASK}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
 exit 0
 fi
 
@@ -792,9 +800,9 @@ $DOD
 EOF
 append_brief_include
 if [ "$FORGE" = none ]; then
-  echo "scaffolded: $BRIEF (ship, mode=$MODE; replace {TASK} and {FIRSTMATE_SPEC})"
+  echo "scaffolded: $BRIEF (ship, mode=$MODE; replace {TASK}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
 elif [ "$FORGE" = gerrit ]; then
-  echo "scaffolded: $BRIEF (ship, mode=$MODE forge=$FORGE shape=$SHAPE; replace {TASK} and {FIRSTMATE_SPEC})"
+  echo "scaffolded: $BRIEF (ship, mode=$MODE forge=$FORGE shape=$SHAPE; replace {TASK}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
 else
-  echo "scaffolded: $BRIEF (ship, mode=$MODE forge=$FORGE; replace {TASK} and {FIRSTMATE_SPEC})"
+  echo "scaffolded: $BRIEF (ship, mode=$MODE forge=$FORGE; replace {TASK}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
 fi
