@@ -1,0 +1,105 @@
+### Seed: 6 open decisions (one with a 400-char note) in disposable lab /tmp/fm-lab.0eN1aa
+### Drain 1 (first presentation)
+$ bin/fm-wake-drain.sh 
+1792149370	1	heartbeat	w1	heartbeat: w1
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+api [key=api-k] needs-decision: decide api direction
+auth [key=auth-k] needs-decision: decide auth direction
+db [key=db-k] needs-decision: decide db direction
+infra [key=infra-k] needs-decision: decide infra direction
+longy [key=long] needs-decision: long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long [truncated]
+seo [key=seo-k] needs-decision: decide seo direction
+ui [key=ui-k] needs-decision: decide ui direction
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+[stderr] WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 1 --recovery-generation 1135374.1792149370.e2S7kc
+[exit 0]
+
+### Drain 2 WITHOUT ack (agent filtered/truncated the read)
+$ bin/fm-wake-drain.sh 
+1792149377	2	heartbeat	w2	heartbeat: w2
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+api [key=api-k] needs-decision: decide api direction
+auth [key=auth-k] needs-decision: decide auth direction
+db [key=db-k] needs-decision: decide db direction
+infra [key=infra-k] needs-decision: decide infra direction
+longy [key=long] needs-decision: long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long [truncated]
+seo [key=seo-k] needs-decision: decide seo direction
+ui [key=ui-k] needs-decision: decide ui direction
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+[stderr] WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 1135374.1792149370.e2S7kc
+[exit 0]
+
+### Ack the presentation
+$ bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 1135374.1792149370.e2S7kc
+[exit 0]
+
+### Drain 3 after ack: unchanged decisions fold
+$ bin/fm-wake-drain.sh 
+1792149386	3	heartbeat	w3	heartbeat: w3
+OPEN DECISIONS: 7 unchanged since acknowledged wake 2, already shown in full and not repeated: api[api-k], auth[auth-k], db[db-k], infra[infra-k], longy[long], seo[seo-k], ui[ui-k] (full text: bin/fm-wake-drain.sh --decisions)
+[stderr] WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 1152772.1792149386.PC8c3A
+[exit 0]
+
+### Change one decision, add a new one, append new status
+$ bin/fm-wake-drain.sh 
+1792149392	4	heartbeat	w4	heartbeat: w4
+UNREAD STATUS (new since last drain, presented again until the acknowledgement this drain asks for runs):
+mig note: captain said use REST not RPC
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+fresh [key=new-k] needs-decision: brand new question
+ui [key=ui-k] needs-decision: decide ui direction AGAIN with new copy
+OPEN DECISIONS: 6 unchanged since acknowledged wake 2, already shown in full and not repeated: api[api-k], auth[auth-k], db[db-k], infra[infra-k], longy[long], seo[seo-k] (full text: bin/fm-wake-drain.sh --decisions)
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+[stderr] WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 4 --recovery-generation 1152772.1792149386.PC8c3A
+[exit 0]
+
+### --decisions lists every open decision untruncated
+$ bin/fm-wake-drain.sh --decisions
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+api [key=api-k] needs-decision: decide api direction
+auth [key=auth-k] needs-decision: decide auth direction
+db [key=db-k] needs-decision: decide db direction
+fresh [key=new-k] needs-decision: brand new question
+infra [key=infra-k] needs-decision: decide infra direction
+longy [key=long] needs-decision: long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-long-note-END
+seo [key=seo-k] needs-decision: decide seo direction
+ui [key=ui-k] needs-decision: decide ui direction AGAIN with new copy
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+[exit 0]
+
+### --decisions with bad args
+$ bin/fm-wake-drain.sh --decisions extra
+[stderr] wake drain: --decisions takes no arguments
+[exit 2]
+
+### Long note length in --decisions output:
+436
+### Drain 5 WITHOUT acking drain 4: once-only status sections are presented again
+$ bin/fm-wake-drain.sh 
+1792149404	5	heartbeat	w5	heartbeat: w5
+UNREAD STATUS (new since last drain, presented again until the acknowledgement this drain asks for runs):
+mig note: captain said use REST not RPC
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+fresh [key=new-k] needs-decision: brand new question
+ui [key=ui-k] needs-decision: decide ui direction AGAIN with new copy
+OPEN DECISIONS: 6 unchanged since acknowledged wake 2, already shown in full and not repeated: api[api-k], auth[auth-k], db[db-k], infra[infra-k], longy[long], seo[seo-k] (full text: bin/fm-wake-drain.sh --decisions)
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+[stderr] WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 5 --recovery-generation 1152772.1792149386.PC8c3A
+[exit 0]
+
+### Ack through drain 5
+$ bin/fm-wake-drain.sh --ack-through 5 --recovery-generation 1152772.1792149386.PC8c3A
+[exit 0]
+
+### Drain 6 after ack: everything folds, once-only sections not repeated
+$ bin/fm-wake-drain.sh 
+1792149414	6	heartbeat	w6	heartbeat: w6
+OPEN DECISIONS: 8 unchanged since acknowledged wake 5, already shown in full and not repeated: api[api-k], auth[auth-k], db[db-k], fresh[new-k], infra[infra-k], longy[long], seo[seo-k], ui[ui-k] (full text: bin/fm-wake-drain.sh --decisions)
+[stderr] WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 6 --recovery-generation 1180082.1792149414.2N6Cx1
+[exit 0]
+
+### Close all: resolve all decisions; --decisions reports none
+$ bin/fm-wake-drain.sh --decisions
+OPEN DECISIONS: none open
+[exit 0]
+
