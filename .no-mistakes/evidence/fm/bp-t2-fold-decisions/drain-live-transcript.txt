@@ -1,0 +1,119 @@
+lab home: /tmp/fm-lab.vv4vzR (marked: /tmp/fm-lab.vv4vzR/.fm-lab-home)
+
+### S1 first drain prints every open decision in full and asks for an acknowledgement
+$ bin/fm-wake-drain.sh 2>/tmp/fm-lab.vv4vzR/e1
+1792157615	1	heartbeat	hb-one	heartbeat: one
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+api [key=api-shape] needs-decision: pick REST or RPC
+longnote [key=long] blocked: pending reply: word01 word02 word03 word04 word05 word06 word07 word08 word09 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 wo [truncated]
+trelume [key=seo] needs-decision: approve the SEO page copy
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+[exit 0]
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 1 --recovery-generation 1854162.1792157615.zKle5u
+
+### S2 acknowledgement prints a confirmation line
+$ bin/fm-wake-drain.sh --ack-through 1 --recovery-generation 1854162.1792157615.zKle5u
+wake drain: acknowledged wakes through 1 (1 row(s) consumed)
+[exit 0]
+
+### S3 next drain after ack folds unchanged decisions into one line
+$ bin/fm-wake-drain.sh 2>/tmp/fm-lab.vv4vzR/e2
+1792157620	2	heartbeat	hb-two	heartbeat: two
+OPEN DECISIONS: 3 unchanged since acknowledged wake 1, already shown in full and not repeated: api[api-shape], longnote[long], trelume[seo] (full text: bin/fm-wake-drain.sh --decisions)
+[exit 0]
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 1856312.1792157620.JVASdg
+
+### S4 changed decision prints in full beside the fold
+$ bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 1856312.1792157620.JVASdg
+wake drain: acknowledged wakes through 2 (1 row(s) consumed)
+[exit 0]
+$ bin/fm-wake-drain.sh 2>/tmp/fm-lab.vv4vzR/e3
+1792157625	3	heartbeat	hb-three	heartbeat: three
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+api [key=api-shape] needs-decision: pick REST or GraphQL now
+OPEN DECISIONS: 2 unchanged since acknowledged wake 2, already shown in full and not repeated: longnote[long], trelume[seo] (full text: bin/fm-wake-drain.sh --decisions)
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+[exit 0]
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 1858781.1792157625.EpDBcd
+$ bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 1858781.1792157625.EpDBcd
+wake drain: acknowledged wakes through 3 (1 row(s) consumed)
+[exit 0]
+
+### S5 --decisions lists every decision in full, untruncated, and consumes nothing
+$ bin/fm-wake-drain.sh --decisions
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+api [key=api-shape] needs-decision: pick REST or GraphQL now
+longnote [key=long] blocked: pending reply: word01 word02 word03 word04 word05 word06 word07 word08 word09 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28 word29 word30 word31 word32 word33 word34 word35 word36 word37 word38 word39 word40  END-OF-LONG-NOTE
+trelume [key=seo] needs-decision: approve the SEO page copy
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+[exit 0]
+queue rows before=1 after=1; cursor+baseline checksum unchanged: yes
+$ bin/fm-wake-drain.sh --decisions extra
+wake drain: --decisions takes no arguments
+[exit 2]
+$ bin/fm-wake-drain.sh 2>/tmp/fm-lab.vv4vzR/e4 >/dev/null
+[exit 0]
+$ bin/fm-wake-drain.sh --ack-through 4 --recovery-generation 1861637.1792157630.Yt35dS
+wake drain: acknowledged wakes through 4 (1 row(s) consumed)
+[exit 0]
+
+### S6 adversarial: a filtered read of a drain with UNREAD STATUS, never acknowledged, is re-presented
+$ bin/fm-wake-drain.sh 2>/tmp/fm-lab.vv4vzR/e5 | grep -v 'OPEN DECISIONS' | head -1
+1792157635	5	heartbeat	hb-five	heartbeat: five
+[exit 0]
+(stderr) WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 5 --recovery-generation 1865053.1792157636.sfNrtz
+$ bin/fm-wake-drain.sh 2>/tmp/fm-lab.vv4vzR/e6
+1792157640	6	heartbeat	hb-six	heartbeat: six
+UNREAD STATUS (new since last drain, presented again until the acknowledgement this drain asks for runs):
+api note: captain said ship the REST version
+OPEN DECISIONS: 3 unchanged since acknowledged wake 4, already shown in full and not repeated: api[api-shape], longnote[long], trelume[seo] (full text: bin/fm-wake-drain.sh --decisions)
+[exit 0]
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 6 --recovery-generation 1865053.1792157636.sfNrtz
+$ bin/fm-wake-drain.sh --ack-through 6 --recovery-generation 1865053.1792157636.sfNrtz
+wake drain: acknowledged wakes through 6 (2 row(s) consumed)
+[exit 0]
+$ bin/fm-wake-drain.sh 2>/tmp/fm-lab.vv4vzR/e7
+1792157648	7	heartbeat	hb-seven	heartbeat: seven
+OPEN DECISIONS: 3 unchanged since acknowledged wake 6, already shown in full and not repeated: api[api-shape], longnote[long], trelume[seo] (full text: bin/fm-wake-drain.sh --decisions)
+[exit 0]
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 7 --recovery-generation 1874722.1792157648.noppU8
+$ bin/fm-wake-drain.sh --ack-through 7 --recovery-generation 1874722.1792157648.noppU8
+wake drain: acknowledged wakes through 7 (1 row(s) consumed)
+[exit 0]
+
+### S7 empty-queue drain: no once-only content asks for nothing; once-only content asks for --ack-through 0 and re-presents until acked
+$ bin/fm-wake-drain.sh 2>/tmp/fm-lab.vv4vzR/e8
+OPEN DECISIONS: 3 unchanged since acknowledged wake 7, already shown in full and not repeated: api[api-shape], longnote[long], trelume[seo] (full text: bin/fm-wake-drain.sh --decisions)
+[exit 0]
+(stderr) 
+$ bin/fm-wake-drain.sh 2>/tmp/fm-lab.vv4vzR/e9 | head -1
+UNREAD STATUS (new since last drain, presented again until the acknowledgement this drain asks for runs):
+[exit 0]
+(stderr) WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 1874722.1792157648.noppU8
+$ bin/fm-wake-drain.sh 2>/tmp/fm-lab.vv4vzR/e10
+UNREAD STATUS (new since last drain, presented again until the acknowledgement this drain asks for runs):
+trelume note: deploy window moved to Friday
+STATUS OUTCOME BACKSTOP (newest captain-facing task event has no covering branch outcome):
+landing done: shipped the landing page
+OPEN DECISIONS: 3 unchanged since acknowledged wake 7, already shown in full and not repeated: api[api-shape], longnote[long], trelume[seo] (full text: bin/fm-wake-drain.sh --decisions)
+[exit 0]
+(stderr) WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 1874722.1792157648.noppU8
+$ bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 1874722.1792157648.noppU8
+wake drain: acknowledged wakes through 0 (0 row(s) consumed)
+[exit 0]
+$ bin/fm-wake-drain.sh 2>/tmp/fm-lab.vv4vzR/e11
+OPEN DECISIONS: 3 unchanged since the last acknowledged drain, already shown in full and not repeated: api[api-shape], longnote[long], trelume[seo] (full text: bin/fm-wake-drain.sh --decisions)
+[exit 0]
+(stderr) 
+
+### S8 new session lock: baseline does not carry across sessions
+$ bin/fm-wake-drain.sh 2>/tmp/fm-lab.vv4vzR/e12
+1792157675	8	heartbeat	hb-eight	heartbeat: eight
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+api [key=api-shape] needs-decision: pick REST or GraphQL now
+longnote [key=long] blocked: pending reply: word01 word02 word03 word04 word05 word06 word07 word08 word09 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 wo [truncated]
+trelume [key=seo] needs-decision: approve the SEO page copy
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+[exit 0]
+
+lab removed: yes
