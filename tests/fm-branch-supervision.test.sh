@@ -686,10 +686,19 @@ test_lease_exclusivity_release_stale_and_sweep() {
   FM_HOME="$home" FM_SUPERVISION_ACTOR=branch FM_LEASE_HOLDER_PID=$$ "$ROOT/bin/fm-lease.sh" claim task-1 \
     || fail "same-actor refresh was refused"
 
-  # Release by the calling holder; release of an unheld lease stays a silent no-op.
-  FM_HOME="$home" FM_SUPERVISION_ACTOR=branch "$ROOT/bin/fm-lease.sh" release task-1 --actor branch || fail "release failed"
+  # Release by the calling holder confirms its effect in one stdout line;
+  # releasing an unheld lease stays a safe no-op that says it released nothing.
+  out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch "$ROOT/bin/fm-lease.sh" release task-1 --actor branch 2>"$home/release.err") \
+    || fail "release failed"
+  [ "$out" = "lease release: released the branch supervision actor's lease on 'task-1'" ] \
+    || fail "a successful release did not print its one confirmation line: [$out]"
+  [ ! -s "$home/release.err" ] || fail "a successful release wrote to stderr: $(cat "$home/release.err")"
   FM_HOME="$home" "$ROOT/bin/fm-lease.sh" check task-1 >/dev/null && fail "released lease still reported"
-  FM_HOME="$home" FM_SUPERVISION_ACTOR=branch "$ROOT/bin/fm-lease.sh" release task-1 --actor branch || fail "idempotent release failed"
+  out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch "$ROOT/bin/fm-lease.sh" release task-1 --actor branch 2>"$home/release.err") \
+    || fail "idempotent release failed"
+  [ "$out" = "lease release: the branch supervision actor held no lease on 'task-1'; nothing released" ] \
+    || fail "an idempotent release did not confirm it released nothing: [$out]"
+  [ ! -s "$home/release.err" ] || fail "an idempotent release wrote to stderr: $(cat "$home/release.err")"
 
   # A lease held by a dead process is stale: claimable by the other actor and
   # removed by the sweep, while a live lease survives the sweep.
@@ -1214,6 +1223,7 @@ test_release_actor_drops_only_that_actors_leases() {
   status=$?
   [ "$status" -eq 6 ] || fail "branch release of main lease exited $status, not 6: $out"
   assert_contains "$out" "cannot release a lease as main" "cross-actor release refusal lost its diagnostic"
+  case "$out" in *"lease release:"*) fail "a refused release also printed a success confirmation: $out" ;; esac
   [ -e "$home/state/.lease-task-b" ] || fail "refused release removed main's lease"
 
   out=$(FM_HOME="$home" FM_SUPERVISION_ACTOR=branch "$ROOT/bin/fm-lease.sh" release-actor --actor main 2>&1)

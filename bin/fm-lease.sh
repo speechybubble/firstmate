@@ -15,8 +15,9 @@
 #       actor holds a live lease. A stale lease (dead pid, or a torn record)
 #       is cleared and re-claimed.
 #   fm-lease.sh release <task> [--actor main|branch]
-#       Drop the calling actor's lease. Releasing a lease the actor does not
-#       hold is a silent no-op, so a retry after a partial failure is safe.
+#       Drop the calling actor's lease and print one confirmation line.
+#       Releasing a lease the actor does not hold is a no-op that says it
+#       released nothing, so a retry after a partial failure is safe.
 #       Naming the other actor is refused loudly.
 #   fm-lease.sh check <task>
 #       Print "<actor> <pid> <epoch> <live|stale>" for a held lease, or
@@ -154,6 +155,9 @@ case "$CMD" in
     fi
     if fm_lease_read "$TASK" && { [ "$FM_LEASE_ACTOR" = "$ACTOR" ] || [ -z "$FM_LEASE_ACTOR" ]; }; then
       rm -f -- "$(fm_lease_path "$TASK")"
+      echo "lease release: released the $ACTOR supervision actor's lease on '$TASK'"
+    else
+      echo "lease release: the $ACTOR supervision actor held no lease on '$TASK'; nothing released"
     fi
     ;;
   check)

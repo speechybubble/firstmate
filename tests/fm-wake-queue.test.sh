@@ -2190,6 +2190,7 @@ test_stale_ack_that_consumes_nothing_names_the_current_wake() {
   FM_STATE_OVERRIDE="$state" "$DRAIN" --ack-through "$first_seq" --recovery-generation "$first_gen" \
     > "$dir/stale.out" 2> "$dir/stale.err" || rc=$?
   [ "$rc" -eq 0 ] || fail "a stale acknowledgement failed instead of degrading safely: $(cat "$dir/stale.err")"
+  [ ! -s "$dir/stale.out" ] || fail "a no-op acknowledgement also printed a success confirmation: $(cat "$dir/stale.out")"
   grep -F "nothing was acknowledged through $first_seq" "$dir/stale.err" >/dev/null \
     || fail "a no-op acknowledgement was not reported as acknowledging nothing: $(cat "$dir/stale.err")"
   grep -F "the current wake is row $second_seq" "$dir/stale.err" >/dev/null \
@@ -2214,6 +2215,37 @@ test_stale_ack_that_consumes_nothing_names_the_current_wake() {
     *) fail "the printed remedy did not retire the recovery episode" ;;
   esac
   pass "wake drain: an acknowledgement that consumes nothing says so and names the exact command for the current wake"
+}
+
+# A successful acknowledgement states its effect in one line on stdout, so a
+# caller never has to re-run it or guess whether a silent exit 0 registered.
+# A replayed acknowledgement says it consumed nothing rather than going silent.
+test_successful_ack_prints_one_confirmation_line() {
+  local dir state seq gen out
+  dir=$(make_case ack-confirmation)
+  state="$dir/state"
+  append_wake "$state" check first 'check: first wake' || fail "first append failed"
+  append_wake "$state" check second 'check: second wake' || fail "second append failed"
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$dir/drain.out" 2> "$dir/drain.err" || fail "drain failed"
+  seq=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--ack-through \([0-9][0-9]*\) --recovery-generation .*/\1/p' "$dir/drain.err")
+  gen=$(sed -n 's/^WAKE_ACK_REQUIRED:.*--recovery-generation \([A-Za-z0-9._-][A-Za-z0-9._-]*\)$/\1/p' "$dir/drain.err")
+  [ -n "$seq" ] && [ -n "$gen" ] || fail "drain printed no acknowledgement command"
+
+  FM_STATE_OVERRIDE="$state" "$DRAIN" --ack-through "$seq" --recovery-generation "$gen" \
+    > "$dir/ack.out" 2> "$dir/ack.err" || fail "acknowledgement failed: $(cat "$dir/ack.err")"
+  out=$(cat "$dir/ack.out")
+  [ "$out" = "wake drain: acknowledged wakes through $seq (2 row(s) consumed)" ] \
+    || fail "a successful acknowledgement did not print its one confirmation line: [$out]"
+  [ ! -s "$dir/ack.err" ] || fail "a successful acknowledgement wrote to stderr: $(cat "$dir/ack.err")"
+  [ ! -s "$state/.wake-queue" ] || fail "the acknowledgement left rows queued"
+
+  FM_STATE_OVERRIDE="$state" "$DRAIN" --ack-through "$seq" --recovery-generation "$gen" \
+    > "$dir/replay.out" 2> "$dir/replay.err" || fail "replayed acknowledgement failed: $(cat "$dir/replay.err")"
+  out=$(cat "$dir/replay.out")
+  [ "$out" = "wake drain: acknowledged wakes through $seq (0 row(s) consumed)" ] \
+    || fail "a replayed acknowledgement did not confirm that it consumed nothing: [$out]"
+  [ ! -s "$dir/replay.err" ] || fail "a replayed acknowledgement wrote to stderr: $(cat "$dir/replay.err")"
+  pass "wake drain: a successful acknowledgement prints one confirmation line naming its cutoff and consumed rows"
 }
 
 test_branch_stale_ack_that_consumes_nothing_names_its_granted_wake() {
@@ -3593,6 +3625,7 @@ test_legacy_generationless_wake_is_adopted
 test_handover_restore_undoes_only_its_own_stop
 test_stale_recovery_generation_cannot_touch_a_newer_episode
 test_stale_ack_that_consumes_nothing_names_the_current_wake
+test_successful_ack_prints_one_confirmation_line
 test_branch_stale_ack_that_consumes_nothing_names_its_granted_wake
 test_recovery_ack_failure_is_reported
 test_interruption_before_and_after_raw_commit

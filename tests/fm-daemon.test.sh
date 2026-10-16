@@ -509,6 +509,33 @@ EOF
   pass "missing-status stale wakes remain ordinary and acknowledgeable"
 }
 
+# The drain's acknowledgement confirmation is recorded in the daemon log, so the
+# pane the daemon runs in stays quiet, and a refused acknowledgement still fails.
+test_ack_confirmation_goes_to_the_daemon_log() {
+  local dir state fakebin out
+  dir=$(make_supercase durable-ack-confirmation); state="$dir/state"; fakebin="$dir/daemon-bin"
+  mkdir -p "$fakebin"
+  cat > "$fakebin/fm-wake-drain.sh" <<EOF
+#!/usr/bin/env bash
+if [ "\${1:-}" = --ack-through ]; then
+  [ ! -e "$dir/refuse" ] || { printf 'wake drain: acknowledged wakes could not be consumed safely\n' >&2; exit 1; }
+  printf 'wake drain: acknowledged wakes through 1 (1 row(s) consumed)\n'; exit 0
+fi
+printf '1\t1\tstale\tconfirm-r9\tstale: sess:fm-confirm-r9\n'
+printf 'WAKE_ACK_REQUIRED: ordinary --ack-through 1 --recovery-generation gen\n' >&2
+EOF
+  chmod +x "$fakebin/fm-wake-drain.sh"
+  out=$(LOG="$dir/daemon.log" FM_DAEMON_DIR="$fakebin" handle_durable_wakes fallback "$state") \
+    || fail "a confirmed acknowledgement was reported as a failure"
+  [ -z "$out" ] || fail "the acknowledgement confirmation reached the daemon pane: $out"
+  grep -F 'wake drain: acknowledged wakes through 1 (1 row(s) consumed)' "$dir/daemon.log" >/dev/null \
+    || fail "the acknowledgement confirmation was not logged: $(cat "$dir/daemon.log" 2>/dev/null)"
+  : > "$dir/refuse"
+  ! LOG="$dir/daemon.log" FM_DAEMON_DIR="$fakebin" handle_durable_wakes fallback "$state" 2>/dev/null \
+    || fail "a refused acknowledgement was reported as handled"
+  pass "acknowledgement confirmations are logged, and a refused acknowledgement still fails"
+}
+
 test_transient_unreadable_signal_recovers_without_advancing() {
   local dir state fakebin out key
   dir=$(make_supercase durable-unreadable); state="$dir/state"; fakebin="$dir/daemon-bin"
@@ -3344,6 +3371,7 @@ test_busy_inbox_dispatch_preserves_other_stale_reasons
 test_catchall_buffer_failure_preserves_position
 test_durable_wake_failure_retains_entire_batch
 test_missing_status_stale_is_acknowledged_without_diagnostic
+test_ack_confirmation_goes_to_the_daemon_log
 test_transient_unreadable_signal_recovers_without_advancing
 test_permission_recovery_reclassifies_catchall_status
 test_permanent_classification_failure_is_reported_and_acknowledged
