@@ -26,10 +26,11 @@
 # only captain rows are exposed, with counts for the other actors and unmeasured homes. It never infers
 # decisions from report or visual-review prose or reimplements snapshot semantics.
 # Underway (in_flight) projects every main live worker plus every active child,
-# awaiting_merge child, and held_failed_runs child from every readable
-# secondmate ledger, independently of that home's bearings_state. On the home
-# row, awaiting_merge counts as child work while held_failed_runs rank with the
-# holds, so neither leaves a home reading "No active child work". Each row's name is the durable task title when nonblank and
+# awaiting_merge child, awaiting_firstmate child, and held_failed_runs child from
+# every readable secondmate ledger, independently of that home's bearings_state.
+# On the home row, awaiting_merge and awaiting_firstmate count as child work
+# while held_failed_runs rank with the holds, so none leaves a home reading
+# "No active child work". Each row's name is the durable task title when nonblank and
 # its durable task id otherwise, so renderers always receive a task-identifying
 # label instead of having to substitute run status. A home classified
 # captain_decision because it has an open
@@ -473,7 +474,8 @@ MODEL=$(printf '%s' "$SNAP" | jq \
             and live_captain_call)]) as $captain_holds
        | ([.holds[]? | select(.source == "backlog")]) as $backlog_holds
        | ([.active_children[]? | .id + ": " + (.doing // .state)]
-          + [.awaiting_merge[]? | .id + ": awaiting merge " + .pr_url]) as $child_work
+          + [.awaiting_merge[]? | .id + ": awaiting merge " + .pr_url]
+          + [.awaiting_firstmate[]? | .id + ": " + .outcome + ", awaiting Firstmate"]) as $child_work
        | ((if .current.state == "captain_decision" then $backlog_holds else .holds end) as $holds
           | $holds + [.held_failed_runs[]?
               | select(.id as $id | $holds | map(.id) | index($id) | not)
@@ -538,6 +540,8 @@ MODEL=$(printf '%s' "$SNAP" | jq \
             doing:((.doing // .state) | trunc(90))} ]
      + [ $secondmate_views[] as $m
          | ($m.awaiting_merge[]? | {id, state:"done", doing:("awaiting merge " + .pr_url)}),
+           ($m.awaiting_firstmate[]? | {id, state:.outcome,
+              doing:("awaiting Firstmate: " + (if .detail != "" then .detail else .outcome end))}),
            ($m.held_failed_runs[]? | {id, state:"failed", doing:("held failed run: " + .reason)})
          | {id:($m.id + "/" + .id),kind:"secondmate",state,repo:null,
             name:($m.id + "/" + .id),doing:(.doing | trunc(90))} ]) as $in_flight_all
