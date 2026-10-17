@@ -57,9 +57,9 @@
 # FM_TASK_INBOX_RING_MAX attempts without an acknowledgement it escalates. A
 # skipped attempt (any other pending text, or a fragment that cannot be
 # cleared) escalates one grace after that attempt instead of spending that
-# budget, so a blocked doorbell surfaces within one grace period. Escalation quotes any
-# unsent text still in the composer so firstmate sees what blocked the
-# doorbell; that text is a worker composer draft on the operator's own
+# budget, so a blocked doorbell surfaces within one grace period. Escalation
+# quotes any unsent text still in the composer so firstmate sees what blocked
+# the doorbell; that text is a worker composer draft on the operator's own
 # machine, capped at 240 characters with control bytes stripped. The
 # caller owns the busy and recovery-grade endpoint checks: due actions deferred
 # by a busy pane consume a separate durable consecutive-poll budget,
@@ -594,8 +594,9 @@ EOF
 # Advance the ladder after a delivery attempt. A failed ring still consumes
 # budget so an unreadable pane cannot retry silently forever; a composer-
 # protected skip, marked by the literal `skipped`, escalates one grace later
-# instead of ringing again, so a blocked composer surfaces within one grace period. A positively dead or
-# missing endpoint never enters the ladder: the watcher escalates it directly.
+# instead of ringing again, so a blocked composer surfaces within one grace
+# period. A positively dead or missing endpoint never enters the ladder: the
+# watcher escalates it directly.
 # A concurrently removed inbox is a successful no-op; otherwise failure means
 # the caller must surface the unwritable ladder while the record remains
 # unhandled.
