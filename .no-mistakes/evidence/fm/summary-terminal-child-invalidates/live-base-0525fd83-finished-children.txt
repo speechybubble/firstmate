@@ -1,0 +1,105 @@
+tmux windows: firstmate:fm-finished-scout firstmate:fm-bp-t8 
+== secondmate home summary (fm-home-summary-refresh.sh, then --secondmate-home-summary)
+refresh rc=0
+{
+  "valid": false,
+  "reason": "in-flight backlog item has terminal child state: finished-scout=done, bp-t8=failed",
+  "invalidity": {
+    "kind": "terminal_in_flight",
+    "ids": [
+      "finished-scout",
+      "bp-t8"
+    ]
+  },
+  "reconcile_inventory": null,
+  "state": "no_active_work",
+  "awaiting_firstmate": null,
+  "counts": {
+    "awaiting_firstmate": null
+  }
+}
+== parent fleet snapshot record for ops
+{
+  "current": {
+    "state": "no_active_work",
+    "reason": "structured home state invalid: in-flight backlog item has terminal child state: finished-scout=done, bp-t8=failed"
+  },
+  "invalidity": {
+    "kind": "terminal_in_flight",
+    "ids": [
+      "finished-scout",
+      "bp-t8"
+    ]
+  },
+  "reconcile_inventory": {
+    "kind": "terminal_in_flight",
+    "ids": [
+      "finished-scout",
+      "bp-t8"
+    ]
+  },
+  "trust": "partial-structured",
+  "summary_valid": false,
+  "awaiting_firstmate": []
+}
+== bearings (captain view) TOON
+schema: fm-bearings.v1
+home: fm-lab.YEJ58E/parent
+generated: "2026-10-17T10:23:01Z"
+prs: "not_requested (run: /bearings include PRs)"
+contributions: 
+  scope: owned contributions per home
+  known: 0
+  checked: 0
+  counts: 
+    captain: 0
+    fleet: 0
+    maintainer: 0
+    nobody: 0
+  complete: true
+  proven_clear: true
+  unmeasured_homes: 0
+  unreadable_records: 0
+  unmeasured: 0
+  stale_verdicts: 0
+  missing_verdicts: 0
+  captain_omitted: 0
+  captain: []
+in_flight: []
+secondmates[1]{id,state,doing,provenance,freshness,age_seconds,contradiction,reason}:
+  ops,no_active_work,No active child work,structured-home,fresh,8,false,"structured home state invalid: in-flight backlog item has terminal child state: finished-scout=done, bp-t8=failed"
+secondmate_reconcile[1]{id,spawn_gen,host,kind,ids}:
+  ops,null,null,terminal_in_flight,"[\"bp-t8\",\"finished-scout\"]"
+decisions_open: []
+landed: []
+gates: []
+reports: []
+recorded_prs: []
+omitted[6]{surface,reveal}:
+  backlog item bodies,"--fields bodies"
+  task paths,"--fields paths"
+  watch/steer actions,"--fields actions"
+  healthy endpoint detail,"--fields endpoints"
+  full scout-report inventory,"--all-reports"
+  live PR discovery + checks,"--include-prs"
+== bearings JSON: ops home row and its in_flight rows
+{
+  "secondmate": [
+    {
+      "id": "ops",
+      "state": "no_active_work",
+      "doing": "No active child work",
+      "provenance": "structured-home",
+      "freshness": "fresh",
+      "age_seconds": 11,
+      "contradiction": false,
+      "reason": "structured home state invalid: in-flight backlog item has terminal child state: finished-scout=done, bp-t8=failed"
+    }
+  ],
+  "in_flight": []
+}
+== reconcile request from the captured snapshot
+requested: /tmp/fm-lab.YEJ58E/parent/state/reconcile-notify/request-7a70b4e7059a7d283c883288be3de0bed02d10fda4602c8de4699debcf6afbf2.json
+reconcile rc=0
+request-7a70b4e7059a7d283c883288be3de0bed02d10fda4602c8de4699debcf6afbf2.json
+lab removed: yes

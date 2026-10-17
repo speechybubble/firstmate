@@ -1,0 +1,2 @@
+ok - nonprogressing child states are explicit and terminal rows await Firstmate while still queuing a reconcile nudge
+ok - PRs awaiting merge and children awaiting Firstmate read as child work and held failed runs as holds in bearings
