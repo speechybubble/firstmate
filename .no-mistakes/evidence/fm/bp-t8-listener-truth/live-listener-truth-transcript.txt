@@ -1,0 +1,134 @@
+===== S1: N4 repro - register, kill runner, list, ensure-listening =====
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh register lavish n4-src -- /tmp/fm-lab.AVkGNT/blocker.sh /tmp/fm-lab.AVkGNT/never payload
+registered: n4-src (lavish)
+[exit 0]
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh ensure-listening n4-src
+[exit 0]
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+n4-src                       lavish       live       0
+[exit 0]
+runner pgid=1625790 alive: yes
+-- kill the runner group (simulates reboot/dead runner)
+runner 1625790 alive: no
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+n4-src                       lavish       none       0
+[exit 0]
+OWNER after kill: none
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh ensure-listening n4-src
+[exit 0]
+replacement pgid=1628391 alive: yes (old=1625790)
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+n4-src                       lavish       live       0
+[exit 0]
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh retire n4-src
+retired: n4-src
+[exit 0]
+===== S2: source dies at once (Lavish poll with no server) =====
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh register lavish dies-src -- /bin/sh -c echo "server gone" >&2; exit 1
+registered: dies-src (lavish)
+[exit 0]
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh ensure-listening dies-src
+error: listener exited without listening or capturing a result: dies-src
+[exit 1]
+OWNER: none
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh retire dies-src
+retired: dies-src
+[exit 0]
+===== S3: listened once, runner killed, source now fails at once (stale stamp) =====
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh register lavish stale-src -- /bin/sh -c if [ -e "$1" ]; then echo gone >&2; exit 1; fi; : > "$1"; exec "$2" "$3" payload sh /tmp/fm-lab.AVkGNT/ran-once /tmp/fm-lab.AVkGNT/blocker.sh /tmp/fm-lab.AVkGNT/never
+registered: stale-src (lavish)
+[exit 0]
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh ensure-listening stale-src
+[exit 0]
+-- old stamp: 5109.004575236
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh ensure-listening stale-src
+error: listener exited without listening or capturing a result: stale-src
+[exit 1]
+OWNER: none
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh retire stale-src
+retired: stale-src
+[exit 0]
+===== S4: launch floor longer than confirm window =====
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh register lavish floor-src -- /tmp/fm-lab.AVkGNT/blocker.sh /tmp/fm-lab.AVkGNT/never payload
+registered: floor-src (lavish)
+[exit 0]
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh ensure-listening floor-src
+[exit 0]
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh ensure-listening floor-src
+error: listener is still in its launch floor wait and has not started its source command: floor-src
+[exit 1]
+replacement pgid=1636952 alive: yes - still sleeping in floor wait; source started marker? no
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh retire floor-src
+retired: floor-src
+[exit 0]
+===== S5: claim and stamp in the same whole second (subsecond ordering) =====
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh register lavish sec-src -- /tmp/fm-lab.AVkGNT/blocker.sh /tmp/fm-lab.AVkGNT/never payload
+registered: sec-src (lavish)
+[exit 0]
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh ensure-listening sec-src
+[exit 0]
+-- claim at .2, stamp at .7 of the same second
+/tmp/fm-lab.AVkGNT/claims/sec-src.claim 2026-10-17 16:30:22.200000048 +1000
+/tmp/fm-lab.AVkGNT/state/procevent/sec-src.71-34412.last-launch 2026-10-17 16:30:22.700000048 +1000
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh ensure-listening sec-src
+[exit 0]
+-- claim at .7, stamp at .2 of the same second
+/tmp/fm-lab.AVkGNT/claims/sec-src.claim 2026-10-17 16:30:22.700000048 +1000
+/tmp/fm-lab.AVkGNT/state/procevent/sec-src.71-34412.last-launch 2026-10-17 16:30:22.200000048 +1000
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh ensure-listening sec-src
+error: listener is still in its launch floor wait and has not started its source command: sec-src
+[exit 1]
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh retire sec-src
+retired: sec-src
+[exit 0]
+===== S6: Lavish arm on a board with no saved session =====
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent-lavish.sh arm /tmp/fm-lab.AVkGNT/boards/nosess.html
+board must have one saved Lavish session
+error: cannot resolve the board server from its Lavish session: /tmp/fm-lab.AVkGNT/boards/nosess.html
+error: open the board with lavish-axi so it has a saved session, then arm it again: /tmp/fm-lab.AVkGNT/boards/nosess.html
+[exit 1]
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh list
+no sources registered
+[exit 0]
+registrations: 0
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh reconcile
+reconciled: published=0 started=0 stopped=0 uncertain=0 failed=0
+[exit 0]
+===== S7: Lavish arm on a board with a real saved session (isolated real lavish server) =====
+session:
+  file: /tmp/fm-lab.AVkGNT/boards/live.html
+  url: "http://127.0.0.1:14991/session/047579ab3f105abb"
+  status: opened
+self_paint_warning: "This artifact never paints its own page surface: no background on html/body/:root, no bg-* class or data-theme on html/body, and no stylesheet that could set one. Lavish injects no design system, so text that assumes a dark or light host surface can render invisible. Set an explicit background and readable text."
+next_step: "First fix the unpainted page surface flagged in self_paint_warning and save - Lavish live-reloads the artifact automatically, so you do not need to re-run `lavish-axi /tmp/fm-lab.AVkGNT/boards/live.html`. Do not respond to the user just yet. Now you must run `lavish-axi poll /tmp/fm-lab.AVkGNT/boards/live.html`. This command long-polls until the user sends feedback, ends the session, or leaves every review window disconnected past the reconnect grace period, and it stays silent the whole time - that is normal, never kill it. Layout issues the browser detects do not return this poll; they wait in the user's Layout issues inbox until the user queues them, then arrive as an ordinary tag \"layout-warnings\" prompt. Do not pass --timeout-ms during normal agent use. Keep the poll in the foreground by default and let it return the feedback directly to the agent. A background poll is allowed only through a harness-native tracked background-job facility whose completion result is guaranteed to resume or notify the same agent. Never use `nohup`, shell `&`, `disown`, redirected fire-and-forget processes, or a detached terminal without an explicit verified callback merely to keep polling alive. If the harness has no completion-aware background facility, use the foreground poll or first wire a verified wake callback into the surrounding supervisor. Do not tell the user the artifact is being monitored until that wake path is live. If the poll gets killed or times out before feedback arrives, re-run it - feedback remains queued until delivery. Poll delivery consumes the response, so read it completely. If it returns browser_disconnected, the review window stayed disconnected past its reconnect grace period but the session remains resumable; ask the user whether to reopen or end it, and do neither uninvited. After applying feedback, run `lavish-axi poll /tmp/fm-lab.AVkGNT/boards/live.html --agent-reply \"<message for the user>\"` without --timeout-ms to show a concise response in Lavish Editor and keep waiting for more feedback. If instead you are handing back a result without starting another long-poll, run `lavish-axi reply /tmp/fm-lab.AVkGNT/boards/live.html --agent-reply \"<message for the user>\"` to get an acceptance receipt. Keep the reply concise. Only when a longer reply is genuinely necessary, use Markdown structure - blank-line paragraphs, `- ` / `1. ` lists, `## ` headings - so it renders scannably instead of a wall of text, and pass that body with `--agent-reply-file <path>` (`-` reads stdin) so newlines survive quoting. The Conversation panel's Markdown subset is in `lavish-axi poll --help` and README. If the user ends the session, stop polling and do not reopen it by re-running `lavish-axi /tmp/fm-lab.AVkGNT/boards/live.html` unless the user asks for further review or something genuinely important needs their visual attention - deliver routine updates directly in this conversation instead. When reopening is warranted, run `lavish-axi /tmp/fm-lab.AVkGNT/boards/live.html --reopen`."
+/tmp/fm-lab.AVkGNT/boards/live.html http://127.0.0.1:14991/session/047579ab3f105abb
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent-lavish.sh arm /tmp/fm-lab.AVkGNT/boards/live.html
+registered: lavish-047579ab3f105abb (lavish)
+armed: lavish-047579ab3f105abb
+artifact: /tmp/fm-lab.AVkGNT/boards/live.html
+[exit 0]
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+lavish-047579ab3f105abb      lavish       live       0
+[exit 0]
+-- stop the isolated lavish server, kill the runner, then reconcile/ensure-listening
+server:
+  status: stopped
+  port: 14991
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+lavish-047579ab3f105abb      lavish       none       1
+[exit 0]
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh ensure-listening lavish-047579ab3f105abb
+[exit 0]
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent.sh list
+SOURCE                       ADAPTER      OWNER      PENDING
+lavish-047579ab3f105abb      lavish       live       1
+[exit 0]
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M547NPE0KHNTS1BTHHJAD56E/bin/fm-procevent-lavish.sh retire /tmp/fm-lab.AVkGNT/boards/live.html
+retired: lavish-047579ab3f105abb
+[exit 0]
+===== done =====
