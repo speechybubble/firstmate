@@ -27,7 +27,8 @@
 #   <task>.inbox/handled/      the worker's `mv` here IS the acknowledgement
 #   <task>.inbox/.seq.lock     serializes sequence allocation across writers
 #                              (the session and the away daemon)
-#   <task>.inbox/.ring-state   watcher re-ring ladder: "<msg>\t<count>\t<epoch>"
+#   <task>.inbox/.ring-state   watcher re-ring ladder:
+#                              "<msg>\t<count>\t<epoch>[\tskipped]"
 #   <task>.inbox/.busy-state   consecutive busy deferrals: "<msg>\t<count>"
 #   <task>.inbox/.escalated    oldest-message name already surfaced as stale,
 #                              so later polls suppress another escalation
@@ -53,8 +54,13 @@
 # attempt may ring or be skipped to protect another draft in a proven pending
 # composer; an unsubmitted copy of this doorbell is submitted, and a leftover
 # leading fragment of it is cleared and rung again (fm_task_inbox_ring). After
-# FM_TASK_INBOX_RING_MAX attempts without an acknowledgement it escalates,
-# quoting any unsent text still in the composer. The
+# FM_TASK_INBOX_RING_MAX attempts without an acknowledgement it escalates. A
+# skipped attempt (any other pending text, or a fragment that cannot be
+# cleared) escalates on the next due check instead of spending that budget, so
+# a blocked doorbell surfaces within one grace period. Escalation quotes any
+# unsent text still in the composer so firstmate sees what blocked the
+# doorbell; that text is a worker composer draft on the operator's own
+# machine, capped at 240 characters with control bytes stripped. The
 # caller owns the busy and recovery-grade endpoint checks: due actions deferred
 # by a busy pane consume a separate durable consecutive-poll budget,
 # FM_TASK_INBOX_BUSY_MAX. At that bound the same escalation path surfaces a
@@ -520,12 +526,13 @@ fm_task_inbox_clear_retry() {  # <state-dir> <task-id> <record-path>
 #   quiet                     nothing due (healthy, within grace or spacing,
 #                             or already escalated for the current oldest)
 #   ring <record-path>        one doorbell re-ring is due
-#   escalate <record-path> <count>   attempt budget spent; surface as stale
+#   escalate <record-path> <count>   attempt budget spent, or the last
+#                             attempt was skipped; surface as stale
 #   retry <record-path>       a fire-and-forget record's one retry ring is due
 # An empty inbox also resets the ladder bookkeeping so the next message starts
 # a fresh ladder.
 fm_task_inbox_due_action() {  # <state-dir> <task-id>
-  local dir oldest base now grace max ladder rec_base count last
+  local dir oldest base now grace max ladder rec_base count last skipped
   dir=$(fm_task_inbox_dir "$1" "$2")
   if ! oldest=$(fm_task_inbox_oldest_unhandled "$1" "$2"); then
     rm -f "$dir/.ring-state" "$dir/.escalated" "$dir/.busy-state" 2>/dev/null || true
@@ -551,13 +558,15 @@ fm_task_inbox_due_action() {  # <state-dir> <task-id>
   fi
   count=0
   last=0
+  skipped=
   ladder=$(cat "$dir/.ring-state" 2>/dev/null || true)
-  IFS=$(printf '\t') read -r rec_base count last <<EOF
+  IFS=$(printf '\t') read -r rec_base count last skipped <<EOF
 $ladder
 EOF
   if [ -n "$rec_base" ] && [ "$rec_base" != "$base" ]; then
     count=0
     last=0
+    skipped=
   fi
   case "$count" in ''|*[!0-9]*) count=0 ;; esac
   case "$last" in ''|*[!0-9]*) last=0 ;; esac
@@ -566,7 +575,7 @@ EOF
     return 0
   fi
   max=$(fm_task_inbox_ring_max)
-  if [ "$count" -ge "$max" ]; then
+  if [ "$count" -ge "$max" ] || [ "$skipped" = skipped ]; then
     printf 'escalate %s %s' "$oldest" "$count"
     return 0
   fi
@@ -578,15 +587,16 @@ EOF
   printf 'ring %s' "$oldest"
 }
 
-# Advance the ladder after a delivery attempt. A failed ring or a composer-
-# protected skip still consumes budget so neither an unreadable pane nor a
-# permanently blocked composer can retry silently forever. A positively dead or
+# Advance the ladder after a delivery attempt. A failed ring still consumes
+# budget so an unreadable pane cannot retry silently forever; a composer-
+# protected skip, marked by the literal `skipped`, makes the next due check
+# escalate so a blocked composer surfaces within one grace period. A positively dead or
 # missing endpoint never enters the ladder: the watcher escalates it directly.
 # A concurrently removed inbox is a successful no-op; otherwise failure means
 # the caller must surface the unwritable ladder while the record remains
 # unhandled.
-fm_task_inbox_record_ring() {  # <state-dir> <task-id> <record-path>
-  local dir base ladder rec_base count last
+fm_task_inbox_record_ring() {  # <state-dir> <task-id> <record-path> [skipped]
+  local dir base ladder rec_base count last mark=
   dir=$(fm_task_inbox_dir "$1" "$2")
   base=${3##*/}
   count=0
@@ -596,8 +606,9 @@ $ladder
 EOF
   [ "$rec_base" = "$base" ] || count=0
   case "$count" in ''|*[!0-9]*) count=0 ;; esac
+  [ "${4:-}" != skipped ] || mark=$(printf '\tskipped')
   [ -d "$dir" ] || return 0
-  if ! { printf '%s\t%s\t%s\n' "$base" "$((count + 1))" "$(date +%s)" > "$dir/.ring-state"; } 2>/dev/null; then
+  if ! { printf '%s\t%s\t%s%s\n' "$base" "$((count + 1))" "$(date +%s)" "$mark" > "$dir/.ring-state"; } 2>/dev/null; then
     [ -d "$dir" ] || return 0
     return 1
   fi
