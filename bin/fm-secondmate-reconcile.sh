@@ -16,8 +16,9 @@
 # older code.
 #
 # A backlog-vs-metadata inventory mismatch inside a secondmate home
-# (orphan_in_flight, unowned_current, terminal_in_flight) no longer makes that
-# home unreadable: bin/fm-fleet-snapshot.sh keeps its decisions, queued, landed,
+# (orphan_in_flight, unowned_current, or terminal_in_flight, which is only a
+# reconcile-inventory kind and no longer invalidates the summary) no longer
+# makes that home unreadable: bin/fm-fleet-snapshot.sh keeps its decisions, queued, landed,
 # and live work and carries the mismatch for renderers. The books are still
 # wrong, and only the home that owns them may fix them, so the parent sends one
 # reconcile instruction and stops there.

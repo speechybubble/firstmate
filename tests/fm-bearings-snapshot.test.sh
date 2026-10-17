@@ -939,6 +939,29 @@ EOF
   out=$(printf '%s' "$canonical" | FM_HOME="$home" "$ROOT/bin/fm-secondmate-reconcile.sh" request --snapshot -) \
     || fail "reconcile request rejected a valid home with children awaiting Firstmate: $out"
   case "$out" in requested:*) : ;; *) fail "valid home with children awaiting Firstmate was not queued for reconcile: $out" ;; esac
+
+  sed '/^## In flight$/a\
+- [ ] lost - Child lost in a machine restart (repo: sample) (kind: ship) (since 2026-07-11)' \
+    "$mate/data/backlog.md" > "$mate/data/backlog.md.tmp"
+  mv "$mate/data/backlog.md.tmp" "$mate/data/backlog.md"
+  fm_write_meta "$mate/state/lost.meta" \
+    "window=firstmate:dead-lost" "worktree=$mate/projects/lost" "project=sample" \
+    "harness=codex" "kind=ship" "mode=no-mistakes"
+  rm -rf "$home/state/reconcile-notify"
+  refresh_local_secondmate_ledgers "$home"
+  canonical=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_SNAPSHOT_NOW=2026-07-11T18:00:00Z \
+    "$ROOT/bin/fm-fleet-snapshot.sh" --json)
+  printf '%s' "$canonical" | jq -e '
+    .secondmate_current.records[] | select(.id == "states")
+    | .current.state == "unknown"
+      and .invalidity == {kind:"child_current_unavailable",ids:["lost"]}
+      and ([.awaiting_firstmate[].id] | sort) == ["done","failed"]
+      and .reconcile_inventory.kind == "terminal_in_flight"
+      and (.reconcile_inventory.ids | sort) == ["done","failed"]
+  ' >/dev/null || fail "an unknown sibling child hid the finished children from the reconcile inventory: $canonical"
+  out=$(printf '%s' "$canonical" | FM_HOME="$home" "$ROOT/bin/fm-secondmate-reconcile.sh" request --snapshot -) \
+    || fail "reconcile request rejected a home with an unknown child and children awaiting Firstmate: $out"
+  case "$out" in requested:*) : ;; *) fail "home with an unknown child and children awaiting Firstmate was not queued for reconcile: $out" ;; esac
   pass "nonprogressing child states are explicit and terminal rows await Firstmate while still queuing a reconcile nudge"
 }
 

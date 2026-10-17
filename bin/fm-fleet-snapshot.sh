@@ -279,10 +279,10 @@ A child whose current state is unknown is listed in holds, not
 child_current_unavailable, when it is backlog-held or declares a wait; an
 unknown child with neither still invalidates the summary.
 Its invalidity object names the normalized failure kind and affected ids.
-Its reconcile_inventory repeats that invalidity, or on a valid summary names the
-awaiting_firstmate ids as terminal_in_flight so the parent still sends its
-cooldown-limited reconcile nudge; older producers may still report
-terminal_in_flight as an invalidity.
+Its reconcile_inventory repeats that invalidity, except that a summary that is
+valid or only child_current_unavailable names its awaiting_firstmate ids as
+terminal_in_flight so the parent still sends its cooldown-limited reconcile
+nudge; older producers may still report terminal_in_flight as an invalidity.
 Actionable tasks-axi captain holds appear as decisions_open and stay visible in
 queued with hold_reason, hold_kind, hold_until,
 hold_bucket, hold_age_days, and plural blocker fields for downstream
@@ -1264,7 +1264,8 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
     | (if ($strict_invalidities | length) > 0 then $strict_invalidities[0] | del(.reason)
        elif ($unknown_children | length) > 0 then {kind:"child_current_unavailable",ids:($unknown_children | map(.id))}
        else {kind:null,ids:[]} end) as $invalidity
-    | (if $invalidity.kind == null and ($awaiting_firstmate_all | length) > 0 then
+    | (if ($invalidity.kind == null or $invalidity.kind == "child_current_unavailable")
+          and ($awaiting_firstmate_all | length) > 0 then
          {kind:"terminal_in_flight",ids:($awaiting_firstmate_all | map(.id))}
        else $invalidity end) as $reconcile_inventory
     | (if ($valid | not)
