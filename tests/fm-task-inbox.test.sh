@@ -1228,8 +1228,9 @@ test_watcher_escalates_once_after_budget() {
 
 # The ladder replayed through the production watcher against a Claude-style
 # composer: our own stuck doorbell is delivered on the first due attempt with
-# no wake, while a foreign draft is never touched and, once the attempt budget
-# is spent, its exact text is quoted in the single escalation.
+# no wake, while a foreign draft is never touched and escalates on the due
+# check right after its first skipped attempt, with its exact text quoted in
+# the single escalation rather than waiting out the attempt budget.
 composer_steer_check() {  # <case-dir>
   PATH="$1/fakebin:$PATH" FM_STATE_OVERRIDE="$1/state" FM_SEND_LOG="$1/send.log" \
     FM_FAKE_COMPOSER="$1/composer" FM_FAKE_DROP_ENTERS="$1/drops" \
@@ -1267,13 +1268,13 @@ test_watcher_ladder_repairs_own_doorbell_and_quotes_foreign_text() {
   age_path "$rec"
   : > "$dir/send.log"
   printf 'please wait, writing tests' > "$dir/composer"
-  for i in 1 2; do
-    composer_steer_check "$dir"
-    [ "$(cut -f2 "$state/t1.inbox/.ring-state")" = "$i" ] \
-      || fail "skipped attempt $i was not counted: $(cat "$state/t1.inbox/.ring-state" 2>/dev/null)"
-    [ ! -s "$state/.wake-queue" ] || fail "attempt $i escalated before the budget was spent"
-  done
   composer_steer_check "$dir"
+  [ "$(cut -f2,4 "$state/t1.inbox/.ring-state")" = "1"$'\t'"skipped" ] \
+    || fail "the skipped attempt was not recorded as skipped: $(cat "$state/t1.inbox/.ring-state" 2>/dev/null)"
+  [ ! -s "$state/.wake-queue" ] || fail "the skipped attempt escalated before its due check"
+  composer_steer_check "$dir"
+  grep -qF 'after 1 doorbell delivery attempts' "$state/.wake-queue" \
+    || fail "the due check after one skipped attempt did not escalate:"$'\n'"$(cat "$state/.wake-queue" 2>/dev/null)"
   composer_steer_check "$dir"
   [ ! -s "$dir/send.log" ] || fail "the foreign draft was touched:"$'\n'"$(cat "$dir/send.log")"
   [ "$(cat "$dir/composer")" = 'please wait, writing tests' ] || fail "the foreign draft was changed: $(cat "$dir/composer")"
@@ -1281,7 +1282,7 @@ test_watcher_ladder_repairs_own_doorbell_and_quotes_foreign_text() {
     || fail "the spent budget should escalate exactly once:"$'\n'"$(cat "$state/.wake-queue" 2>/dev/null)"
   grep -qF 'still holds unsent text: "please wait, writing tests"' "$state/.wake-queue" \
     || fail "the escalation should quote the unsent text:"$'\n'"$(cat "$state/.wake-queue")"
-  pass "watcher: the ladder delivers our own stuck doorbell in one attempt and quotes a protected foreign draft in its one escalation"
+  pass "watcher: the ladder delivers our own stuck doorbell in one attempt and escalates a protected foreign draft after one skipped attempt, quoting it"
 }
 
 test_watcher_dead_pane_escalates_once_without_ringing() {

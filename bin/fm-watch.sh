@@ -578,7 +578,7 @@ inbox_steer_surface_deferred() {
 # Runs for secondmates too: their pane-staleness exemption is about quiet panes
 # being healthy, while an unacknowledged instruction can still be a stuck steer.
 inbox_steer_check() {  # <window> <task>
-  local w=$1 task=$2 action verb rec count tail40 reason='' ring_rc backend agent_state bookkeeping=0 unsent
+  local w=$1 task=$2 action verb rec count tail40 reason='' ring_rc backend agent_state bookkeeping=0 unsent skipped
   action=$(fm_task_inbox_due_action "$STATE" "$task") || return 0
   verb=${action%% *}
   [ "$verb" != quiet ] || return 0
@@ -632,7 +632,9 @@ inbox_steer_check() {  # <window> <task>
         inbox_steer_escalate_unavailable "$w" "$task" "$rec"
         return 0
       fi
-      if ! fm_task_inbox_record_ring "$STATE" "$task" "$rec"; then
+      skipped=
+      [ "$ring_rc" -ne 1 ] || skipped=skipped
+      if ! fm_task_inbox_record_ring "$STATE" "$task" "$rec" "$skipped"; then
         if [ ! -f "$rec" ]; then
           fm_task_inbox_due_action "$STATE" "$task" >/dev/null || true
           return 0
