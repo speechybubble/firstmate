@@ -1849,6 +1849,67 @@ EOF
   mv -f "$tmp" "$state/.status-presentation-cursor" || { rm -f "$tmp"; return 1; }
 }
 
+# Commit a receipt that bin/fm-wake-drain.sh staged at presentation and commits
+# only at the acknowledgement that covers that presentation. The logs moved on
+# in between: a task whose log vanished or was recreated is dropped from the
+# receipt, a task the receipt never captured keeps its current cursor row, and
+# no offset moves backward, because another actor's acknowledgement may have
+# advanced the shared cursor first. <backstop-acknowledged> holds the staged
+# "<task>\t<endpoint>" outcome-backstop receipts.
+status_commit_deferred_presentation_snapshot() {  # <state> <snapshot> <backstop-acknowledged>
+  local state=$1 snapshot=$2 staged_backstop=$3 manifest current f task ident size merged line
+  local backstop endpoint kept_backstop=''
+  manifest="$state/.status-presentation-cursor"
+  current=
+  for f in "$state"/*.status; do
+    [ -f "$f" ] && [ -r "$f" ] && [ ! -L "$f" ] || continue
+    task=${f##*/}; task=${task%.status}
+    ident=$(_fm_open_decisions_file_ident "$f") || return 1
+    size=$(_fm_status_file_size "$f") || return 1
+    size=${size//[[:space:]]/}
+    case "$size" in ''|*[!0-9]*) return 1 ;; esac
+    current="$current$task	$ident	$size
+"
+  done
+  if [ -e "$manifest" ] || [ -L "$manifest" ]; then
+    [ -f "$manifest" ] && [ -r "$manifest" ] && [ ! -L "$manifest" ] || return 1
+  fi
+  merged=$(printf '%s' "$current" | FM_STAGED_SNAPSHOT=$snapshot LC_ALL=C awk -F '\t' -v manifest="$manifest" '
+    BEGIN {
+      n = split(ENVIRON["FM_STAGED_SNAPSHOT"], rows, "\n")
+      for (i = 1; i <= n; i++) {
+        if (split(rows[i], r, "\t") != 3) continue
+        want[r[1]] = r[2]; wident[r[1]] = r[3]
+      }
+      while ((getline line < manifest) > 0) {
+        if (split(line, m, "\t") < 3) continue
+        have[m[1]] = m[3]; hident[m[1]] = m[2]
+      }
+    }
+    {
+      task = $1; ident = $2; size = $3 + 0; offset = -1
+      if ((task in want) && wident[task] == ident && want[task] + 0 <= size) offset = want[task] + 0
+      if ((task in have) && hident[task] == ident && have[task] + 0 <= size && have[task] + 0 > offset) offset = have[task] + 0
+      if (offset >= 0) printf "%s\t%d\t%s\n", task, offset, ident
+    }
+  ') || return 1
+  while IFS=$(printf '\t') read -r task endpoint; do
+    [ -n "$task" ] || continue
+    case "$endpoint" in ''|*[!0-9]*) continue ;; esac
+    line=$(printf '%s\n' "$merged" | awk -F '\t' -v t="$task" '$1 == t { print $2; exit }')
+    [ -n "$line" ] || continue
+    backstop=$(status_outcome_backstop_cursor_offset "$state/$task.status") || continue
+    size=$(_fm_status_file_size "$state/$task.status") || continue
+    size=${size//[[:space:]]/}
+    [ "$endpoint" -gt "$backstop" ] && [ "$endpoint" -le "$size" ] || continue
+    kept_backstop="$kept_backstop$task	$endpoint
+"
+  done <<EOF
+$staged_backstop
+EOF
+  STATUS_OUTCOME_BACKSTOP_ACKNOWLEDGED=$kept_backstop status_commit_presentation_snapshot "$state" "$merged"
+}
+
 scan_open_decisions_snapshot() {  # <state> <task-and-endpoint-snapshot>
   local state=$1 snapshot=$2 task endpoint ident f open line
   while IFS=$(printf '\t') read -r task endpoint ident; do

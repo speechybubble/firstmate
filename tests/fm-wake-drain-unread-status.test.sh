@@ -142,14 +142,16 @@ test_pending_reply_resolution_surfaces_once() {
   printf 'blocked [key=pending-reply-abcdef0123456789]: pending-reply-missed: task=task5 pending-reply-id=abcdef0123456789 request=ship it\n' >> "$status"
   append_wake "$state" signal task5.status "signal: task5.status" \
     || fail "queueing the pending-reply request signal failed"
-  FM_STATE_OVERRIDE="$state" "$DRAIN" >/dev/null \
+  FM_STATE_OVERRIDE="$state" "$DRAIN" >/dev/null 2> "$dir/drain.err" \
     || fail "drain failed while acknowledging the pending-reply request"
+  ack_drain_err "$state" "$dir/drain.err" >/dev/null 2>&1 \
+    || fail "acknowledging the pending-reply request drain failed"
   {
     printf 'resolved [key=pending-reply-abcdef0123456789]: pending-reply-resolved: task=task5 pending-reply-id=abcdef0123456789 via=status\n'
     printf 'note: re-read acknowledgement\n'
   } >> "$status"
 
-  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" || fail "drain failed on a pending-reply resolution"
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" 2> "$dir/drain.err" || fail "drain failed on a pending-reply resolution"
 
   grep -F 'pending-reply-resolved: task=task5 pending-reply-id=abcdef0123456789 via=status' "$out" >/dev/null \
     || fail "the pending-reply resolution was buried under the later note: $(cat "$out")"
@@ -158,6 +160,10 @@ test_pending_reply_resolution_surfaces_once() {
   if grep -F 'OPEN DECISIONS' "$out" >/dev/null; then
     fail "the pending-reply resolution did not close its open decision: $(cat "$out")"
   fi
+  # The resolution arrived without a wake, yet this drain showed UNREAD STATUS,
+  # so it asks for an acknowledgement and the handling turn runs it.
+  ack_drain_err "$state" "$dir/drain.err" >/dev/null 2>&1 \
+    || fail "the empty-queue drain that showed UNREAD STATUS asked for no acknowledgement: $(cat "$dir/drain.err")"
 
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" || fail "second drain after pending-reply presentation failed"
   if grep -F 'pending-reply-resolved:' "$out" >/dev/null; then
@@ -449,6 +455,92 @@ test_routine_working_and_covered_done_stay_silent_on_the_empty_queue() {
   pass "routine working and branch-covered done lines print nothing on an empty-queue drain"
 }
 
+# woken_home <state> <status-file>: a home that has handled one acknowledged
+# wake, so its recovery marker names a generation and its queue is empty.
+woken_home() {
+  local state=$1 status=$2
+  printf 'working: started\n' > "$status"
+  append_wake "$state" heartbeat hb-woken "heartbeat: woken" || fail "queueing the first wake failed"
+  FM_STATE_OVERRIDE="$state" "$DRAIN" >/dev/null 2> "$state/../woken.err" || fail "the first wake drain failed"
+  ack_drain_err "$state" "$state/../woken.err" >/dev/null 2>&1 || fail "acknowledging the first wake failed"
+}
+
+test_filtered_empty_queue_drain_re_presents_once_only_sections() {
+  local dir state out err
+  dir=$(make_case filtered-empty-queue)
+  state="$dir/state"; out="$dir/drain.out"; err="$dir/drain.err"
+  woken_home "$state" "$state/task1.status"
+
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" 2> "$err" || fail "the quiet empty-queue drain failed"
+  if grep -F 'WAKE_ACK_REQUIRED' "$err" >/dev/null; then
+    fail "an empty-queue drain with no once-only content asked for an acknowledgement: $(cat "$err")"
+  fi
+
+  printf 'note: captain said ship the REST version\n' >> "$state/task1.status"
+  printf 'done: shipped the landing page\n' > "$state/task2.status"
+  # The reader keeps only the first line, as a `| grep -v ...` filter does.
+  FM_STATE_OVERRIDE="$state" "$DRAIN" 2> "$err" | sed -n 1p > "$out"
+  if grep -F 'shipped the landing page' "$out" >/dev/null; then
+    fail "setup error: the filtered read still showed the backstop"
+  fi
+  grep -F 'WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 0 --recovery-generation' "$err" >/dev/null \
+    || fail "the empty-queue drain that showed once-only content asked for no acknowledgement: $(cat "$err")"
+
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" 2> "$err" || fail "the re-drain after the filtered read failed"
+  grep -F 'task1 note: captain said ship the REST version' "$out" >/dev/null \
+    || fail "a filtered empty-queue drain permanently lost the UNREAD STATUS note: $(cat "$out")"
+  grep -F 'task2 done: shipped the landing page' "$out" >/dev/null \
+    || fail "a filtered empty-queue drain permanently lost the STATUS OUTCOME BACKSTOP: $(cat "$out")"
+
+  ack_drain_err "$state" "$err" > "$dir/ack.out" 2>&1 || fail "acknowledging the empty-queue drain failed: $(cat "$dir/ack.out")"
+  grep -F 'acknowledged wakes through 0 (0 row(s) consumed)' "$dir/ack.out" >/dev/null \
+    || fail "the empty-queue acknowledgement did not confirm itself: $(cat "$dir/ack.out")"
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" 2> "$err" || fail "the drain after the acknowledgement failed"
+  if grep -F 'captain said ship the REST version' "$out" >/dev/null \
+    || grep -F 'shipped the landing page' "$out" >/dev/null; then
+    fail "an acknowledged once-only section was presented again: $(cat "$out")"
+  fi
+  if grep -F 'WAKE_ACK_REQUIRED' "$err" >/dev/null; then
+    fail "the drain after the acknowledgement still asked for one: $(cat "$err")"
+  fi
+  pass "an empty-queue drain asks for an acknowledgement only when it shows once-only content, and re-presents it until then"
+}
+
+test_branch_held_drain_re_presents_once_only_sections() {
+  local dir state out err owner
+  dir=$(make_case branch-held-filtered)
+  state="$dir/state"; out="$dir/drain.out"; err="$dir/drain.err"
+  mkdir -p "$dir/data"
+  woken_home "$state" "$state/task1.status"
+  printf 'note: captain said ship the REST version\n' >> "$state/task1.status"
+  append_wake "$state" signal task9.status "signal: task9" || fail "queueing the branch wake failed"
+  sleep 30 &
+  owner=$!
+  if ! FM_STATE_OVERRIDE="$state" "$ROOT/bin/fm-wake-grant.sh" activate "$owner" held-owner >/dev/null \
+    || ! FM_HOME="$dir" FM_STATE_OVERRIDE="$state" "$ROOT/bin/fm-wake-grant.sh" publish held-owner --tasks task9 --rows 2 >/dev/null; then
+    kill "$owner" 2>/dev/null || true
+    fail "publishing the branch grant failed"
+  fi
+
+  FM_STATE_OVERRIDE="$state" "$DRAIN" 2> "$err" | sed -n 1p > "$out"
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" 2> "$err" \
+    || { kill "$owner" 2>/dev/null || true; fail "the branch-held re-drain failed: $(cat "$err")"; }
+  grep -F 'task1 note: captain said ship the REST version' "$out" >/dev/null \
+    || { kill "$owner" 2>/dev/null || true; fail "a filtered branch-held drain permanently lost the UNREAD STATUS note: $(cat "$out")"; }
+  ack_drain_err "$state" "$err" >/dev/null 2>&1 \
+    || { kill "$owner" 2>/dev/null || true; fail "the branch-held drain that showed UNREAD STATUS asked for no acknowledgement: $(cat "$err")"; }
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" 2> "$err" \
+    || { kill "$owner" 2>/dev/null || true; fail "the drain after the branch-held acknowledgement failed"; }
+  kill "$owner" 2>/dev/null || true
+  wait "$owner" 2>/dev/null || true
+  if grep -F 'captain said ship the REST version' "$out" >/dev/null; then
+    fail "an acknowledged branch-held UNREAD STATUS note was presented again: $(cat "$out")"
+  fi
+  grep -F 'signal: task9' "$state/.wake-queue" >/dev/null \
+    || fail "main's zero-row acknowledgement consumed the branch-held wake"
+  pass "a branch-held drain re-presents once-only sections until its acknowledgement runs"
+}
+
 test_incident_note_answer_buried_under_routine_note_surfaces_both
 test_already_presented_notes_are_not_replayed
 test_brand_new_note_after_presentation_is_surfaced
@@ -463,3 +555,5 @@ test_snapshot_failure_is_visible
 test_open_decisions_fold_is_unchanged
 test_empty_queue_does_not_swallow_later_signal_annotation
 test_routine_working_and_covered_done_stay_silent_on_the_empty_queue
+test_filtered_empty_queue_drain_re_presents_once_only_sections
+test_branch_held_drain_re_presents_once_only_sections

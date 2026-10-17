@@ -10,6 +10,18 @@
 # A completed --ack-through prints one confirmation line on stdout naming its
 # cutoff and consumed rows; refusals and warnings stay on stderr.
 #
+# What an actor already acknowledged seeing is not repeated: an open decision
+# its last acknowledged drain printed in full, unchanged since (same task, key,
+# and text) and within the same session lock, folds into one OPEN DECISIONS
+# line naming it, and --decisions lists every open decision in full without
+# touching the queue or any receipt. A drain that prints WAKE_ACK_REQUIRED
+# stages its status-presentation receipt and decision baseline instead of
+# committing them, and only that acknowledgement commits them, so a filtered or
+# truncated read is presented again rather than lost. A drain that consumes no
+# row asks for the zero-row acknowledgement of the current recovery generation
+# only when it shows UNREAD STATUS or STATUS OUTCOME BACKSTOP content; otherwise
+# it asks for none and commits its receipt once its output is written.
+#
 # Keep sequence-bound row consumption independent from generation-bound episode
 # retirement; docs/watcher-continuity.md owns the recovery contract.
 # Every scratch file this script mints (.main-eligible-rows.tmp.*,
@@ -55,6 +67,14 @@ ACK_FINGERPRINTS=
 ACK_NOTICE_FINGERPRINTS=
 PRESENTATION_LOCK_TIMEOUT=${FM_STATUS_PRESENTATION_LOCK_TIMEOUT:-10}
 BRANCH_OUTCOMES_RC=0
+LIST_DECISIONS=false
+# "<generation>\t<sequence>" of the acknowledgement this drain asks for; empty
+# when it asks for none, which commits the presentation receipt immediately.
+# With PRESENTATION_ACK_IF_ONCE_ONLY, a drain that consumes no row asks for it
+# only when it shows UNREAD STATUS or STATUS OUTCOME BACKSTOP content.
+PRESENTATION_ACK_TOKEN=
+PRESENTATION_ACK_IF_ONCE_ONLY=false
+DECISIONS_PRESENTED=
 case "$PRESENTATION_LOCK_TIMEOUT" in ''|*[!0-9]*|0) PRESENTATION_LOCK_TIMEOUT=10 ;; esac
 
 # --- per-actor consume (docs/watcher-continuity.md "Per-actor acknowledgement") --
@@ -81,6 +101,8 @@ case "$PRESENTATION_LOCK_TIMEOUT" in ''|*[!0-9]*|0) PRESENTATION_LOCK_TIMEOUT=10
 # so it can never swallow a main-owned row still waiting for main.
 ACTOR=$(fm_lease_actor) || exit 2
 ELIGIBLE_ROWS_FILE="$STATE/.branch-eligible-rows"
+PRESENTATION_PENDING_FILE="$STATE/.drain-presentation-pending.$ACTOR"
+DECISIONS_SEEN_FILE="$STATE/.open-decisions-seen.$ACTOR"
 ELIGIBLE_OWNER_FILE="$STATE/.branch-eligible-owner"
 MAIN_ROWS_FILE="$STATE/.main-eligible-rows"
 
@@ -233,10 +255,14 @@ case "${1:-}" in
     case "$ACK_GENERATION" in ''|*[!A-Za-z0-9._-]*) echo "wake drain: invalid recovery generation" >&2; exit 2 ;; esac
     [ "$#" -eq 4 ] || { echo "wake drain: unexpected acknowledgement arguments" >&2; exit 2; }
     ;;
-  *) echo "usage: fm-wake-drain.sh [--ack-through SEQUENCE --recovery-generation GENERATION]" >&2; exit 2 ;;
+  --decisions)
+    [ "$#" -eq 1 ] || { echo "wake drain: --decisions takes no arguments" >&2; exit 2; }
+    LIST_DECISIONS=true
+    ;;
+  *) echo "usage: fm-wake-drain.sh [--decisions | --ack-through SEQUENCE --recovery-generation GENERATION]" >&2; exit 2 ;;
 esac
 
-[ "$ACTOR" != branch ] || require_branch_eligible_rows || exit 1
+[ "$ACTOR" != branch ] || [ "$LIST_DECISIONS" = true ] || require_branch_eligible_rows || exit 1
 
 # Defense in depth for the supervision chain: this script runs at the top of
 # every wake-handling and recovery turn, so assert supervision health here too. A
@@ -258,8 +284,8 @@ assert_watcher_liveness() {
 # The helper ignores non-presentation and legacy keys, so this is a narrow
 # receipt path rather than a second interpretation of general check wakes.
 inactive_outcome_fingerprints() { # <sequence> <key-prefix> [<rows-file>]
-  local cutoff=$1 prefix=$2 rows=${3:-} epoch seq kind key payload
-  while IFS=$(printf '\t') read -r epoch seq kind key payload; do
+  local cutoff=$1 prefix=$2 rows=${3:-} seq kind key
+  while IFS=$(printf '\t') read -r _ seq kind key _; do
     [ "$kind" = check ] || continue
     case "$seq" in ''|*[!0-9]*) continue ;; esac
     [ "$seq" -le "$cutoff" ] || continue
@@ -443,7 +469,9 @@ print_unread_status_section() {
     [ -n "$task" ] || continue
     [ -n "$line" ] || continue
     line="$task $line"
-    if [ "$shown" -eq 0 ]; then
+    if [ "$shown" -eq 0 ] && [ -n "$PRESENTATION_ACK_TOKEN" ]; then
+      printf 'UNREAD STATUS (new since last drain, presented again until the acknowledgement this drain asks for runs):\n' || return 1
+    elif [ "$shown" -eq 0 ]; then
       printf 'UNREAD STATUS (new since last drain, not re-printed after this presentation):\n' || return 1
     fi
     printf '%s\n' "$line" || return 1
@@ -461,7 +489,7 @@ EOF
 # scan_open_decisions_incremental wrapper) rather than from the annotations
 # above, so a decision buried under later unrelated appends cannot be silently
 # missed. Informational `note:` lines and pending-reply resolutions are not
-# decisions; print_unread_status_section owns their one-shot surface. Runs on
+# decisions; print_unread_status_section owns their surface. Runs on
 # every drain - including the empty-queue fast path - because the decision can
 # still be open even when nothing new is queued for
 # its task this turn. The incremental wrapper bounds this scan's cost to bytes
@@ -469,52 +497,114 @@ EOF
 # lifetime, while still never dropping an old buried decision (see
 # fm-classify-lib.sh's "incremental (cursor-backed) open-decisions fold").
 # Bounded and silent: prints nothing when no decision is open, which is the
-# common case.
-print_open_decisions_section() {
-  local snapshot=${1:-} open task key verb note line item_bytes=220 global_bytes=4000
-  local output='' used=0 shown=0 omitted=0 bytes
+# common case. With mode `fold` (every drain), a decision this actor's last
+# acknowledged drain already printed in full, in this same session and with the
+# same text, is named on one fold line instead of repeated; DECISIONS_PRESENTED
+# collects what this presentation showed (in full or folded) for the baseline
+# its acknowledgement records. Mode `full` (--decisions) prints every one in
+# full, with no per-item or section byte cap.
+print_open_decisions_section() {  # <snapshot> <fold|full>
+  local snapshot=${1:-} mode=${2:-fold} open task key verb note line item_bytes=220 global_bytes=4000
+  local output='' used=0 shown=0 omitted=0 bytes hash='' seen='' seen_since='' folded='' folded_count=0 label
 
   if [ -n "$snapshot" ]; then
     open=$(scan_open_decisions_snapshot "$STATE" "$snapshot") || return 1
   else
     open=$(scan_open_decisions_incremental "$STATE") || return 1
   fi
-  [ -n "$open" ] || return 0
+  if [ -z "$open" ]; then
+    [ "$mode" != full ] || printf 'OPEN DECISIONS: none open\n' || return 1
+    return 0
+  fi
+  if [ "$mode" = fold ]; then
+    seen=$(decisions_seen_baseline) || seen=
+    seen_since=$(printf '%s\n' "$seen" | awk -F '\t' '$1 == "gen" { print $3; exit }')
+    case "$seen_since" in
+      ''|0|*[!0-9]*) seen_since='the last acknowledged drain' ;;
+      *) seen_since="acknowledged wake $seen_since" ;;
+    esac
+  fi
 
   while IFS=$(printf '\t') read -r task key verb note; do
     [ -n "$task" ] || continue
+    if [ "$mode" = fold ]; then
+      hash=$(printf '%s\t%s' "$verb" "$note" | cksum | awk '{ print $1 "-" $2 }') || return 1
+      if [ -n "$seen" ] \
+        && printf '%s\n' "$seen" | grep -Fx -- "$(printf 'decision\t%s\t%s\t%s' "$task" "$key" "$hash")" >/dev/null; then
+        label=$task
+        [ "$key" = default ] || label="${label}[$key]"
+        folded="$folded${folded:+, }$label"
+        folded_count=$((folded_count + 1))
+        DECISIONS_PRESENTED="${DECISIONS_PRESENTED}decision	$task	$key	$hash
+"
+        continue
+      fi
+    fi
     line="$task"
     [ "$key" = default ] || line="$line [key=$key]"
     line="$line $verb: $note"
-    # The shared cut counts the item's own characters; the trailing newline this
-    # section's global budget also pays for is this caller's, so the per-item
-    # allowance passed down is one short of the cap.
-    fm_cap_line_var "$line" $((item_bytes - 1))
-    line=$FM_LINE_CAP_LINE
-    bytes=$(( ${#line} + 1 ))
-    if [ $((used + bytes)) -gt "$global_bytes" ]; then
-      omitted=$((omitted + 1))
-      continue
+    if [ "$mode" = fold ]; then
+      # The shared cut counts the item's own characters; the trailing newline this
+      # section's global budget also pays for is this caller's, so the per-item
+      # allowance passed down is one short of the cap.
+      fm_cap_line_var "$line" $((item_bytes - 1))
+      line=$FM_LINE_CAP_LINE
+      bytes=$(( ${#line} + 1 ))
+      if [ $((used + bytes)) -gt "$global_bytes" ]; then
+        omitted=$((omitted + 1))
+        continue
+      fi
+      used=$((used + bytes))
     fi
     output="$output$line
 "
-    used=$((used + bytes))
     shown=$((shown + 1))
+    [ "$mode" != fold ] || DECISIONS_PRESENTED="${DECISIONS_PRESENTED}decision	$task	$key	$hash
+"
   done <<EOF
 $open
 EOF
 
-  [ "$shown" -gt 0 ] || [ "$omitted" -gt 0 ] || return 0
-  printf 'OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):\n' || return 1
-  printf '%s' "$output" || return 1
+  if [ "$shown" -gt 0 ] || [ "$omitted" -gt 0 ]; then
+    printf 'OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):\n' || return 1
+    printf '%s' "$output" || return 1
+  fi
   if [ "$omitted" -gt 0 ]; then
     printf 'OPEN DECISIONS: %d more omitted (byte cap)\n' "$omitted" || return 1
   fi
+  if [ "$folded_count" -gt 0 ]; then
+    fm_cap_line_var "OPEN DECISIONS: $folded_count unchanged since $seen_since, already shown in full and not repeated: $folded (full text: bin/fm-wake-drain.sh --decisions)" 1000
+    printf '%s\n' "$FM_LINE_CAP_LINE" || return 1
+  fi
+  [ "$shown" -gt 0 ] || [ "$omitted" -gt 0 ] || return 0
   # Answerer-closes hint, printed at exactly the moment an answer gets written:
   # the send that answers a listed decision also closes it, so closure never
   # depends on the busy worker writing a matching resolved line (contract:
   # bin/fm-send.sh header).
   printf "OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'\n" || return 1
+}
+
+# The session that holds the fleet lock: line 1 of state/.lock plus the trusted
+# id beside it (bin/fm-lock.sh). A new session's agent never saw what an earlier
+# one acknowledged, so the decision baseline applies only within one session.
+decisions_session_id() {
+  local pid='' trusted=''
+  [ ! -f "$STATE/.lock" ] || pid=$(sed -n 1p "$STATE/.lock" 2>/dev/null) || pid=
+  [ ! -f "$STATE/.lock-session" ] || trusted=$(sed -n 1p "$STATE/.lock-session" 2>/dev/null) || trusted=
+  printf '%s|%s' "$pid" "$trusted" | tr -d '\t\n'
+}
+
+# This actor's acknowledged decision baseline, or nothing when it is absent,
+# malformed, or from another session.
+decisions_seen_baseline() {
+  local data
+  [ -f "$DECISIONS_SEEN_FILE" ] && [ ! -L "$DECISIONS_SEEN_FILE" ] || return 0
+  data=$(LC_ALL=C command cat "$DECISIONS_SEEN_FILE" 2>/dev/null) || return 0
+  printf '%s\n' "$data" | awk -F '\t' -v session="$(decisions_session_id)" '
+    NR == 1 { if ($1 != "session" || $2 != session) exit 1; next }
+    NR == 2 { if ($1 != "gen" || $2 == "") exit 1 }
+  ' || return 0
+  printf '%s\n' "$data"
 }
 
 # Print the RECORD DIVERGENCE section: every captain call whose two records
@@ -762,17 +852,26 @@ cap_outcome_line() {  # <line> <max-bytes>
 }
 
 print_status_sections() {
-  local snapshot=${1:-} fully_presented=${2:-} acknowledged prepared
+  local snapshot=${1:-} fully_presented=${2:-} acknowledged prepared once_only=false
   if [ -z "$snapshot" ]; then snapshot=$(status_presentation_snapshot "$STATE") || return 1; fi
   [ -n "$snapshot" ] || return 0
   acknowledged=$(status_acknowledge_presented_snapshot "$STATE" "$snapshot" "$fully_presented") || return 1
   prepared=$(mktemp "$STATE/.status-presentation.prepared.XXXXXX") || return 1
   if ! {
     print_unread_status_section "$snapshot" \
-      && print_status_outcome_backstop_section "$snapshot" \
-      && print_open_decisions_section "$snapshot" \
-      && print_record_divergence_section
+      && print_status_outcome_backstop_section "$snapshot"
   } > "$prepared"; then
+    rm -f -- "$prepared"
+    return 1
+  fi
+  [ ! -s "$prepared" ] || once_only=true
+  if [ "$PRESENTATION_ACK_IF_ONCE_ONLY" = true ] && [ "$once_only" = false ]; then
+    PRESENTATION_ACK_TOKEN=
+  fi
+  if ! {
+    print_open_decisions_section "$snapshot" \
+      && print_record_divergence_section
+  } >> "$prepared"; then
     rm -f -- "$prepared"
     return 1
   fi
@@ -783,11 +882,117 @@ print_status_sections() {
     rm -f -- "$prepared"
     return 1
   fi
-  if ! status_commit_presentation_snapshot "$STATE" "$acknowledged"; then
-    rm -f -- "$prepared"
+  rm -f -- "$prepared"
+  # Bytes reaching stdout do not prove a reader kept them, so a drain that asks
+  # for an acknowledgement stages the receipt for that acknowledgement instead.
+  if [ -n "$PRESENTATION_ACK_TOKEN" ]; then
+    stage_presentation_receipt "$acknowledged" || return 1
+    [ "$PRESENTATION_ACK_IF_ONCE_ONLY" = false ] \
+      || printf 'WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 0 --recovery-generation %s\n' "${PRESENTATION_ACK_TOKEN%%$'\t'*}" >&2
+    return
+  fi
+  status_commit_presentation_snapshot "$STATE" "$acknowledged"
+}
+
+# A drain that consumes no row asks for the generation-bound acknowledgement
+# only when it shows once-only content; a home whose recovery marker was never
+# written has no generation to name and commits its receipt immediately.
+ask_ack_if_once_only() {
+  case "$RECOVERY_MARKER_TOKEN" in
+    pending:*|announced:*|acked:*) ;;
+    *) return 0 ;;
+  esac
+  PRESENTATION_ACK_TOKEN="${RECOVERY_MARKER_TOKEN##*:}$(printf '\t')0"
+  PRESENTATION_ACK_IF_ONCE_ONLY=true
+}
+
+# Stage this presentation's receipt for the acknowledgement it asks for:
+# the status-cursor snapshot, the outcome-backstop receipts, and the decisions
+# it showed. A later presentation by the same actor replaces it.
+stage_presentation_receipt() {  # <acknowledged-snapshot>
+  local acknowledged=$1 tmp task endpoint ident
+  tmp=$(mktemp "$STATE/.drain-presentation-pending.tmp.XXXXXX") || return 1
+  if ! {
+    printf 'token\t%s\t%s\n' "$PRESENTATION_ACK_TOKEN" "$(decisions_session_id)"
+    while IFS=$(printf '\t') read -r task endpoint ident; do
+      [ -n "$task" ] || continue
+      printf 'snapshot\t%s\t%s\t%s\n' "$task" "$endpoint" "$ident"
+    done <<EOF
+$acknowledged
+EOF
+    while IFS=$(printf '\t') read -r task endpoint; do
+      [ -n "$task" ] || continue
+      printf 'backstop\t%s\t%s\n' "$task" "$endpoint"
+    done <<EOF
+${STATUS_OUTCOME_BACKSTOP_ACKNOWLEDGED:-}
+EOF
+    printf '%s' "$DECISIONS_PRESENTED"
+  } > "$tmp" || ! chmod 0600 "$tmp" || ! _fm_atomic_replace "$tmp" "$PRESENTATION_PENDING_FILE"; then
+    rm -f -- "$tmp"
     return 1
   fi
-  rm -f -- "$prepared"
+}
+
+# At an acknowledgement that covers this actor's staged presentation, commit
+# its status receipt and record the decisions it showed as this actor's
+# baseline. A receipt from another generation, or from a drain newer than the
+# cutoff, stays staged for the acknowledgement that does cover it. Never fatal
+# to the acknowledgement: a receipt left staged only means the next drain
+# presents those lines again.
+commit_staged_presentation() {
+  local data gen seq session snapshot backstop decisions tmp lock="$STATE/.status-presentation-lock"
+  [ -f "$PRESENTATION_PENDING_FILE" ] && [ ! -L "$PRESENTATION_PENDING_FILE" ] || return 0
+  fm_lock_acquire_wait_bounded "$lock" "$PRESENTATION_LOCK_TIMEOUT" || {
+    printf 'wake drain: the status presentation lock stayed busy, so the next drain presents this drain'"'"'s status and decisions again\n' >&2
+    return 0
+  }
+  data=$(LC_ALL=C command cat "$PRESENTATION_PENDING_FILE" 2>/dev/null) || data=
+  IFS=$(printf '\t') read -r _ gen seq session <<EOF
+$(printf '%s\n' "$data" | sed -n 1p)
+EOF
+  case "$seq" in ''|*[!0-9]*) seq= ;; esac
+  if [ -z "$seq" ] || [ "$gen" != "$ACK_GENERATION" ] || [ "$seq" -gt "$ACK_THROUGH" ]; then
+    fm_lock_release "$lock"
+    return 0
+  fi
+  snapshot=$(printf '%s\n' "$data" | awk -F '\t' '$1 == "snapshot" { print $2 "\t" $3 "\t" $4 }')
+  backstop=$(printf '%s\n' "$data" | awk -F '\t' '$1 == "backstop" { print $2 "\t" $3 }')
+  decisions=$(printf '%s\n' "$data" | awk -F '\t' '$1 == "decision"')
+  if ! status_commit_deferred_presentation_snapshot "$STATE" "$snapshot" "$backstop"; then
+    fm_lock_release "$lock"
+    printf 'wake drain: the status presentation receipt could not be committed, so the next drain presents this drain'"'"'s status and decisions again\n' >&2
+    return 0
+  fi
+  # A baseline that cannot be written is removed, so the next drain prints
+  # every decision in full rather than folding against a stale one.
+  if ! tmp=$(mktemp "$STATE/.open-decisions-seen.tmp.XXXXXX") \
+    || ! printf 'session\t%s\ngen\t%s\t%s\n%s\n' "$session" "$gen" "$ACK_THROUGH" "$decisions" | awk 'NF' > "$tmp" \
+    || ! chmod 0600 "$tmp" \
+    || ! _fm_atomic_replace "$tmp" "$DECISIONS_SEEN_FILE"; then
+    rm -f -- "${tmp:-}" "$DECISIONS_SEEN_FILE"
+  fi
+  rm -f -- "$PRESENTATION_PENDING_FILE"
+  fm_lock_release "$lock"
+}
+
+# --decisions: every open decision in full, read under the presentation lock;
+# no wake row, cursor, receipt, or baseline changes.
+list_open_decisions() {
+  local lock="$STATE/.status-presentation-lock" snapshot rc=0
+  fm_lock_acquire_wait_bounded "$lock" "$PRESENTATION_LOCK_TIMEOUT" || {
+    printf 'wake drain: the status presentation lock stayed busy; retry --decisions\n' >&2
+    return 1
+  }
+  snapshot=$(status_presentation_snapshot "$STATE") || rc=1
+  if [ "$rc" -eq 0 ]; then
+    if [ -n "$snapshot" ]; then
+      print_open_decisions_section "$snapshot" full || rc=1
+    else
+      printf 'OPEN DECISIONS: none open\n' || rc=1
+    fi
+  fi
+  fm_lock_release "$lock"
+  return "$rc"
 }
 
 print_status_presentation() {  # [<deduped-raw-rows>]
@@ -832,6 +1037,11 @@ cleanup() {
   fi
   exit "$status"
 }
+
+if [ "$LIST_DECISIONS" = true ]; then
+  list_open_decisions
+  exit
+fi
 
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -958,6 +1168,9 @@ if [ -n "$ACK_THROUGH" ]; then
   fi
   fm_lock_release "$FM_WAKE_QUEUE_LOCK"
   DRAIN_LOCK_HELD=false
+  if [ "$ACK_REMOVED" -gt 0 ] || [ "$PRESENTED_MAX" -le "$ACK_THROUGH" ]; then
+    commit_staged_presentation
+  fi
   if [ "$ACK_REMOVED" -eq 0 ] && [ "$PRESENTED_MAX" -gt "$ACK_THROUGH" ]; then
     # Nothing at or below the cutoff was this actor's to consume, while a
     # presented row above it is still waiting: the caller acknowledged an
@@ -1004,6 +1217,11 @@ if [ ! -s "$FM_WAKE_QUEUE" ]; then
   esac
   fm_lock_release "$FM_WAKE_QUEUE_LOCK"
   DRAIN_LOCK_HELD=false
+  if [ "$RECOVERY_ACK_REQUIRED" = true ]; then
+    PRESENTATION_ACK_TOKEN="${RECOVERY_MARKER_TOKEN##*:}$(printf '\t')0"
+  elif [ "$ACTOR" = main ]; then
+    ask_ack_if_once_only
+  fi
   (print_status_presentation) || true
   print_branch_outcomes_section || BRANCH_OUTCOMES_RC=1
   if [ "$RECOVERY_ACK_REQUIRED" = true ]; then
@@ -1024,8 +1242,11 @@ if [ "$ACTOR" = main ]; then
     # drain that prints nothing while the queue is visibly non-empty reads as a
     # lost wake, and leaves the caller with no idea who owns what is queued.
     print_branch_held_notice
+    fm_recovery_marker_snapshot "$RECOVERY_MARKER" || true
+    RECOVERY_MARKER_TOKEN=$FM_RECOVERY_MARKER_TOKEN
     fm_lock_release "$FM_WAKE_QUEUE_LOCK"
     DRAIN_LOCK_HELD=false
+    ask_ack_if_once_only
     (print_status_presentation) || true
     print_branch_outcomes_section || BRANCH_OUTCOMES_RC=1
     assert_watcher_liveness
@@ -1089,6 +1310,7 @@ DRAIN_LOCK_HELD=false
 printf 'WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through %s --recovery-generation %s\n' \
   "$ACK_THROUGH" "${RECOVERY_MARKER_TOKEN##*:}" >&2
 
+PRESENTATION_ACK_TOKEN="${RECOVERY_MARKER_TOKEN##*:}$(printf '\t')$ACK_THROUGH"
 (print_status_presentation "$RAW_ROWS") || true
 print_branch_outcomes_section || BRANCH_OUTCOMES_RC=1
 assert_watcher_liveness
