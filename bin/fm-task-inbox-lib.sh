@@ -56,8 +56,8 @@
 # leading fragment of it is cleared and rung again (fm_task_inbox_ring). After
 # FM_TASK_INBOX_RING_MAX attempts without an acknowledgement it escalates. A
 # skipped attempt (any other pending text, or a fragment that cannot be
-# cleared) escalates on the next due check instead of spending that budget, so
-# a blocked doorbell surfaces within one grace period. Escalation quotes any
+# cleared) escalates one grace after that attempt instead of spending that
+# budget, so a blocked doorbell surfaces within one grace period. Escalation quotes any
 # unsent text still in the composer so firstmate sees what blocked the
 # doorbell; that text is a worker composer draft on the operator's own
 # machine, capped at 240 characters with control bytes stripped. The
@@ -526,8 +526,8 @@ fm_task_inbox_clear_retry() {  # <state-dir> <task-id> <record-path>
 #   quiet                     nothing due (healthy, within grace or spacing,
 #                             or already escalated for the current oldest)
 #   ring <record-path>        one doorbell re-ring is due
-#   escalate <record-path> <count>   attempt budget spent, or the last
-#                             attempt was skipped; surface as stale
+#   escalate <record-path> <count>   attempt budget spent, or one grace has
+#                             passed since a skipped attempt; surface as stale
 #   retry <record-path>       a fire-and-forget record's one retry ring is due
 # An empty inbox also resets the ladder bookkeeping so the next message starts
 # a fresh ladder.
@@ -575,7 +575,7 @@ EOF
     return 0
   fi
   max=$(fm_task_inbox_ring_max)
-  if [ "$count" -ge "$max" ] || [ "$skipped" = skipped ]; then
+  if [ "$count" -ge "$max" ]; then
     printf 'escalate %s %s' "$oldest" "$count"
     return 0
   fi
@@ -584,13 +584,17 @@ EOF
     printf 'quiet'
     return 0
   fi
+  if [ "$skipped" = skipped ]; then
+    printf 'escalate %s %s' "$oldest" "$count"
+    return 0
+  fi
   printf 'ring %s' "$oldest"
 }
 
 # Advance the ladder after a delivery attempt. A failed ring still consumes
 # budget so an unreadable pane cannot retry silently forever; a composer-
-# protected skip, marked by the literal `skipped`, makes the next due check
-# escalate so a blocked composer surfaces within one grace period. A positively dead or
+# protected skip, marked by the literal `skipped`, escalates one grace later
+# instead of ringing again, so a blocked composer surfaces within one grace period. A positively dead or
 # missing endpoint never enters the ladder: the watcher escalates it directly.
 # A concurrently removed inbox is a successful no-op; otherwise failure means
 # the caller must surface the unwritable ladder while the record remains
