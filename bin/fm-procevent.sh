@@ -1989,6 +1989,16 @@ launch_settled() {  # <stamp-value>
   ' "$1" "$ENSURE_LISTENING_SETTLE_SECONDS"
 }
 
+# True when the launch stamp was modified after the claim, compared to the
+# subsecond so a stamp written in the claim's own second still counts.
+stamp_after_claim() {  # <stamp-path> <claim-path>
+  perl -MTime::HiRes=stat -e '
+    my @stamp = stat($ARGV[0]) or exit 1;
+    my @claim = stat($ARGV[1]) or exit 1;
+    exit($stamp[9] > $claim[9] ? 0 : 1);
+  ' "$1" "$2"
+}
+
 # Public readiness for one source: a result captured since the call began, a
 # live claim bound to this registration generation whose source command has
 # been running for the settle, or that claim still held when the wait ends
@@ -2028,7 +2038,7 @@ cmd_ensure_listening() {
     if stamp=$(fm_procevent_launch_floor_stamp_path "$STATE" "$id" "$identity"); then
       mark=$(cat -- "$stamp" 2>/dev/null || true)
     fi
-    if [ "$listening" -eq 0 ] && [ -n "$mark" ] && [ "$stamp" -nt "$claim" ] \
+    if [ "$listening" -eq 0 ] && [ -n "$mark" ] && stamp_after_claim "$stamp" "$claim" \
       && launch_settled "$mark"; then
       return 0
     fi
@@ -2065,7 +2075,7 @@ cmd_ensure_listening() {
   # command has run: a claim with no stamp written after it is a runner still
   # in its launch floor wait, which has not shown it can listen.
   if [ "$last_live" -eq 1 ]; then
-    [ -n "$mark" ] && [ "$stamp" -nt "$claim" ] && return 0
+    [ -n "$mark" ] && stamp_after_claim "$stamp" "$claim" && return 0
     printf 'error: listener is still in its launch floor wait and has not started its source command: %s\n' "$id" >&2
     return 1
   fi

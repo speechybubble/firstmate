@@ -5167,6 +5167,40 @@ wait_gone "-$truth_new" || fail "fixture invalid: the floor-waiting runner group
 pe "$TRUTH" retire truth-floor >/dev/null 2>&1 || true
 pass "ensure-listening does not report a runner still in its launch floor wait as listening"
 
+# A runner usually claims and stamps within one second. Stock macOS Bash 3.2
+# compares file times in whole seconds, so the order inside that second must
+# still decide whether the stamp was written after the claim.
+pe_register "$TRUTH" lavish truth-second -- "$BLOCKER" "$TRUTH_TRIGGER" payload >/dev/null
+pe "$TRUTH" ensure-listening truth-second || fail "fixture invalid: the first run was not listening"
+truth_claim="$FM_PROCEVENT_CLAIM_ROOT/truth-second.claim"
+truth_stamp=$(ls "$TRUTH"/state/procevent/truth-second.*.last-launch)
+truth_second() {  # <claim-fraction> <stamp-fraction>
+  perl -MTime::HiRes=utime -e '
+    my ($claim, $cf, $stamp, $sf) = @ARGV;
+    my $second = int(time) - 5;
+    utime($second + $cf, $second + $cf, $claim) or exit 1;
+    utime($second + $sf, $second + $sf, $stamp) or exit 1;
+  ' "$truth_claim" "$1" "$truth_stamp" "$2" || fail "fixture invalid: cannot set file times"
+}
+truth_second 0.2 0.7
+FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=1 pe "$TRUTH" ensure-listening truth-second \
+  || fail "ensure-listening ignored a stamp written later in the claim's own second"
+truth_second 0.7 0.2
+set +e
+truth_err=$(FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=1 \
+  pe "$TRUTH" ensure-listening truth-second 2>&1 >/dev/null)
+truth_rc=$?
+set -e
+[ "$truth_rc" -ne 0 ] \
+  || fail "ensure-listening counted a stamp written earlier in the claim's own second"
+assert_contains "$truth_err" "launch floor wait" \
+  "ensure-listening did not name the launch floor wait for an earlier stamp"
+truth_pid=$(sed -n '2p' "$truth_claim")
+kill -KILL -- "-$truth_pid" 2>/dev/null || true
+wait_gone "-$truth_pid" || fail "fixture invalid: the runner group survived"
+pe "$TRUTH" retire truth-second >/dev/null 2>&1 || true
+pass "ensure-listening orders a claim and its stamp within the same second"
+
 # A source that answers at once is a captured result, not a dead listener.
 pe_register "$TRUTH" lavish truth-answers -- /bin/sh -c 'echo answered' >/dev/null
 pe "$TRUTH" ensure-listening truth-answers \
