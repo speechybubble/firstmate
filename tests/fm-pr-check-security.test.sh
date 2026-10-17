@@ -218,6 +218,9 @@ case " $* " in
     [ "${FM_TEST_GH_FAIL:-0}" = 0 ] || exit 1
     [ -z "${FM_TEST_GH_STATE_STARTED:-}" ] || : > "$FM_TEST_GH_STATE_STARTED"
     [ "${FM_TEST_GH_SLEEP:-0}" = 0 ] || sleep "$FM_TEST_GH_SLEEP"
+    if [ -n "${FM_TEST_GH_STATE_RELEASE:-}" ]; then
+      while [ ! -e "$FM_TEST_GH_STATE_RELEASE" ]; do sleep 0.05; done
+    fi
     printf '%s\n' "${FM_TEST_GH_STATE:-OPEN}"
     ;;
 esac
@@ -3181,7 +3184,7 @@ SH
 }
 
 test_teardown_cannot_race_authority_consumption() {
-  local dir state url watcher_pid rc
+  local dir state url watcher_pid rc authority_kept
   url=https://github.com/o/r/pull/1
   dir=$(make_case merge-authority-teardown-race)
   state="$dir/home/state"
@@ -3198,8 +3201,10 @@ test_teardown_cannot_race_authority_consumption() {
     || fail "teardown race: could not arm the merge poll"
   queue_merge "$dir" "$url"
   archive_away_record "$dir"
+  # The poll holds its transaction open until this case releases it, so the
+  # cleanup below always meets it in flight however slowly either side runs.
   FM_TEST_GH_STATE_STARTED="$dir/poll-started" FM_TEST_GH_STATE=MERGED \
-    FM_TEST_GH_SLEEP=0.5 FM_TEST_CHECK_TIMEOUT=3 \
+    FM_TEST_GH_STATE_RELEASE="$dir/poll-release" FM_TEST_CHECK_TIMEOUT=300 \
     run_watcher_bounded "$dir/home" "$dir/fakebin" \
       > "$dir/watch.out" 2> "$dir/watch.err" &
   watcher_pid=$!
@@ -3216,8 +3221,11 @@ test_teardown_cannot_race_authority_consumption() {
     "$TEARDOWN" task-a --force > "$dir/teardown.out" 2> "$dir/teardown.err"
   rc=$?
   set -e
+  authority_kept=0
+  [ ! -f "$state/task-a.merge-authority" ] || authority_kept=1
+  : > "$dir/poll-release"
   [ "$rc" -ne 0 ] || fail "teardown race: cleanup crossed the active poll transaction"
-  [ -f "$state/task-a.merge-authority" ] \
+  [ "$authority_kept" -eq 1 ] \
     || fail "teardown race: refused cleanup removed persisted authority"
   rc=0
   wait "$watcher_pid" || rc=$?
