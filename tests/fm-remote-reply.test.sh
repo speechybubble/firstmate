@@ -875,7 +875,9 @@ GEN=$failed_gen
 pass "persistent ingestion failure leaves exactly one durable capture"
 
 rm -f -- "$PARENT/state/remote-replies/ios.caught-up"
-remote_env "$ADAPTER" source ios > "$TMP_ROOT/preempted-source.out" 2>&1 &
+# The reader's longest window, so on a loaded host only the preemption closes it.
+FM_REMOTE_REPLY_WAIT_SECONDS=300 \
+  remote_env "$ADAPTER" source ios > "$TMP_ROOT/preempted-source.out" 2>&1 &
 PREEMPTED_SOURCE=$!
 running_poll=''
 wait_until running_reply_job || true
