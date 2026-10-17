@@ -70,6 +70,14 @@ wait_until() {  # <seconds> <command...>
   done
 }
 
+process_exited() {  # <pid>
+  ! process_is_live_non_zombie "$1"
+}
+
+file_or_process_exited() {  # <path> <pid>
+  [ -s "$1" ] || process_exited "$2"
+}
+
 LINK_KIND=
 LINK_TARGET=
 LINK_CONTENT=
@@ -1072,7 +1080,13 @@ SH
 }
 
 test_concurrent_watcher_sees_only_complete_publication() {
-  local n dir direct_pid direct_rc watch_pid rc i id
+  local n dir direct_pid direct_rc watch_pid rc id
+  staged_check_present() {
+    find "$dir/home/state" -name '.fm-pr-poll-check.*' -print | grep . >/dev/null
+  }
+  staged_check_or_direct_exited() {
+    staged_check_present || process_exited "$direct_pid"
+  }
   # Arming also registers the contributions observer, and the watcher runs one
   # cycle's checks in name order. This task sorts first, so the watcher reaches
   # the poll under test, and stops on it, before that unrelated observer.
@@ -1091,12 +1105,8 @@ SH
     FM_TEST_GH_HEAD=0123456789abcdef0123456789abcdef01234567 \
       run_check_entry "$dir" "$id" https://github.com/o/r/pull/1 > "$dir/direct.out" 2> "$dir/direct.err" &
     direct_pid=$!
-    i=0
-    while [ "$i" -lt 100 ] && ! find "$dir/home/state" -name '.fm-pr-poll-check.*' -print | grep . >/dev/null; do
-      sleep 0.01
-      i=$((i + 1))
-    done
-    [ "$i" -lt 100 ] || fail "atomic publication did not reach staged check"
+    wait_until 120 staged_check_or_direct_exited || true
+    staged_check_present || fail "atomic publication did not reach staged check"
 
     # The watcher runs while publication is still in flight, and its hang
     # guard is not charged for the time it spends waiting on that publication.
@@ -1354,7 +1364,7 @@ test_bootstrap_leaves_unauthenticated_checks() {
 }
 
 test_custom_snapshot_cleanup_on_signal() {
-  local dir state child_pid_file pid child_pid i rc
+  local dir state child_pid_file pid child_pid rc
   dir=$(make_case custom-snapshot-signal)
   state="$dir/home/state"
   child_pid_file="$dir/custom-child.pid"
@@ -1380,23 +1390,15 @@ SH
     PATH="$dir/fakebin:$BASE_PATH" "$WATCH" \
     > "$dir/watch.out" 2> "$dir/watch.err" &
   pid=$!
-  i=0
-  while [ "$i" -lt 100 ]; do
-    [ -s "$child_pid_file" ] && break
-    kill -0 "$pid" 2>/dev/null || break
-    sleep 0.02
-    i=$((i + 1))
-  done
+  wait_until 120 file_or_process_exited "$child_pid_file" "$pid" || true
   [ -s "$child_pid_file" ] || fail "watcher did not start the custom check child"
   find "$state" -maxdepth 1 -name '.fm-custom-check.*' -print | grep . >/dev/null \
     || fail "watcher did not create the custom check snapshot"
   child_pid=$(cat "$child_pid_file")
   kill -TERM "$pid" 2>/dev/null || fail "could not signal watcher during custom check"
-  i=0
-  while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 100 ]; do
-    sleep 0.02
-    i=$((i + 1))
-  done
+  # The child ignores TERM and never exits, so a watcher that waited on it
+  # would never exit; the bound only has to outlast a slow host.
+  wait_until 120 process_exited "$pid" || true
   if kill -0 "$pid" 2>/dev/null; then
     kill -KILL "$pid" 2>/dev/null || true
     wait "$pid" 2>/dev/null || true
@@ -3179,7 +3181,7 @@ SH
 }
 
 test_teardown_cannot_race_authority_consumption() {
-  local dir state url watcher_pid rc i
+  local dir state url watcher_pid rc
   url=https://github.com/o/r/pull/1
   dir=$(make_case merge-authority-teardown-race)
   state="$dir/home/state"
@@ -3201,16 +3203,14 @@ test_teardown_cannot_race_authority_consumption() {
     run_watcher_bounded "$dir/home" "$dir/fakebin" \
       > "$dir/watch.out" 2> "$dir/watch.err" &
   watcher_pid=$!
-  i=0
-  while [ ! -e "$dir/poll-started" ]; do
-    sleep 0.01
-    i=$((i + 1))
-    if [ "$i" -ge 500 ]; then
-      kill "$watcher_pid" 2>/dev/null || true
-      wait "$watcher_pid" 2>/dev/null || true
-      fail "teardown race: watcher did not begin its validated poll"
-    fi
-  done
+  poll_started_or_watcher_exited() {
+    [ -e "$dir/poll-started" ] || ! process_is_live_non_zombie "$watcher_pid"
+  }
+  if ! wait_until 120 poll_started_or_watcher_exited || [ ! -e "$dir/poll-started" ]; then
+    kill "$watcher_pid" 2>/dev/null || true
+    wait "$watcher_pid" 2>/dev/null || true
+    fail "teardown race: watcher did not begin its validated poll"
+  fi
   set +e
   FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" PATH="$dir/fakebin:$BASE_PATH" \
     "$TEARDOWN" task-a --force > "$dir/teardown.out" 2> "$dir/teardown.err"
