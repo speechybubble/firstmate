@@ -62,7 +62,7 @@ For a contribution wake or linked-issue filing, go directly to Contribution foll
    Render it under Charted Next like any other warning row: reporting is not ordinary work, while acting on the fleet still waits for `bin/fm-afk-return.sh check` (`/afk`).
 
 2. **Record a later reconcile notification for any home whose own books disagree.**
-   When the snapshot reports a secondmate home whose `invalidity` is `orphan_in_flight`, `unowned_current`, or `terminal_in_flight`, that home's backlog and its own task metadata disagree and only that home may fix it.
+   When the snapshot reports a secondmate home whose `reconcile_inventory` is `orphan_in_flight`, `unowned_current`, or `terminal_in_flight` (a finished child under an in-flight item, which no longer invalidates the summary), that home's backlog and its own task metadata disagree and only that home may fix it.
    Run `printf '%s\n' "$snapshot" | bin/fm-secondmate-reconcile.sh request --snapshot -` immediately after gathering the snapshot.
    This atomically records one local one-shot request per mismatched target and returns without sending, taking a mate lifecycle lock, or waiting behind a local or remote delivery queue.
    The supervision loop later claims the requests and runs the cooldown-limited fire-and-forget deliveries; the script header owns per-target coalescing, request durability, retries, cooldown, identity checks, and retirement.

@@ -93,7 +93,7 @@
 #     observed status file's mtime instead: freshness is how fresh this snapshot's
 #     own observation is, never when a worker emitted the event.
 #     Each structured-home record carries active_children, awaiting_merge,
-#     held_failed_runs, decisions_open, holds, queued, landed, endpoints, counts,
+#     awaiting_firstmate, held_failed_runs, decisions_open, holds, queued, landed, endpoints, counts,
 #     and omitted. provenance.summary_source
 #     distinguishes "local-ledger", "remote-ledger", and "remote-ledger-cache";
 #     freshness is "cached" only for the cache source, and observed_at/age_seconds
@@ -265,18 +265,24 @@ without worker observations or cross-home collection.
 validated registered-home handoff. It is local-only, skips nested secondmate
 aggregation, includes generated_epoch for freshness arithmetic, and marks
 inventory contradictions or unavailable child state invalid.
-kind=secondmate meta records are not child inventory for unowned_current or
-terminal_in_flight; they never have backlog rows.
-Two terminal in-flight children are expected states, not terminal_in_flight:
-a done child whose recorded PR the current-state read reports open (ready for
-review, held for merge, or run passed with the PR open) is listed in
-awaiting_merge, and a failed child that is backlog-held or whose status log
-declares a wait (fm-classify-lib.sh status_declared_wait_line) is listed in
-held_failed_runs. A child whose current state is unknown is likewise listed in
-holds, not child_current_unavailable, when it is backlog-held or declares a wait.
-A done child without that open-PR evidence, or a failed or unknown child with
-neither hold nor declared wait, still invalidates the summary.
+kind=secondmate meta records are not child inventory for unowned_current;
+they never have backlog rows.
+A terminal child of an in-flight backlog item is an expected transient state,
+never an invalidity: a done child whose recorded PR the current-state read
+reports open (ready for review, held for merge, or run passed with the PR open)
+is listed in awaiting_merge, a failed child that is backlog-held or whose status
+log declares a wait (fm-classify-lib.sh status_declared_wait_line) is listed in
+held_failed_runs, and every other done or failed child is listed in
+awaiting_firstmate with its kind, outcome, recorded PR URL, and current-state
+detail, because it waits for Firstmate's next step, usually cleanup.
+A child whose current state is unknown is listed in holds, not
+child_current_unavailable, when it is backlog-held or declares a wait; an
+unknown child with neither still invalidates the summary.
 Its invalidity object names the normalized failure kind and affected ids.
+Its reconcile_inventory repeats that invalidity, except that a summary that is
+valid or only child_current_unavailable names its awaiting_firstmate ids as
+terminal_in_flight so the parent still sends its cooldown-limited reconcile
+nudge; older producers may still report terminal_in_flight as an invalidity.
 Actionable tasks-axi captain holds appear as decisions_open and stay visible in
 queued with hold_reason, hold_kind, hold_until,
 hold_bucket, hold_age_days, and plural blocker fields for downstream
@@ -1199,7 +1205,9 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
          | select(.kind != "secondmate")
          | select(.id == $work.id and (.current_state.state == "done" or .current_state.state == "failed"))
          | select(.id as $id | $accepted_terminal_ids | index($id) | not)
-         | {id,state:.current_state.state} ]) as $terminal_in_flight
+         | {id,kind,outcome:.current_state.state,
+            pr_url:((.pr.url // null) | if . == null then null else trunc(500) end),
+            detail:((.current_state.detail // "") | trunc(120))} ]) as $awaiting_firstmate_all
     | ([if $backlog.present != true then
           {kind:"missing_backlog",ids:[],reason:"missing structured backlog"}
         else empty end,
@@ -1214,11 +1222,6 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
           {kind:"unowned_current",ids:($unowned_children | map(.id)),
            reason:("task metadata has no current backlog item or recorded completion: " +
                    ($unowned_children | map(.id + "=" + .state) | join(", ")))}
-        else empty end,
-        if ($terminal_in_flight | length) > 0 then
-          {kind:"terminal_in_flight",ids:($terminal_in_flight | map(.id)),
-           reason:("in-flight backlog item has terminal child state: " +
-                   ($terminal_in_flight | map(.id + "=" + .state) | join(", ")))}
         else empty end]) as $strict_invalidities
     | ([ $owned_in_flight[] as $work
          | select($work.current_role != "program")
@@ -1253,8 +1256,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
        and ($unstructured_current | length) == 0
        and ($unknown_children | length) == 0
        and ($orphan_in_flight | length) == 0
-       and ($unowned_children | length) == 0
-       and ($terminal_in_flight | length) == 0) as $valid
+       and ($unowned_children | length) == 0) as $valid
     | (if ($strict_invalidities | length) > 0 then $strict_invalidities[0].reason
        elif ($unknown_children | length) > 0 then
          "child current state unavailable: " + ($unknown_children | map(.id) | join(", "))
@@ -1262,9 +1264,13 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
     | (if ($strict_invalidities | length) > 0 then $strict_invalidities[0] | del(.reason)
        elif ($unknown_children | length) > 0 then {kind:"child_current_unavailable",ids:($unknown_children | map(.id))}
        else {kind:null,ids:[]} end) as $invalidity
+    | (if ($invalidity.kind == null or $invalidity.kind == "child_current_unavailable")
+          and ($awaiting_firstmate_all | length) > 0 then
+         {kind:"terminal_in_flight",ids:($awaiting_firstmate_all | map(.id))}
+       else $invalidity end) as $reconcile_inventory
     | (if ($valid | not)
           and (($unknown_children | length) > 0
-               or (["orphan_in_flight","unowned_current","terminal_in_flight"]
+               or (["orphan_in_flight","unowned_current"]
                    | index($invalidity.kind) | not))
        then "unknown"
        elif any($decisions_all[]; .verb == "needs-decision" or .verb == "captain-hold") then "captain_decision"
@@ -1281,11 +1287,13 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
         valid:$valid,
         reason:$reason,
         invalidity:$invalidity,
+        reconcile_inventory:$reconcile_inventory,
         state:$state,
         completed_retained:[$retained[:$child_n][] | {id,lifecycle,current_state,ownership}
           | walk(if type == "string" then trunc(240) else . end)],
         active_children:$active_all[:$child_n],
         awaiting_merge:$awaiting_merge_all[:$child_n],
+        awaiting_firstmate:$awaiting_firstmate_all[:$child_n],
         held_failed_runs:$held_failed_all[:$child_n],
         decisions_open:$decisions_all[:$decisions_n],
         holds:$holds_all[:$queued_n],
@@ -1313,6 +1321,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
           completed_retained:($retained | length),
           active_children:($active_all | length),
           awaiting_merge:($awaiting_merge_all | length),
+          awaiting_firstmate:($awaiting_firstmate_all | length),
           held_failed_runs:($held_failed_all | length),
           decisions_open:($decisions_all | length),
           holds:($holds_all | length),
@@ -1326,6 +1335,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
             | if . > 0 then {surface:"completed_retained_text",count:.} else empty end),
           (if ($active_all | length) > $child_n then {surface:"active_children",count:(($active_all | length) - $child_n)} else empty end),
           (if ($awaiting_merge_all | length) > $child_n then {surface:"awaiting_merge",count:(($awaiting_merge_all | length) - $child_n)} else empty end),
+          (if ($awaiting_firstmate_all | length) > $child_n then {surface:"awaiting_firstmate",count:(($awaiting_firstmate_all | length) - $child_n)} else empty end),
           (if ($held_failed_all | length) > $child_n then {surface:"held_failed_runs",count:(($held_failed_all | length) - $child_n)} else empty end),
           (if ($decisions_all | length) > $decisions_n then {surface:"decisions_open",count:(($decisions_all | length) - $decisions_n)} else empty end),
           (if ($queued_all | length) > $queued_n then {surface:"queued",count:(($queued_all | length) - $queued_n)} else empty end),
@@ -2067,12 +2077,12 @@ secondmate_current_json() {  # <parent-tasks-json-file> <output-file>
         {id:$id,home:$home,host:($host | if . == "" then null else . end),remote:$remote,registered:$registered,
          spawn_gen:($spawn_gen | if . == "" then null else . end),
          current:{state:$state,reason:(if $summary_valid then null else "structured home state invalid: " + ($summary.reason // "unknown reason") end)},invalidity:$summary.invalidity,
-         reconcile_inventory:$summary.invalidity,
+         reconcile_inventory:($summary.reconcile_inventory // $summary.invalidity),
          provenance:{selected:"structured-home",structured_home:$home,summary_source:$summary_source,summary_valid:$summary_valid,
            trust:(if $summary_valid then "complete" else "partial-structured" end),parent_event_role:"historical-only"},
          freshness:{status:$summary_freshness,observed_at:$observed,age_seconds:$summary_age},
          active_children:$summary.active_children,
-         awaiting_merge:($summary.awaiting_merge // []),held_failed_runs:($summary.held_failed_runs // []),
+         awaiting_merge:($summary.awaiting_merge // []),awaiting_firstmate:($summary.awaiting_firstmate // []),held_failed_runs:($summary.held_failed_runs // []),
          decisions_open:$summary.decisions_open,holds:$summary.holds,queued:$summary.queued,
          contributions:($summary.contributions // null),
          landed:$summary.landed,endpoints:$summary.endpoints,counts:$summary.counts,omitted:$summary.omitted,
@@ -2103,10 +2113,10 @@ secondmate_current_json() {  # <parent-tasks-json-file> <output-file>
         {id:$id,home:($home | if . == "" then null else . end),host:($host | if . == "" then null else . end),remote:$remote,registered:$registered,
          spawn_gen:($spawn_gen | if . == "" then null else . end),
          current:{state:"unknown",reason:(if $summary_sampled then "structured home state invalid: " + ($summary.reason // "unknown reason") else $reason end)},invalidity:null,
-         reconcile_inventory:(if $summary_sampled then $summary.invalidity else null end),
+         reconcile_inventory:(if $summary_sampled then ($summary.reconcile_inventory // $summary.invalidity) else null end),
          provenance:{selected:$provenance,structured_home:($home | if . == "" then null else . end),parent_event_role:"fallback-only-not-current"},
          freshness:{status:$freshness,observed_at:$observed,age_seconds:$observed_age},
-         active_children:[],awaiting_merge:[],held_failed_runs:[],decisions_open:[],holds:[],queued:[],landed:[],endpoints:[],counts:{active_children:0,awaiting_merge:0,held_failed_runs:0,decisions_open:0,holds:0,queued:0,landed:0,endpoints:0},omitted:[],
+         active_children:[],awaiting_merge:[],awaiting_firstmate:[],held_failed_runs:[],decisions_open:[],holds:[],queued:[],landed:[],endpoints:[],counts:{active_children:0,awaiting_merge:0,awaiting_firstmate:0,held_failed_runs:0,decisions_open:0,holds:0,queued:0,landed:0,endpoints:0},omitted:[],
          parent_event:{raw:$event_raw,note:$event_note,age_seconds:$event_age,open_activities:$activities,open_decisions:$decisions,activity_scan:$activity_scan},
          terminal_evidence:$terminal,contradiction:false}' >> "$records_file" || return 1
     fi

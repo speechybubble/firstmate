@@ -1057,7 +1057,7 @@ test_parked_scout_decision_stays_pending() {
 
 # Home-summary validity treats persistent secondmates as registered homes, not
 # in-flight children. They have no backlog rows, so they must not produce
-# unowned_current or terminal_in_flight. Ordinary crew/ship metas still do.
+# unowned_current or awaiting_firstmate rows. Ordinary crew/ship metas still do.
 test_home_summary_excludes_secondmate_from_child_inventory() {
   local home fakebin out
   home=$(make_home summary-secondmate-only)
@@ -1087,7 +1087,6 @@ EOF
       and .reason == null
       and .invalidity == {kind:null,ids:[]}
       and (.invalidity.kind != "unowned_current")
-      and (.invalidity.kind != "terminal_in_flight")
   ' >/dev/null || fail "secondmate-only home with a clean backlog must be VALID: $out"
 
   cat > "$home/data/backlog.md" <<'EOF'
@@ -1104,8 +1103,8 @@ EOF
     .valid == true
       and .reason == null
       and .invalidity == {kind:null,ids:[]}
-      and (.invalidity.kind != "terminal_in_flight")
-  ' >/dev/null || fail "terminal secondmate with a matching in-flight row must not produce terminal_in_flight: $out"
+      and .awaiting_firstmate == []
+  ' >/dev/null || fail "terminal secondmate with a matching in-flight row must not be listed as awaiting Firstmate: $out"
 
   fm_write_meta "$home/state/unowned-ship.meta" \
     "window=firstmate:fm-unowned-ship" \
@@ -1144,12 +1143,10 @@ EOF
   printf 'done: complete\n' > "$home/state/terminal-ship.status"
   out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
   printf '%s' "$out" | jq -e '
-    .valid == false
-      and .invalidity == {kind:"terminal_in_flight",ids:["terminal-ship"]}
-      and (.reason | contains("terminal-ship=done"))
-      and (.reason | contains("mate=") | not)
-  ' >/dev/null || fail "ordinary terminal in-flight ship must still produce terminal_in_flight without listing the secondmate: $out"
-  pass "home-summary excludes kind=secondmate from unowned_current and terminal_in_flight"
+    .valid == true
+      and [.awaiting_firstmate[] | {id,outcome}] == [{id:"terminal-ship",outcome:"done"}]
+  ' >/dev/null || fail "ordinary terminal in-flight ship must be awaiting Firstmate without listing the secondmate: $out"
+  pass "home-summary excludes kind=secondmate from unowned_current and awaiting_firstmate"
 }
 
 # One ship child per case, each in its own git worktree, and a no-mistakes that
@@ -1227,11 +1224,13 @@ EOF
   summary_states_child "$home" no-pr checks-passed 'working: validating'
   out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
   printf '%s' "$out" | jq -e '
-    .valid == false
-      and .invalidity.kind == "terminal_in_flight"
-      and (.invalidity.ids | sort) == ["failed-open","merged","no-pr","unproven"]
-      and (.reason | contains("unproven=done")) and (.reason | contains("failed-open=failed"))
-      and (.reason | contains("merged=done")) and (.reason | contains("no-pr=done"))
+    .valid == true and .invalidity == {kind:null,ids:[]}
+      and ([.awaiting_firstmate[] | {id,outcome,pr_url}] | sort_by(.id))
+          == [{id:"failed-open",outcome:"failed",pr_url:null},
+              {id:"merged",outcome:"done",pr_url:"https://github.com/o/r/pull/13"},
+              {id:"no-pr",outcome:"done",pr_url:null},
+              {id:"unproven",outcome:"done",pr_url:"https://github.com/o/r/pull/12"}]
+      and (.awaiting_firstmate[] | select(.id == "unproven") | .detail | startswith("run passed: PR state unknown"))
       and ([.awaiting_merge[] | {id,pr_url}] == [{id:"ready",pr_url:"https://github.com/o/r/pull/11"}])
       and (.awaiting_merge[0].detail | startswith("checks green: PR ready for review"))
       and ([.held_failed_runs[] | {id,source}] | sort_by(.id))
@@ -1239,10 +1238,10 @@ EOF
       and (.held_failed_runs[] | select(.id == "paused-failed") | .reason)
           == "paused: custody accepted, waiting for release"
       and .counts.awaiting_merge == 1 and .counts.held_failed_runs == 2
-  ' >/dev/null || fail "summary did not separate expected terminal states from contradictions: $out"
+  ' >/dev/null || fail "summary did not separate PRs awaiting merge, held failed runs, and children awaiting Firstmate: $out"
 
-  # Without the contradictions the home is valid again, and the accepted
-  # children stay visible in their own states.
+  # Without the children awaiting Firstmate, the accepted children stay
+  # visible in their own states.
   rm -f "$home/state/unproven."* "$home/state/failed-open."* "$home/state/merged."* "$home/state/no-pr."*
   grep -Ev '^- \[ \] (unproven|failed-open|merged|no-pr) ' "$home/data/backlog.md" > "$home/data/backlog.md.tmp"
   mv "$home/data/backlog.md.tmp" "$home/data/backlog.md"
@@ -1251,8 +1250,90 @@ EOF
     .valid == true and .reason == null and .invalidity == {kind:null,ids:[]}
       and [.awaiting_merge[].id] == ["ready"]
       and ([.held_failed_runs[].id] | sort) == ["held-failed","paused-failed"]
+      and .awaiting_firstmate == []
+      and .reconcile_inventory == {kind:null,ids:[]}
   ' >/dev/null || fail "expected terminal states alone must leave the summary valid: $out"
-  pass "home-summary lists PRs awaiting merge and held failed runs instead of invalidating"
+  pass "home-summary lists PRs awaiting merge, held failed runs, and children awaiting Firstmate instead of invalidating"
+}
+
+# A child that finished (done or failed) while its backlog item is still in
+# flight is waiting for Firstmate's next step, usually cleanup. The summary
+# lists it with its outcome and stays valid; real contradictions between the
+# backlog and task metadata still invalidate it.
+test_home_summary_lists_finished_children_awaiting_firstmate() {
+  local home fakebin out
+  home=$(make_home summary-awaiting-firstmate)
+  fakebin=$(make_fakebin "$home")
+  cat > "$fakebin/no-mistakes" <<'SH'
+#!/usr/bin/env bash
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0
+f="$FM_HOME/nm/${branch//\//_}"
+case "$*" in
+  axi) cat "$f.overview" 2>/dev/null ;;
+  "axi status"*) cat "$f.status" 2>/dev/null ;;
+esac
+exit 0
+SH
+  cat > "$fakebin/gh" <<'SH'
+#!/usr/bin/env bash
+case "$*" in *number=31*) printf 'state=MERGED\nmerged=true\n'; exit 0 ;; esac
+exit 1
+SH
+  chmod +x "$fakebin/no-mistakes" "$fakebin/gh"
+  mkdir -p "$home/projects/finished-scout" "$home/data/finished-scout"
+  printf '# Report\n' > "$home/data/finished-scout/report.md"
+  cat > "$home/data/backlog.md" <<'EOF'
+## In flight
+- [ ] finished-scout - Finished scout (repo: alpha) (kind: scout) (since 2026-10-12)
+- [ ] failed-run - Validation run died in a restart (repo: alpha) (kind: ship) (since 2026-10-16)
+- [ ] merged-ship - Merged and waiting for cleanup (repo: alpha) (kind: ship) (since 2026-10-16)
+
+## Queued
+
+## Done
+EOF
+  fm_write_meta "$home/state/finished-scout.meta" "window=firstmate:fm-finished-scout" \
+    "worktree=$home/projects/finished-scout" "project=alpha" "harness=claude" "kind=scout"
+  record_claude_idle "$home/state" finished-scout
+  printf 'done: report at data/finished-scout/report.md\n' > "$home/state/finished-scout.status"
+  summary_states_child "$home" failed-run failed 'working: validating'
+  summary_states_child "$home" merged-ship passed 'working: validating' https://github.com/o/r/pull/31
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
+  printf '%s' "$out" | jq -e '
+    .valid == true and .reason == null and .invalidity == {kind:null,ids:[]}
+      and ([.awaiting_firstmate[] | {id,kind,outcome,pr_url}] | sort_by(.id))
+          == [{id:"failed-run",kind:"ship",outcome:"failed",pr_url:null},
+              {id:"finished-scout",kind:"scout",outcome:"done",pr_url:null},
+              {id:"merged-ship",kind:"ship",outcome:"done",pr_url:"https://github.com/o/r/pull/31"}]
+      and (.awaiting_firstmate[] | select(.id == "finished-scout") | .detail | contains("report"))
+      and (.awaiting_firstmate[] | select(.id == "merged-ship") | .detail | startswith("run passed: PR merged"))
+      and .awaiting_merge == [] and .held_failed_runs == []
+      and .counts.awaiting_firstmate == 3
+      and .reconcile_inventory.kind == "terminal_in_flight"
+      and (.reconcile_inventory.ids | sort) == ["failed-run","finished-scout","merged-ship"]
+  ' >/dev/null || fail "finished children awaiting Firstmate must be listed with their outcome in a valid summary: $out"
+
+  # An in-flight item with no child metadata is a real contradiction.
+  sed '/^## In flight$/a\
+- [ ] lost-ship - In flight with no task record (repo: alpha) (kind: ship) (since 2026-10-16)' \
+    "$home/data/backlog.md" > "$home/data/backlog.md.tmp"
+  mv "$home/data/backlog.md.tmp" "$home/data/backlog.md"
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
+  printf '%s' "$out" | jq -e '
+    .valid == false and .invalidity == {kind:"orphan_in_flight",ids:["lost-ship"]}
+      and .reconcile_inventory == .invalidity
+      and .counts.awaiting_firstmate == 3
+  ' >/dev/null || fail "an in-flight item with no child metadata must still invalidate the summary: $out"
+
+  # Task metadata with no current backlog item is a real contradiction too.
+  grep -Ev '^- \[ \] (lost-ship|merged-ship) ' "$home/data/backlog.md" > "$home/data/backlog.md.tmp"
+  mv "$home/data/backlog.md.tmp" "$home/data/backlog.md"
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
+  printf '%s' "$out" | jq -e '
+    .valid == false and .invalidity == {kind:"unowned_current",ids:["merged-ship"]}
+      and ([.awaiting_firstmate[].id] | sort) == ["failed-run","finished-scout"]
+  ' >/dev/null || fail "task metadata with no current backlog item must still invalidate the summary: $out"
+  pass "home-summary lists finished children awaiting Firstmate and keeps contradictions invalid"
 }
 
 # A real home's ready-PR read pays several sequential no-mistakes answers. Each
@@ -1346,6 +1427,7 @@ test_empty_fleet_json
 test_fixture_snapshot_json
 test_home_summary_excludes_secondmate_from_child_inventory
 test_home_summary_accepts_awaiting_merge_and_held_failed_runs
+test_home_summary_lists_finished_children_awaiting_firstmate
 test_home_summary_default_bound_covers_a_slow_ready_pr_read
 test_home_summary_lists_held_unknown_children_as_holds
 test_undated_captain_hold_phrasing_and_aging

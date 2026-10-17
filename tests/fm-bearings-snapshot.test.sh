@@ -854,7 +854,7 @@ EOF
 }
 
 test_nonprogressing_child_states_are_explicit() {
-  local home mate fakebin canonical
+  local home mate fakebin canonical out
   home=$(make_home child-state-classification)
   mate="$TMP_ROOT/child-state-classification-home"
   make_valid_secondmate_home states "$mate"
@@ -899,6 +899,7 @@ EOF
       and .provenance.selected == "structured-home"
       and .provenance.trust == "partial-structured"
       and .invalidity == {kind:"unowned_current",ids:["parked"]}
+      and .reconcile_inventory == {kind:"unowned_current",ids:["parked"]}
       and [.decisions_open[].key] == ["parked"]
   ' >/dev/null || fail "unowned held child lost its classification or decisions: $canonical"
   cat > "$mate/data/backlog.md" <<'EOF'
@@ -927,14 +928,41 @@ EOF
   printf '%s' "$canonical" | jq -e '
     .secondmate_current.records[] | select(.id == "states")
     | .current.state == "no_active_work"
-      and (.current.reason | contains("terminal child state"))
-      and (.current.reason | contains("done=done"))
-      and (.current.reason | contains("failed=failed"))
+      and .current.reason == null
       and .provenance.selected == "structured-home"
-      and .provenance.trust == "partial-structured"
-      and .invalidity == {kind:"terminal_in_flight",ids:["done","failed"]}
-  ' >/dev/null || fail "terminal in-flight rows discarded the readable home: $canonical"
-  pass "nonprogressing child states are explicit and inconsistent terminal rows invalidate"
+      and .provenance.trust == "complete"
+      and .invalidity == {kind:null,ids:[]}
+      and ([.awaiting_firstmate[] | {id,outcome}] | sort_by(.id))
+          == [{id:"done",outcome:"done"},{id:"failed",outcome:"failed"}]
+      and .reconcile_inventory == {kind:"terminal_in_flight",ids:["done","failed"]}
+  ' >/dev/null || fail "terminal in-flight rows were not listed as awaiting Firstmate in a valid home: $canonical"
+  out=$(printf '%s' "$canonical" | FM_HOME="$home" "$ROOT/bin/fm-secondmate-reconcile.sh" request --snapshot -) \
+    || fail "reconcile request rejected a valid home with children awaiting Firstmate: $out"
+  case "$out" in requested:*) : ;; *) fail "valid home with children awaiting Firstmate was not queued for reconcile: $out" ;; esac
+
+  sed '/^## In flight$/a\
+- [ ] lost - Child lost in a machine restart (repo: sample) (kind: ship) (since 2026-07-11)' \
+    "$mate/data/backlog.md" > "$mate/data/backlog.md.tmp"
+  mv "$mate/data/backlog.md.tmp" "$mate/data/backlog.md"
+  fm_write_meta "$mate/state/lost.meta" \
+    "window=firstmate:dead-lost" "worktree=$mate/projects/lost" "project=sample" \
+    "harness=codex" "kind=ship" "mode=no-mistakes"
+  rm -rf "$home/state/reconcile-notify"
+  refresh_local_secondmate_ledgers "$home"
+  canonical=$(PATH="$fakebin:$PATH" FM_HOME="$home" FM_SNAPSHOT_NOW=2026-07-11T18:00:00Z \
+    "$ROOT/bin/fm-fleet-snapshot.sh" --json)
+  printf '%s' "$canonical" | jq -e '
+    .secondmate_current.records[] | select(.id == "states")
+    | .current.state == "unknown"
+      and .invalidity == {kind:"child_current_unavailable",ids:["lost"]}
+      and ([.awaiting_firstmate[].id] | sort) == ["done","failed"]
+      and .reconcile_inventory.kind == "terminal_in_flight"
+      and (.reconcile_inventory.ids | sort) == ["done","failed"]
+  ' >/dev/null || fail "an unknown sibling child hid the finished children from the reconcile inventory: $canonical"
+  out=$(printf '%s' "$canonical" | FM_HOME="$home" "$ROOT/bin/fm-secondmate-reconcile.sh" request --snapshot -) \
+    || fail "reconcile request rejected a home with an unknown child and children awaiting Firstmate: $out"
+  case "$out" in requested:*) : ;; *) fail "home with an unknown child and children awaiting Firstmate was not queued for reconcile: $out" ;; esac
+  pass "nonprogressing child states are explicit and terminal rows await Firstmate while still queuing a reconcile nudge"
 }
 
 test_registry_unavailability_and_bounds_are_explicit() {
@@ -2479,8 +2507,9 @@ test_nameless_legacy_summary_uses_its_durable_identifier() {
   pass "blank legacy summary names use their durable identifier"
 }
 
-# A PR awaiting merge is child work and a held failed run is a hold; neither
-# lets a home read as idle. The parent record forwards both lists, and the hold
+# A PR awaiting merge and a finished child awaiting Firstmate are child work
+# and a held failed run is a hold; none lets a home read as idle. The parent
+# record forwards every list, and the hold
 # ranking does not depend on whether the home also has a captain decision.
 set_awaiting_held_summary() {  # <remote-home> <jq-filter>
   jq "$2" "$1/state/home-summary.json" > "$1/state/states-summary.json"
@@ -2498,7 +2527,9 @@ test_awaiting_merge_and_held_failed_runs_reach_bearings() {
     .state = "no_active_work" | .decisions_open = [] | .queued = []
     | .awaiting_merge = [{id:"ready",pr_url:"https://github.com/o/r/pull/11",
         detail:"checks green: PR ready for review"}]
-    | .counts += {decisions_open:0,queued:0,awaiting_merge:1}
+    | .awaiting_firstmate = [{id:"scout",kind:"scout",outcome:"done",pr_url:null,
+        detail:"report ready"}]
+    | .counts += {decisions_open:0,queued:0,awaiting_merge:1,awaiting_firstmate:1}
     | '"$held"
   rm -f "$TMP_ROOT/remote-ledger-home-2/state/home-summary.json"
   set_awaiting_held_summary "$TMP_ROOT/remote-ledger-home-3" '
@@ -2518,18 +2549,21 @@ test_awaiting_merge_and_held_failed_runs_reach_bearings() {
     (.secondmate_current.records[] | select(.id == "ledger-1")
       | .current.state == "no_active_work"
         and [.awaiting_merge[] | {id,pr_url}] == [{id:"ready",pr_url:"https://github.com/o/r/pull/11"}]
+        and [.awaiting_firstmate[] | {id,outcome}] == [{id:"scout",outcome:"done"}]
         and [.held_failed_runs[] | {id,reason}] == [{id:"paused",reason:"paused: waiting for release"}])
     and (.secondmate_current.records[] | select(.id == "ledger-2")
-      | .current.state == "unknown" and .awaiting_merge == [] and .held_failed_runs == []
-        and .counts.awaiting_merge == 0 and .counts.held_failed_runs == 0)
-  ' >/dev/null || fail "parent record dropped awaiting_merge or held_failed_runs: $canonical"
+      | .current.state == "unknown" and .awaiting_merge == [] and .awaiting_firstmate == []
+        and .held_failed_runs == []
+        and .counts.awaiting_merge == 0 and .counts.awaiting_firstmate == 0
+        and .counts.held_failed_runs == 0)
+  ' >/dev/null || fail "parent record dropped awaiting_merge, awaiting_firstmate, or held_failed_runs: $canonical"
 
   json=$(run_remote_ledger_bearings "$parent" "$fakebin" 1100) \
     || fail "awaiting-merge bearings failed"
   printf '%s' "$json" | jq -e '
     (.secondmates[] | select(.id == "ledger-1")
       | .state == "active_child_work"
-        and .doing == "ready: awaiting merge https://github.com/o/r/pull/11")
+        and .doing == "ready: awaiting merge https://github.com/o/r/pull/11; scout: done, awaiting Firstmate")
     and (.secondmates[] | select(.id == "ledger-3")
       | .state == "externally_held"
         and .doing == "paused: held failed run: paused: waiting for release")
@@ -2537,10 +2571,12 @@ test_awaiting_merge_and_held_failed_runs_reach_bearings() {
       | .state == "externally_held" and .doing == "paused: keep stopped")
     and (.in_flight | any(.id == "ledger-1/ready" and .state == "done"
       and .doing == "awaiting merge https://github.com/o/r/pull/11"))
+    and (.in_flight | any(.id == "ledger-1/scout" and .state == "done"
+      and .doing == "awaiting Firstmate: report ready"))
     and (.in_flight | any(.id == "ledger-3/paused" and .state == "failed"
       and .doing == "held failed run: paused: waiting for release"))
-  ' >/dev/null || fail "bearings misranked a PR awaiting merge or a held failed run: $json"
-  pass "PRs awaiting merge read as child work and held failed runs as holds in bearings"
+  ' >/dev/null || fail "bearings misranked a PR awaiting merge, a child awaiting Firstmate, or a held failed run: $json"
+  pass "PRs awaiting merge and children awaiting Firstmate read as child work and held failed runs as holds in bearings"
 }
 
 test_newest_filed_gates_are_selected_before_snapshot_bounds() {
