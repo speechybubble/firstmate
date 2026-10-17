@@ -128,8 +128,8 @@ stop_reply_listener() {
 # Ownership is rechecked throughout the wait, as the watcher's reconcile does in
 # production: every handle here re-registers the source, and a listener that
 # then finds its registration superseded exits while it still reads as live.
-await_reply_result() { # <result-path>
-  local result=$1 handled=${1%.result}.handled deadline=$((SECONDS + REPLY_WAIT_SECONDS)) recheck=0 start_pid=''
+await_reply_result() { # <result-path> [seconds]
+  local result=$1 handled=${1%.result}.handled deadline=$((SECONDS + ${2:-$REPLY_WAIT_SECONDS})) recheck=0 start_pid=''
   while [ "$SECONDS" -lt "$deadline" ]; do
     [ -s "$result" ] && [ -f "$handled" ] && return 0
     if [ "$SECONDS" -ge "$recheck" ]; then
@@ -683,6 +683,10 @@ assert_grep 'report=data/remote-secondmates/ios/data/reply/writefail.md' "$PAREN
 mirrored_cursor_is_current "the recovered delta did not advance the cursor"
 pass "a failed mirror write never drops status content or advances the cursor"
 
+# A whole-log recapture re-fetches every document the log offers, one remote
+# job at a time, so it gets three ordinary budgets.
+RECAPTURE_WAIT_SECONDS=$((3 * REPLY_WAIT_SECONDS))
+
 # A source line remains the replay identity even when document availability
 # changes between a successful mirror append and a failed ingestion commit.
 REPLAY_LINE='needs-decision [key=replay-decision]: pick report=data/reply/replay.md'
@@ -729,7 +733,7 @@ assert_not_contains "$(status_open_decisions "$PARENT/state/ios.status")" $'repl
 stop_reply_listener || fail "the reply listener did not stop before the cursor-loss recapture"
 rm -f "$PARENT/state/remote-replies/ios.cursor"
 GEN=$((GEN + 1))
-await_reply_result "$PARENT/state/procevent-inbox/$SID.$GEN.result" \
+await_reply_result "$PARENT/state/procevent-inbox/$SID.$GEN.result" "$RECAPTURE_WAIT_SECONDS" \
   || fail "the replay-identity whole-log recapture was not captured"
 assert_present "$PARENT/state/procevent-inbox/$SID.$GEN.handled" \
   "the replay-identity whole-log recapture was not applied"
@@ -960,7 +964,7 @@ mv "$PARENT/state/.wake-queue" "$TMP_ROOT/wake-queue-before-replay" 2>/dev/null 
 stop_reply_listener || fail "the reply listener did not stop before the whole-log recapture"
 rm -f "$PARENT/state/remote-replies/ios.cursor"
 GEN=$((GEN + 1))
-await_reply_result "$PARENT/state/procevent-inbox/$SID.$GEN.result" \
+await_reply_result "$PARENT/state/procevent-inbox/$SID.$GEN.result" "$RECAPTURE_WAIT_SECONDS" \
   || fail "the cursor-loss recapture was not captured"
 assert_present "$PARENT/state/procevent-inbox/$SID.$GEN.handled" \
   "the whole-log recapture was not acknowledged by the adapter"
