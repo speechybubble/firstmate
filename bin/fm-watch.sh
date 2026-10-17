@@ -578,7 +578,7 @@ inbox_steer_surface_deferred() {
 # Runs for secondmates too: their pane-staleness exemption is about quiet panes
 # being healthy, while an unacknowledged instruction can still be a stuck steer.
 inbox_steer_check() {  # <window> <task>
-  local w=$1 task=$2 action verb rec count tail40 reason='' ring_rc backend agent_state bookkeeping=0
+  local w=$1 task=$2 action verb rec count tail40 reason='' ring_rc backend agent_state bookkeeping=0 unsent
   action=$(fm_task_inbox_due_action "$STATE" "$task") || return 0
   verb=${action%% *}
   [ "$verb" != quiet ] || return 0
@@ -656,7 +656,13 @@ inbox_steer_check() {  # <window> <task>
       triage_log "steer-inbox retry ring: $task ${rec##*/} result=$ring_rc"
       ;;
     escalate)
-      reason=${reason:-"$(stale_reason "$w" "unread firstmate instruction: $rec still unhandled after $count doorbell delivery attempts with an idle pane; inspect the worker")"}
+      if [ -z "$reason" ]; then
+        reason="unread firstmate instruction: $rec still unhandled after $count doorbell delivery attempts with an idle pane"
+        if unsent=$(fm_task_inbox_unsent_text "$backend" "$w" "$(window_label "$w")"); then
+          reason="$reason; the input box still holds unsent text: \"$unsent\""
+        fi
+        reason=$(stale_reason "$w" "$reason; inspect the worker")
+      fi
       if [ ! -d "${rec%/*}" ] || [ ! -f "$rec" ]; then
         fm_task_inbox_due_action "$STATE" "$task" >/dev/null || true
         return 0
