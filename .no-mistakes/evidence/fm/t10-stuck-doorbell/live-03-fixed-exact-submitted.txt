@@ -1,0 +1,33 @@
+== composer holds the exact doorbell for /tmp/fm-lab.652qvp/state/t1.inbox/002.msg, Enter never sent
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 't1.inbox' steering inbox, read and act on each in numeric order,
+  then mv each into its handled/.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 4% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+== base 0525fd83 ring on exact line (already handled pre-fix)
+(skipped to avoid double submit)
+== fixed watcher inbox_steer_check
+rc=0
+● I'll list and read the steering inbox messages, then act on each in order.
+  Ran 2 shell commands
+● ACK
+✻ Cooked for 16s · done 10:12 PM
+❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 't1.inbox' steering inbox, read and act on each in numeric order,
+  then mv each into its handled/.
+  Ran 2 shell commands
+● ACK2
+✻ Churned for 13s · done 10:13 PM
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 4% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+== ring-state
+002.msg^I1^I1792239178$
+== handled
+001.msg
+002.msg
+== wake queue
+(none)

@@ -1,0 +1,17 @@
+== composer: doorbell lead + human text
+                                                                                                              Ctrl+Y to paste deleted text
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your ' and my own note to the worker - do not send yet
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 4% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+== classifier: other
+fixed fm_task_inbox_ring rc=1 (1=skipped, untouched)
+== composer after ring
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your ' and my own note to the worker - do not send yet
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 4% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+== quoted unsent text: : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your ' and my own note to the worker - do not send yet

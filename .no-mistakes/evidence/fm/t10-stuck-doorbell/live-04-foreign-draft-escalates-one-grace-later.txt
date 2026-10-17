@@ -1,0 +1,29 @@
+== 22:13:42 composer holds a human draft; /tmp/fm-lab.652qvp/state/t1.inbox/003.msg due (default grace 90s)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ please wait, writing tests
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 4% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+== 22:13:42 watcher check 1
+ring-state: 003.msg^I1^I1792239226^Iskipped$
+wake queue: none
+== 22:14:01 watcher check 2 (one FM_POLL later, before grace)
+quiet
+wake queue: none
+== 22:15:03 watcher check 3 (~75s after skip, still before grace)
+wake queue: none
+== 22:15:22 watcher check 4 (>90s after skip)
+escalate /tmp/fm-lab.652qvp/state/t1.inbox/003.msg 1
+stale: lab:fm-t1 task=t1 (unread firstmate instruction: /tmp/fm-lab.652qvp/state/t1.inbox/003.msg still unhandled after 1 doorbell delivery attempts with an idle pane; the input box still holds unsent text: "please wait, writing tests"; inspect the worker)
+wake queue:
+1792239324	1	stale	lab:fm-t1	stale: lab:fm-t1 task=t1 (unread firstmate instruction: /tmp/fm-lab.652qvp/state/t1.inbox/003.msg still unhandled after 1 doorbell delivery attempts with an idle pane; the input box still holds unsent text: "please wait, writing tests"; inspect the worker)
+== 22:15:26 watcher check 5 (no second escalation)
+escalations in queue: 1
+== composer after all checks (draft must be untouched)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ please wait, writing tests
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 4% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)

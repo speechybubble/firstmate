@@ -1,0 +1,15 @@
+== BASE 0525fd83: composer before
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 't1.inbox' steering inbox, read and act on each in numeric order,
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+base fm_task_inbox_ring rc=1 (1=skipped)
+== composer after base ring
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 't1.inbox' steering inbox, read and act on each in numeric order,
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
