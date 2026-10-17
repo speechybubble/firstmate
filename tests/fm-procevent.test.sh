@@ -5141,6 +5141,32 @@ set -e
 pe "$TRUTH" retire truth-stale >/dev/null 2>&1 || true
 pass "ensure-listening does not count an earlier runner's launch stamp as listening"
 
+# A launch floor longer than the confirm window keeps the replacement runner
+# asleep under a live claim until after the wait ends. That runner has not
+# started its source command, so it must not read as listening.
+pe_register "$TRUTH" lavish truth-floor -- "$BLOCKER" "$TRUTH_TRIGGER" payload >/dev/null
+pe "$TRUTH" ensure-listening truth-floor || fail "fixture invalid: the first run was not listening"
+truth_pid=$(sed -n '2p' "$FM_PROCEVENT_CLAIM_ROOT/truth-floor.claim")
+kill -KILL -- "-$truth_pid" 2>/dev/null || fail "fixture invalid: cannot kill the runner group"
+wait_gone "-$truth_pid" || fail "fixture invalid: the killed runner group survived"
+set +e
+truth_err=$(FM_PROCEVENT_LAUNCH_FLOOR_SECONDS=30 FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=1 \
+  pe "$TRUTH" ensure-listening truth-floor 2>&1 >/dev/null)
+truth_rc=$?
+set -e
+truth_new=$(sed -n '2p' "$FM_PROCEVENT_CLAIM_ROOT/truth-floor.claim" 2>/dev/null || true)
+if [ -z "$truth_new" ] || [ "$truth_new" = "$truth_pid" ] || ! kill -0 "$truth_new" 2>/dev/null; then
+  fail "fixture invalid: no replacement runner held the claim through its floor wait"
+fi
+[ "$truth_rc" -ne 0 ] \
+  || fail "ensure-listening reported a runner still in its launch floor wait as listening"
+assert_contains "$truth_err" "launch floor wait" \
+  "ensure-listening did not name the launch floor wait"
+kill -KILL -- "-$truth_new" 2>/dev/null || true
+wait_gone "-$truth_new" || fail "fixture invalid: the floor-waiting runner group survived"
+pe "$TRUTH" retire truth-floor >/dev/null 2>&1 || true
+pass "ensure-listening does not report a runner still in its launch floor wait as listening"
+
 # A source that answers at once is a captured result, not a dead listener.
 pe_register "$TRUTH" lavish truth-answers -- /bin/sh -c 'echo answered' >/dev/null
 pe "$TRUTH" ensure-listening truth-answers \

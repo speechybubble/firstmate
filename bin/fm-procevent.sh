@@ -49,7 +49,10 @@
 #            Starts one when nothing live is in the way, and returns 0 only on
 #            a result captured since the call began, or on that generation's
 #            live claim once its source command has run for a short settle or
-#            when the wait ends. A runner seen exiting with no result is a
+#            has started by the time the wait ends. A claim still held at the
+#            end whose runner is in its launch floor wait, with the source
+#            command not started, is a nonzero result that names that wait.
+#            A runner seen exiting with no result is a
 #            nonzero result that says so; one that fails after the wait is
 #            outside what this confirmation can see. A runner first seen late
 #            in the window extends the wait once, by the window plus the settle.
@@ -1988,7 +1991,10 @@ launch_settled() {  # <stamp-value>
 
 # Public readiness for one source: a result captured since the call began, a
 # live claim bound to this registration generation whose source command has
-# been running for the settle, or that claim still held when the wait ends.
+# been running for the settle, or that claim still held when the wait ends
+# after its source command has started. A claim still held at the end whose
+# runner has not started the source command, as in a long launch floor wait,
+# is not listening and fails with a message naming that wait.
 # Only a stamp written after the claim counts toward the settle, so a new
 # runner is not credited with an earlier runner's launch.
 # Returns as soon as the first two appear. A fixed sleep is not success, and
@@ -2055,10 +2061,14 @@ cmd_ensure_listening() {
     [ "$SECONDS" -lt "$deadline" ] || break
     sleep 0.05
   done
-  # A claim still held when the wait ends is listening as far as this can see:
-  # a loaded machine may not have reached the source command yet, and nothing
-  # showed it exiting.
-  [ "$last_live" -eq 0 ] || return 0
+  # A claim still held when the wait ends is listening only once its source
+  # command has run: a claim with no stamp written after it is a runner still
+  # in its launch floor wait, which has not shown it can listen.
+  if [ "$last_live" -eq 1 ]; then
+    [ -n "$mark" ] && [ "$stamp" -nt "$claim" ] && return 0
+    printf 'error: listener is still in its launch floor wait and has not started its source command: %s\n' "$id" >&2
+    return 1
+  fi
   [ "$listening" -ne 3 ] || return 3
   printf 'error: listener is not running: %s\n' "$id" >&2
   return 1
