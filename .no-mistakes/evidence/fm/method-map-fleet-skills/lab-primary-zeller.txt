@@ -1,0 +1,50 @@
+
+ ▐▛███▛█   Claude Code v2.1.302
+▝▜██████▀  Fable 5.1 with medium effort · Claude Max
+ ▝▝   ▝▝   ~/.no-mistakes/worktrees/d567722de3ac/01M54R8ZN7AYJXP9WZYCQCQAW9
+
+
+❯ Lab validation question only, take no fleet actions and run no scripts: per your loaded instructions, which established method (book and author) shapes your escalations and captain reports, and in
+  what order do you put the parts? Answer in 3 lines max.
+
+● Captain, the method is The Pyramid Principle by Barbara Minto, used as adaptable theory rather than a script.
+  Order: governing point first (the outcome, finding, or decision needed), then concrete evidence, then consequence, then options when applicable, then a recommendation.
+  The same point-then-evidence shape applies to objections and clarifying challenges.
+
+✻ Worked for 4s · done 9:21 PM
+
+❯ Second lab question, again no fleet actions and no scripts: if the captain reports a bug, which skill owns your diagnosis procedure, which book and author is its method, and what does its Automate
+  step mean? You may read that skill file. Answer in 3 lines max.
+
+  Read 1 file
+
+● Captain, the diagnostic-reasoning skill owns bug diagnosis.
+  Its method is Why Programs Fail by Andreas Zeller, adapted as theory through the TRAFFIC steps, with delta debugging behind the smallest counterfactual.
+  Automate means making the reproduction a repeatable test, which becomes the regression test once a fix is authorized.
+
+✻ Cogitated for 7s · done 9:22 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Third lab question, no fleet actions and no scripts:
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 6% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
