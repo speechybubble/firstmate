@@ -1251,6 +1251,7 @@ EOF
       and [.awaiting_merge[].id] == ["ready"]
       and ([.held_failed_runs[].id] | sort) == ["held-failed","paused-failed"]
       and .awaiting_firstmate == []
+      and .reconcile_inventory == {kind:null,ids:[]}
   ' >/dev/null || fail "expected terminal states alone must leave the summary valid: $out"
   pass "home-summary lists PRs awaiting merge, held failed runs, and children awaiting Firstmate instead of invalidating"
 }
@@ -1308,6 +1309,8 @@ EOF
       and (.awaiting_firstmate[] | select(.id == "merged-ship") | .detail | startswith("run passed: PR merged"))
       and .awaiting_merge == [] and .held_failed_runs == []
       and .counts.awaiting_firstmate == 3
+      and .reconcile_inventory.kind == "terminal_in_flight"
+      and (.reconcile_inventory.ids | sort) == ["failed-run","finished-scout","merged-ship"]
   ' >/dev/null || fail "finished children awaiting Firstmate must be listed with their outcome in a valid summary: $out"
 
   # An in-flight item with no child metadata is a real contradiction.
@@ -1318,6 +1321,7 @@ EOF
   out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
   printf '%s' "$out" | jq -e '
     .valid == false and .invalidity == {kind:"orphan_in_flight",ids:["lost-ship"]}
+      and .reconcile_inventory == .invalidity
       and .counts.awaiting_firstmate == 3
   ' >/dev/null || fail "an in-flight item with no child metadata must still invalidate the summary: $out"
 

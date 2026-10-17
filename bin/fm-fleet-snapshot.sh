@@ -278,8 +278,11 @@ detail, because it waits for Firstmate's next step, usually cleanup.
 A child whose current state is unknown is listed in holds, not
 child_current_unavailable, when it is backlog-held or declares a wait; an
 unknown child with neither still invalidates the summary.
-Older producers may still report the retired terminal_in_flight kind.
 Its invalidity object names the normalized failure kind and affected ids.
+Its reconcile_inventory repeats that invalidity, or on a valid summary names the
+awaiting_firstmate ids as terminal_in_flight so the parent still sends its
+cooldown-limited reconcile nudge; older producers may still report
+terminal_in_flight as an invalidity.
 Actionable tasks-axi captain holds appear as decisions_open and stay visible in
 queued with hold_reason, hold_kind, hold_until,
 hold_bucket, hold_age_days, and plural blocker fields for downstream
@@ -1261,6 +1264,9 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
     | (if ($strict_invalidities | length) > 0 then $strict_invalidities[0] | del(.reason)
        elif ($unknown_children | length) > 0 then {kind:"child_current_unavailable",ids:($unknown_children | map(.id))}
        else {kind:null,ids:[]} end) as $invalidity
+    | (if $invalidity.kind == null and ($awaiting_firstmate_all | length) > 0 then
+         {kind:"terminal_in_flight",ids:($awaiting_firstmate_all | map(.id))}
+       else $invalidity end) as $reconcile_inventory
     | (if ($valid | not)
           and (($unknown_children | length) > 0
                or (["orphan_in_flight","unowned_current"]
@@ -1280,6 +1286,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
         valid:$valid,
         reason:$reason,
         invalidity:$invalidity,
+        reconcile_inventory:$reconcile_inventory,
         state:$state,
         completed_retained:[$retained[:$child_n][] | {id,lifecycle,current_state,ownership}
           | walk(if type == "string" then trunc(240) else . end)],
@@ -2069,7 +2076,7 @@ secondmate_current_json() {  # <parent-tasks-json-file> <output-file>
         {id:$id,home:$home,host:($host | if . == "" then null else . end),remote:$remote,registered:$registered,
          spawn_gen:($spawn_gen | if . == "" then null else . end),
          current:{state:$state,reason:(if $summary_valid then null else "structured home state invalid: " + ($summary.reason // "unknown reason") end)},invalidity:$summary.invalidity,
-         reconcile_inventory:$summary.invalidity,
+         reconcile_inventory:($summary.reconcile_inventory // $summary.invalidity),
          provenance:{selected:"structured-home",structured_home:$home,summary_source:$summary_source,summary_valid:$summary_valid,
            trust:(if $summary_valid then "complete" else "partial-structured" end),parent_event_role:"historical-only"},
          freshness:{status:$summary_freshness,observed_at:$observed,age_seconds:$summary_age},
@@ -2105,7 +2112,7 @@ secondmate_current_json() {  # <parent-tasks-json-file> <output-file>
         {id:$id,home:($home | if . == "" then null else . end),host:($host | if . == "" then null else . end),remote:$remote,registered:$registered,
          spawn_gen:($spawn_gen | if . == "" then null else . end),
          current:{state:"unknown",reason:(if $summary_sampled then "structured home state invalid: " + ($summary.reason // "unknown reason") else $reason end)},invalidity:null,
-         reconcile_inventory:(if $summary_sampled then $summary.invalidity else null end),
+         reconcile_inventory:(if $summary_sampled then ($summary.reconcile_inventory // $summary.invalidity) else null end),
          provenance:{selected:$provenance,structured_home:($home | if . == "" then null else . end),parent_event_role:"fallback-only-not-current"},
          freshness:{status:$freshness,observed_at:$observed,age_seconds:$observed_age},
          active_children:[],awaiting_merge:[],awaiting_firstmate:[],held_failed_runs:[],decisions_open:[],holds:[],queued:[],landed:[],endpoints:[],counts:{active_children:0,awaiting_merge:0,awaiting_firstmate:0,held_failed_runs:0,decisions_open:0,holds:0,queued:0,landed:0,endpoints:0},omitted:[],

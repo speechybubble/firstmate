@@ -854,7 +854,7 @@ EOF
 }
 
 test_nonprogressing_child_states_are_explicit() {
-  local home mate fakebin canonical
+  local home mate fakebin canonical out
   home=$(make_home child-state-classification)
   mate="$TMP_ROOT/child-state-classification-home"
   make_valid_secondmate_home states "$mate"
@@ -899,6 +899,7 @@ EOF
       and .provenance.selected == "structured-home"
       and .provenance.trust == "partial-structured"
       and .invalidity == {kind:"unowned_current",ids:["parked"]}
+      and .reconcile_inventory == {kind:"unowned_current",ids:["parked"]}
       and [.decisions_open[].key] == ["parked"]
   ' >/dev/null || fail "unowned held child lost its classification or decisions: $canonical"
   cat > "$mate/data/backlog.md" <<'EOF'
@@ -933,8 +934,12 @@ EOF
       and .invalidity == {kind:null,ids:[]}
       and ([.awaiting_firstmate[] | {id,outcome}] | sort_by(.id))
           == [{id:"done",outcome:"done"},{id:"failed",outcome:"failed"}]
+      and .reconcile_inventory == {kind:"terminal_in_flight",ids:["done","failed"]}
   ' >/dev/null || fail "terminal in-flight rows were not listed as awaiting Firstmate in a valid home: $canonical"
-  pass "nonprogressing child states are explicit and terminal rows await Firstmate"
+  out=$(printf '%s' "$canonical" | FM_HOME="$home" "$ROOT/bin/fm-secondmate-reconcile.sh" request --snapshot -) \
+    || fail "reconcile request rejected a valid home with children awaiting Firstmate: $out"
+  case "$out" in requested:*) : ;; *) fail "valid home with children awaiting Firstmate was not queued for reconcile: $out" ;; esac
+  pass "nonprogressing child states are explicit and terminal rows await Firstmate while still queuing a reconcile nudge"
 }
 
 test_registry_unavailability_and_bounds_are_explicit() {
