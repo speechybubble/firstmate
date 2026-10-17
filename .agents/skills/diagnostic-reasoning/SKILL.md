@@ -16,9 +16,9 @@ This skill is the single owner of Firstmate's bug-diagnosis reasoning procedure.
 Firstmate applies it when briefing delegated investigation and evaluating the resulting evidence, without taking over project-specific investigation itself.
 
 Its method is Why Programs Fail (Andreas Zeller), theory to adapt, not a script.
-Zeller's TRAFFIC steps run through the sections below: track and reproduce establish the observed behavior, automate turns the reproduction into a repeatable automated test (the regression test when a fix is authorized), find and focus separate trigger, mask, and symptom along the divergent and proven paths, isolate is the smallest counterfactual, and correct is the remedy at the causal owner.
-Debug scientifically: write the hypothesis and the observation that would falsify it before running the test, then refine or reject the hypothesis on the result.
-Delta debugging is the method behind the smallest counterfactual: narrow the difference between the failing and proven input, state, or revision by halves until one change flips the outcome.
+Zeller's TRAFFIC steps run through the sections below: track and reproduce establish the observed behavior, automate makes the reproduction a repeatable test (the regression test once a fix is authorized), find and focus separate trigger, mask, and symptom along the divergent and proven paths, isolate is the smallest counterfactual, and correct is the remedy at the causal owner.
+Debug scientifically: write the hypothesis and its falsifying observation before the test, then refine or reject it on the result.
+Delta debugging is the method behind the smallest counterfactual: halve the difference between the failing and proven input, state, or revision until one change flips the outcome.
 
 ## Establish the observed behavior
 
