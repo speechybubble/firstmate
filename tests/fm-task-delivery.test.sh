@@ -55,7 +55,7 @@ write_brief() {  # <home> <id> [<recorded-mode>]
 fill_brief_subsections() {  # <file> <intent> <spec> [<expert-prompt> [<confirmed-intent>]] (\n separates lines)
   local file=$1 intent=$2 spec=$3 expert confirmed content
   expert=$(printf '%b' "${4-routine: skipped - delivery fixture}")
-  confirmed=$(printf '%b' "${5-not captain-originated - delivery fixture}")
+  confirmed=$(printf '%b' "${5-not captain-originated - delivery fixture\nend state: delivery fixture\ndelegation: built with defaults}")
   content=$(cat "$file")
   content=${content//'{TASK}'/$intent}
   content=${content//'{CONFIRMED_INTENT}'/$confirmed}
@@ -71,10 +71,11 @@ delete_expert_prompt() {  # <file>
   mv "$1.deleted" "$1"
 }
 
-# Remove the scaffolded `## Confirmed intent` heading and the default exemption
-# line fill_brief_subsections writes under it.
+# Remove the scaffolded `## Confirmed intent` heading and the default exemption,
+# end state, and delegation lines fill_brief_subsections writes under it.
 delete_confirmed_intent() {  # <file>
-  grep -v -x -F -e '## Confirmed intent' -e 'not captain-originated - delivery fixture' "$1" > "$1.deleted"
+  grep -v -x -F -e '## Confirmed intent' -e 'not captain-originated - delivery fixture' \
+    -e 'end state: delivery fixture' -e 'delegation: built with defaults' "$1" > "$1.deleted"
   mv "$1.deleted" "$1"
 }
 
@@ -719,8 +720,10 @@ EOF
 # Every scaffolded ship or scout brief carries `## Confirmed intent` between the
 # captain's words and the spec; spawn and promotion launch it only with the
 # confirmed reading plus one `captain confirmed: ` line, or one reasoned
-# `not captain-originated - ` line, while a brief scaffolded before the
-# subsection existed still launches with a warning.
+# `not captain-originated - ` line, then one `end state: ` line and one
+# `delegation: ` line naming a level, while a brief scaffolded before the
+# subsection existed still launches with a warning. A subsection written before
+# the end state and delegation lines existed is refused, naming the missing line.
 test_spawn_requires_a_confirmed_intent_or_reasoned_exemption() {
   local rec home proj fakebin out status id label kind confirmed expect meta authorized
   rec=$(make_home confirmed)
@@ -750,6 +753,8 @@ EOF
       assert_contains "$out" "confirm-intent-before-real-work rule" "$kind $label: refusal did not name the rule"
       assert_contains "$out" "captain confirmed: <the captain's confirming words, verbatim>" "$kind $label: refusal did not name the confirmed form"
       assert_contains "$out" "not captain-originated - <reason>" "$kind $label: refusal did not name the exemption form"
+      assert_contains "$out" "end state: <what is true when this is done and why the captain wants it>" "$kind $label: refusal did not name the end state form"
+      assert_contains "$out" "delegation: built with defaults | asked first | always asked" "$kind $label: refusal did not name the delegation form"
       assert_contains "$out" "before spawn" "$kind $label: refusal did not name its step"
       assert_absent "$home/state/$id.meta" "$kind $label: refused spawn wrote task metadata"
     done <<'EOF'
@@ -761,6 +766,15 @@ reading-only|Build one required slot.|has no captain confirmed: line
 confirmed-twice|Build one required slot.\ncaptain confirmed: yes\ncaptain confirmed: go|has more than one captain confirmed: line
 exempt-no-reason|not captain-originated - |has a not captain-originated line with no reason
 exempt-mixed|Build one required slot.\nnot captain-originated - maintenance|mixes a not captain-originated line with other text
+legacy-confirmed|Build one required slot.\ncaptain confirmed: yes build the slot|has no end state: line
+legacy-exempt|not captain-originated - maintenance|has no end state: line
+no-delegation|Build one required slot.\ncaptain confirmed: yes\nend state: the slot gate holds|has no delegation: line
+end-state-empty|Build one required slot.\ncaptain confirmed: yes\nend state:   \ndelegation: asked first|has an empty end state: line
+delegation-empty|Build one required slot.\ncaptain confirmed: yes\nend state: the slot gate holds\ndelegation: |has an empty delegation: line
+end-state-twice|Build one required slot.\ncaptain confirmed: yes\nend state: one\nend state: two\ndelegation: asked first|has more than one end state: line
+delegation-twice|not captain-originated - maintenance\nend state: one\ndelegation: asked first\ndelegation: always asked|has more than one delegation: line
+delegation-unknown|Build one required slot.\ncaptain confirmed: yes\nend state: the slot gate holds\ndelegation: whenever|has a delegation: line naming no level (built with defaults|asked first|always asked)
+exempt-reason-only-lines|not captain-originated - \nend state: one\ndelegation: asked first|has a not captain-originated line with no reason
 EOF
 
     while IFS='|' read -r label confirmed; do
@@ -788,10 +802,13 @@ EOF
         assert_not_contains "$authorized" "Outcome: one required slot" "$kind $label: the confirmed reading leaked into --intent"
         assert_not_contains "$authorized" "captain confirmed:" "$kind $label: the confirmation leaked into --intent"
         assert_not_contains "$authorized" "not captain-originated" "$kind $label: the exemption leaked into --intent"
+        assert_not_contains "$authorized" "end state:" "$kind $label: the end state leaked into --intent"
+        assert_not_contains "$authorized" "delegation:" "$kind $label: the delegation level leaked into --intent"
       fi
     done <<'EOF'
-confirmed|Outcome: one required slot before any worker launches.\nOut of scope: grading the reading.\ncaptain confirmed: yes build the slot
-exempt|not captain-originated - Firstmate maintenance follow-up the captain approved in bulk
+confirmed|Outcome: one required slot before any worker launches.\nOut of scope: grading the reading.\ncaptain confirmed: yes build the slot\nend state: no worker launches without a confirmed reading, so its fit can be judged\ndelegation: asked first
+exempt|not captain-originated - Firstmate maintenance follow-up the captain approved in bulk\nend state: maintenance lands cleanly\ndelegation: built with defaults
+always|Outcome: one required slot.\ncaptain confirmed: go\n  end state: the gate holds  \n  delegation: always asked
 EOF
 
     id="confirmed-expert-only-$kind"
@@ -894,7 +911,7 @@ EOF
   printf 'window=fm-%s\nkind=scout\nworktree=/tmp/wt\n' "$id" > "$meta"
   FM_HOME="$home" "$BRIEF" "$id" proj --scout >/dev/null 2>&1 || fail "accepted scout brief should scaffold"
   fill_brief_subsections "$home/data/$id/brief.md" "Investigate the slot." "Report only." \
-    'Act as a release engineer.' 'Find why the slot is missing.\ncaptain confirmed: yes'
+    'Act as a release engineer.' 'Find why the slot is missing.\ncaptain confirmed: yes\nend state: the cause is known\ndelegation: built with defaults'
   out=$(FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$PROMOTE" "$id" --mode direct-PR --yolo off 2>&1)
   status=$?
   expect_code 0 "$status" "promotion of a confirmed scout brief should succeed"

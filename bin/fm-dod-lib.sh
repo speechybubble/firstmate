@@ -322,6 +322,30 @@ fm_brief_slot_exemption_problem() {  # <body> <prefix>
   return 1
 }
 
+# The levels a `## Confirmed intent` `delegation:` line may name, as an
+# extended-regex alternation: how the request was sorted before work began.
+FM_BRIEF_DELEGATION_LEVELS='built with defaults|asked first|always asked'
+
+# Print why a `## Confirmed intent` body's `<prefix>:` line cannot launch and
+# return 0: it is missing, repeated, or has no content. Return 1 otherwise.
+fm_brief_intent_line_problem() {  # <body> <prefix>
+  local body=$1 prefix=$2 lines
+  lines=$(printf '%s\n' "$body" | grep -c "^[[:space:]]*$prefix:")
+  if [ "$lines" -eq 0 ]; then
+    echo "has no $prefix: line"
+    return 0
+  fi
+  if [ "$lines" -ne 1 ]; then
+    echo "has more than one $prefix: line"
+    return 0
+  fi
+  if ! printf '%s\n' "$body" | grep -q "^[[:space:]]*$prefix:[[:space:]]*[^[:space:]]"; then
+    echo "has an empty $prefix: line"
+    return 0
+  fi
+  return 1
+}
+
 # Print why a brief's `### Expert prompt` subsection cannot launch and return 0;
 # return 1 when it carries an expert prompt or one reasoned
 # `routine: skipped - <reason>` line, or is absent from a brief scaffolded
@@ -338,14 +362,33 @@ fm_brief_expert_prompt_problem() {  # <file>
 # Print why a brief's `## Confirmed intent` subsection cannot launch and return
 # 0; return 1 when it carries the confirmed reading plus exactly one
 # `captain confirmed: <words>` line, or exactly one reasoned
-# `not captain-originated - <reason>` line, or is absent from a brief scaffolded
-# before the subsection existed. Whether the reading is right, and whether the
-# words match what was said, stays Firstmate's responsibility.
+# `not captain-originated - <reason>` line, followed in either form by exactly
+# one `end state: <what is true when done and why>` line and exactly one
+# `delegation: <level>` line naming one of FM_BRIEF_DELEGATION_LEVELS, or is
+# absent from a brief scaffolded before the subsection existed. A subsection
+# written before those two lines existed is refused, naming the missing line.
+# Whether the reading is right, whether the words match what was said, and
+# whether the level fits the request stays Firstmate's responsibility.
 fm_brief_confirmed_intent_problem() {  # <file>
-  local file=$1 body confirmed other
+  local file=$1 body
   fm_brief_task_slot_problem "$file" "## Confirmed intent" '{CONFIRMED_INTENT}' 2 && return 0
   fm_brief_task_heading_present "$file" "## Confirmed intent" || return 1
   body=$(fm_brief_task_heading_body "$file" "## Confirmed intent")
+  fm_brief_confirmed_reading_problem "$(printf '%s\n' "$body" | grep -v -e '^[[:space:]]*end state:' -e '^[[:space:]]*delegation:')" && return 0
+  fm_brief_intent_line_problem "$body" 'end state' && return 0
+  fm_brief_intent_line_problem "$body" 'delegation' && return 0
+  if ! printf '%s\n' "$body" | grep -q -x -E "[[:space:]]*delegation:[[:space:]]*($FM_BRIEF_DELEGATION_LEVELS)[[:space:]]*"; then
+    echo "has a delegation: line naming no level ($FM_BRIEF_DELEGATION_LEVELS)"
+    return 0
+  fi
+  return 1
+}
+
+# Print why a `## Confirmed intent` body, without its `end state:` and
+# `delegation:` lines, carries neither the confirmed reading plus one
+# `captain confirmed:` line nor one reasoned exemption, and return 0.
+fm_brief_confirmed_reading_problem() {  # <body>
+  local body=$1 confirmed other
   if printf '%s\n' "$body" | grep -q '^[[:space:]]*not captain-originated'; then
     fm_brief_slot_exemption_problem "$body" 'not captain-originated'
     return
@@ -377,7 +420,7 @@ fm_brief_confirmed_intent_problem() {  # <file>
 fm_brief_task_slots_check() {  # <file> <before-what>
   local file=$1 step=$2 problem
   if problem=$(fm_brief_confirmed_intent_problem "$file"); then
-    printf "error: %s ## Confirmed intent %s; the confirm-intent-before-real-work rule requires that subsection to carry either the reading of the captain's intent that the captain confirmed plus exactly one line \`captain confirmed: <the captain's confirming words, verbatim>\`, or exactly one line \`not captain-originated - <reason>\` for work that does not come from a captain request, before %s\n" "$file" "$problem" "$step" >&2
+    printf "error: %s ## Confirmed intent %s; the confirm-intent-before-real-work rule requires that subsection to carry either the reading of the captain's intent that the captain confirmed plus exactly one line \`captain confirmed: <the captain's confirming words, verbatim>\`, or exactly one line \`not captain-originated - <reason>\` for work that does not come from a captain request, then one line \`end state: <what is true when this is done and why the captain wants it>\` and one line \`delegation: built with defaults | asked first | always asked\`, before %s\n" "$file" "$problem" "$step" >&2
     return 1
   fi
   if problem=$(fm_brief_expert_prompt_problem "$file"); then

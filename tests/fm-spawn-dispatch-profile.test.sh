@@ -2103,7 +2103,7 @@ test_worker_launch_delivers_role_scope() {
       content=${content//'{TASK}'/brief for $id}
       content=${content//'{FIRSTMATE_SPEC}'/Exercise the spawn behavior under test.}
       content=${content//'{EXPERT_PROMPT}'/routine: skipped - spawn fixture}
-      content=${content//'{CONFIRMED_INTENT}'/not captain-originated - spawn fixture}
+      content=${content//'{CONFIRMED_INTENT}'/$'not captain-originated - spawn fixture\nend state: spawn fixture\ndelegation: built with defaults'}
       printf '%s\n' "$content" > "$brief"
     fi
     cp "$HOME_DIR/data/$id/brief.md" "$CASE_DIR/brief-before"
