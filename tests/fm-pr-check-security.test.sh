@@ -58,6 +58,18 @@ process_is_live_non_zombie() {
   return 0
 }
 
+# Polls <command> until it succeeds or <seconds> of wall time pass. A background
+# process that reaches a state within milliseconds on an idle host can need tens
+# of seconds on a loaded one, so a case waits on the state itself.
+wait_until() {  # <seconds> <command...>
+  local deadline=$((SECONDS + $1))
+  shift
+  until "$@"; do
+    [ "$SECONDS" -lt "$deadline" ] || return 1
+    sleep 0.02
+  done
+}
+
 LINK_KIND=
 LINK_TARGET=
 LINK_CONTENT=
@@ -897,21 +909,22 @@ SH
 }
 
 # Runs one watcher under a hang guard that TERMs it and returns 124 once it has
-# used sixty seconds of its own time. The guard pauses while the file named by
-# FM_TEST_WATCH_BOUND_PAUSE exists, so a case that holds the watcher on work it
-# injects, or makes it wait on concurrent work it started, charges that work's
-# duration to itself instead of to the watcher.
+# used FM_TEST_WATCH_BOUND_SECONDS (default sixty) of its own time. The guard
+# pauses while the file named by FM_TEST_WATCH_BOUND_PAUSE exists, so a case
+# that holds the watcher on work it injects, or makes it wait on concurrent work
+# it started, charges that work's duration to itself instead of to the watcher.
 # FM_TEST_CHECK_TIMEOUT sets the per-check timeout for a case that exercises it.
 # Otherwise the product default applies: a tighter override silently kills a
 # correct poll on a loaded machine, and the watcher then only retries it or
 # exits on a later check's wake without the poll's result.
 run_watcher_bounded() {
   local home=$1 fakebin=$2 check_interval=${FM_TEST_CHECK_INTERVAL:-0} watch_root=${FM_TEST_WATCH_ROOT:-$ROOT}
+  local bound=${FM_TEST_WATCH_BOUND_SECONDS:-60}
   local check_timeout_env=(-u FM_CHECK_TIMEOUT)
   [ -z "${FM_TEST_CHECK_TIMEOUT:-}" ] || check_timeout_env=("FM_CHECK_TIMEOUT=$FM_TEST_CHECK_TIMEOUT")
   shift 2
-  perl -MPOSIX=WNOHANG -MTime::HiRes=time,sleep -e 'my $pause=shift; my $left=60; my $pid=fork; die unless defined $pid; if (!$pid) { exec @ARGV } my $last=time; while (waitpid($pid, WNOHANG) == 0) { my $now=time; $left -= $now - $last unless length $pause && -e $pause; $last=$now; if ($left <= 0) { kill "TERM", $pid; waitpid $pid, 0; exit 124 } sleep 0.02 } exit($? >> 8)' \
-    "${FM_TEST_WATCH_BOUND_PAUSE:-}" env "${check_timeout_env[@]}" \
+  perl -MPOSIX=WNOHANG -MTime::HiRes=time,sleep -e 'my $pause=shift; my $left=shift; my $pid=fork; die unless defined $pid; if (!$pid) { exec @ARGV } my $last=time; while (waitpid($pid, WNOHANG) == 0) { my $now=time; $left -= $now - $last unless length $pause && -e $pause; $last=$now; if ($left <= 0) { kill "TERM", $pid; waitpid $pid, 0; exit 124 } sleep 0.02 } exit($? >> 8)' \
+    "${FM_TEST_WATCH_BOUND_PAUSE:-}" "$bound" env "${check_timeout_env[@]}" \
       FM_HOME="$home" FM_ROOT_OVERRIDE="$watch_root" FM_CHECK_INTERVAL="$check_interval" \
       FM_POLL=0.02 FM_HEARTBEAT=999999 FM_SIGNAL_GRACE=0 PATH="$fakebin:$BASE_PATH" "$WATCH" "$@"
 }
@@ -3486,7 +3499,7 @@ SH
 }
 
 start_poll_publish_holder() {  # <dir> <state> <id>
-  local dir=$1 state=$2 id=$3 i
+  local dir=$1 state=$2 id=$3
   PR_POLL_HOLDER_ACQUIRED="$dir/poll-publish-holder-acquired"
   PR_POLL_HOLDER_RELEASE="$dir/poll-publish-holder-release"
   PR_POLL_HOLDER_LOCK="$state/.pr-poll-publish-$id.lock"
@@ -3504,10 +3517,7 @@ SH
     FM_TEST_ACQUIRED="$PR_POLL_HOLDER_ACQUIRED" FM_TEST_RELEASE="$PR_POLL_HOLDER_RELEASE" \
     "$dir/poll-publish-holder.sh" &
   PR_POLL_HOLDER_PID=$!
-  for i in $(seq 1 100); do
-    [ -e "$PR_POLL_HOLDER_ACQUIRED" ] && return 0
-    sleep 0.02
-  done
+  wait_until 120 test -e "$PR_POLL_HOLDER_ACQUIRED" && return 0
   kill "$PR_POLL_HOLDER_PID" 2>/dev/null || true
   wait "$PR_POLL_HOLDER_PID" 2>/dev/null || true
   fail "poll publication holder did not acquire its lock"
@@ -3519,7 +3529,7 @@ release_poll_publish_holder() {
 }
 
 test_device_rerecord_serializes_direct_rearm() {
-  local dir state url_a url_b i rearm_pid
+  local dir state url_a url_b rearm_pid
   url_a=https://github.com/o/r/pull/1
   url_b=https://github.com/o/r/pull/2
   dir=$(make_case device-rerecord-serialized-direct-rearm)
@@ -3533,12 +3543,11 @@ test_device_rerecord_serializes_direct_rearm() {
   FM_ROOT_OVERRIDE="$dir/root" FM_HOME="$dir/home" FM_TEST_GUARD_LOG="$dir/guard.log" \
     PATH="$dir/fakebin:$BASE_PATH" "$PR_CHECK" task-a "$url_b" > "$dir/rearm.out" 2> "$dir/rearm.err" &
   rearm_pid=$!
-  for i in $(seq 1 100); do
-    if fm_pr_metadata_identity_parse "$state/task-a.meta" && [ "$FM_PR_META_URL" = "$url_b" ]; then
-      break
-    fi
-    sleep 0.02
-  done
+  rearm_rewrote_or_exited() {
+    { fm_pr_metadata_identity_parse "$state/task-a.meta" && [ "$FM_PR_META_URL" = "$url_b" ]; } \
+      || ! process_is_live_non_zombie "$rearm_pid"
+  }
+  wait_until 120 rearm_rewrote_or_exited || true
   [ "$FM_PR_META_URL" = "$url_b" ] || fail "direct re-arm did not rewrite metadata before publication"
   sleep 1
   process_is_live_non_zombie "$rearm_pid" || fail "direct re-arm did not wait for poll publication"
@@ -3557,7 +3566,7 @@ test_device_rerecord_serializes_direct_rearm() {
 }
 
 test_device_rerecord_serializes_rerecord() {
-  local dir state original rc watcher_pid i
+  local dir state original rc watcher_pid
   dir=$(make_case device-rerecord-serialized-rerecord)
   state="$dir/home/state"
   write_poll_meta "$state" task-a https://github.com/o/r/pull/1
@@ -3579,23 +3588,29 @@ exec "$FM_TEST_REAL_MV" "$@"
 SH
   chmod +x "$dir/fakebin/mv"
   start_poll_publish_holder "$dir" "$state" task-a
+  # The hang guard pauses while this case holds the watcher on the publication
+  # lock, and a loaded host can spend most of the default bound before the
+  # watcher reaches that lock.
   FM_TEST_CONTROL_LOCK="$state/.control-task-a.lock" \
     FM_TEST_POLL_PUBLISH_LOCK="$state/.pr-poll-publish-task-a.lock" \
     FM_TEST_REGISTRATION_RENAMED="$dir/registration-renamed" FM_TEST_REAL_MV="$REAL_MV" \
     FM_TEST_GH_LOG="$dir/gh.log" FM_TEST_GH_STATE=OPEN \
+    FM_TEST_WATCH_BOUND_PAUSE="$dir/watcher-held" FM_TEST_WATCH_BOUND_SECONDS=300 \
     run_watcher_bounded "$dir/home" "$dir/fakebin" > "$dir/watch.out" 2> "$dir/watch.err" &
   watcher_pid=$!
-  for i in $(seq 1 100); do
-    [ -d "$state/.control-task-a.lock" ] && break
-    sleep 0.02
-  done
+  watcher_locked_or_exited() {
+    [ -d "$state/.control-task-a.lock" ] || ! process_is_live_non_zombie "$watcher_pid"
+  }
+  wait_until 120 watcher_locked_or_exited || true
   [ -d "$state/.control-task-a.lock" ] || fail "watcher did not reach its device re-record"
+  : > "$dir/watcher-held"
   sleep 1
   process_is_live_non_zombie "$watcher_pid" || fail "watcher did not wait for poll publication"
   [ "$(fm_pr_sha256 "$state/task-a.pr-poll-registration")" = "$original" ] \
     || fail "blocked watcher rewrote a device-shifted registration"
   [ ! -e "$dir/registration-renamed" ] || fail "blocked watcher renamed the registration"
   release_poll_publish_holder
+  rm -f "$dir/watcher-held"
   rc=0
   wait "$watcher_pid" || rc=$?
   [ "$rc" -eq 0 ] || fail "released watcher re-record failed: $(cat "$dir/watch.err")"
