@@ -711,6 +711,9 @@ $WAIT_BLOCK$INBOX_SECTION
 # Definition of done
 Write your findings to \`$DATA/$ID/report.md\`.
 The report must stand alone: what you did, what you found, the evidence (commands run, output, file:line references), and what you recommend.
+Investigate with The Craft of Research (Booth, Colomb, and Williams), theory to adapt, not a script.
+State the question and why its answer matters to the decision it informs, then back each claim with reasons and evidence, and state the warrant wherever the link from evidence to claim is not obvious.
+Name the strongest alternative explanation or objection and answer it with evidence rather than leaving it out.
 $LAVISH_LINE
 Before reporting done, read and follow \`$FM_ROOT/.agents/skills/captain-hold-lifecycle/SKILL.md\` and pass its shared completion gate for the report and any visual review.
 When the report is complete, append \`done [at=<epoch>]: {one-line conclusion}\` to the status file and stop.

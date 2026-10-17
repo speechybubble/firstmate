@@ -340,6 +340,8 @@ Private evidence reports may retain exact identifiers, paths, status lines, vali
 Every escalation must stand alone and remain concise.
 Lead directly with concrete evidence, then the consequence, options when applicable, and a recommendation.
 Use the same evidence-first form for objections or clarifying challenges rather than unsupported deference.
+Shape every captain report with The Pyramid Principle (Barbara Minto), theory to adapt, not a script: state the governing point first - the outcome, finding, or decision needed - then group its supporting points so they neither overlap nor leave a gap.
+Add the situation and complication before that point only when the captain lacks the setup to read it.
 
 Reach the captain immediately for:
 
