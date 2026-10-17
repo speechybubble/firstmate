@@ -67,6 +67,20 @@ lavish_session() {  # <home> <artifact>
   ' "$1/lavish-state/state.json" "$2"
 }
 
+# A board the captain has not answered yet: its poll waits rather than
+# returning, so an armed deck's own listener captures nothing and only the
+# result a test feeds reaches the keyed-answer intake. The home is tracked so
+# that waiting listener is reaped when the suite exits.
+waiting_board() {  # <home>
+  cat > "$1/fakebin/lavish-axi" <<'SH'
+#!/usr/bin/env bash
+[ "${1-}" != poll ] || exec sleep 600
+exit 0
+SH
+  chmod +x "$1/fakebin/lavish-axi"
+  fm_test_track_procevent_home "$1" "$1/procevent-claims"
+}
+
 # The generic process-event runner, run against this suite's isolated home and
 # its own claim root, so a review armed here can never contend with a real one.
 run_procevent() {  # <home> <command args...>
@@ -1612,7 +1626,7 @@ test_bound_channel_answers_close_at_answer_time() {
 
   artifact="$home/data/$id/review.html"
   printf '<h1>Sample eval proposal</h1>\n' > "$artifact"
-  fm_fake_exit0 "$home/fakebin" lavish-axi
+  waiting_board "$home"
   sid=$(run_lavish "$home" source-id "$artifact") || fail "could not derive the review source id"
   run_captain "$home" bind "$sid" >/dev/null \
     || fail "could not bind the review source to the keyed-answer intake"
@@ -2111,7 +2125,7 @@ test_unbound_source_closes_no_hold() {
 
   artifact="$home/data/$id/review.html"
   printf '<h1>Unbound</h1>\n' > "$artifact"
-  fm_fake_exit0 "$home/fakebin" lavish-axi
+  waiting_board "$home"
   sid=$(run_lavish "$home" source-id "$artifact") || fail "could not derive the unbound source id"
   lavish_session "$home" "$artifact"
   run_lavish "$home" arm "$artifact" >/dev/null || fail "could not arm the unbound review"
