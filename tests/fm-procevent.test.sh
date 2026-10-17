@@ -5077,4 +5077,161 @@ PATH="$UNDISP/bin:$PATH" FM_HOME="$UNDISP/home" \
   "$ROOT/bin/fm-procevent-lavish.sh" retire "$undisp_art" >/dev/null 2>&1 || true
 pass "arm does not launch beside a stale claim whose process group is alive"
 
+# --- end-user-aligned regression: listening means a live listener -----------
+# After a reboot a board's listener read as armed while no runner was alive:
+# ensure-listening took the launch stamp alone as proof, so a runner that
+# claimed, stamped, and then saw its source command fail at once was reported
+# as listening. A killed runner must read as not listening, a relaunch must be
+# confirmed by a live claim, and a source that dies without a result must fail.
+TRUTH="$TMP_ROOT/listener-truth"; new_home "$TRUTH"
+TRUTH_TRIGGER="$TRUTH/never"
+pe_register "$TRUTH" lavish truth-src -- "$BLOCKER" "$TRUTH_TRIGGER" payload >/dev/null
+pe "$TRUTH" ensure-listening truth-src || fail "a blocking source was not confirmed listening"
+truth_owner=$(pe "$TRUTH" list | awk '$1 == "truth-src" { print $3 }')
+[ "$truth_owner" = live ] || fail "a confirmed listener is not listed live: $truth_owner"
+truth_pid=$(sed -n '2p' "$FM_PROCEVENT_CLAIM_ROOT/truth-src.claim")
+kill -KILL -- "-$truth_pid" 2>/dev/null || fail "fixture invalid: cannot kill the runner group"
+wait_gone "-$truth_pid" || fail "fixture invalid: the killed runner group survived"
+truth_owner=$(pe "$TRUTH" list | awk '$1 == "truth-src" { print $3 }')
+[ "$truth_owner" = none ] || fail "a killed runner is still listed as $truth_owner"
+pe "$TRUTH" ensure-listening truth-src || fail "ensure-listening did not restart a killed runner"
+truth_new=$(sed -n '2p' "$FM_PROCEVENT_CLAIM_ROOT/truth-src.claim")
+if [ "$truth_new" = "$truth_pid" ] || ! kill -0 "$truth_new" 2>/dev/null; then
+  fail "ensure-listening returned without a live replacement runner"
+fi
+pe "$TRUTH" retire truth-src >/dev/null
+pass "a killed runner lists as not listening and ensure-listening confirms a live replacement"
+
+# The source command fails at once with nothing on stdout, the shape a Lavish
+# poll takes when its server or saved session is gone.
+pe_register "$TRUTH" lavish truth-dies -- /bin/sh -c 'echo gone >&2; exit 1' >/dev/null
+set +e
+truth_err=$(pe "$TRUTH" ensure-listening truth-dies 2>&1 >/dev/null)
+truth_rc=$?
+set -e
+[ "$truth_rc" -ne 0 ] || fail "ensure-listening reported a source that died at once as listening"
+assert_contains "$truth_err" "exited without listening" \
+  "ensure-listening did not say the listener exited instead of listening"
+truth_owner=$(pe "$TRUTH" list | awk '$1 == "truth-dies" { print $3 }')
+[ "$truth_owner" = none ] || fail "a source that died at once is listed as $truth_owner"
+pe "$TRUTH" retire truth-dies >/dev/null
+pass "ensure-listening fails for a listener whose source command dies without a result"
+
+# A registration that listened once keeps its earlier launch stamp. When its
+# runner is killed and the source now fails at once, the replacement runner
+# holds a live claim before it writes its own stamp; the earlier stamp must
+# not count as the replacement's settle.
+truth_flag="$TRUTH/stale-ran-once"
+# shellcheck disable=SC2016  # single quotes are deliberate: the inner sh expands this.
+pe_register "$TRUTH" lavish truth-stale -- /bin/sh -c \
+  'if [ -e "$1" ]; then echo gone >&2; exit 1; fi; : > "$1"; exec "$2" "$3" payload' \
+  sh "$truth_flag" "$BLOCKER" "$TRUTH_TRIGGER" >/dev/null
+pe "$TRUTH" ensure-listening truth-stale || fail "fixture invalid: the first run was not listening"
+[ -e "$truth_flag" ] || fail "fixture invalid: the first run did not mark itself"
+truth_pid=$(sed -n '2p' "$FM_PROCEVENT_CLAIM_ROOT/truth-stale.claim")
+kill -KILL -- "-$truth_pid" 2>/dev/null || fail "fixture invalid: cannot kill the runner group"
+wait_gone "-$truth_pid" || fail "fixture invalid: the killed runner group survived"
+sleep 1.5
+set +e
+FM_PROCEVENT_LAUNCH_FLOOR_SECONDS=3 pe "$TRUTH" ensure-listening truth-stale >/dev/null 2>&1
+truth_rc=$?
+set -e
+[ "$truth_rc" -ne 0 ] \
+  || fail "ensure-listening credited a replacement runner with an earlier launch stamp"
+pe "$TRUTH" retire truth-stale >/dev/null 2>&1 || true
+pass "ensure-listening does not count an earlier runner's launch stamp as listening"
+
+# A launch floor longer than the confirm window keeps the replacement runner
+# asleep under a live claim until after the wait ends. That runner has not
+# started its source command, so it must not read as listening.
+pe_register "$TRUTH" lavish truth-floor -- "$BLOCKER" "$TRUTH_TRIGGER" payload >/dev/null
+pe "$TRUTH" ensure-listening truth-floor || fail "fixture invalid: the first run was not listening"
+truth_pid=$(sed -n '2p' "$FM_PROCEVENT_CLAIM_ROOT/truth-floor.claim")
+kill -KILL -- "-$truth_pid" 2>/dev/null || fail "fixture invalid: cannot kill the runner group"
+wait_gone "-$truth_pid" || fail "fixture invalid: the killed runner group survived"
+set +e
+truth_err=$(FM_PROCEVENT_LAUNCH_FLOOR_SECONDS=30 FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=1 \
+  pe "$TRUTH" ensure-listening truth-floor 2>&1 >/dev/null)
+truth_rc=$?
+set -e
+truth_new=$(sed -n '2p' "$FM_PROCEVENT_CLAIM_ROOT/truth-floor.claim" 2>/dev/null || true)
+if [ -z "$truth_new" ] || [ "$truth_new" = "$truth_pid" ] || ! kill -0 "$truth_new" 2>/dev/null; then
+  fail "fixture invalid: no replacement runner held the claim through its floor wait"
+fi
+[ "$truth_rc" -ne 0 ] \
+  || fail "ensure-listening reported a runner still in its launch floor wait as listening"
+assert_contains "$truth_err" "launch floor wait" \
+  "ensure-listening did not name the launch floor wait"
+kill -KILL -- "-$truth_new" 2>/dev/null || true
+wait_gone "-$truth_new" || fail "fixture invalid: the floor-waiting runner group survived"
+pe "$TRUTH" retire truth-floor >/dev/null 2>&1 || true
+pass "ensure-listening does not report a runner still in its launch floor wait as listening"
+
+# A runner usually claims and stamps within one second. Stock macOS Bash 3.2
+# compares file times in whole seconds, so the order inside that second must
+# still decide whether the stamp was written after the claim.
+pe_register "$TRUTH" lavish truth-second -- "$BLOCKER" "$TRUTH_TRIGGER" payload >/dev/null
+pe "$TRUTH" ensure-listening truth-second || fail "fixture invalid: the first run was not listening"
+truth_claim="$FM_PROCEVENT_CLAIM_ROOT/truth-second.claim"
+truth_stamp=$(ls "$TRUTH"/state/procevent/truth-second.*.last-launch)
+truth_second() {  # <claim-fraction> <stamp-fraction>
+  perl -MTime::HiRes=utime -e '
+    my ($claim, $cf, $stamp, $sf) = @ARGV;
+    my $second = int(time) - 5;
+    utime($second + $cf, $second + $cf, $claim) or exit 1;
+    utime($second + $sf, $second + $sf, $stamp) or exit 1;
+  ' "$truth_claim" "$1" "$truth_stamp" "$2" || fail "fixture invalid: cannot set file times"
+}
+truth_second 0.2 0.7
+FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=1 pe "$TRUTH" ensure-listening truth-second \
+  || fail "ensure-listening ignored a stamp written later in the claim's own second"
+truth_second 0.7 0.2
+set +e
+truth_err=$(FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=1 \
+  pe "$TRUTH" ensure-listening truth-second 2>&1 >/dev/null)
+truth_rc=$?
+set -e
+[ "$truth_rc" -ne 0 ] \
+  || fail "ensure-listening counted a stamp written earlier in the claim's own second"
+assert_contains "$truth_err" "launch floor wait" \
+  "ensure-listening did not name the launch floor wait for an earlier stamp"
+truth_pid=$(sed -n '2p' "$truth_claim")
+kill -KILL -- "-$truth_pid" 2>/dev/null || true
+wait_gone "-$truth_pid" || fail "fixture invalid: the runner group survived"
+pe "$TRUTH" retire truth-second >/dev/null 2>&1 || true
+pass "ensure-listening orders a claim and its stamp within the same second"
+
+# A source that answers at once is a captured result, not a dead listener.
+pe_register "$TRUTH" lavish truth-answers -- /bin/sh -c 'echo answered' >/dev/null
+pe "$TRUTH" ensure-listening truth-answers \
+  || fail "ensure-listening rejected a source that captured a result at once"
+wait_capture "$TRUTH" truth-answers || fail "the immediate answer was not captured"
+pe "$TRUTH" retire truth-answers >/dev/null 2>&1 || true
+pass "ensure-listening accepts a listener that captured a result inside the window"
+
+# Arming a board that has no saved Lavish session registered the source and
+# printed armed while its runner died at once. Arm must refuse, say why, and
+# leave nothing registered for reconcile to restart into the same failure.
+NOSESS="$TMP_ROOT/no-session-arm"
+mkdir -p "$NOSESS/home/state"
+nosess_art="$NOSESS/board.html"
+printf '<h1>no session</h1>\n' > "$nosess_art"
+nosess_id=$("$ROOT/bin/fm-procevent-lavish.sh" source-id "$nosess_art")
+# The real case: Lavish's store exists but holds no session for this board.
+[ -f "$LAVISH_AXI_STATE_DIR/state.json" ] || printf '{"sessions":{}}\n' > "$LAVISH_AXI_STATE_DIR/state.json"
+fm_test_track_procevent_home "$NOSESS/home"
+set +e
+PATH="$READY/bin:$PATH" FM_HOME="$NOSESS/home" \
+  "$ROOT/bin/fm-procevent-lavish.sh" arm "$nosess_art" > "$NOSESS/arm.out" 2> "$NOSESS/arm.err"
+nosess_rc=$?
+set -e
+[ "$nosess_rc" -ne 0 ] || fail "arm succeeded for a board with no saved Lavish session"
+assert_not_contains "$(cat "$NOSESS/arm.out")" "armed:" \
+  "arm reported ready for a board with no saved Lavish session"
+assert_contains "$(cat "$NOSESS/arm.err")" "saved Lavish session" \
+  "arm did not say the board needs a saved Lavish session"
+assert_absent "$NOSESS/home/state/procevent/$nosess_id.source" \
+  "arm left a registration for a board with no saved Lavish session"
+pass "arm refuses a board with no saved Lavish session and says why"
+
 printf '\nall procevent tests passed\n'
