@@ -32,6 +32,9 @@
 #   8. The watcher's per-cycle inbox pass reaches every inbox-bearing task
 #      without the window scan, yet rings only a window that maps back to the
 #      task and keeps the busy and pending-composer deferrals.
+#   9. A composer holding our own doorbell, whole or as a leading fragment, is
+#      delivered on the first due attempt, while any other pending text is
+#      never touched and is quoted in the one escalation.
 set -u
 
 # shellcheck source=tests/wake-helpers.sh
@@ -131,8 +134,10 @@ watch_bg() {  # <state> <fakebin> <out> [extra env assignments...]
     env "$@" "$WATCH" > "$out" 2>/dev/null &
 }
 
+# The limit is only a hang ceiling: a healthy watcher exits within seconds, but
+# a heavily loaded host (load 40 on 12 cores, 2026-10-17) took over 12s.
 wait_watcher_gone() {  # <pid> [limit-ticks]
-  local pid=$1 limit=${2:-120} i=0
+  local pid=$1 limit=${2:-600} i=0
   while [ "$i" -lt "$limit" ]; do
     kill -0 "$pid" 2>/dev/null || return 0
     sleep 0.1
@@ -302,8 +307,9 @@ test_ring_skips_dead_agent() {
 
 # A fake tmux whose pane is a Claude-style composer that keeps its content in
 # FM_FAKE_COMPOSER: literal input appends to it, capture renders it wrapped
-# between rules, and Enter submits it (logged as SUBMIT) unless
-# FM_FAKE_DROP_ENTERS still holds a count of Enters to swallow.
+# between rules, Enter submits it (logged as SUBMIT) unless
+# FM_FAKE_DROP_ENTERS still holds a count of Enters to swallow, and C-u
+# deletes its last rendered row (logged as CLEAR), as live Claude does.
 make_composer_stub() {  # <dir>
   mkdir -p "$1/fakebin"
   cat > "$1/fakebin/tmux" <<'SH'
@@ -322,6 +328,10 @@ case "${1:-}" in
     done
     if [ "$literal" = 1 ]; then
       printf '%s' "$1" >> "$FM_FAKE_COMPOSER"
+    elif [ "${1:-}" = C-u ]; then
+      printf 'CLEAR\n' >> "$FM_SEND_LOG"
+      kept=$(fold -w 60 "$FM_FAKE_COMPOSER" | sed '$d' | tr -d '\n')
+      printf '%s' "$kept" > "$FM_FAKE_COMPOSER"
     elif [ "${1:-}" = Enter ]; then
       drops=$(cat "$FM_FAKE_DROP_ENTERS" 2>/dev/null || echo 0)
       if [ "$drops" -gt 0 ]; then
@@ -399,6 +409,87 @@ test_ring_submits_its_own_stuck_doorbell() {
     || fail "the retry Enter should submit the doorbell once:"$'\n'"$(cat "$log")"
   [ ! -s "$composer" ] || fail "a lost Enter left the doorbell unsubmitted"
   pass "inbox: the ring submits its own stuck doorbell, skips other pending text, and retries a lost Enter once on both paths"
+}
+
+# The 2026-10-16 stalls: one Ctrl+U on a wrapped Claude composer deleted only
+# the doorbell's last row, and the leading rows that stayed behind never
+# matched the whole line, so every re-ring skipped. Such a fragment of our own
+# doorbell is cleared and the full line rung once; text that is not purely a
+# leading part of it, or too short to carry the doorbell's lead, stays untouched.
+test_ring_repairs_its_own_doorbell_fragment() {
+  local dir state rec doorbell log composer drops rc held rows submits
+  dir="$TMP_ROOT/ring-fragment"
+  state="$dir/state"
+  mkdir -p "$state"
+  make_composer_stub "$dir"
+  rec=$(inbox_lib "$state" fm_task_inbox_write "$state" t1 "please continue")
+  doorbell=$(inbox_lib "$state" fm_task_inbox_doorbell_line "$rec")
+  log="$dir/send.log"; composer="$dir/composer"; drops="$dir/drops"
+  ring() {
+    PATH="$dir/fakebin:$PATH" FM_SEND_LOG="$log" FM_FAKE_COMPOSER="$composer" \
+      FM_FAKE_DROP_ENTERS="$drops" inbox_lib "$state" fm_task_inbox_ring tmux sess:fm-t1 "$rec" fm-t1
+  }
+
+  for rows in 1 2; do
+    held=$(printf '%s' "$doorbell" | fold -w 60 | head -n "$rows" | tr -d '\n')
+    [ "$held" != "$doorbell" ] || fail "the fixture fragment of $rows rows is the whole doorbell"
+    : > "$log"; printf '%s' "$held" > "$composer"
+    rc=0; ring || rc=$?
+    [ "$rc" = 0 ] || fail "a $rows-row fragment of our own doorbell should be repaired and rung, got rc $rc"
+    submits=$(grep -c '^SUBMIT: ' "$log" || true)
+    if [ "$submits" != 1 ] || ! grep -qxF "SUBMIT: $doorbell" "$log"; then
+      fail "a $rows-row fragment should end in exactly one full doorbell submit:"$'\n'"$(cat "$log")"
+    fi
+    grep -q '^CLEAR$' "$log" || fail "the $rows-row fragment was not cleared before the ring:"$'\n'"$(cat "$log")"
+    [ ! -s "$composer" ] || fail "the $rows-row fragment repair left text in the composer: $(cat "$composer")"
+  done
+
+  for held in "$doorbell"$'\n' "$doorbell  "$'\n'; do
+    : > "$log"; printf '%s' "$held" > "$composer"
+    rc=0; ring || rc=$?
+    [ "$rc" = 0 ] || fail "our doorbell plus trailing whitespace should be submitted, got rc $rc"
+    if [ "$(grep -c '^SUBMIT: ' "$log" || true)" != 1 ] || grep -q '^CLEAR$' "$log"; then
+      fail "our doorbell plus trailing whitespace should be submitted once, not cleared:"$'\n'"$(cat "$log")"
+    fi
+    [ ! -s "$composer" ] || fail "our doorbell plus trailing whitespace was left in the composer"
+  done
+
+  for held in ': Firstmate' "$(printf '%s' "$doorbell" | fold -w 60 | head -n 1) and my note" \
+    'please wait, writing tests'; do
+    : > "$log"; printf '%s' "$held" > "$composer"
+    rc=0; ring || rc=$?
+    [ "$rc" = 1 ] || fail "text that is not purely our doorbell's lead should skip the ring, got rc $rc for: $held"
+    [ ! -s "$log" ] || fail "text that is not ours was touched:"$'\n'"$(cat "$log")"
+    [ "$(cat "$composer")" = "$held" ] || fail "text that is not ours was changed: $(cat "$composer")"
+  done
+  pass "inbox: the ring clears and re-rings a leftover fragment of its own doorbell, submits it with trailing whitespace, and leaves other text alone"
+}
+
+# The doorbell-ownership classifier the ring and its repair share.
+test_doorbell_match_classes() {
+  local state rec doorbell got held want
+  state="$TMP_ROOT/match/state"; mkdir -p "$state"
+  rec=$(inbox_lib "$state" fm_task_inbox_write "$state" t1 "x")
+  doorbell=$(inbox_lib "$state" fm_task_inbox_doorbell_line "$rec")
+  while IFS='|' read -r want held; do
+    held=${held//@DOORBELL@/$doorbell}
+    held=${held//@HEAD@/${doorbell:0:70}}
+    got=$(inbox_lib "$state" fm_task_inbox_doorbell_match "$doorbell" "$held")
+    [ "$got" = "$want" ] || fail "doorbell match for [$held]: want $want, got $got"
+  done <<'CASES'
+exact|@DOORBELL@
+exact|  @DOORBELL@   
+fragment|@HEAD@
+fragment|: Firstmate instruction waiting:
+other|: Firstmate instruction
+other|
+other|@DOORBELL@ and more
+other|@HEAD@ mine
+other|please wait, writing tests
+CASES
+  got=$(inbox_lib "$state" fm_task_inbox_doorbell_match "$doorbell" "$(printf '%s' "$doorbell" | fold -w 37)")
+  [ "$got" = exact ] || fail "a wrapped copy of the doorbell should match exactly, got $got"
+  pass "inbox: the doorbell match tells our exact line and its leading fragments from any other text"
 }
 
 test_idempotent_write_dedups_exact_body() {
@@ -490,8 +581,10 @@ test_handled_mv_dedups_by_sequence() {
 test_concurrent_writers_never_clobber() {
   local state i pids=() count
   state="$TMP_ROOT/race/state"; mkdir -p "$state"
+  # Serialization is under test, not the lock timeout: on a heavily loaded host
+  # six writers can queue past the default 5s wait.
   for i in 1 2 3 4 5 6; do
-    inbox_lib "$state" fm_task_inbox_write "$state" t1 "steer number $i" >/dev/null &
+    FM_TASK_INBOX_LOCK_WAIT_SECS=60 inbox_lib "$state" fm_task_inbox_write "$state" t1 "steer number $i" >/dev/null &
     pids+=($!)
   done
   for i in "${pids[@]}"; do
@@ -1133,6 +1226,67 @@ test_watcher_escalates_once_after_budget() {
   pass "watcher: a spent ring budget emits exactly one ordinary stale wake for recovery"
 }
 
+# The ladder replayed through the production watcher against a Claude-style
+# composer: our own stuck doorbell is delivered on the first due attempt with
+# no wake, while a foreign draft is never touched and escalates one grace
+# after its first skipped attempt, never sooner, with its exact text quoted in
+# the single escalation rather than waiting out the attempt budget.
+composer_steer_check() {  # <case-dir>
+  PATH="$1/fakebin:$PATH" FM_STATE_OVERRIDE="$1/state" FM_SEND_LOG="$1/send.log" \
+    FM_FAKE_COMPOSER="$1/composer" FM_FAKE_DROP_ENTERS="$1/drops" \
+    FM_TASK_INBOX_GRACE_SECS="${CHECK_GRACE:-0}" FM_TASK_INBOX_RING_MAX=2 \
+    bash -c '. "$1" && inbox_steer_check sess:fm-t1 t1' _ "$WATCH" >> "$1/check.out" 2>&1
+}
+
+test_watcher_ladder_repairs_own_doorbell_and_quotes_foreign_text() {
+  local dir state rec doorbell i
+  dir="$TMP_ROOT/ladder-composer-own"
+  state="$dir/state"
+  mkdir -p "$state"
+  make_composer_stub "$dir"
+  make_fake_crew_state "$dir/fakebin" >/dev/null
+  fm_write_meta "$state/t1.meta" "window=sess:fm-t1" "kind=ship" "harness=claude"
+  rec=$(inbox_lib "$state" fm_task_inbox_write "$state" t1 "please continue")
+  age_path "$rec"
+  doorbell=$(inbox_lib "$state" fm_task_inbox_doorbell_line "$rec")
+  : > "$dir/send.log"
+  printf '%s' "$doorbell" | fold -w 60 | head -n 2 | tr -d '\n' > "$dir/composer"
+  composer_steer_check "$dir"
+  grep -qxF "SUBMIT: $doorbell" "$dir/send.log" \
+    || fail "the watcher's first due attempt did not deliver our stuck doorbell:"$'\n'"$(cat "$dir/send.log")"
+  [ "$(cut -f2 "$state/t1.inbox/.ring-state")" = 1 ] \
+    || fail "the repaired ring should count as one delivery attempt: $(cat "$state/t1.inbox/.ring-state")"
+  [ ! -s "$state/.wake-queue" ] || fail "delivering our own stuck doorbell woke firstmate:"$'\n'"$(cat "$state/.wake-queue")"
+
+  dir="$TMP_ROOT/ladder-composer-foreign"
+  state="$dir/state"
+  mkdir -p "$state"
+  make_composer_stub "$dir"
+  make_fake_crew_state "$dir/fakebin" >/dev/null
+  fm_write_meta "$state/t1.meta" "window=sess:fm-t1" "kind=ship" "harness=claude"
+  rec=$(inbox_lib "$state" fm_task_inbox_write "$state" t1 "please continue")
+  age_path "$rec"
+  : > "$dir/send.log"
+  printf 'please wait, writing tests' > "$dir/composer"
+  CHECK_GRACE=90 composer_steer_check "$dir"
+  [ "$(cut -f2,4 "$state/t1.inbox/.ring-state")" = "1"$'\t'"skipped" ] \
+    || fail "the skipped attempt was not recorded as skipped: $(cat "$state/t1.inbox/.ring-state" 2>/dev/null)"
+  CHECK_GRACE=90 composer_steer_check "$dir"
+  [ ! -s "$state/.wake-queue" ] || fail "the skipped attempt escalated before one grace elapsed"
+  printf '%s\t1\t%s\tskipped\n' "${rec##*/}" "$(( $(date +%s) - 91 ))" > "$state/t1.inbox/.ring-state"
+  CHECK_GRACE=90 composer_steer_check "$dir"
+  grep -qF 'after 1 doorbell delivery attempts' "$state/.wake-queue" \
+    || fail "one grace after the skipped attempt did not escalate:"$'\n'"$(cat "$state/.wake-queue" 2>/dev/null)"
+  CHECK_GRACE=90 composer_steer_check "$dir"
+  [ ! -s "$dir/send.log" ] || fail "the foreign draft was touched:"$'\n'"$(cat "$dir/send.log")"
+  [ "$(cat "$dir/composer")" = 'please wait, writing tests' ] || fail "the foreign draft was changed: $(cat "$dir/composer")"
+  [ "$(grep -c 'unread firstmate instruction' "$state/.wake-queue")" = 1 ] \
+    || fail "the spent budget should escalate exactly once:"$'\n'"$(cat "$state/.wake-queue" 2>/dev/null)"
+  grep -qF 'still holds unsent text: "please wait, writing tests"' "$state/.wake-queue" \
+    || fail "the escalation should quote the unsent text:"$'\n'"$(cat "$state/.wake-queue")"
+  pass "watcher: the ladder delivers our own stuck doorbell in one attempt and escalates a protected foreign draft one grace after its skipped attempt, quoting it"
+}
+
 test_watcher_dead_pane_escalates_once_without_ringing() {
   local dir state out log pid rec
   dir=$(setup_watch_case dead-pane)
@@ -1247,6 +1401,8 @@ test_doorbell_is_a_shell_noop
 test_doorbell_rejects_terminal_controls
 test_ring_skips_dead_agent
 test_ring_submits_its_own_stuck_doorbell
+test_ring_repairs_its_own_doorbell_fragment
+test_doorbell_match_classes
 test_idempotent_write_dedups_exact_body
 test_idempotent_write_follows_concurrent_ack
 test_handled_mv_dedups_by_sequence
@@ -1287,6 +1443,7 @@ test_watcher_pays_fire_and_forget_retry_once
 test_watcher_holds_retry_while_the_worker_decides
 test_watcher_retry_keeps_a_newer_mark
 test_watcher_escalates_once_after_budget
+test_watcher_ladder_repairs_own_doorbell_and_quotes_foreign_text
 test_watcher_dead_pane_escalates_once_without_ringing
 test_watcher_dead_pane_ignores_stale_busy_state
 test_sweep_rings_only_the_window_owner
