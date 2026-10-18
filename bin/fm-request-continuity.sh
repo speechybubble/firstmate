@@ -191,7 +191,7 @@ is_operational() {  # <text> <inbox> <steering>
 }
 
 # Compute the unresolved state into two globals: PENDING holds one JSON line per
-# unresolved request, {"id":..,"text":..,"replyStaged":bool,"attempted":bool},
+# unresolved request, {"id":..,"text":..,"replyStaged":bool,"answered":bool,"attempted":bool},
 # and COMMIT_THROUGH the highest staged outcome acknowledgement that a later
 # reply has delivered and that is not committed yet (0 for none). Call it
 # directly, never in a command substitution, so both survive.
