@@ -2972,6 +2972,7 @@ test_live_paused_until_controls_recheck_time() {
 # drives it elsewhere with FM_TEST_PANE_COMMAND (the pane's foreground command)
 # and FM_TEST_TMUX_WINDOWS (the session inventory the recorded window must appear
 # in), which is how the dead-endpoint cases below reach `dead` and `missing`.
+# FM_TEST_EXIT_POLLS widens the exit budget for a case whose cycles do more work.
 wedge_threshold_round() {  # <state> <fakebin> <out> <capture> <window> <verdict> <exit|absorb>
   local state=$1 fakebin=$2 out=$3 capture=$4 window=$5 verdict=$6 mode=$7 pid cycles=0
   PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$capture" \
@@ -2985,7 +2986,7 @@ wedge_threshold_round() {  # <state> <fakebin> <out> <capture> <window> <verdict
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" >> "$out" &
   pid=$!
   if [ "$mode" = exit ]; then
-    wait_for_exit "$pid" 100 || { reap "$pid"; return 1; }
+    wait_for_exit "$pid" "${FM_TEST_EXIT_POLLS:-100}" || { reap "$pid"; return 1; }
     return 0
   fi
   while [ "$cycles" -lt 3 ]; do
@@ -3184,10 +3185,25 @@ register_dead_task_owned_source() {  # <case-dir> <source-id> <owner-task>
     > "$1/state/procevent/$2.source"
 }
 
+# Firstmate was already told this registration's launch failed: the episode
+# marker reconcile writes when it announces one, so a later failed launch of the
+# same registration queues no second `failed to start` wake. Without it that wake
+# races the wedge alarm in one cycle and the one-shot watcher exits on whichever
+# lands first.
+announce_dead_source_launch_failure() {  # <case-dir> <source-id>
+  local identity
+  identity=$(. "$ROOT/bin/fm-pr-lib.sh" && fm_pr_file_identity "$1/state/procevent/$2.source") || return 1
+  printf '%s 0\n' "${identity//:/-}" > "$1/state/procevent/.$2.launch-failed"
+}
+
 # One wedge_threshold_round against a case whose runner lives in its own claim root.
+# Every cycle here also runs the watcher's process-event reconcile, whose launch of
+# a source nothing holds can spend its whole confirm window (3s by default), and
+# the wedge alarm needs two cycles; on a loaded runner that outran the default
+# exit budget, so these rounds get three times as long.
 board_threshold_round() {  # <case-dir> <verdict> <exit|absorb>
   local dir=$1
-  FM_PROCEVENT_CLAIM_ROOT="$(cd "$dir" && pwd -P)/claims" wedge_threshold_round \
+  FM_TEST_EXIT_POLLS=300 FM_PROCEVENT_CLAIM_ROOT="$(cd "$dir" && pwd -P)/claims" wedge_threshold_round \
     "$dir/state" "$dir/fakebin" "$dir/watch.out" "$dir/pane.txt" test:fm-wedge "$2" "$3"
 }
 
@@ -3313,6 +3329,8 @@ test_wedge_threshold_defers_to_a_task_owned_board() {
   dir=$(wedge_threshold_fixture board-dead 'working: review board armed' 0)
   state="$dir/state"; out="$dir/watch.out"
   register_dead_task_owned_source "$dir" wedge-board wedge
+  announce_dead_source_launch_failure "$dir" wedge-board \
+    || fail "could not record the dead board's announced launch failure"
   board_threshold_round "$dir" "$working" exit \
     || { retire_task_owned_source "$dir" wedge-board
          fail "a lane whose board has no live runner stopped escalating: $(cat "$out")"; }
