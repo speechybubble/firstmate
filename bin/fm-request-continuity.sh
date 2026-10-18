@@ -275,8 +275,8 @@ pending_requests() {  # <session> <transcript>
   PENDING=$(printf '%s' "$result" | jq -c '.requests[]')
 }
 
-describe() {  # <requests-jsonl>
-  local requests=$1 count
+describe() {  # <requests-jsonl> [stop]
+  local requests=$1 event=${2:-} count close
   count=$(printf '%s\n' "$requests" | grep -c . || true)
   printf 'Unreconciled native captain input (not a task list or permission to execute):\n'
   printf '%s\n' "$requests" | head -n "$PREVIEW_LIMIT" | jq -r '
@@ -294,7 +294,10 @@ TEXT
     printf '%s\n' 'Questions and work fully handled in this reply need no task: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then give the substantive answer.'
   fi
   if printf '%s\n' "$requests" | jq -e 'select(.answered)' >/dev/null 2>&1; then
-    printf '%s\n' 'An ALREADY ANSWERED message whose reply fully handled it needs no task and no new answer: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then end the turn with no further text, because the captain already has that reply.'
+    close='; the earlier reply stands and needs no repeat.'
+    [ "$event" = stop ] && close=', then end the turn with no further text, because the captain already has that reply.'
+    printf '%s\n' "An ALREADY ANSWERED message whose reply fully handled it needs no task and no new answer: run bin/fm-request-continuity.sh dispose <id> reply --summary \"<handling>\" once$close"
+    printf '%s\n' 'If that reply did not actually address an ALREADY ANSWERED message, answer it now and then dispose it.'
   fi
   printf '%s\n' 'A disposition does not establish task execution, completion or semantic correctness.'
 }
@@ -341,7 +344,7 @@ hook() {
       # Persist the attempt before asking, so a lost or ignored follow-up can
       # never become an endless loop; the input stays visible to later turns.
       append_receipt "$SESSION" "{\"type\":\"recovery\",\"ids\":$ids}" || exit 0
-      reason=$(describe "$requests")
+      reason=$(describe "$requests" stop)
       jq -n -c --arg reason "$reason" '{decision: "block", reason: $reason}'
       ;;
     context)
@@ -412,7 +415,7 @@ cmd_dispose() {
     --argjson at "$(transcript_lines "$TRANSCRIPT")" --args '{type: "disposition", id: $id, disposition: $d, tasks: $ARGS.positional, summary: $s, at: $at}' \
     ${tasks[@]+"${tasks[@]}"})" || die "cannot persist the disposition"
   if [ "$disposition" = reply ] && printf '%s\n' "$requests" | jq -e --arg id "$id" 'select(.id == $id and .answered)' >/dev/null 2>&1; then
-    printf 'reply recorded for %s; the reply already given after it stands, so end the turn now with no further text\n' "$id"
+    printf 'reply recorded for %s; the reply already given after it stands and needs no repeat\n' "$id"
   elif [ "$disposition" = reply ]; then
     printf 'reply staged for %s; it counts only once a normal nonempty reply follows\n' "$id"
   else

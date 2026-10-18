@@ -22,6 +22,8 @@
 #      asks only for the disposition, which completes without another reply;
 #      input that no reply followed keeps the original reply-then-answer
 #      prompt and its provisional stage.
+#      An answered label keeps an answer-now path for a reply that missed the
+#      message, and only the stop block says to end the turn.
 #   5. Compaction keeps unresolved input restorable from the full transcript;
 #      a slash skill invocation is captain input, while a command Claude Code
 #      answers locally, its output, and a shell-mode echo are not.
@@ -311,6 +313,35 @@ test_reply_already_given_needs_no_second_answer() {
   pass "a reply already given makes the block ask only for the disposition, which completes at once, while input no reply followed keeps the reply-then-answer prompt"
 }
 
+# A mid-turn question the final reply ignored is still labelled answered, so
+# the block keeps the answer-now path, and only the stop block says to end the
+# turn; the next prompt's context and the disposition confirmation do not.
+test_ignored_mid_turn_question_keeps_answer_path() {
+  local home="$TMP_ROOT/ignored" out
+  make_home "$home"
+  : > "$home/transcript.jsonl"
+  stop_hook "$home" >/dev/null
+  say "$home" u-a "Summarise the release notes."
+  tool_turn "$home"
+  say "$home" u-b "What's the ETA?"
+  reply "$home" "The release notes cover the new sync engine."
+  out=$(stop_hook "$home" | jq -r '.reason')
+  assert_contains "$out" "[u-b] ALREADY ANSWERED" "the ignored mid-turn question carries the answered label"
+  assert_contains "$out" "If that reply did not actually address an ALREADY ANSWERED message, answer it now and then dispose it." \
+    "the block must keep the answer-now path for an answered-labelled input"
+  assert_contains "$out" "end the turn with no further text" "the stop block says the given reply stands"
+  say "$home" u-c "Now tag the release."
+  out=$(context_hook "$home" UserPromptSubmit | jq -r '.hookSpecificOutput.additionalContext')
+  assert_contains "$out" "[u-a] ALREADY ANSWERED" "the next prompt's context still lists the answered input"
+  assert_contains "$out" "the earlier reply stands and needs no repeat." "the context says the earlier reply stands"
+  assert_contains "$out" "answer it now and then dispose it." "the context keeps the answer-now path"
+  case "$out" in *"end the turn"*) fail "the context for a new prompt told Firstmate to end the turn: $out" ;; esac
+  out=$(as_owner "$home" dispose u-a reply --summary "summarised the notes")
+  assert_contains "$out" "needs no repeat" "the disposition confirms the given reply stands"
+  case "$out" in *"end the turn"*) fail "the disposition confirmation told Firstmate to end the turn: $out" ;; esac
+  pass "an ignored mid-turn question keeps the answer-now path, and only the stop block says to end the turn"
+}
+
 test_compaction_keeps_input_restorable() {
   local home="$TMP_ROOT/compaction" out
   make_home "$home"
@@ -388,6 +419,7 @@ test_omission_recovers_once_and_stays_visible
 test_steering_doorbell_is_not_captain_input
 test_dispositions_are_verified_and_reply_is_provisional
 test_reply_already_given_needs_no_second_answer
+test_ignored_mid_turn_question_keeps_answer_path
 test_compaction_keeps_input_restorable
 test_outcome_ack_commits_only_after_reply
 printf 'all fm-request-continuity tests passed\n'
