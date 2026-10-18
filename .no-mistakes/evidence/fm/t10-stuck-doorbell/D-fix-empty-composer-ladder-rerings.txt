@@ -1,0 +1,15 @@
+== FIX: empty composer, ordinary ladder (grace 90s, RING_MAX 3)
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  Haiku 5.5
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+-- check 1
+rc=0
+ring-state: 001.msg 1 1792294481
+wake-queue: []
+❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 't1.inbox' steering inbox,
+-- check 2 (one grace later)
+rc=0
+ring-state: 001.msg 2 1792294504
+wake-queue: []
+❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 't1.inbox' steering inbox,

@@ -1,0 +1,27 @@
+== FIX adversarial: composer holds the doorbell's own leading text followed by a human note (>240 chars)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your -- hold on, captain asked
+  me to note this: the migration in step 4 must run before the schema check, and the rollback path
+  still needs a dry run against staging before anyone merges. Also double-check the fixture
+  timestamps because they drift across timezones.
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  Haiku 5.5
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+-- check 1
+rc=0
+ring-state: 001.msg 1 1792294459 skipped
+wake-queue: []
+-- check 2 (one grace later)
+rc=0
+wake-queue:
+1792294462	2	stale	sess:fm-t1	stale: sess:fm-t1 task=t1 (unread firstmate instruction: /tmp/fm-lab.D3Ktfw/state/t1.inbox/001.msg still unhandled after 1 doorbell delivery attempts with an idle pane; the input box still holds unsent text: ": Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your -- hold on, captain asked me to note this: the migration in step 4 must run before the schema check, and the rollback path still needs a dry run against staging before any..."; inspect the worker)
+quoted length: 243
+pane after:
+────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your -- hold on, captain asked
+  me to note this: the migration in step 4 must run before the schema check, and the rollback path
+  still needs a dry run against staging before anyone merges. Also double-check the fixture
+  timestamps because they drift across timezones.
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  Haiku 5.5
+  ⏵⏵ bypass permissions on (shift+tab to cycle)

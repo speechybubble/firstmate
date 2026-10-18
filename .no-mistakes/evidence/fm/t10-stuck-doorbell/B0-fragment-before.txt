@@ -1,0 +1,8 @@
+
+
+                                                                      Ctrl+Y to paste deleted text
+────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 't1.inbox' steering inbox,
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  Haiku 5.5
+  ⏵⏵ bypass permissions on (shift+tab to cycle)

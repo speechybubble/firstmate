@@ -50,3 +50,7 @@ ok - watcher: a positively dead pane is never typed into and surfaces exactly on
 ok - watcher: dead-pane recovery overrides stale busy state
 ok - watcher inbox pass: rings a due task only through its verified window, never a shared or unrecorded one
 ok - watcher inbox pass: busy panes and pending composers still defer the doorbell
+
+real	5m13.412s
+user	1m45.558s
+sys	2m8.484s

@@ -1,0 +1,25 @@
+== FIX 7c9d2492: same 1-row doorbell fragment in the real Claude composer
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 't1.inbox' steering inbox,
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  Haiku 5.5
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+rc=0
+ring-state: 001.msg	1	1792294359
+wake-queue: 
+pane after:
+ ▐▛███▛█   Claude Code v2.1.302
+▝▜██████▀  Haiku 5.5 · Claude Max
+ ▝▝   ▝▝   /tmp/fm-lab.D3Ktfw/work
+❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 't1.inbox' steering inbox,
+  read and act on each in numeric order, then mv each into its handled/.
+● Checking inbox env var and listing pending messages
+  ⎿  $ echo "FM_TASK_INBOX=$FM_TASK_INBOX"; ls -la "$FM_TASK_INBOX"/ 2>&1; ls -la
+     "$FM_TASK_INBOX"/*.msg 2>&1 | sort -V
+✽ Incubating… (4s · ↓ 266 tokens · thinking)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  Haiku 5.5 | ctx: 3% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)

@@ -1,0 +1,29 @@
+== FIX: a human draft sits in the real Claude composer (grace 90s, RING_MAX 3)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ please wait, I am still writing the regression tests for the parser
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  Haiku 5.5
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+-- check 1 (first due attempt)
+rc=0
+ring-state: 001.msg 1 1792294436 skipped
+wake-queue: []
+-- check 2 (next poll, within grace)
+rc=0
+ring-state: 001.msg 1 1792294436 skipped
+wake-queue: []
+-- backdate the skipped attempt by 91s (one grace elapsed)
+-- check 3 (one grace later)
+stale: sess:fm-t1 task=t1 (unread firstmate instruction: /tmp/fm-lab.D3Ktfw/state/t1.inbox/001.msg still unhandled after 1 doorbell delivery attempts with an idle pane; the input box still holds unsent text: "please wait, I am still writing the regression tests for the parser"; inspect the worker)
+rc=0
+wake-queue:
+1792294440	1	stale	sess:fm-t1	stale: sess:fm-t1 task=t1 (unread firstmate instruction: /tmp/fm-lab.D3Ktfw/state/t1.inbox/001.msg still unhandled after 1 doorbell delivery attempts with an idle pane; the input box still holds unsent text: "please wait, I am still writing the regression tests for the parser"; inspect the worker)
+-- check 4 (later poll)
+rc=0
+escalations in wake-queue: 1
+pane after all checks:
+────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ please wait, I am still writing the regression tests for the parser
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  Haiku 5.5
+  ⏵⏵ bypass permissions on (shift+tab to cycle)

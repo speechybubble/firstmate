@@ -1,0 +1,12 @@
+== BASE f8efdd7f: inbox_steer_check against a real Claude composer holding a 1-row doorbell fragment
+rc=0
+ring-state: 001.msg	1	1792294344
+wake-queue: 
+pane after:
+
+  tmux detected · scroll with PgUp/PgDn · or add 'set -g mouse on' to ~/.tmux.conf for wheel scro…
+────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 't1.inbox' steering inbox,
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  Haiku 5.5
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
