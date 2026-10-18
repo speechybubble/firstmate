@@ -1,0 +1,11 @@
+--- live-v3 brief with delegation: line removed
+## Confirmed intent
+List the files in the demo repo.
+captain confirmed: yes do that
+end state: the captain knows what the demo repo holds, so they can decide what to build next
+
+$ fm-promote.sh live-v3 --mode direct-PR --yolo off
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+warn: no registry at /tmp/fm-lab.RlPn0F/data/projects.md; defaulting demo to no-mistakes off
+error: /tmp/fm-lab.RlPn0F/data/live-v3/brief.md ## Confirmed intent has no delegation: line; the confirm-intent-before-real-work rule requires that subsection to carry either the reading of the captain's intent that the captain confirmed plus exactly one line `captain confirmed: <the captain's confirming words, verbatim>`, or exactly one line `not captain-originated - <reason>` for work that does not come from a captain request, then one line `end state: <what is true when this is done and why the captain wants it>` and one line `delegation: built with defaults | asked first | always asked`, before promotion
+kind=scout

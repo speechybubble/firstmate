@@ -1,0 +1,71 @@
+### case: legacy reading + captain confirmed only (ship, task-slots v3)
+--- ## Confirmed intent body:
+Check the fixture.
+captain confirmed: yes go
+
+--- $ fm-spawn.sh refuse-1 /tmp/fm-lab.RlPn0F/projects/demo claude --mode no-mistakes --yolo off
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.RlPn0F
+error: /tmp/fm-lab.RlPn0F/data/refuse-1/brief.md ## Confirmed intent has no end state: line; the confirm-intent-before-real-work rule requires that subsection to carry either the reading of the captain's intent that the captain confirmed plus exactly one line 
+exit=1
+(no task metadata written)
+
+### case: legacy exemption only (scout, task-slots v3)
+--- ## Confirmed intent body:
+not captain-originated - lab maintenance
+
+--- $ fm-spawn.sh refuse-2 /tmp/fm-lab.RlPn0F/projects/demo claude --scout
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.RlPn0F
+error: /tmp/fm-lab.RlPn0F/data/refuse-2/brief.md ## Confirmed intent has no end state: line; the confirm-intent-before-real-work rule requires that subsection to carry either the reading of the captain's intent that the captain confirmed plus exactly one line 
+exit=1
+(no task metadata written)
+
+### case: missing delegation (ship, task-slots v3)
+--- ## Confirmed intent body:
+Check the fixture.
+captain confirmed: yes
+end state: the fixture is checked so the gate is trusted
+
+--- $ fm-spawn.sh refuse-3 /tmp/fm-lab.RlPn0F/projects/demo claude --mode no-mistakes --yolo off
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.RlPn0F
+error: /tmp/fm-lab.RlPn0F/data/refuse-3/brief.md ## Confirmed intent has no delegation: line; the confirm-intent-before-real-work rule requires that subsection to carry either the reading of the captain's intent that the captain confirmed plus exactly one line
+exit=1
+(no task metadata written)
+
+### case: empty end state (scout, task-slots v3)
+--- ## Confirmed intent body:
+not captain-originated - lab
+end state:
+delegation: asked first
+
+--- $ fm-spawn.sh refuse-4 /tmp/fm-lab.RlPn0F/projects/demo claude --scout
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.RlPn0F
+error: /tmp/fm-lab.RlPn0F/data/refuse-4/brief.md ## Confirmed intent has an empty end state: line; the confirm-intent-before-real-work rule requires that subsection to carry either the reading of the captain's intent that the captain confirmed plus exactly one
+exit=1
+(no task metadata written)
+
+### case: unknown delegation level (ship, task-slots v3)
+--- ## Confirmed intent body:
+Check the fixture.
+captain confirmed: yes
+end state: checked, because trust
+delegation: go now
+
+--- $ fm-spawn.sh refuse-5 /tmp/fm-lab.RlPn0F/projects/demo claude --mode no-mistakes --yolo off
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.RlPn0F
+error: /tmp/fm-lab.RlPn0F/data/refuse-5/brief.md ## Confirmed intent has a delegation: line naming no level (built with defaults|asked first|always asked); the confirm-intent-before-real-work rule requires that subsection to carry either the reading of the cap
+exit=1
+(no task metadata written)
+
+### case: two delegation lines (scout, task-slots v3)
+--- ## Confirmed intent body:
+not captain-originated - lab
+end state: checked
+delegation: asked first
+delegation: always asked
+
+--- $ fm-spawn.sh refuse-6 /tmp/fm-lab.RlPn0F/projects/demo claude --scout
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.RlPn0F
+error: /tmp/fm-lab.RlPn0F/data/refuse-6/brief.md ## Confirmed intent has more than one delegation: line; the confirm-intent-before-real-work rule requires that subsection to carry either the reading of the captain's intent that the captain confirmed plus exact
+exit=1
+(no task metadata written)
+

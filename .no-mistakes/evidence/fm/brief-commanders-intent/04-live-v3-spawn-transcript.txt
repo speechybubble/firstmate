@@ -1,0 +1,35 @@
+$ fm-spawn.sh live-v3 <demo> claude --scout   (task-slots v3, complete Confirmed intent)
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.RlPn0F
+spawned live-v3 harness=claude kind=scout window=primary:fm-live-v3 worktree=/tmp/fm-lab.RlPn0F/treehouse/.treehouse/demo-8b2753/1/demo
+
+--- worker pane after launch
+ ▝▝   ▝▝   /tmp/fm-lab.RlPn0F/treehouse/.treehouse/demo-8b2753/1/demo
+❯ : Firstmate operational input waiting: read '/tmp/fm-lab.RlPn0F/state/operational-inbox/1792299373-08ac92b9d382d41b.msg' and handle its contents as Firstmate operational input.
+● I'll read the operational inbox message first.
+  Read 1 file
+● This is a scout task: inventory the demo repo and write a standalone report. I'll check the steering inbox, list the tree, and read the completion-gate skill in parallel.
+  Read 1 file, ran 2 shell commands
+● The tree looks nearly empty. I'll confirm the init commit's contents, inspect the one untracked file, and locate the captain-hold tool for the completion gate.
+  Ran 2 shell commands
+● The repo is empty aside from a single commit and an ignored hook config injected for this session—nothing requiring a captain decision. I'll write the report and run the captain-hold completion gate with no open calls.
+  · summary
+  Ran 2 shell commands
+● The report is written and the completion gate passed. Final step: confirm the inbox is still empty and append the done status line.
+  Ran 1 shell command
+● Task complete. The demo repo is empty.
+  What I found
+  - One commit, "init" by "lab", with zero tracked files. No remote, only a local main branch.
+  - The only file on disk is an ignored Claude Code hook config that Firstmate injected for this session's busy/idle telemetry. It is not project content.
+  - I checked the alternative that files live on another branch or upstream. There is no other branch and no remote, so that is ruled out.
+  What I did
+  - Wrote the standalone report with commands, output and reasoning to /tmp/fm-lab.RlPn0F/data/live-v3/report.md.
+  - Ran the captain-hold completion gate with no open calls, since nothing here needs a captain decision. It passed.
+  - Appended the done status line. The steering inbox was empty throughout.
+  Recommendation in the report: treat the repo as a blank slate. The first real task should add a README stating the purpose, a gitignore that explicitly covers the local Claude settings file, and a scaffold once the
+  captain picks a direction. Nothing from this scout needs to ship.
+✻ Worked for 1m 9s · done 2:57 PM
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 5% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)

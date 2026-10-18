@@ -1,0 +1,9 @@
+$ fm-brief.sh live-ship demo --mode no-mistakes
+scaffolded: /tmp/fm-lab.RlPn0F/data/live-ship/brief.md (ship, mode=no-mistakes; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})
+fill {CONFIRMED_INTENT} with the confirmed reading plus one `captain confirmed: <words>` line, or one `not captain-originated - <reason>` line, then one `end state: <what is true when done and why>` line and one `delegation: built with defaults | asked first | always asked` line
+exit=0
+
+$ fm-brief.sh live-scout demo --scout
+scaffolded: /tmp/fm-lab.RlPn0F/data/live-scout/brief.md (scout; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})
+fill {CONFIRMED_INTENT} with the confirmed reading plus one `captain confirmed: <words>` line, or one `not captain-originated - <reason>` line, then one `end state: <what is true when done and why>` line and one `delegation: built with defaults | asked first | always asked` line
+exit=0
