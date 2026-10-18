@@ -26,7 +26,7 @@ for mode in no-mistakes direct-PR local-only; do
   grep -Fx '{EXPERT_PROMPT}' "$brief"
   grep -Fx '## Confirmed intent' "$brief"
   grep -Fx '{CONFIRMED_INTENT}' "$brief"
-  grep -Fx '<!-- fm-brief: task-slots v2 -->' "$brief"
+  grep -Fx '<!-- fm-brief: task-slots v3 -->' "$brief"
   grep -F "$FM_HOME/state/ship-$mode.status" "$brief"
   grep -F "$FM_HOME/state/ship-$mode.inbox" "$brief"
   grep -F "$BRIEF_REPO/.agents/skills/task-execution/SKILL.md" "$brief"

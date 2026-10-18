@@ -12,7 +12,9 @@
 # prompt Firstmate wrote for this work, or one `routine: skipped - <reason>`
 # line. Between them `## Confirmed intent` holds `{CONFIRMED_INTENT}`: the
 # reading of the ask the captain confirmed plus one `captain confirmed: <words>`
-# line, or one `not captain-originated - <reason>` line. `# Task` opens with the
+# line, or one `not captain-originated - <reason>` line, then one
+# `end state: <what is true when done and why>` line and one
+# `delegation: built with defaults | asked first | always asked` line. `# Task` opens with the
 # Task slot version marker. bin/fm-dod-lib.sh owns that marker, the no-mistakes
 # `--intent` contract those subsections feed, and the accepted slot fillings;
 # bin/fm-spawn.sh refuses leftover placeholders, an unaccepted slot, and a
@@ -600,6 +602,10 @@ $FM_BRIEF_TASK_SLOTS_MARKER
 {EXPERT_PROMPT}
 EOF
 TASK_SECTION=${TASK_SECTION%$'\n'}
+# Printed after every ship and scout scaffold so the slot's required lines are
+# in view when Firstmate fills it; bin/fm-dod-lib.sh owns their acceptance.
+# shellcheck disable=SC2016 # Backticks are literal Markdown, not expansions.
+CONFIRMED_INTENT_GUIDE='fill {CONFIRMED_INTENT} with the confirmed reading plus one `captain confirmed: <words>` line, or one `not captain-originated - <reason>` line, then one `end state: <what is true when done and why>` line and one `delegation: built with defaults | asked first | always asked` line'
 
 # One shared string keeps the ship and scout infrastructure rule identical.
 # Rule 2 governs file edits, so it does not prohibit pool administration.
@@ -721,6 +727,7 @@ If your findings reveal work that should ship (e.g. you reproduced a bug and the
 EOF
 append_brief_include
 echo "scaffolded: $BRIEF (scout; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
+echo "$CONFIRMED_INTENT_GUIDE"
 exit 0
 fi
 
@@ -814,3 +821,4 @@ elif [ "$FORGE" = gerrit ]; then
 else
   echo "scaffolded: $BRIEF (ship, mode=$MODE forge=$FORGE; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
 fi
+echo "$CONFIRMED_INTENT_GUIDE"

@@ -412,6 +412,38 @@ test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint() {
   pass "fm-control relaunch: a same-harness relaunch replaces the agent in the same endpoint and worktree"
 }
 
+# A task launched from a task-slots v2 brief, filled before `## Confirmed intent`
+# carried its `end state:` and `delegation:` lines, keeps relaunching on the
+# confirmed reading or exemption it already carries.
+test_relaunch_keeps_a_task_slots_v2_brief_launchable() {
+  local dir out rc id confirmed
+  for confirmed in $'Exercise relaunch behavior.\ncaptain confirmed: yes' 'not captain-originated - relaunch fixture'; do
+    id="rlv2-$RANDOM"
+    dir=$(new_case slotsv2 "$id")
+    add_ship_task "$dir" "$id" claude
+    cat > "$dir/home/data/$id/brief.md" <<EOF
+# Task
+<!-- fm-brief: task-slots v2 -->
+## Captain's intent
+Exercise relaunch behavior for $id.
+
+## Confirmed intent
+$confirmed
+
+## Firstmate spec
+Preserve the task while replacing its agent process.
+
+### Expert prompt
+routine: skipped - relaunch fixture
+EOF
+    out=$(run_control "$dir" "$id" relaunch --note "resume after the slot version bump"); rc=$?
+    expect_code 0 "$rc" "a task-slots v2 brief should relaunch"$'\n'"$out"
+    assert_contains "$out" "relaunched $id harness=claude from=claude" "the v2 relaunch should complete"
+    assert_not_contains "$out" "## Confirmed intent" "a v2 confirmed intent was refused or warned at relaunch"
+  done
+  pass "fm-control relaunch: a task-slots v2 brief filled before end state and delegation existed still relaunches"
+}
+
 test_relaunch_refuses_before_exit_when_the_composer_holds_pending_text() {
   local dir out rc
   dir=$(new_case pending-exit rl43)
@@ -1253,7 +1285,9 @@ test_promoted_scout_relaunch_receives_the_current_delivery_contract() {
     FM_HOME="$home" "$BRIEF" "$id" firstmate --scout >/dev/null \
       || fail "$mode: could not scaffold the scout brief"
     brief="$home/data/$id/brief.md"
-    sed 's/{TASK}/Fix the promotion relaunch contract./; s/{FIRSTMATE_SPEC}/Preserve the current delivery mode./; s/{EXPERT_PROMPT}/routine: skipped - relaunch fixture/; s/{CONFIRMED_INTENT}/not captain-originated - relaunch fixture/' \
+    sed 's/{TASK}/Fix the promotion relaunch contract./; s/{FIRSTMATE_SPEC}/Preserve the current delivery mode./; s/{EXPERT_PROMPT}/routine: skipped - relaunch fixture/; s/{CONFIRMED_INTENT}/not captain-originated - relaunch fixture\
+end state: relaunch fixture\
+delegation: built with defaults/' \
       "$brief" > "$brief.filled"
     mv "$brief.filled" "$brief"
     {
@@ -3261,6 +3295,7 @@ test_herdr_claude_relaunch_without_resume_session_stays_fresh() {
 }
 
 test_same_harness_relaunch_keeps_identity_and_reuses_the_endpoint
+test_relaunch_keeps_a_task_slots_v2_brief_launchable
 test_relaunch_refuses_before_exit_when_the_composer_holds_pending_text
 test_relaunch_refuses_before_exit_when_the_composer_state_is_unproven
 test_relaunch_from_linked_home_preserves_recorded_worktree

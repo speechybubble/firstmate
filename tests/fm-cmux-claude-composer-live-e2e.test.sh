@@ -63,7 +63,7 @@ brief.write_text(brief.read_text().replace("{TASK}", f'''Run a cmux communicatio
 Immediately append `working [at=<epoch>]: cmux composer probe ready` to `{status}`, substituting `<epoch>` as rule 4 instructs.
 Then append exactly `needs-decision [at=<epoch>] [key=probe-decision]: awaiting codeword` to that file and stop to wait for a firstmate message.
 When you receive a firstmate message containing `ALBATROSS`, append `done [at=<epoch>]: received ALBATROSS` to that status file and stop.
-Do not change project files or make a commit.''').replace("{FIRSTMATE_SPEC}", "Probe the cmux composer only.").replace("{EXPERT_PROMPT}", "routine: skipped - live communication probe").replace("{CONFIRMED_INTENT}", "not captain-originated - live communication probe"))
+Do not change project files or make a commit.''').replace("{FIRSTMATE_SPEC}", "Probe the cmux composer only.").replace("{EXPERT_PROMPT}", "routine: skipped - live communication probe").replace("{CONFIRMED_INTENT}", "not captain-originated - live communication probe\nend state: the composer probe runs\ndelegation: built with defaults"))
 PY
 
 FM_HOME="$LAB" "$ROOT/bin/fm-spawn.sh" "$TASK" "$LAB/projects/comms" --scout --harness claude --model haiku --backend cmux \
