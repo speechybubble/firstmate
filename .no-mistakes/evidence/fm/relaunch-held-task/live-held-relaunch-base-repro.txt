@@ -1,0 +1,10 @@
+## BASE scripts (45dd7cc7) against the same lab: held In-flight worker whose agent died
+$ fm-control.sh lab60f1f45b2481-worker relaunch --note 'back after the machine restart; the captain answer is pending'
+error: this home's backlog item lab60f1f45b2481-worker is not dispatchable in state in_flight yes no; refusing before creating its endpoint or local copy
+error: the replacement agent for lab60f1f45b2481-worker could not be launched on claude
+error: lab60f1f45b2481-worker's agent was stopped but the replacement did not launch; no agent is running, and its work plus the recorded progress note are preserved at /tmp/fmlab-held-new/treehouse/.treehouse/notes-1de5b6/1/notes
+rc=1
+  state: in_flight
+  held: yes
+  hold_kind: captain
+fm-lab60f1f45b2481-worker current=bash

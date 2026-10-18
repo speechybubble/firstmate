@@ -1,0 +1,28 @@
+$ bin/fm-afk-contract.sh enter --words "keep the fleet moving"
+  your words (verbatim):
+    keep the fleet moving
+rc=0
+## case 1: captain hold, worker dead, branch relaunch under away posture
+kill worker claude pid=1655768
+fm-lab60f1f45b2481-worker current=bash
+ state: in_flight  held: yes  hold_kind: captain 
+error: relaunch (fm-control) refused - task 'lab60f1f45b2481-worker' is held for the captain; leave it stopped for main
+rc=6
+ state: in_flight  held: yes  hold_kind: captain 
+fm-lab60f1f45b2481-worker current=bash
+## case 2: non-captain (parked) hold, branch relaunch under away posture
+  - Run `tasks-axi ready --include-held` to review paused work
+ state: in_flight  held: yes  hold_kind: parked 
+error: relaunch refused - the supervision branch under the away-posture record may relaunch only unheld, unblocked Queued or In-flight work; task lab60f1f45b2481-worker's backlog item is in state in_flight yes no
+error: the replacement agent for lab60f1f45b2481-worker could not be launched on claude
+error: lab60f1f45b2481-worker's agent was stopped but the replacement did not launch; no agent is running, and its work plus the recorded progress note are preserved at /tmp/fmlab-held-new/treehouse/.treehouse/notes-1de5b6/1/notes
+rc=1
+ state: in_flight  held: yes  hold_kind: parked 
+fm-lab60f1f45b2481-worker current=bash
+## case 3: unheld In-flight, branch relaunch under away posture
+  - Run `tasks-axi ready` to see dispatchable work
+ state: in_flight  held: no  hold_kind: "-" 
+relaunched lab60f1f45b2481-worker harness=claude from=claude model=sonnet effort=low backend=tmux endpoint=firstmate:fm-lab60f1f45b2481-worker worktree=/tmp/fmlab-held-new/treehouse/.treehouse/notes-1de5b6/1/notes
+rc=0
+ state: in_flight  held: no  hold_kind: "-" 
+fm-lab60f1f45b2481-worker current=claude

@@ -1,0 +1,8 @@
+ state: in_flight  held: yes  hold_kind: captain 
+$ bin/fm-spawn.sh lab60f1f45b2481-fresh projects/notes --mode local-only --yolo on --harness claude
+error: this home's backlog item lab60f1f45b2481-fresh is not dispatchable in state in_flight yes no; refusing before creating its endpoint or local copy
+rc=1
+meta present: no
+windows before: fm-lab60f1f45b2481-worker lab main 
+windows after:  fm-lab60f1f45b2481-worker lab main 
+ state: in_flight  held: yes  hold_kind: captain 
