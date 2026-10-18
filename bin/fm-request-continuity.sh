@@ -42,7 +42,8 @@
 # nonempty text; narration before a tool call is not a reply. A later captain
 # entry, or Claude's interruption marker, invalidates a staged reply or
 # acknowledgement; an assistant error entry or Firstmate's own input does the
-# same.
+# same. A request is answered once any reply follows it, and a `reply`
+# disposition for an answered request completes at once instead of staging.
 #
 # Subcommands (hooks read their payload on stdin and never fail the turn):
 #   hook stop           Stop: commit staged outcome acknowledgements followed by
@@ -55,7 +56,8 @@
 #   dispose <id> recorded <task-id>... --summary <text>
 #   dispose <id> reply --summary <text>
 #                       record a disposition; `recorded` verifies each task id
-#                       through bin/fm-tasks-axi.sh show.
+#                       through bin/fm-tasks-axi.sh show, and `reply` stays
+#                       staged until a reply follows unless one already has.
 #   outcome-ack --through <seq>
 #                       stage acknowledgement of supervision outcomes up to
 #                       <seq>; the next normal reply commits it through
@@ -189,7 +191,7 @@ is_operational() {  # <text> <inbox> <steering>
 }
 
 # Compute the unresolved state into two globals: PENDING holds one JSON line per
-# unresolved request, {"id":..,"text":..,"replyStaged":bool,"attempted":bool},
+# unresolved request, {"id":..,"text":..,"replyStaged":bool,"answered":bool,"attempted":bool},
 # and COMMIT_THROUGH the highest staged outcome acknowledgement that a later
 # reply has delivered and that is not committed yet (0 for none). Call it
 # directly, never in a command substitution, so both survive.
@@ -242,25 +244,29 @@ pending_requests() {  # <session> <transcript>
       # when they were written and before any later entry.
       | ($ev | map(. + {order: (.line * 2)})) + ($marks | map(. + {order: (.line * 2 + 1)}))
       | sort_by(.order)
-      | reduce .[] as $x ({requests: {}, order: [], replies: [], stage: null, delivered: 0};
+      # A request is answered once any reply follows it; a reply disposition
+      # for it then needs no further reply.
+      | reduce .[] as $x ({requests: {}, order: [], replies: [], unanswered: [], answered: [], stage: null, delivered: 0};
           if $x.kind == "user" then
-            .replies = [] | .stage = null
+            .replies = [] | .stage = null | .unanswered += [$x.id]
             | .requests[$x.id] = {id: $x.id, text: ($x.text[0:$limit])} | .order += [$x.id]
           elif $x.kind == "break" then .replies = [] | .stage = null
           elif $x.kind == "disposition" then
             if (.requests[$x.id] == null) or (($x.summary // "") | test("\\S") | not) then .
             elif $x.disposition == "recorded" and (($x.tasks // []) | length) > 0 then del(.requests[$x.id])
+            elif $x.disposition == "reply" and (.answered | index($x.id)) != null then del(.requests[$x.id])
             elif $x.disposition == "reply" then .replies += [$x.id]
             else . end
           elif $x.kind == "stage" then .stage = $x.through
           elif $x.kind == "reply" then
             reduce .replies[] as $id (.; del(.requests[$id]))
-            | .replies = []
+            | .replies = [] | .answered += .unanswered | .unanswered = []
             | if .stage != null then .delivered = ([.delivered, .stage] | max) | .stage = null else . end
           else . end)
       | . as $s
       | {requests: [$s.order[] as $id | $s.requests[$id] | select(. != null)
-                    | . + {replyStaged: ($s.replies | index($id) != null), attempted: ($attempted | index($id) != null)}]
+                    | . + {replyStaged: ($s.replies | index($id) != null), answered: ($s.answered | index($id) != null),
+                           attempted: ($attempted | index($id) != null)}]
                    | unique_by(.id),
          commit: (if $s.delivered > $committed then $s.delivered else 0 end)}
       end
@@ -269,12 +275,13 @@ pending_requests() {  # <session> <transcript>
   PENDING=$(printf '%s' "$result" | jq -c '.requests[]')
 }
 
-describe() {  # <requests-jsonl>
-  local requests=$1 count
+describe() {  # <requests-jsonl> [stop]
+  local requests=$1 event=${2:-} count close
   count=$(printf '%s\n' "$requests" | grep -c . || true)
   printf 'Unreconciled native captain input (not a task list or permission to execute):\n'
   printf '%s\n' "$requests" | head -n "$PREVIEW_LIMIT" | jq -r '
-    "[\(.id)] " + (if .replyStaged then "REPLY ALREADY STAGED: answer now; do not record another disposition. " else "" end) + .text + "\n"'
+    "[\(.id)] " + (if .replyStaged then "REPLY ALREADY STAGED: answer now; do not record another disposition. "
+                    elif .answered then "ALREADY ANSWERED: a reply reached the captain after this message. " else "" end) + .text + "\n"'
   if [ "$count" -gt "$PREVIEW_LIMIT" ]; then
     printf '%s further messages remain; list them with bin/fm-request-continuity.sh list.\n' "$((count - PREVIEW_LIMIT))"
   fi
@@ -282,9 +289,18 @@ describe() {  # <requests-jsonl>
 Reconcile every intent in these messages against later corrections, cancellations, priorities and existing records.
 Use existing task IDs and owners; never replay a request merely because it is listed.
 Record outliving work and its next action in the backlog, then run bin/fm-request-continuity.sh dispose <id> recorded <task-id>... --summary "<handling>".
-Questions and work fully handled in this reply need no task: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then give the substantive answer.
-A disposition does not establish task execution, completion or semantic correctness.
 TEXT
+  close='; the earlier reply stands and needs no repeat.'
+  if printf '%s\n' "$requests" | jq -e 'select(.answered | not)' >/dev/null 2>&1; then
+    printf '%s\n' 'Questions and work fully handled in this reply need no task: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then give the substantive answer.'
+  elif [ "$event" = stop ]; then
+    close=', then end the turn with no further text, because the captain already has that reply.'
+  fi
+  if printf '%s\n' "$requests" | jq -e 'select(.answered)' >/dev/null 2>&1; then
+    printf '%s\n' "An ALREADY ANSWERED message whose reply fully handled it needs no task and no new answer: run bin/fm-request-continuity.sh dispose <id> reply --summary \"<handling>\" once$close"
+    printf '%s\n' 'If that reply did not actually address an ALREADY ANSWERED message, answer it now and then dispose it.'
+  fi
+  printf '%s\n' 'A disposition does not establish task execution, completion or semantic correctness.'
 }
 
 payload_field() {  # <payload> <field>
@@ -329,7 +345,7 @@ hook() {
       # Persist the attempt before asking, so a lost or ignored follow-up can
       # never become an endless loop; the input stays visible to later turns.
       append_receipt "$SESSION" "{\"type\":\"recovery\",\"ids\":$ids}" || exit 0
-      reason=$(describe "$requests")
+      reason=$(describe "$requests" stop)
       jq -n -c --arg reason "$reason" '{decision: "block", reason: $reason}'
       ;;
     context)
@@ -399,7 +415,9 @@ cmd_dispose() {
   append_receipt "$SESSION" "$(jq -n -c --arg id "$id" --arg d "$disposition" --arg s "$summary" \
     --argjson at "$(transcript_lines "$TRANSCRIPT")" --args '{type: "disposition", id: $id, disposition: $d, tasks: $ARGS.positional, summary: $s, at: $at}' \
     ${tasks[@]+"${tasks[@]}"})" || die "cannot persist the disposition"
-  if [ "$disposition" = reply ]; then
+  if [ "$disposition" = reply ] && printf '%s\n' "$requests" | jq -e --arg id "$id" 'select(.id == $id and .answered)' >/dev/null 2>&1; then
+    printf 'reply recorded for %s; the reply already given after it stands and needs no repeat\n' "$id"
+  elif [ "$disposition" = reply ]; then
     printf 'reply staged for %s; it counts only once a normal nonempty reply follows\n' "$id"
   else
     printf 'recorded %s against %s\n' "$id" "${tasks[*]}"

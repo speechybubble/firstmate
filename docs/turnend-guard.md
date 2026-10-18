@@ -644,6 +644,7 @@ Run `tests/fm-pi-request-intake.test.sh` for the real installed SDK with an in-p
 
 `bin/fm-request-continuity.sh` reads the session transcript named in each hook payload and keeps its receipts in the home's private state; its header owns the formats and commands.
 The tracked `.claude/settings.json` runs it at `SessionStart` and `UserPromptSubmit`, which restore unresolved input as additional context, and at `Stop`, which blocks the stop once per unresolved source message with the reconciliation request.
+When a normal reply already followed an unresolved message, the request marks it answered and asks for its disposition without a new answer unless that reply did not address it, and a `reply` disposition then completes at once, so the reply already given stands instead of prompting a second answer.
 A slash command is captain input only when the model receives it; a command Claude Code answers itself, such as `/compact`, and shell-mode input are not.
 Main records dispositions with `bin/fm-request-continuity.sh dispose` and lists unresolved input with `bin/fm-request-continuity.sh list`.
 On a Claude-owned home the wake drain's `BRANCH OUTCOMES` section asks for `bin/fm-request-continuity.sh outcome-ack`, which only stages the acknowledgement; the `Stop` hook commits it through `bin/fm-branch-outcome.sh mark-processed` once a normal nonempty reply follows with no captain message between.
