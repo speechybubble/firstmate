@@ -18,6 +18,10 @@
 #   4. `recorded` requires a readable existing task; `reply` stays provisional
 #      until a normal nonempty reply, narration before a tool call is not that
 #      reply, and interruption or a later captain message invalidates it.
+#   4b. When a reply already followed the input, the stop block says so and
+#      asks only for the disposition, which completes without another reply;
+#      input that no reply followed keeps the original reply-then-answer
+#      prompt and its provisional stage.
 #   5. Compaction keeps unresolved input restorable from the full transcript;
 #      a slash skill invocation is captain input, while a command Claude Code
 #      answers locally, its output, and a shell-mode echo are not.
@@ -258,6 +262,55 @@ test_dispositions_are_verified_and_reply_is_provisional() {
   pass "recorded links need a readable task; a reply stays provisional until a turn-ending reply, and interruption invalidates it"
 }
 
+# The 17 October shape: the reply reached the captain before the stop hook
+# found the input undisposed, and the old block text asked for a second answer.
+test_reply_already_given_needs_no_second_answer() {
+  local home="$TMP_ROOT/answered" out
+  make_home "$home"
+  : > "$home/transcript.jsonl"
+  stop_hook "$home" >/dev/null
+  say "$home" u-a "What did the Multica update change?"
+  tool_turn "$home"
+  # The captain types again while the turn is still running.
+  say "$home" u-b "And which decisions are waiting on me?"
+  reply "$home" "Multica moved to v2; six decisions are waiting on you."
+  out=$(stop_hook "$home")
+  printf '%s' "$out" | jq -e '.decision == "block"' >/dev/null || fail "answered but undisposed input did not block the stop: $out"
+  out=$(printf '%s' "$out" | jq -r '.reason')
+  assert_contains "$out" "[u-a] ALREADY ANSWERED" "input a reply followed must be marked answered"
+  assert_contains "$out" "[u-b] ALREADY ANSWERED" "input queued mid-turn and then answered must be marked answered"
+  assert_contains "$out" "end the turn with no further text" "the block must say the given reply stands"
+  case "$out" in *"give the substantive answer"*) fail "the block asked for a second answer after the reply: $out" ;; esac
+  out=$(as_owner "$home" dispose u-a reply --summary "answered the Multica change")
+  assert_contains "$out" "already given" "the disposition must confirm the given reply stands"
+  as_owner "$home" dispose u-b reply --summary "listed the six decisions" >/dev/null || fail "the second answered disposition was refused"
+  out=$(as_owner "$home" list)
+  [ "$out" = "no unresolved native captain input" ] || fail "answered input needed another reply after its disposition: $out"
+
+  # Input no reply has followed keeps the original prompt and stage.
+  say "$home" u-c "Draft the changelog."
+  tool_turn "$home"
+  say "$home" u-d "Also, what is 7 times 6?"
+  reply "$home" "42."
+  out=$(stop_hook "$home" | jq -r '.reason')
+  assert_contains "$out" "[u-c] ALREADY ANSWERED" "the reply after u-d also followed u-c"
+  say "$home" u-e "Rotate the staging key."
+  narrate "$home" "Rotating it now."
+  tool_turn "$home"
+  out=$(stop_hook "$home" | jq -r '.reason')
+  assert_contains "$out" "once, then give the substantive answer." "input with no following reply must keep the original prompt"
+  assert_contains "$out" "end the turn with no further text" "the earlier answered input must keep its marker"
+  case "$out" in *"[u-e] ALREADY"*) fail "narration before a tool call counted as a reply: $out" ;; esac
+  out=$(as_owner "$home" dispose u-e reply --summary "will confirm the rotation")
+  assert_contains "$out" "reply staged for u-e" "input with no following reply must stage its reply disposition"
+  out=$(as_owner "$home" list)
+  case "$out" in *"[u-e] (reply staged)"*) ;; *) fail "the unanswered disposition did not stay provisional: $out" ;; esac
+  reply "$home" "The staging key is rotated."
+  out=$(as_owner "$home" list)
+  case "$out" in *u-e*) fail "a staged reply followed by a reply stayed unresolved: $out" ;; esac
+  pass "a reply already given makes the block ask only for the disposition, which completes at once, while input no reply followed keeps the reply-then-answer prompt"
+}
+
 test_compaction_keeps_input_restorable() {
   local home="$TMP_ROOT/compaction" out
   make_home "$home"
@@ -334,6 +387,7 @@ test_activation_is_not_retroactive
 test_omission_recovers_once_and_stays_visible
 test_steering_doorbell_is_not_captain_input
 test_dispositions_are_verified_and_reply_is_provisional
+test_reply_already_given_needs_no_second_answer
 test_compaction_keeps_input_restorable
 test_outcome_ack_commits_only_after_reply
 printf 'all fm-request-continuity tests passed\n'
