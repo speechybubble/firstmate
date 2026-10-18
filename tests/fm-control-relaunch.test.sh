@@ -2779,6 +2779,70 @@ test_relaunch_moves_a_drifted_item_back_in_flight() {
   pass "relaunch heals an item that drifted out of In flight while the task stayed live"
 }
 
+# The reported shape: a worker waiting on the captain dropped to a bare shell
+# (a reboot), its item is In flight and held for the captain, and its work is
+# intact in the recorded worktree. Bringing that worker back is recovery of a
+# task this home already owns, not new dispatch, so the hold must not refuse it
+# and must survive it untouched.
+test_relaunch_recovers_a_held_in_flight_task_whose_agent_died() {
+  local dir out rc=0 file
+  command -v tasks-axi >/dev/null 2>&1 || {
+    pass "skipped: tasks-axi is not installed, so the backlog transition is inert"
+    return 0
+  }
+  fm_tasks_axi_compatible || {
+    pass "skipped: installed tasks-axi predates ${FM_TASKS_AXI_MIN}, so dispatch refuses automatic backlog transitions"
+    return 0
+  }
+  dir=$(new_case held-recover rl78)
+  add_ship_task "$dir" rl78 claude
+  seed_backlog "$dir" rl78 in_flight
+  file="$dir/home/data/backlog.md"
+  tasks-axi hold rl78 --reason "captain decision pending" --kind captain --file "$file" >/dev/null
+  printf 'zsh' > "$dir/fake/command"
+  break_tasks_axi_start "$dir"
+
+  out=$(run_control "$dir" rl78 relaunch --note "the captain's answer is pending") || rc=$?
+  expect_code 0 "$rc" "a held In-flight task with a dead agent must be recoverable"$'\n'"$out"
+  assert_contains "$out" "relaunched rl78 harness=claude" "the outcome should name the recovery"
+  assert_grep "Firstmate operational input waiting: read" "$dir/fake/literal" \
+    "the replacement agent should have been launched"
+  [ "$(backlog_state "$dir" rl78)" = in_flight ] \
+    || fail "recovery moved the held item to $(backlog_state "$dir" rl78)"
+  assert_contains "$(tasks-axi show rl78 --file "$file")" "held: yes" \
+    "recovery must leave the captain hold in place"
+  pass "relaunch recovers a held In-flight task whose agent died, leaving the hold untouched"
+}
+
+# The neighbour that must stay refused: a hold still blocks every NEW dispatch,
+# including one onto an In-flight row, because no task record exists to recover.
+test_fresh_spawn_of_a_held_task_is_still_refused() {
+  local dir out rc=0 file
+  command -v tasks-axi >/dev/null 2>&1 || {
+    pass "skipped: tasks-axi is not installed, so the backlog transition is inert"
+    return 0
+  }
+  fm_tasks_axi_compatible || {
+    pass "skipped: installed tasks-axi predates ${FM_TASKS_AXI_MIN}, so dispatch refuses automatic backlog transitions"
+    return 0
+  }
+  dir=$(new_case held-fresh rl79)
+  add_ship_task "$dir" rl79 claude
+  rm -f "$dir/home/state/rl79.meta"
+  seed_backlog "$dir" rl79 in_flight
+  file="$dir/home/data/backlog.md"
+  tasks-axi hold rl79 --reason "captain decision pending" --kind captain --file "$file" >/dev/null
+
+  out=$(run_spawn "$dir" rl79 "$dir/proj" --mode no-mistakes --yolo off) || rc=$?
+  [ "$rc" -ne 0 ] || fail "a fresh spawn of a held task was dispatched"$'\n'"$out"
+  assert_contains "$out" "not dispatchable in state in_flight yes no" \
+    "the refusal should name the held state"
+  [ ! -e "$dir/home/state/rl79.meta" ] || fail "the refused spawn published a task record"
+  assert_contains "$(tasks-axi show rl79 --file "$file")" "held: yes" \
+    "the refused spawn must leave the captain hold in place"
+  pass "a fresh spawn of a held task is still refused"
+}
+
 test_exit_and_relaunch_remove_the_dialog_file() {
   local dir out rc
   dir=$(new_case dialog-file-exit rl70)
@@ -3387,3 +3451,5 @@ test_herdr_reclaim_of_a_secondmate_names_its_own_owner
 test_herdr_rebind_failure_from_a_plain_shell_names_the_real_cause
 test_relaunch_reverifies_an_already_in_flight_item_instead_of_rewriting_it
 test_relaunch_moves_a_drifted_item_back_in_flight
+test_relaunch_recovers_a_held_in_flight_task_whose_agent_died
+test_fresh_spawn_of_a_held_task_is_still_refused

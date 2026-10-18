@@ -11,7 +11,9 @@
 # same process, under the per-task meta lock it already holds, before it reports
 # success. Nothing else - not a later agent turn, not a printed reminder - is
 # load-bearing for the pairing.
-#   bin/fm-spawn.sh      meta published => `tasks-axi start`
+#   bin/fm-spawn.sh      meta published => `tasks-axi start` (a relaunch
+#                        recovers instead: an In-flight row, held or not, is
+#                        left as it is; see fm_backlog_row_recoverable)
 #   bin/fm-teardown.sh   meta removed => `tasks-axi done`, or `tasks-axi reopen`
 #                        with the deliverable recorded when the row is still an
 #                        open captain call (bin/fm-captain-hold.sh `open`), so
@@ -794,6 +796,16 @@ fm_backlog_meta_spawn_gen_optional() {  # <meta> <state>
   fm_backlog_meta_spawn_gen "$meta" "$state"
 }
 
+# A row's eligibility depends on what the spawn is for, so the two intents are
+# separate predicates rather than one predicate with a bypass.
+#   dispatch - a NEW worker for the id: only an unheld, unblocked Queued or In
+#              flight row. A hold, captain or otherwise, refuses it.
+#   recover  - a replacement agent for a task this home already owns: its task
+#              record existed before the spawn began and its recorded worktree
+#              is reused (bin/fm-spawn.sh --relaunch). A hold on its In-flight
+#              row is the state that worker waits in, so it is admitted and left
+#              untouched; an unheld Queued row is drift the start heals. A
+#              dependency-blocked row stays refused for both.
 fm_backlog_row_dispatchable() {
   case "$1" in
     in_flight\ no\ no|queued\ no\ no) return 0 ;;
@@ -801,8 +813,20 @@ fm_backlog_row_dispatchable() {
   esac
 }
 
-fm_backlog_dispatch_transition() {
-  local meta=$1 data=$2 id=$3 state=$4 row row_status
+fm_backlog_row_recoverable() {
+  case "$1" in
+    in_flight\ no\ no|in_flight\ yes\ no|queued\ no\ no) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+fm_backlog_owned_transition() {  # <dispatch|recover> <meta> <data> <id> <state>
+  local intent=$1 meta=$2 data=$3 id=$4 state=$5 row row_status eligible
+  case "$intent" in
+    dispatch) eligible=fm_backlog_row_dispatchable ;;
+    recover) eligible=fm_backlog_row_recoverable ;;
+    *) FM_BACKLOG_TRANSITION_ERROR="unknown backlog spawn intent $intent"; return 2 ;;
+  esac
   fm_backlog_record_present "$meta" "task record" "$state" || return 1
   fm_backlog_row_probe "$data" "$id"
   row_status=$?
@@ -815,12 +839,16 @@ fm_backlog_dispatch_transition() {
     return "$row_status"
   fi
   row=$FM_BACKLOG_ROW_STATE
-  if ! fm_backlog_row_dispatchable "$row"; then
-    FM_BACKLOG_TRANSITION_ERROR="backlog item $id is not dispatchable in state $row"
+  if ! "$eligible" "$row"; then
+    if [ "$intent" = recover ]; then
+      FM_BACKLOG_TRANSITION_ERROR="backlog item $id is not recoverable in state $row"
+    else
+      FM_BACKLOG_TRANSITION_ERROR="backlog item $id is not dispatchable in state $row"
+    fi
     return 1
   fi
   case "$row" in
-    in_flight\ no\ no) return 0 ;;
+    in_flight\ *) return 0 ;;
     queued\ no\ no) fm_backlog_start "$data" "$id" ;;
   esac
 }
@@ -866,7 +894,7 @@ fm_backlog_atomic_transition() {
   case "$operation" in
     publish) fm_backlog_record_publish "$@" ;;
     remove) fm_backlog_record_remove "$@" ;;
-    dispatch) fm_backlog_dispatch_transition "$@" ;;
+    dispatch|recover) fm_backlog_owned_transition "$operation" "$@" ;;
     rollback) fm_backlog_dispatch_rollback "$@" ;;
     close) fm_backlog_close_transition "$@" ;;
     retain) fm_backlog_retain_transition "$@" ;;

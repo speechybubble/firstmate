@@ -366,6 +366,7 @@ Do not register a Beads `types.custom` `captain` type for this: captain is a hol
 When the automatic transition gate applies, dispatch and completion each move the work item in the same run that creates or removes its task record.
 The ordinary successful path therefore keeps the backlog and live task set in sync ([`bin/fm-backlog-transition-lib.sh`](../bin/fm-backlog-transition-lib.sh)).
 Under that gate, dispatch accepts only an unheld, unblocked Queued or In flight item in this home; a missing, Done, held, or dependency-blocked item is refused before any endpoint or local copy is created.
+A relaunch is recovery of a task this home already owns rather than new dispatch, so it also accepts an In flight item held for the captain and leaves that hold in place; a worker waiting on the captain can therefore be brought back after a crash or reboot.
 
 [`bin/fm-tasks-axi.sh`](../bin/fm-tasks-axi.sh) refuses `add --start` and its `create --start` alias.
 Either would place a row In flight without a task record, status file, or inbox, counting it as live work that nobody is doing.
