@@ -535,8 +535,9 @@
 # endpoint, worktree, or record exists, unless the home's backlog has an
 # unheld, unblocked Queued or In flight item for the id; a transition that fails
 # after publication removes the record it just wrote rather than leaving a
-# worker the backlog does not own. A relaunch re-reads the row instead of
-# re-running the transition, so an eligible In-flight item is left untouched.
+# worker the backlog does not own. A relaunch is recovery, not dispatch: it
+# re-reads the row instead of re-running the transition, so an In-flight item,
+# including one held for the captain, is left untouched.
 # The transition is
 # skipped entirely for --secondmate spawns (persistent agents are not work
 # items), on a config/backlog-backend=manual home, and in a markdown home that
@@ -3831,8 +3832,14 @@ herdr_projection_existing_meta_allows_flat() { # <meta>
 # transitionable BEFORE any endpoint, worktree, or record exists: a refusal here
 # costs nothing to unwind, while the same refusal after publication would strand
 # a live pane. The authoritative mutation still runs under the meta lock below.
+# A relaunch is recovery of the task whose record it already proved above, not
+# new dispatch, so it is judged by the recover intent: a hold on its In-flight
+# row is the state its worker waits in, never a reason to leave that worker
+# stopped (fm_backlog_row_recoverable owns the eligible states).
 BACKLOG_TRANSITION=0
 BACKLOG_ROW_STATE=
+BACKLOG_INTENT=dispatch
+[ "$RELAUNCH" -ne 1 ] || BACKLOG_INTENT=recover
 if fm_backlog_transition_applies "$CONFIG" "$DATA" "$KIND"; then
   BACKLOG_TRANSITION=1
   if fm_backlog_row_probe "$DATA" "$ID"; then
@@ -3846,8 +3853,18 @@ if fm_backlog_transition_applies "$CONFIG" "$DATA" "$KIND"; then
   fi
   spawn_preflight_actor=$(fm_lease_actor) || exit "$FM_LEASE_REFUSE_EXIT"
   if [ "$spawn_preflight_actor" = branch ] && fm_lease_away_relocated; then
-    if [ "$BACKLOG_ROW_STATE" != "queued no no" ]; then
+    if [ "$BACKLOG_INTENT" = recover ]; then
+      if ! fm_backlog_row_dispatchable "$BACKLOG_ROW_STATE"; then
+        echo "error: relaunch refused - the supervision branch under the away-posture record may relaunch only unheld, unblocked Queued or In-flight work; task $ID's backlog item is in state $BACKLOG_ROW_STATE" >&2
+        exit 1
+      fi
+    elif [ "$BACKLOG_ROW_STATE" != "queued no no" ]; then
       echo "error: spawn refused - the supervision branch under the away-posture record may dispatch only queued unblocked work (already queued, or filed by the branch from the captain's away words); task $ID has no dispatchable backlog item in this home" >&2
+      exit 1
+    fi
+  elif [ "$BACKLOG_INTENT" = recover ]; then
+    if ! fm_backlog_row_recoverable "$BACKLOG_ROW_STATE"; then
+      echo "error: this home's backlog item $ID is not recoverable in state $BACKLOG_ROW_STATE; refusing before relaunching its worker" >&2
       exit 1
     fi
   elif ! fm_backlog_row_dispatchable "$BACKLOG_ROW_STATE"; then
@@ -5454,7 +5471,7 @@ fi
 # point below so every earlier launch-delivery failure remains unwindable.
 spawn_commit_backlog_transition() {
   [ "$BACKLOG_TRANSITION" = 1 ] || return 0
-  fm_backlog_atomic_transition dispatch "$STATE/$ID.meta" "$DATA" "$ID" "$STATE"
+  fm_backlog_atomic_transition "$BACKLOG_INTENT" "$STATE/$ID.meta" "$DATA" "$ID" "$STATE"
 }
 
 # The deferred-signal exit path's preservation report. A claim about preserved
@@ -5478,7 +5495,8 @@ spawn_report_preserved_state() {
     fi
     return 1
   fi
-  if [ "$FM_BACKLOG_ROW_STATE" = "in_flight no no" ]; then
+  if [ "$FM_BACKLOG_ROW_STATE" = "in_flight no no" ] ||
+    { [ "$BACKLOG_INTENT" = recover ] && [ "$FM_BACKLOG_ROW_STATE" = "in_flight yes no" ]; }; then
     SPAWN_PRESERVED_CLAIM="verified preserved: its paired task record is present and its backlog item is In flight"
     return 0
   fi
