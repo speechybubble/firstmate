@@ -83,8 +83,15 @@ delete_confirmed_intent() {  # <file>
 # before `## Confirmed intent` existed, and drop that subsection.
 downgrade_to_expert_prompt_v1() {  # <file>
   delete_confirmed_intent "$1"
-  sed 's/^<!-- fm-brief: task-slots v2 -->$/<!-- fm-brief: expert-prompt v1 -->/' "$1" > "$1.v1"
+  sed 's/^<!-- fm-brief: task-slots v3 -->$/<!-- fm-brief: expert-prompt v1 -->/' "$1" > "$1.v1"
   mv "$1.v1" "$1"
+}
+
+# Rewrite a scaffolded brief's Task slot marker to the version 2 form written
+# before `## Confirmed intent` carried `end state:` and `delegation:` lines.
+downgrade_to_task_slots_v2() {  # <file>
+  sed 's/^<!-- fm-brief: task-slots v3 -->$/<!-- fm-brief: task-slots v2 -->/' "$1" > "$1.v2"
+  mv "$1.v2" "$1"
 }
 
 run_spawn() {  # <home> <fakebin> <spawn-args...>
@@ -722,8 +729,9 @@ EOF
 # confirmed reading plus one `captain confirmed: ` line, or one reasoned
 # `not captain-originated - ` line, then one `end state: ` line and one
 # `delegation: ` line naming a level, while a brief scaffolded before the
-# subsection existed still launches with a warning. A subsection written before
-# the end state and delegation lines existed is refused, naming the missing line.
+# subsection existed still launches with a warning. A brief marked task-slots v3
+# without the end state or delegation line is refused, naming the missing line,
+# while a v2 brief filled before those lines existed still launches and promotes.
 test_spawn_requires_a_confirmed_intent_or_reasoned_exemption() {
   local rec home proj fakebin out status id label kind confirmed expect meta authorized
   rec=$(make_home confirmed)
@@ -860,6 +868,41 @@ EOF
   assert_not_contains "$out" "has no ### Expert prompt subsection" "a version 1 brief warned about its present expert prompt"
   assert_present "$home/data/$id/launch-brief.md" "a version 1 brief did not reach launch"
 
+  for kind in ship scout; do
+    while IFS='|' read -r label confirmed; do
+      [ -n "$label" ] || continue
+      id="confirmed-v2-$kind-$label"
+      if [ "$kind" = scout ]; then
+        FM_HOME="$home" "$BRIEF" "$id" proj --scout >/dev/null 2>&1 || fail "v2 $kind $label: brief should scaffold"
+      else
+        FM_HOME="$home" "$BRIEF" "$id" proj --mode no-mistakes >/dev/null 2>&1 || fail "v2 $kind $label: brief should scaffold"
+      fi
+      fill_brief_subsections "$home/data/$id/brief.md" "Build the confirmation slot." "Mirror the expert prompt gate." \
+        'Act as a release engineer.' "$confirmed"
+      downgrade_to_task_slots_v2 "$home/data/$id/brief.md"
+      if [ "$kind" = scout ]; then
+        out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --scout)
+      else
+        out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off)
+      fi
+      assert_not_contains "$out" "## Confirmed intent" "v2 $kind $label: a pre-v3 confirmed intent was refused or warned"
+      assert_present "$home/data/$id/launch-brief.md" "v2 $kind $label: a pre-v3 brief did not reach launch"
+    done <<'EOF'
+confirmed|Build one required slot.\ncaptain confirmed: yes build the slot
+exempt|not captain-originated - maintenance
+EOF
+  done
+
+  id="confirmed-v2-refused"
+  FM_HOME="$home" "$BRIEF" "$id" proj --mode no-mistakes >/dev/null 2>&1 || fail "v2 refused brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Build the confirmation slot." "Mirror the expert prompt gate." \
+    'Act as a release engineer.' 'Build one required slot.'
+  downgrade_to_task_slots_v2 "$home/data/$id/brief.md"
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off)
+  status=$?
+  [ "$status" -ne 0 ] || fail "spawn should still refuse a v2 brief with no captain confirmed: line"
+  assert_contains "$out" "## Confirmed intent has no captain confirmed: line" "a v2 brief lost its confirmed reading requirement"
+
   id="confirmed-v1-expert-deleted"
   FM_HOME="$home" "$BRIEF" "$id" proj --mode no-mistakes >/dev/null 2>&1 || fail "v1 ship brief should scaffold"
   fill_brief_subsections "$home/data/$id/brief.md" "Build the confirmation slot." "Mirror the expert prompt gate."
@@ -905,6 +948,19 @@ EOF
   assert_contains "$out" "warning: $home/data/$id/brief.md has no ## Confirmed intent subsection" \
     "a version 1 promotion did not name the missing confirmed intent"
   assert_grep 'kind=ship' "$meta" "version 1 promotion did not change the task record"
+
+  id="confirmed-promote-v2"
+  meta="$home/state/$id.meta"
+  printf 'window=fm-%s\nkind=scout\nworktree=/tmp/wt\n' "$id" > "$meta"
+  FM_HOME="$home" "$BRIEF" "$id" proj --scout >/dev/null 2>&1 || fail "v2 scout brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Investigate the slot." "Report only." \
+    'Act as a release engineer.' 'Find why the slot is missing.\ncaptain confirmed: yes'
+  downgrade_to_task_slots_v2 "$home/data/$id/brief.md"
+  out=$(FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" "$PROMOTE" "$id" --mode direct-PR --yolo off 2>&1)
+  status=$?
+  expect_code 0 "$status" "promotion of a v2 scout brief filled before end state and delegation existed should succeed"
+  assert_not_contains "$out" "Confirmed intent" "a v2 confirmed intent was refused or warned at promotion"
+  assert_grep 'kind=ship' "$meta" "v2 promotion did not change the task record"
 
   id="confirmed-promote-accepted"
   meta="$home/state/$id.meta"

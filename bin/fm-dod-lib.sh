@@ -249,11 +249,12 @@ fm_brief_task_placeholders_present() {  # <file>
 
 # The `# Task` line bin/fm-brief.sh writes into every ship and scout brief,
 # naming the Task slot version the brief was scaffolded with: v1 added
-# `### Expert prompt` (written as `<!-- fm-brief: expert-prompt v1 -->`) and v2
-# added `## Confirmed intent`. A slot is required on every brief marked at or
-# above the version that added it; an older brief launches without it and warns.
+# `### Expert prompt` (written as `<!-- fm-brief: expert-prompt v1 -->`), v2
+# added `## Confirmed intent`, and v3 added its `end state:` and `delegation:`
+# lines. A slot is required on every brief marked at or above the version that
+# added it; an older brief launches without it and warns.
 # shellcheck disable=SC2034 # Read by bin/fm-brief.sh, which sources this library.
-FM_BRIEF_TASK_SLOTS_MARKER='<!-- fm-brief: task-slots v2 -->'
+FM_BRIEF_TASK_SLOTS_MARKER='<!-- fm-brief: task-slots v3 -->'
 
 # Print the highest Task slot version a brief's `# Task` marker names, or 0.
 fm_brief_task_slots_version() {  # <file>
@@ -365,15 +366,19 @@ fm_brief_expert_prompt_problem() {  # <file>
 # `not captain-originated - <reason>` line, followed in either form by exactly
 # one `end state: <what is true when done and why>` line and exactly one
 # `delegation: <level>` line naming one of FM_BRIEF_DELEGATION_LEVELS, or is
-# absent from a brief scaffolded before the subsection existed. A subsection
-# written before those two lines existed is refused, naming the missing line.
-# Whether the reading is right, whether the words match what was said, and
+# absent from a brief scaffolded before the subsection existed. A brief marked
+# below task-slots v3, scaffolded before those two lines existed, launches with
+# the confirmed reading or exemption alone. Whether the reading is right, whether the words match what was said, and
 # whether the level fits the request stays Firstmate's responsibility.
 fm_brief_confirmed_intent_problem() {  # <file>
   local file=$1 body
   fm_brief_task_slot_problem "$file" "## Confirmed intent" '{CONFIRMED_INTENT}' 2 && return 0
   fm_brief_task_heading_present "$file" "## Confirmed intent" || return 1
   body=$(fm_brief_task_heading_body "$file" "## Confirmed intent")
+  if [ "$(fm_brief_task_slots_version "$file")" -lt 3 ]; then
+    fm_brief_confirmed_reading_problem "$body"
+    return
+  fi
   fm_brief_confirmed_reading_problem "$(printf '%s\n' "$body" | grep -v -e '^[[:space:]]*end state:' -e '^[[:space:]]*delegation:')" && return 0
   fm_brief_intent_line_problem "$body" 'end state' && return 0
   fm_brief_intent_line_problem "$body" 'delegation' && return 0

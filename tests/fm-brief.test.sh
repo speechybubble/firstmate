@@ -154,8 +154,8 @@ assert_confirmed_intent_slot() {  # <brief> <label>
     || fail "$label: confirmed intent landed in Captain's intent"
   assert_not_contains "$(fm_brief_task_heading_body "$brief" '## Firstmate spec')" 'CONFIRMED_INTENT' \
     "$label: confirmed intent landed in Firstmate spec"
-  [ "$(fm_brief_task_slots_version "$brief")" = 2 ] \
-    || fail "$label: brief does not carry the version 2 Task slot marker"
+  [ "$(fm_brief_task_slots_version "$brief")" = 3 ] \
+    || fail "$label: brief does not carry the version 3 Task slot marker"
 }
 
 # fm-brief.sh must exit 0 and produce a brief with no unreplaced shell
