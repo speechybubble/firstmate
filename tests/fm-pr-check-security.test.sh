@@ -58,6 +58,26 @@ process_is_live_non_zombie() {
   return 0
 }
 
+# Polls <command> until it succeeds or <seconds> of wall time pass. A background
+# process that reaches a state within milliseconds on an idle host can need tens
+# of seconds on a loaded one, so a case waits on the state itself.
+wait_until() {  # <seconds> <command...>
+  local deadline=$((SECONDS + $1))
+  shift
+  until "$@"; do
+    [ "$SECONDS" -lt "$deadline" ] || return 1
+    sleep 0.02
+  done
+}
+
+process_exited() {  # <pid>
+  ! process_is_live_non_zombie "$1"
+}
+
+file_or_process_exited() {  # <path> <pid>
+  [ -s "$1" ] || process_exited "$2"
+}
+
 LINK_KIND=
 LINK_TARGET=
 LINK_CONTENT=
@@ -198,6 +218,9 @@ case " $* " in
     [ "${FM_TEST_GH_FAIL:-0}" = 0 ] || exit 1
     [ -z "${FM_TEST_GH_STATE_STARTED:-}" ] || : > "$FM_TEST_GH_STATE_STARTED"
     [ "${FM_TEST_GH_SLEEP:-0}" = 0 ] || sleep "$FM_TEST_GH_SLEEP"
+    if [ -n "${FM_TEST_GH_STATE_RELEASE:-}" ]; then
+      while [ ! -e "$FM_TEST_GH_STATE_RELEASE" ]; do sleep 0.05; done
+    fi
     printf '%s\n' "${FM_TEST_GH_STATE:-OPEN}"
     ;;
 esac
@@ -897,10 +920,11 @@ SH
 }
 
 # Runs one watcher under a hang guard that TERMs it and returns 124 once it has
-# used sixty seconds of its own time. The guard pauses while the file named by
-# FM_TEST_WATCH_BOUND_PAUSE exists, so a case that holds the watcher on work it
-# injects, or makes it wait on concurrent work it started, charges that work's
-# duration to itself instead of to the watcher.
+# used three hundred seconds of its own time. The guard only catches a hung
+# watcher, and a correct run on a loaded host can need more than a minute.
+# It pauses while the file named by FM_TEST_WATCH_BOUND_PAUSE exists, so a case
+# that holds the watcher on work it injects, or makes it wait on concurrent work
+# it started, charges that work's duration to itself instead of to the watcher.
 # FM_TEST_CHECK_TIMEOUT sets the per-check timeout for a case that exercises it.
 # Otherwise the product default applies: a tighter override silently kills a
 # correct poll on a loaded machine, and the watcher then only retries it or
@@ -910,7 +934,7 @@ run_watcher_bounded() {
   local check_timeout_env=(-u FM_CHECK_TIMEOUT)
   [ -z "${FM_TEST_CHECK_TIMEOUT:-}" ] || check_timeout_env=("FM_CHECK_TIMEOUT=$FM_TEST_CHECK_TIMEOUT")
   shift 2
-  perl -MPOSIX=WNOHANG -MTime::HiRes=time,sleep -e 'my $pause=shift; my $left=60; my $pid=fork; die unless defined $pid; if (!$pid) { exec @ARGV } my $last=time; while (waitpid($pid, WNOHANG) == 0) { my $now=time; $left -= $now - $last unless length $pause && -e $pause; $last=$now; if ($left <= 0) { kill "TERM", $pid; waitpid $pid, 0; exit 124 } sleep 0.02 } exit($? >> 8)' \
+  perl -MPOSIX=WNOHANG -MTime::HiRes=time,sleep -e 'my $pause=shift; my $left=300; my $pid=fork; die unless defined $pid; if (!$pid) { exec @ARGV } my $last=time; while (waitpid($pid, WNOHANG) == 0) { my $now=time; $left -= $now - $last unless length $pause && -e $pause; $last=$now; if ($left <= 0) { kill "TERM", $pid; waitpid $pid, 0; exit 124 } sleep 0.02 } exit($? >> 8)' \
     "${FM_TEST_WATCH_BOUND_PAUSE:-}" env "${check_timeout_env[@]}" \
       FM_HOME="$home" FM_ROOT_OVERRIDE="$watch_root" FM_CHECK_INTERVAL="$check_interval" \
       FM_POLL=0.02 FM_HEARTBEAT=999999 FM_SIGNAL_GRACE=0 PATH="$fakebin:$BASE_PATH" "$WATCH" "$@"
@@ -1059,7 +1083,13 @@ SH
 }
 
 test_concurrent_watcher_sees_only_complete_publication() {
-  local n dir direct_pid direct_rc watch_pid rc i id
+  local n dir direct_pid direct_rc watch_pid rc id
+  staged_check_present() {
+    find "$dir/home/state" -name '.fm-pr-poll-check.*' -print | grep . >/dev/null
+  }
+  staged_check_or_direct_exited() {
+    staged_check_present || process_exited "$direct_pid"
+  }
   # Arming also registers the contributions observer, and the watcher runs one
   # cycle's checks in name order. This task sorts first, so the watcher reaches
   # the poll under test, and stops on it, before that unrelated observer.
@@ -1078,12 +1108,8 @@ SH
     FM_TEST_GH_HEAD=0123456789abcdef0123456789abcdef01234567 \
       run_check_entry "$dir" "$id" https://github.com/o/r/pull/1 > "$dir/direct.out" 2> "$dir/direct.err" &
     direct_pid=$!
-    i=0
-    while [ "$i" -lt 100 ] && ! find "$dir/home/state" -name '.fm-pr-poll-check.*' -print | grep . >/dev/null; do
-      sleep 0.01
-      i=$((i + 1))
-    done
-    [ "$i" -lt 100 ] || fail "atomic publication did not reach staged check"
+    wait_until 120 staged_check_or_direct_exited || true
+    staged_check_present || fail "atomic publication did not reach staged check"
 
     # The watcher runs while publication is still in flight, and its hang
     # guard is not charged for the time it spends waiting on that publication.
@@ -1341,7 +1367,7 @@ test_bootstrap_leaves_unauthenticated_checks() {
 }
 
 test_custom_snapshot_cleanup_on_signal() {
-  local dir state child_pid_file pid child_pid i rc
+  local dir state child_pid_file pid child_pid rc
   dir=$(make_case custom-snapshot-signal)
   state="$dir/home/state"
   child_pid_file="$dir/custom-child.pid"
@@ -1367,23 +1393,15 @@ SH
     PATH="$dir/fakebin:$BASE_PATH" "$WATCH" \
     > "$dir/watch.out" 2> "$dir/watch.err" &
   pid=$!
-  i=0
-  while [ "$i" -lt 100 ]; do
-    [ -s "$child_pid_file" ] && break
-    kill -0 "$pid" 2>/dev/null || break
-    sleep 0.02
-    i=$((i + 1))
-  done
+  wait_until 120 file_or_process_exited "$child_pid_file" "$pid" || true
   [ -s "$child_pid_file" ] || fail "watcher did not start the custom check child"
   find "$state" -maxdepth 1 -name '.fm-custom-check.*' -print | grep . >/dev/null \
     || fail "watcher did not create the custom check snapshot"
   child_pid=$(cat "$child_pid_file")
   kill -TERM "$pid" 2>/dev/null || fail "could not signal watcher during custom check"
-  i=0
-  while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 100 ]; do
-    sleep 0.02
-    i=$((i + 1))
-  done
+  # The child ignores TERM and never exits, so a watcher that waited on it
+  # would never exit; the bound only has to outlast a slow host.
+  wait_until 120 process_exited "$pid" || true
   if kill -0 "$pid" 2>/dev/null; then
     kill -KILL "$pid" 2>/dev/null || true
     wait "$pid" 2>/dev/null || true
@@ -3166,7 +3184,7 @@ SH
 }
 
 test_teardown_cannot_race_authority_consumption() {
-  local dir state url watcher_pid rc i
+  local dir state url watcher_pid rc authority_kept
   url=https://github.com/o/r/pull/1
   dir=$(make_case merge-authority-teardown-race)
   state="$dir/home/state"
@@ -3183,28 +3201,31 @@ test_teardown_cannot_race_authority_consumption() {
     || fail "teardown race: could not arm the merge poll"
   queue_merge "$dir" "$url"
   archive_away_record "$dir"
+  # The poll holds its transaction open until this case releases it, so the
+  # cleanup below always meets it in flight however slowly either side runs.
   FM_TEST_GH_STATE_STARTED="$dir/poll-started" FM_TEST_GH_STATE=MERGED \
-    FM_TEST_GH_SLEEP=0.5 FM_TEST_CHECK_TIMEOUT=3 \
+    FM_TEST_GH_STATE_RELEASE="$dir/poll-release" FM_TEST_CHECK_TIMEOUT=300 \
     run_watcher_bounded "$dir/home" "$dir/fakebin" \
       > "$dir/watch.out" 2> "$dir/watch.err" &
   watcher_pid=$!
-  i=0
-  while [ ! -e "$dir/poll-started" ]; do
-    sleep 0.01
-    i=$((i + 1))
-    if [ "$i" -ge 500 ]; then
-      kill "$watcher_pid" 2>/dev/null || true
-      wait "$watcher_pid" 2>/dev/null || true
-      fail "teardown race: watcher did not begin its validated poll"
-    fi
-  done
+  poll_started_or_watcher_exited() {
+    [ -e "$dir/poll-started" ] || ! process_is_live_non_zombie "$watcher_pid"
+  }
+  if ! wait_until 120 poll_started_or_watcher_exited || [ ! -e "$dir/poll-started" ]; then
+    kill "$watcher_pid" 2>/dev/null || true
+    wait "$watcher_pid" 2>/dev/null || true
+    fail "teardown race: watcher did not begin its validated poll"
+  fi
   set +e
   FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" PATH="$dir/fakebin:$BASE_PATH" \
     "$TEARDOWN" task-a --force > "$dir/teardown.out" 2> "$dir/teardown.err"
   rc=$?
   set -e
+  authority_kept=0
+  [ ! -f "$state/task-a.merge-authority" ] || authority_kept=1
+  : > "$dir/poll-release"
   [ "$rc" -ne 0 ] || fail "teardown race: cleanup crossed the active poll transaction"
-  [ -f "$state/task-a.merge-authority" ] \
+  [ "$authority_kept" -eq 1 ] \
     || fail "teardown race: refused cleanup removed persisted authority"
   rc=0
   wait "$watcher_pid" || rc=$?
@@ -3486,7 +3507,7 @@ SH
 }
 
 start_poll_publish_holder() {  # <dir> <state> <id>
-  local dir=$1 state=$2 id=$3 i
+  local dir=$1 state=$2 id=$3
   PR_POLL_HOLDER_ACQUIRED="$dir/poll-publish-holder-acquired"
   PR_POLL_HOLDER_RELEASE="$dir/poll-publish-holder-release"
   PR_POLL_HOLDER_LOCK="$state/.pr-poll-publish-$id.lock"
@@ -3504,10 +3525,7 @@ SH
     FM_TEST_ACQUIRED="$PR_POLL_HOLDER_ACQUIRED" FM_TEST_RELEASE="$PR_POLL_HOLDER_RELEASE" \
     "$dir/poll-publish-holder.sh" &
   PR_POLL_HOLDER_PID=$!
-  for i in $(seq 1 100); do
-    [ -e "$PR_POLL_HOLDER_ACQUIRED" ] && return 0
-    sleep 0.02
-  done
+  wait_until 120 test -e "$PR_POLL_HOLDER_ACQUIRED" && return 0
   kill "$PR_POLL_HOLDER_PID" 2>/dev/null || true
   wait "$PR_POLL_HOLDER_PID" 2>/dev/null || true
   fail "poll publication holder did not acquire its lock"
@@ -3519,7 +3537,7 @@ release_poll_publish_holder() {
 }
 
 test_device_rerecord_serializes_direct_rearm() {
-  local dir state url_a url_b i rearm_pid
+  local dir state url_a url_b rearm_pid
   url_a=https://github.com/o/r/pull/1
   url_b=https://github.com/o/r/pull/2
   dir=$(make_case device-rerecord-serialized-direct-rearm)
@@ -3533,12 +3551,11 @@ test_device_rerecord_serializes_direct_rearm() {
   FM_ROOT_OVERRIDE="$dir/root" FM_HOME="$dir/home" FM_TEST_GUARD_LOG="$dir/guard.log" \
     PATH="$dir/fakebin:$BASE_PATH" "$PR_CHECK" task-a "$url_b" > "$dir/rearm.out" 2> "$dir/rearm.err" &
   rearm_pid=$!
-  for i in $(seq 1 100); do
-    if fm_pr_metadata_identity_parse "$state/task-a.meta" && [ "$FM_PR_META_URL" = "$url_b" ]; then
-      break
-    fi
-    sleep 0.02
-  done
+  rearm_rewrote_or_exited() {
+    { fm_pr_metadata_identity_parse "$state/task-a.meta" && [ "$FM_PR_META_URL" = "$url_b" ]; } \
+      || ! process_is_live_non_zombie "$rearm_pid"
+  }
+  wait_until 120 rearm_rewrote_or_exited || true
   [ "$FM_PR_META_URL" = "$url_b" ] || fail "direct re-arm did not rewrite metadata before publication"
   sleep 1
   process_is_live_non_zombie "$rearm_pid" || fail "direct re-arm did not wait for poll publication"
@@ -3557,7 +3574,7 @@ test_device_rerecord_serializes_direct_rearm() {
 }
 
 test_device_rerecord_serializes_rerecord() {
-  local dir state original rc watcher_pid i
+  local dir state original rc watcher_pid
   dir=$(make_case device-rerecord-serialized-rerecord)
   state="$dir/home/state"
   write_poll_meta "$state" task-a https://github.com/o/r/pull/1
@@ -3585,10 +3602,10 @@ SH
     FM_TEST_GH_LOG="$dir/gh.log" FM_TEST_GH_STATE=OPEN \
     run_watcher_bounded "$dir/home" "$dir/fakebin" > "$dir/watch.out" 2> "$dir/watch.err" &
   watcher_pid=$!
-  for i in $(seq 1 100); do
-    [ -d "$state/.control-task-a.lock" ] && break
-    sleep 0.02
-  done
+  watcher_locked_or_exited() {
+    [ -d "$state/.control-task-a.lock" ] || ! process_is_live_non_zombie "$watcher_pid"
+  }
+  wait_until 120 watcher_locked_or_exited || true
   [ -d "$state/.control-task-a.lock" ] || fail "watcher did not reach its device re-record"
   sleep 1
   process_is_live_non_zombie "$watcher_pid" || fail "watcher did not wait for poll publication"

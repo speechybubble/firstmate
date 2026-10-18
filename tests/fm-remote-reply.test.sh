@@ -74,11 +74,38 @@ remote_env() {
   "$@"
 }
 
-wait_for() {
-  local path=$1
-  for _ in $(seq 1 100); do
-    [ -e "$path" ] && return 0
+# Polls <command> until it succeeds or REPLY_WAIT_SECONDS of wall time pass. A
+# loaded host can take minutes over a capture an idle one finishes in a second,
+# so every case waits on the state it needs rather than on a count of sleeps.
+REPLY_WAIT_SECONDS=600
+wait_until() { # <command...>
+  local deadline=$((SECONDS + REPLY_WAIT_SECONDS))
+  until "$@"; do
+    [ "$SECONDS" -lt "$deadline" ] || return 1
     sleep 0.05
+  done
+}
+
+wait_for() {
+  wait_until test -e "$1"
+}
+
+pid_gone() { # <pid>
+  ! kill -0 "$1" 2>/dev/null
+}
+
+poll_count_at_least() { # <poll-log> <count>
+  [ "$(wc -l < "$1" | tr -d ' ')" -ge "$2" ]
+}
+
+running_reply_job() { # sets running_poll to the first running remote job
+  local job
+  for job in "$TMP_ROOT"/remote-jobs/jobs/job-*; do
+    [ -d "$job" ] || continue
+    if [ "$(fm_remote_job_read_state "$job" 2>/dev/null || true)" = running ]; then
+      running_poll=$job
+      return 0
+    fi
   done
   return 1
 }
@@ -89,29 +116,33 @@ reply_owner() {
 }
 
 stop_reply_listener() {
-  local pid _
+  local pid
   pid=$(sed -n '2p' "$CLAIMS/$SID.claim" 2>/dev/null || true)
   case "$pid" in ''|*[!0-9]*) return 0 ;; esac
   kill -TERM -- -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
-  for _ in $(seq 1 80); do
-    kill -0 "$pid" 2>/dev/null || return 0
-    sleep 0.05
-  done
-  return 1
+  wait_until pid_gone "$pid"
 }
 
 # Block until this generation's capture has been applied. A live listener keeps
 # its claim across polls, so start is only launched when nothing owns the source.
-await_reply_result() { # <result-path>
-  local result=$1 handled=${1%.result}.handled _
-  if [ "$(reply_owner)" != live ]; then
-    remote_env "$ROOT/bin/fm-procevent.sh" start "$SID" >/dev/null 2>&1 &
-  fi
-  for _ in $(seq 1 800); do
+# Ownership is rechecked throughout the wait, as the watcher's reconcile does in
+# production: every handle here re-registers the source, and a listener that
+# then finds its registration superseded exits while it still reads as live.
+await_reply_result() { # <result-path> [seconds]
+  local result=$1 handled=${1%.result}.handled deadline=$((SECONDS + ${2:-$REPLY_WAIT_SECONDS})) recheck=0 start_pid=''
+  while [ "$SECONDS" -lt "$deadline" ]; do
     [ -s "$result" ] && [ -f "$handled" ] && return 0
+    if [ "$SECONDS" -ge "$recheck" ]; then
+      if [ "$(reply_owner)" != live ] \
+        && { [ -z "$start_pid" ] || ! kill -0 "$start_pid" 2>/dev/null; }; then
+        remote_env "$ROOT/bin/fm-procevent.sh" start "$SID" >/dev/null 2>&1 &
+        start_pid=$!
+      fi
+      recheck=$((SECONDS + 1))
+    fi
     sleep 0.05
   done
-  return 1
+  [ -s "$result" ] && [ -f "$handled" ]
 }
 
 sha256_file() {
@@ -161,12 +192,7 @@ remote_env "$ROOT/bin/fm-procevent.sh" start "$SID" > "$TMP_ROOT/start-one.out" 
 wait_for "$CLAIMS/$SID.claim" || fail "process-event runner never claimed the remote reply source"
 printf 'done [corr=0123456789abcdef] [at=1700000000]: build verified report=data/reply/report.md\n' \
   >> "$REMOTE/state/parent-replies.status"
-RESULT=
-for _ in $(seq 1 800); do
-  RESULT=$(find "$PARENT/state/procevent-inbox" -name "$SID.1.result" -print -quit 2>/dev/null || true)
-  [ -n "$RESULT" ] && [ -f "${RESULT%.result}.handled" ] && break
-  sleep 0.05
-done
+wait_until test -f "$PARENT/state/procevent-inbox/$SID.1.handled" || true
 RESULT=$(find "$PARENT/state/procevent-inbox" -name "$SID.1.result" -print -quit 2>/dev/null || true)
 if [ -z "$RESULT" ]; then
   printf 'runner output:\n%s\n' "$(cat "$TMP_ROOT/start-one.out")" >&2
@@ -657,18 +683,9 @@ assert_grep 'report=data/remote-secondmates/ios/data/reply/writefail.md' "$PAREN
 mirrored_cursor_is_current "the recovered delta did not advance the cursor"
 pass "a failed mirror write never drops status content or advances the cursor"
 
-# The whole-log recapture re-fetches every document the log offers, one remote
-# job at a time, so it needs far more than one await_reply_result budget on a
-# loaded runner. Each attempt is a full wait that re-checks ownership of the
-# source, so the recapture is bounded by RECAPTURE_WAIT_ATTEMPTS of them.
-RECAPTURE_WAIT_ATTEMPTS=3
-await_recapture_result() { # <result-path>
-  local attempt
-  for attempt in $(seq 1 "$RECAPTURE_WAIT_ATTEMPTS"); do
-    await_reply_result "$1" && return 0
-  done
-  return 1
-}
+# A whole-log recapture re-fetches every document the log offers, one remote
+# job at a time, so it gets three ordinary budgets.
+RECAPTURE_WAIT_SECONDS=$((3 * REPLY_WAIT_SECONDS))
 
 # A source line remains the replay identity even when document availability
 # changes between a successful mirror append and a failed ingestion commit.
@@ -716,7 +733,7 @@ assert_not_contains "$(status_open_decisions "$PARENT/state/ios.status")" $'repl
 stop_reply_listener || fail "the reply listener did not stop before the cursor-loss recapture"
 rm -f "$PARENT/state/remote-replies/ios.cursor"
 GEN=$((GEN + 1))
-await_recapture_result "$PARENT/state/procevent-inbox/$SID.$GEN.result" \
+await_reply_result "$PARENT/state/procevent-inbox/$SID.$GEN.result" "$RECAPTURE_WAIT_SECONDS" \
   || fail "the replay-identity whole-log recapture was not captured"
 assert_present "$PARENT/state/procevent-inbox/$SID.$GEN.handled" \
   "the replay-identity whole-log recapture was not applied"
@@ -797,34 +814,22 @@ FM_REMOTE_REPLY_POLL_LOG="$TMP_ROOT/reply-polls" \
   remote_env "$ROOT/bin/fm-procevent.sh" start "$SID" >/dev/null 2>&1 &
 wait_for "$CLAIMS/$SID.claim" || fail "continuous reply listener never claimed the source"
 HELD_PID=$(sed -n '2p' "$CLAIMS/$SID.claim")
-polls=0
-for _ in $(seq 1 120); do
-  polls=$(wc -l < "$TMP_ROOT/reply-polls" | tr -d ' ')
-  [ "$polls" -ge 2 ] && break
-  sleep 0.25
-done
-[ "$polls" -ge 2 ] || fail "the reply listener did not poll twice while still owned"
+wait_until poll_count_at_least "$TMP_ROOT/reply-polls" 2 \
+  || fail "the reply listener did not poll twice while still owned"
 [ "$(reply_owner)" = live ] || fail "the reply listener dropped its claim between empty waits"
 [ "$(sed -n '2p' "$CLAIMS/$SID.claim")" = "$HELD_PID" ] \
   || fail "an empty wait replaced the reply listener"
 printf 'working [corr=abcdefabcdefabcd]: held across an empty wait\n' \
   >> "$REMOTE/state/parent-replies.status"
-for _ in $(seq 1 80); do
-  grep -q 'held across an empty wait' "$PARENT/state/ios.status" && break
-  sleep 0.1
-done
-grep -q 'held across an empty wait' "$PARENT/state/ios.status" \
+wait_until grep -q 'held across an empty wait' "$PARENT/state/ios.status" \
   || fail "a delta appended while the listener was owned was not mirrored"
 GEN=$((GEN + 1))
 [ "$(sed -n '2p' "$CLAIMS/$SID.claim")" = "$HELD_PID" ] \
   || fail "a delta replaced the reply listener"
 polls_after_delta=$(wc -l < "$TMP_ROOT/reply-polls" | tr -d ' ')
-for _ in $(seq 1 120); do
-  polls=$(wc -l < "$TMP_ROOT/reply-polls" | tr -d ' ')
-  [ "$polls" -gt "$polls_after_delta" ] && break
-  sleep 0.25
-done
-[ "$polls" -gt "$polls_after_delta" ] || fail "the reply listener did not poll again after a delta"
+wait_until poll_count_at_least "$TMP_ROOT/reply-polls" $((polls_after_delta + 1)) \
+  || fail "the reply listener did not poll again after a delta"
+polls=$(wc -l < "$TMP_ROOT/reply-polls" | tr -d ' ')
 [ "$(reply_owner)" = live ] || fail "the reply listener dropped its claim after a delta"
 [ "$(sed -n '2p' "$CLAIMS/$SID.claim")" = "$HELD_PID" ] \
   || fail "the post-delta poll was a new listener"
@@ -874,19 +879,12 @@ GEN=$failed_gen
 pass "persistent ingestion failure leaves exactly one durable capture"
 
 rm -f -- "$PARENT/state/remote-replies/ios.caught-up"
-remote_env "$ADAPTER" source ios > "$TMP_ROOT/preempted-source.out" 2>&1 &
+# The reader's longest window, so on a loaded host only the preemption closes it.
+FM_REMOTE_REPLY_WAIT_SECONDS=300 \
+  remote_env "$ADAPTER" source ios > "$TMP_ROOT/preempted-source.out" 2>&1 &
 PREEMPTED_SOURCE=$!
 running_poll=''
-for _ in $(seq 1 100); do
-  for job in "$TMP_ROOT"/remote-jobs/jobs/job-*; do
-    [ -d "$job" ] || continue
-    if [ "$(fm_remote_job_read_state "$job" 2>/dev/null || true)" = running ]; then
-      running_poll=$job
-      break 2
-    fi
-  done
-  sleep 0.05
-done
+wait_until running_reply_job || true
 [ -n "$running_poll" ] || fail "the reply poll did not begin running before preemption"
 remote_env "$ROOT/bin/fm-on.sh" ios fm-remote-file.sh get data/reply/report.md 262144 >/dev/null
 set +e
@@ -910,25 +908,11 @@ PREEMPTED_RUNNER=$!
 wait_for "$CLAIMS/$SID.claim" || fail "the preempted-listener case never claimed the source"
 HELD_PID=$(sed -n '2p' "$CLAIMS/$SID.claim")
 running_poll=''
-for _ in $(seq 1 100); do
-  for job in "$TMP_ROOT"/remote-jobs/jobs/job-*; do
-    [ -d "$job" ] || continue
-    if [ "$(fm_remote_job_read_state "$job" 2>/dev/null || true)" = running ]; then
-      running_poll=$job
-      break 2
-    fi
-  done
-  sleep 0.05
-done
+wait_until running_reply_job || true
 [ -n "$running_poll" ] || fail "the listener's poll did not begin running before preemption"
 remote_env "$ROOT/bin/fm-on.sh" ios fm-remote-file.sh get data/reply/report.md 262144 >/dev/null
-polls=0
-for _ in $(seq 1 120); do
-  polls=$(wc -l < "$TMP_ROOT/preempted-polls" | tr -d ' ')
-  [ "$polls" -ge 2 ] && break
-  sleep 0.25
-done
-[ "$polls" -ge 2 ] || fail "the preempted listener did not poll again"
+wait_until poll_count_at_least "$TMP_ROOT/preempted-polls" 2 \
+  || fail "the preempted listener did not poll again"
 case "$(ps -p "$PREEMPTED_RUNNER" -o stat= 2>/dev/null)" in
   ''|Z*) fail "a preempted poll ended the reply listener" ;;
 esac
@@ -980,7 +964,7 @@ mv "$PARENT/state/.wake-queue" "$TMP_ROOT/wake-queue-before-replay" 2>/dev/null 
 stop_reply_listener || fail "the reply listener did not stop before the whole-log recapture"
 rm -f "$PARENT/state/remote-replies/ios.cursor"
 GEN=$((GEN + 1))
-await_recapture_result "$PARENT/state/procevent-inbox/$SID.$GEN.result" \
+await_reply_result "$PARENT/state/procevent-inbox/$SID.$GEN.result" "$RECAPTURE_WAIT_SECONDS" \
   || fail "the cursor-loss recapture was not captured"
 assert_present "$PARENT/state/procevent-inbox/$SID.$GEN.handled" \
   "the whole-log recapture was not acknowledged by the adapter"
