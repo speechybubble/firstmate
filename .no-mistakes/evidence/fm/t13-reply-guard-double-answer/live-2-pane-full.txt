@@ -1,0 +1,50 @@
+  ⎿  Stop hook error: Unreconciled native captain input (not a task list or permission to execute):
+  [5162d63b-975e-4e98-9576-9cbba2ff273e] ALREADY ANSWERED: a reply reached the captain after this message. Hello. Please do your normal startup.
+
+  Reconcile every intent in these messages against later corrections, cancellations, priorities and existing records.
+  Use existing task IDs and owners; never replay a request merely because it is listed.
+  Record outliving work and its next action in the backlog, then run bin/fm-request-continuity.sh dispose <id> recorded <task-id>... --summary "<handling>".
+  An ALREADY ANSWERED message whose reply fully handled it needs no task and no new answer: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then end the turn
+  with no further text, because the captain already has that reply.
+  If that reply did not actually address an ALREADY ANSWERED message, answer it now and then dispose it.
+  A disposition does not establish task execution, completion or semantic correctness.
+
+  Ran 1 shell command
+
+● Captain, shipshape.
+
+✻ Cooked for 54s · done 3:03 PM
+
+❯ Count the shell scripts in bin/ (run ls bin/*.sh | wc -l) and tell me the number.
+
+  Listed 1 directory
+
+● Captain, there are 203 shell scripts in bin/.
+
+● Ran 4 stop hooks
+  ⎿  Stop hook error: Unreconciled native captain input (not a task list or permission to execute):
+  [c2a14c28-0111-438a-9c95-16fd12d98ead] ALREADY ANSWERED: a reply reached the captain after this message. Count the shell scripts in bin/ (run ls bin/*.sh | wc -l) and tell me the number.
+
+  Reconcile every intent in these messages against later corrections, cancellations, priorities and existing records.
+  Use existing task IDs and owners; never replay a request merely because it is listed.
+  Record outliving work and its next action in the backlog, then run bin/fm-request-continuity.sh dispose <id> recorded <task-id>... --summary "<handling>".
+  An ALREADY ANSWERED message whose reply fully handled it needs no task and no new answer: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then end the turn
+  with no further text, because the captain already has that reply.
+  If that reply did not actually address an ALREADY ANSWERED message, answer it now and then dispose it.
+  A disposition does not establish task execution, completion or semantic correctness.
+
+  Ran 1 shell command
+
+❯ Also, what is 7 times 6?
+
+● Captain, 7 times 6 is 42.
+
+  The script count from a moment ago still stands at 203.
+
+✻ Cogitated for 32s · done 3:05 PM
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Add a project
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 6% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)

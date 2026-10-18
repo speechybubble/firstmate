@@ -1,0 +1,5 @@
+{"type":"start","after":0}
+{"type":"recovery","ids":["5162d63b-975e-4e98-9576-9cbba2ff273e"]}
+{"type":"disposition","id":"5162d63b-975e-4e98-9576-9cbba2ff273e","disposition":"reply","tasks":[],"summary":"Startup completed and reported: lock held, no work under way, fresh home with no projects registered.","at":62}
+{"type":"recovery","ids":["c2a14c28-0111-438a-9c95-16fd12d98ead"]}
+{"type":"disposition","id":"c2a14c28-0111-438a-9c95-16fd12d98ead","disposition":"reply","tasks":[],"summary":"Counted 203 shell scripts in bin/ and reported the number.","at":103}

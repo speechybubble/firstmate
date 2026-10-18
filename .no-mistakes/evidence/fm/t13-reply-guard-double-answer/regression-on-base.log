@@ -1,0 +1,4 @@
+Use existing task IDs and owners; never replay a request merely because it is listed.
+Record outliving work and its next action in the backlog, then run bin/fm-request-continuity.sh dispose <id> recorded <task-id>... --summary "<handling>".
+Questions and work fully handled in this reply need no task: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then give the substantive answer.
+A disposition does not establish task execution, completion or semantic correctness.

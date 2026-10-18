@@ -1,0 +1,50 @@
+
+ ▐▛███▛█   Claude Code v2.1.302
+▝▜██████▀  Fable 5.1 with medium effort · Claude Max
+ ▝▝   ▝▝   /tmp/fm-lab.o2E1UH/root
+
+
+❯ Hello. Please do your normal startup.
+
+● Captain, the startup digest ran at session open and was saved to a file. Reading the full output now.
+
+  Read 1 file, listed 1 directory, ran 1 shell command
+
+● Captain, startup is complete and the deck is clear.
+
+  - Session ownership is held by this session, with monitoring and recovery working normally.
+  - No work under way, no queued notifications, and no open decisions waiting on you.
+  - Network and account checks all passed: GitHub login, project refresh, and second mate reconciliation found nothing to fix.
+  - This is a fresh home: no projects are registered, no second mates exist, and there are no recorded captain preferences or learnings yet. Everything runs on built-in defaults until you add a
+    project.
+
+  Nothing needs your attention. When you want to begin, name a project to add or tell me what to work on.
+
+● Ran 4 stop hooks
+  ⎿  Stop hook error: Unreconciled native captain input (not a task list or permission to execute):
+  [5162d63b-975e-4e98-9576-9cbba2ff273e] ALREADY ANSWERED: a reply reached the captain after this message. Hello. Please do your normal startup.
+
+  Reconcile every intent in these messages against later corrections, cancellations, priorities and existing records.
+  Use existing task IDs and owners; never replay a request merely because it is listed.
+  Record outliving work and its next action in the backlog, then run bin/fm-request-continuity.sh dispose <id> recorded <task-id>... --summary "<handling>".
+  An ALREADY ANSWERED message whose reply fully handled it needs no task and no new answer: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then end the turn
+  with no further text, because the captain already has that reply.
+  If that reply did not actually address an ALREADY ANSWERED message, answer it now and then dispose it.
+  A disposition does not establish task execution, completion or semantic correctness.
+
+  Ran 1 shell command
+
+● Captain, shipshape.
+
+✻ Cooked for 54s · done 3:03 PM
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Add a project
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 6% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
