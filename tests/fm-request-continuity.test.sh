@@ -301,7 +301,8 @@ test_reply_already_given_needs_no_second_answer() {
   tool_turn "$home"
   out=$(stop_hook "$home" | jq -r '.reason')
   assert_contains "$out" "once, then give the substantive answer." "input with no following reply must keep the original prompt"
-  assert_contains "$out" "end the turn with no further text" "the earlier answered input must keep its marker"
+  assert_contains "$out" "the earlier reply stands and needs no repeat." "the earlier answered input must keep its marker"
+  case "$out" in *"end the turn"*) fail "the block told Firstmate to end the turn while unanswered input is listed: $out" ;; esac
   case "$out" in *"[u-e] ALREADY"*) fail "narration before a tool call counted as a reply: $out" ;; esac
   out=$(as_owner "$home" dispose u-e reply --summary "will confirm the rotation")
   assert_contains "$out" "reply staged for u-e" "input with no following reply must stage its reply disposition"

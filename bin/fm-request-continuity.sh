@@ -290,12 +290,13 @@ Reconcile every intent in these messages against later corrections, cancellation
 Use existing task IDs and owners; never replay a request merely because it is listed.
 Record outliving work and its next action in the backlog, then run bin/fm-request-continuity.sh dispose <id> recorded <task-id>... --summary "<handling>".
 TEXT
+  close='; the earlier reply stands and needs no repeat.'
   if printf '%s\n' "$requests" | jq -e 'select(.answered | not)' >/dev/null 2>&1; then
     printf '%s\n' 'Questions and work fully handled in this reply need no task: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then give the substantive answer.'
+  elif [ "$event" = stop ]; then
+    close=', then end the turn with no further text, because the captain already has that reply.'
   fi
   if printf '%s\n' "$requests" | jq -e 'select(.answered)' >/dev/null 2>&1; then
-    close='; the earlier reply stands and needs no repeat.'
-    [ "$event" = stop ] && close=', then end the turn with no further text, because the captain already has that reply.'
     printf '%s\n' "An ALREADY ANSWERED message whose reply fully handled it needs no task and no new answer: run bin/fm-request-continuity.sh dispose <id> reply --summary \"<handling>\" once$close"
     printf '%s\n' 'If that reply did not actually address an ALREADY ANSWERED message, answer it now and then dispose it.'
   fi
