@@ -2835,7 +2835,7 @@ test_fresh_spawn_of_a_held_task_is_still_refused() {
   file="$dir/home/data/backlog.md"
   tasks-axi hold rl79 --reason "captain decision pending" --kind captain --file "$file" >/dev/null
 
-  out=$(run_spawn "$dir" rl79 "$dir/proj" --mode no-mistakes --yolo off) || rc=$?
+  out=$(run_spawn "$dir" rl79 "$dir/proj" claude --mode no-mistakes --yolo off) || rc=$?
   [ "$rc" -ne 0 ] || fail "a fresh spawn of a held task was dispatched"$'\n'"$out"
   assert_contains "$out" "not dispatchable in state in_flight yes no" \
     "the refusal should name the held state"
