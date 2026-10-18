@@ -3852,14 +3852,19 @@ if fm_backlog_transition_applies "$CONFIG" "$DATA" "$KIND"; then
     exit 1
   fi
   spawn_preflight_actor=$(fm_lease_actor) || exit "$FM_LEASE_REFUSE_EXIT"
-  if [ "$BACKLOG_INTENT" = recover ]; then
-    if ! fm_backlog_row_recoverable "$BACKLOG_ROW_STATE"; then
-      echo "error: this home's backlog item $ID is not recoverable in state $BACKLOG_ROW_STATE; refusing before relaunching its worker" >&2
+  if [ "$spawn_preflight_actor" = branch ] && fm_lease_away_relocated; then
+    if [ "$BACKLOG_INTENT" = recover ]; then
+      if ! fm_backlog_row_dispatchable "$BACKLOG_ROW_STATE"; then
+        echo "error: relaunch refused - the supervision branch under the away-posture record may relaunch only unheld, unblocked Queued or In-flight work; task $ID's backlog item is in state $BACKLOG_ROW_STATE" >&2
+        exit 1
+      fi
+    elif [ "$BACKLOG_ROW_STATE" != "queued no no" ]; then
+      echo "error: spawn refused - the supervision branch under the away-posture record may dispatch only queued unblocked work (already queued, or filed by the branch from the captain's away words); task $ID has no dispatchable backlog item in this home" >&2
       exit 1
     fi
-  elif [ "$spawn_preflight_actor" = branch ] && fm_lease_away_relocated; then
-    if [ "$BACKLOG_ROW_STATE" != "queued no no" ]; then
-      echo "error: spawn refused - the supervision branch under the away-posture record may dispatch only queued unblocked work (already queued, or filed by the branch from the captain's away words); task $ID has no dispatchable backlog item in this home" >&2
+  elif [ "$BACKLOG_INTENT" = recover ]; then
+    if ! fm_backlog_row_recoverable "$BACKLOG_ROW_STATE"; then
+      echo "error: this home's backlog item $ID is not recoverable in state $BACKLOG_ROW_STATE; refusing before relaunching its worker" >&2
       exit 1
     fi
   elif ! fm_backlog_row_dispatchable "$BACKLOG_ROW_STATE"; then

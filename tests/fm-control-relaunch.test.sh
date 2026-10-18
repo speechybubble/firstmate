@@ -2845,6 +2845,50 @@ test_fresh_spawn_of_a_held_task_is_still_refused() {
   pass "a fresh spawn of a held task is still refused"
 }
 
+# The away posture relocates recovery to the supervision branch, but only of
+# work it could dispatch: an unheld In-flight task comes back, while one held
+# for the captain stays stopped for main.
+test_away_branch_relaunch_recovers_only_unheld_in_flight_work() {
+  local dir out rc file
+  command -v tasks-axi >/dev/null 2>&1 || {
+    pass "skipped: tasks-axi is not installed, so the backlog transition is inert"
+    return 0
+  }
+  fm_tasks_axi_compatible || {
+    pass "skipped: installed tasks-axi predates ${FM_TASKS_AXI_MIN}, so dispatch refuses automatic backlog transitions"
+    return 0
+  }
+  dir=$(new_case away-branch rl80)
+  add_ship_task "$dir" rl80 claude
+  seed_backlog "$dir" rl80 in_flight
+  file="$dir/home/data/backlog.md"
+  FM_HOME="$dir/home" FM_STATE_OVERRIDE="$dir/home/state" \
+    "$ROOT/bin/fm-afk-contract.sh" enter --words "keep the fleet moving" >/dev/null \
+    || fail "could not enter an away-posture record"
+  printf 'zsh' > "$dir/fake/command"
+  break_tasks_axi_start "$dir"
+
+  rc=0
+  out=$(FM_SUPERVISION_ACTOR=branch run_control "$dir" rl80 relaunch --note "back after the reboot") || rc=$?
+  expect_code 0 "$rc" "the away-posture branch must recover an unheld In-flight task"$'\n'"$out"
+  assert_contains "$out" "relaunched rl80 harness=claude" "the outcome should name the recovery"
+  [ "$(backlog_state "$dir" rl80)" = in_flight ] \
+    || fail "branch recovery moved the item to $(backlog_state "$dir" rl80)"
+
+  tasks-axi hold rl80 --reason "captain decision pending" --kind captain --file "$file" >/dev/null
+  printf 'zsh' > "$dir/fake/command"
+  : > "$dir/fake/literal"
+  rc=0
+  out=$(FM_SUPERVISION_ACTOR=branch run_control "$dir" rl80 relaunch --note "back after the reboot") || rc=$?
+  [ "$rc" -ne 0 ] || fail "the away-posture branch relaunched a task held for the captain"$'\n'"$out"
+  assert_contains "$out" "held for the captain" "the refusal should name the captain hold"
+  assert_not_contains "$(cat "$dir/fake/literal")" "Firstmate operational input waiting" \
+    "the refused relaunch must not launch a replacement agent"
+  assert_contains "$(tasks-axi show rl80 --file "$file")" "held: yes" \
+    "the refused relaunch must leave the captain hold in place"
+  pass "the away-posture branch recovers an unheld In-flight task and leaves a held one for main"
+}
+
 test_exit_and_relaunch_remove_the_dialog_file() {
   local dir out rc
   dir=$(new_case dialog-file-exit rl70)
@@ -3455,3 +3499,4 @@ test_relaunch_reverifies_an_already_in_flight_item_instead_of_rewriting_it
 test_relaunch_moves_a_drifted_item_back_in_flight
 test_relaunch_recovers_a_held_in_flight_task_whose_agent_died
 test_fresh_spawn_of_a_held_task_is_still_refused
+test_away_branch_relaunch_recovers_only_unheld_in_flight_work
