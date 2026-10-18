@@ -2875,6 +2875,21 @@ test_away_branch_relaunch_recovers_only_unheld_in_flight_work() {
   [ "$(backlog_state "$dir" rl80)" = in_flight ] \
     || fail "branch recovery moved the item to $(backlog_state "$dir" rl80)"
 
+  tasks-axi hold rl80 --reason "parked until the vendor replies" --kind parked --file "$file" >/dev/null
+  printf 'zsh' > "$dir/fake/command"
+  : > "$dir/fake/literal"
+  rc=0
+  out=$(FM_SUPERVISION_ACTOR=branch run_control "$dir" rl80 relaunch --note "back after the reboot") || rc=$?
+  [ "$rc" -ne 0 ] || fail "the away-posture branch relaunched a parked In-flight task"$'\n'"$out"
+  assert_contains "$out" "may relaunch only unheld, unblocked Queued or In-flight work" \
+    "the refusal should name the away-posture relaunch limit"
+  assert_not_contains "$(cat "$dir/fake/literal")" "Firstmate operational input waiting" \
+    "the refused relaunch must not launch a replacement agent"
+  assert_contains "$(tasks-axi show rl80 --file "$file")" "held: yes" \
+    "the refused relaunch must leave the parked hold in place"
+  [ "$(backlog_state "$dir" rl80)" = in_flight ] \
+    || fail "the refused relaunch moved the item to $(backlog_state "$dir" rl80)"
+
   tasks-axi hold rl80 --reason "captain decision pending" --kind captain --file "$file" >/dev/null
   printf 'zsh' > "$dir/fake/command"
   : > "$dir/fake/literal"
