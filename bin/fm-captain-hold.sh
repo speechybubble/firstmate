@@ -29,7 +29,7 @@
 #   fm-captain-hold.sh unbind <source-id>
 #   fm-captain-hold.sh binding <source-id>
 #   fm-captain-hold.sh complete <origin-id> (--none | <task-id>...) \
-#     [--retire <held-id> --evidence <file-or-done-task-id>]...
+#     [--retire <held-id> --evidence <file>]...
 #   fm-captain-hold.sh verify <origin-id>
 #   fm-captain-hold.sh open <task-id> [--identity] [--distinguish-absent]
 #   fm-captain-hold.sh diverged
@@ -157,24 +157,22 @@
 # backlog can no longer verify, so `complete --none` and scout teardown would
 # refuse forever. `complete <origin> --retire <held-id> --evidence <evidence>`
 # is the gate's own exit for that case: it moves the named entry out of the
-# live inventory on evidence instead of forcing the record. The evidence is
-# either a readable file whose text mentions the held id (a dated backlog
-# backup, a discard record) or a different backlog task in Done state whose
-# full `tasks-axi show` output mentions the held id (tasks-axi has no separate
-# cancelled state, so Done is the closed state it checks). A retirement is
-# refused without `--evidence`, when the evidence does not mention the held id,
-# when the entry is not in the recorded inventory, and whenever the held id
-# still resolves to a task that is not Done, because an open captain call is
-# never retired - it is answered. The pair may repeat, and it combines with
-# `--none` or with new ids. History is kept: the previous `decision_keys=`
+# live inventory on evidence instead of forcing the record. The evidence is a
+# readable file whose text mentions the held id (a dated backlog backup or a
+# cancellation record). A retirement is refused without `--evidence`, when the
+# evidence file does not mention the held id, when the entry is not in the
+# recorded inventory, and whenever the held id still resolves to a task that is
+# not Done, because an open captain call is never retired - it is answered. The
+# pair may repeat, and it combines with `--none` or with new ids. History is
+# kept: the previous `decision_keys=`
 # lines stay in the metadata, the surviving ids are appended as a new
 # `decision_keys=` line, the retired ids are unioned into
 # `retired_decision_keys=`, and each retirement appends one
-# `retired_decision_key.<held-id>=<file:path | task:id> at <UTC stamp>` line.
+# `retired_decision_key.<held-id>=file:<path> at <UTC stamp>` line.
 # `verify` accepts a retired entry when that evidence line exists and the held
 # id does not resolve to an open task again; an id present in both lists is
-# refused. Listing a retired id as a new inventory entry un-retires it, after
-# the ordinary durability checks.
+# refused. A retired id is never listed as live inventory again: `complete`
+# refuses naming it, whether it was retired earlier or in the same call.
 # Metadata compatibility: the attestation keeps the historical
 # `decisions_reviewed=1` and `decision_keys=` keys, and an inventory entry that
 # names no existing task resolves through the legacy `<origin>-decision-<entry>`
@@ -1792,35 +1790,17 @@ refuse_open_retirement() {  # <origin> <held-id> <verb>
     || fail "cannot $verb $held: it resolves to task $id, which is still open (state $state); answer the captain call instead of retiring it"
 }
 
-# Verify the evidence for retiring <held-id> and print its recorded form:
-# `file:<absolute path>` for a readable file mentioning the id, or `task:<id>`
-# for a Done backlog task whose full row mentions the id.
+# Verify the evidence file for retiring <held-id> and print its recorded form,
+# `file:<absolute path>`.
 verify_retirement_evidence() {  # <held-id> <evidence>; prints the recorded pointer
-  local held=$1 evidence=$2 abs state
-  [ -n "$evidence" ] || fail "retiring $held requires --evidence naming a readable file or a Done task that records the discard"
-  if [ -e "$evidence" ]; then
-    [ -f "$evidence" ] && [ -r "$evidence" ] \
-      || fail "evidence for retiring $held is not a readable file: $evidence"
-    grep -qF -- "$held" "$evidence" \
-      || fail "evidence file $evidence does not mention $held; retirement refused"
-    abs=$(cd "$(dirname "$evidence")" && pwd -P)/$(basename "$evidence")
-    printf 'file:%s' "$abs"
-    return 0
-  fi
-  case "$evidence" in
-    ''|*[!A-Za-z0-9._-]*) fail "evidence for retiring $held is neither a readable file nor a task id: $evidence" ;;
-  esac
-  [ "$evidence" != "$held" ] || fail "the held task $held cannot be its own retirement evidence"
-  task_show "$evidence" \
-    || fail "evidence for retiring $held is neither a readable file nor a task in this home's configured backlog (data directory $DATA): $evidence"
-  state=$(show_field "$TASK_SHOW_OUTPUT" state)
-  [ "$state" = "done" ] \
-    || fail "evidence task $evidence is not Done (state $state); only a closed task can evidence retiring $held"
-  case "$TASK_SHOW_OUTPUT" in
-    *"$held"*) ;;
-    *) fail "evidence task $evidence does not mention $held; retirement refused" ;;
-  esac
-  printf 'task:%s' "$evidence"
+  local held=$1 evidence=$2 abs
+  [ -n "$evidence" ] || fail "retiring $held requires --evidence naming a readable file that records the discard"
+  [ -f "$evidence" ] && [ -r "$evidence" ] \
+    || fail "evidence for retiring $held is not a readable file: $evidence"
+  grep -qF -- "$held" "$evidence" \
+    || fail "evidence file $evidence does not mention $held; retirement refused"
+  abs=$(cd "$(dirname "$evidence")" && pwd -P)/$(basename "$evidence")
+  printf 'file:%s' "$abs"
 }
 
 command_complete() {
@@ -1855,7 +1835,7 @@ command_complete() {
         ;;
       --evidence)
         [ -n "$retire" ] || fail "--evidence must follow --retire <held-id>"
-        [ "$#" -ge 2 ] || fail "--evidence requires a file path or task id"
+        [ "$#" -ge 2 ] || fail "--evidence requires a file path"
         validate_one_line evidence "$2"
         retire_ids="${retire_ids}${retire_ids:+$NL_SEP}$retire"
         retire_evidence="${retire_evidence}${retire_evidence:+$NL_SEP}$2"
@@ -1871,12 +1851,17 @@ command_complete() {
     esac
     shift
   done
-  [ -z "$retire" ] || fail "retiring $retire requires --evidence naming a readable file or a Done task that records the discard"
+  [ -z "$retire" ] || fail "retiring $retire requires --evidence naming a readable file that records the discard"
   [ "$none" = 1 ] || [ -n "$supplied" ] || [ -n "$retire_ids" ] || { usage >&2; exit 2; }
   if [ "$has_meta" = 1 ]; then
     previous=$(meta_value "$meta" decision_keys)
     previous_retired=$(retired_keys_value "$meta")
   fi
+  retired=$(sorted_key_union "$previous_retired" "$retire_ids")
+  for entry in $supplied; do
+    ! list_has_key "$retired" "$entry" \
+      || fail "$entry is retired from the captain-call inventory of $origin and cannot be listed as live inventory again"
+  done
   if [ -n "$retire_ids" ]; then
     [ "$has_meta" = 1 ] || fail "origin $origin has no live metadata to retire an inventory entry from"
     while IFS=$'\t' read -r entry pointer; do
@@ -1896,10 +1881,6 @@ EOF
   fi
   keys=$(sorted_key_union "$previous" "$supplied")
   keys=$(sorted_key_minus "$keys" "$retire_ids")
-  retired=$(sorted_key_union "$previous_retired" "$(printf '%s\n' "$retire_ids" | tr '\n' ' ')")
-  # A retired id listed again as live inventory is un-retired by the ordinary
-  # durability checks below, so the two lists never overlap.
-  retired=$(sorted_key_minus "$retired" "$(printf '%s\n' "$supplied" | tr ' ' '\n')")
   if [ -n "$keys" ]; then
     while IFS= read -r entry; do
       [ -n "$entry" ] || continue
@@ -1995,7 +1976,7 @@ EOF
     while IFS= read -r entry; do
       [ -n "$entry" ] || continue
       [ -n "$(retired_evidence_line "$meta" "$entry")" ] \
-        || fail "retired inventory entry $entry has no recorded evidence in $meta; re-run complete $origin --retire $entry --evidence <file-or-done-task>"
+        || fail "retired inventory entry $entry has no recorded evidence in $meta; re-run complete $origin --retire $entry --evidence <file>"
       refuse_open_retirement "$origin" "$entry" "keep retired"
     done <<EOF
 $(printf '%s\n' "$retired" | tr ',' '\n')
