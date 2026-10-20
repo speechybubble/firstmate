@@ -846,6 +846,126 @@ EOF
 # exact retry is idempotent, a drifted retry is rejected, dependent work routed
 # behind the answered task is released by the close, and the completion gate is
 # satisfied only by a recorded answer.
+# Reproduces the second mate's case with privacy-safe names: a finished scout's
+# attested inventory names captain-held tasks the captain later cancelled and
+# deleted from the backlog, with the deletion recorded in a dated backup file.
+# The gate unions keys and never drops one, so verify and scout teardown refuse
+# forever; retiring the entries on that recorded evidence is the gate's own exit.
+test_retire_lets_a_discarded_inventory_close_through_the_gate() {
+  local home scout backup out rc err
+  home=$(make_home retire-discarded)
+  scout=sample-reading-scout
+  mkdir -p "$home/data/$scout"
+  tasks_in "$home" add "$scout" "Read the sample notes" --kind scout --repo sample --start >/dev/null \
+    || fail "could not create the scout backlog fixture"
+  write_origin_meta "$home" "$scout"
+  printf 'working: report drafted\n' > "$home/state/$scout.status"
+  printf '# Sample reading\n\nThree follow-up calls were held for the captain.\n' > "$home/data/$scout/report.md"
+  for id in sample-image-design sample-site-build sample-process-adoption; do
+    run_captain "$home" hold "$id" --title "Decide $id" --reason "captain call from the reading" \
+      --repo sample --origin "$scout" >/dev/null || fail "could not hold $id"
+  done
+  run_captain "$home" complete "$scout" sample-image-design sample-site-build sample-process-adoption >/dev/null \
+    || fail "the original completion did not attest the three held tasks"
+  run_captain "$home" verify "$scout" >/dev/null || fail "verify refused the attested inventory before the discard"
+  printf 'done: report complete\n' >> "$home/state/$scout.status"
+
+  # The captain cancels the calls: the backlog is backed up, then the rows are deleted.
+  backup="$home/data/backlog.before-sample-discard-20261011.md"
+  cp "$home/data/backlog.md" "$backup"
+  for id in sample-image-design sample-site-build sample-process-adoption; do
+    tasks_in "$home" rm "$id" >/dev/null || fail "could not delete $id from the fixture backlog"
+  done
+
+  # Reproduction: the recorded inventory now names nothing, so every exit refuses.
+  if run_captain "$home" verify "$scout" >/dev/null 2>&1; then
+    fail "verify accepted an inventory whose tasks were deleted"
+  fi
+  if run_captain "$home" complete "$scout" --none >/dev/null 2>&1; then
+    fail "complete --none accepted an inventory whose tasks were deleted"
+  fi
+  set +e
+  run_teardown "$home" "$scout" > "$home/teardown.out" 2> "$home/teardown.err"
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "scout teardown passed the completion gate over deleted inventory tasks"
+  assert_grep "completion gate" "$home/teardown.err" "teardown must name the completion gate"
+
+  # Refusals: no evidence, evidence that does not mention the key, an unknown
+  # evidence task, a key outside the inventory, and a key whose task is open.
+  if run_captain "$home" complete "$scout" --retire sample-image-design >/dev/null 2>&1; then
+    fail "retirement was accepted without --evidence"
+  fi
+  printf 'unrelated backup\n' > "$home/data/other-backup.md"
+  err=$(run_captain "$home" complete "$scout" --retire sample-image-design --evidence "$home/data/other-backup.md" 2>&1) \
+    && fail "retirement was accepted on evidence that never mentions the key"
+  case "$err" in *"does not mention sample-image-design"*) ;; *) fail "refusal did not name the missing mention: $err" ;; esac
+  if run_captain "$home" complete "$scout" --retire sample-image-design --evidence no-such-task >/dev/null 2>&1; then
+    fail "retirement was accepted on an evidence id that is neither a file nor a task"
+  fi
+  if run_captain "$home" complete "$scout" --retire sample-never-held --evidence "$backup" >/dev/null 2>&1; then
+    fail "retirement was accepted for an id that is not in the recorded inventory"
+  fi
+  assert_no_grep "retired_decision_key" "$home/state/$scout.meta" "a refused retirement must record nothing"
+  run_captain "$home" hold sample-image-design --title "Decide sample-image-design" \
+    --reason "re-held while still open" --repo sample --origin "$scout" >/dev/null \
+    || fail "could not re-hold the image design call"
+  err=$(run_captain "$home" complete "$scout" --retire sample-image-design --evidence "$backup" 2>&1) \
+    && fail "retirement was accepted while the held task is still open"
+  case "$err" in *"still open"*) ;; *) fail "refusal did not say the task is still open: $err" ;; esac
+  tasks_in "$home" rm sample-image-design >/dev/null || fail "could not delete the re-held row"
+
+  # Acceptance: the dated backup mentions each deleted id, and a Done task that
+  # records the discard works as evidence too.
+  tasks_in "$home" add sample-discard-record "Cancelled the sample calls" --kind captain --repo sample >/dev/null \
+    || fail "could not add the discard record task"
+  tasks_in "$home" "done" sample-discard-record --note "cancelled sample-process-adoption on 2026-10-11" >/dev/null \
+    || fail "could not close the discard record task"
+  out=$(run_captain "$home" complete "$scout" \
+    --retire sample-image-design --evidence "$backup" \
+    --retire sample-site-build --evidence "$backup" \
+    --retire sample-process-adoption --evidence sample-discard-record) \
+    || fail "retirement on recorded evidence was refused"
+  case "$out" in *"retired on evidence: sample-image-design,sample-process-adoption,sample-site-build"*) ;; *) fail "completion line did not name the retired ids: $out" ;; esac
+  grep -qxF "decision_keys=sample-image-design,sample-process-adoption,sample-site-build" "$home/state/$scout.meta" \
+    || fail "the original inventory line must stay in the metadata as history"
+  [ "$(grep '^decision_keys=' "$home/state/$scout.meta" | tail -1)" = "decision_keys=" ] \
+    || fail "the surviving inventory line is not empty after retiring every entry"
+  grep -qxF "retired_decision_keys=sample-image-design,sample-process-adoption,sample-site-build" "$home/state/$scout.meta" \
+    || fail "retired ids must be recorded beside the surviving keys"
+  assert_grep "retired_decision_key.sample-site-build=file:$backup at 20" "$home/state/$scout.meta" \
+    "a file retirement must record the evidence path"
+  assert_grep "retired_decision_key.sample-process-adoption=task:sample-discard-record at 20" "$home/state/$scout.meta" \
+    "a task retirement must record the evidence task"
+  run_captain "$home" verify "$scout" >/dev/null || fail "verify refused the retired inventory"
+  run_captain "$home" complete "$scout" --none >/dev/null || fail "complete --none refused after retirement"
+  out=$(run_captain "$home" complete "$scout" --retire sample-site-build --evidence "$backup") \
+    || fail "an exact retirement retry was refused"
+  [ "$(grep -c '^retired_decision_key.sample-site-build=' "$home/state/$scout.meta")" = 1 ] \
+    || fail "a retirement retry duplicated the evidence line"
+
+  # A retired id held again is an open captain call: verify refuses it until it
+  # is answered or listed as live inventory, which un-retires it.
+  run_captain "$home" hold sample-site-build --title "Decide sample-site-build" \
+    --reason "the captain reopened the site build call" --repo sample --origin "$scout" >/dev/null \
+    || fail "could not re-hold the site build call"
+  err=$(run_captain "$home" verify "$scout" 2>&1) && fail "verify kept a re-held task retired"
+  case "$err" in *"still open"*) ;; *) fail "verify refusal did not name the open task: $err" ;; esac
+  run_captain "$home" complete "$scout" sample-site-build >/dev/null \
+    || fail "listing the re-held task as live inventory was refused"
+  [ "$(grep '^retired_decision_keys=' "$home/state/$scout.meta" | tail -1)" = "retired_decision_keys=sample-image-design,sample-process-adoption" ] \
+    || fail "listing the re-held task did not un-retire it"
+  run_captain "$home" verify "$scout" >/dev/null || fail "verify refused the mixed live and retired inventory"
+  printf 'ship the site build as drafted\n' > "$home/site-build-answer.txt"
+  run_captain "$home" answer sample-site-build --decision-file "$home/site-build-answer.txt" >/dev/null \
+    || fail "could not answer the reopened call"
+
+  run_teardown "$home" "$scout" > "$home/teardown2.out" 2> "$home/teardown2.err" \
+    || fail "scout teardown still refused after retirement: $(cat "$home/teardown2.err")"
+  assert_present "$home/data/$scout/report.md" "the scout report must survive its cleanup"
+  pass "an attested inventory whose tasks the captain discarded closes through the gate on recorded evidence"
+}
+
 test_answer_records_and_closes() {
   local home id json show
   home=$(make_home answer-close)
@@ -4676,6 +4796,7 @@ test_uninventoried_report_decision_refuses_completion
 test_hold_decodes_a_bare_scalar_body_without_the_nonref_default
 test_retained_body_keeps_its_utf8_bytes
 test_completion_gate_attests_and_transfers
+test_retire_lets_a_discarded_inventory_close_through_the_gate
 test_answer_records_and_closes
 test_release_frees_held_work
 test_hold_stamp_precedes_hold_visibility
