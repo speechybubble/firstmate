@@ -1773,18 +1773,25 @@ sorted_key_minus() {  # <comma-list> <newline-separated-removed-keys>
 }
 
 # Refuse a retirement whose held id still resolves to a task that is not Done.
-# Absence is what retirement exists for, so an unresolvable id passes; a read
-# bound is still reported by name rather than spent as absence.
+# Absence is what retirement exists for, so only an established absence
+# (status 1) passes; a read bound or a resolution that cannot tell (status 2:
+# an ambiguous migration marker, an unresolvable backlog, an unreadable scan)
+# is refused by name rather than spent as absence.
 refuse_open_retirement() {  # <origin> <held-id> <verb>
-  local origin=$1 held=$2 verb=$3 resolved rc=0 id state
-  resolved=$(resolve_entry "$origin" "$held" 2>/dev/null) || rc=$?
+  local origin=$1 held=$2 verb=$3 resolved rc=0 id state err reason
+  err=$(mktemp "${TMPDIR:-/tmp}/fm-captain-hold-retire.XXXXXX") \
+    || fail "cannot stage the resolution diagnostics for $held"
+  resolved=$(resolve_entry "$origin" "$held" 2>"$err") || rc=$?
+  reason=$(sanitize_field "$(head -c 300 "$err" | tr '\n' ' ')")
+  rm -f "$err"
   case "$rc" in
     0) ;;
+    1) return 0 ;;
     124) fail "the backlog backend exceeded its read bound resolving $held" ;;
-    *) return 0 ;;
+    *) fail "cannot $verb $held: its backlog resolution could not establish that the task is gone (${reason:-status $rc})" ;;
   esac
   id=${resolved%% *}
-  task_show "$id" || return 0
+  task_show "$id" || fail "cannot $verb $held: it resolves to task $id, which could not be read back"
   state=$(show_field "$TASK_SHOW_OUTPUT" state)
   [ "$state" = "done" ] \
     || fail "cannot $verb $held: it resolves to task $id, which is still open (state $state); answer the captain call instead of retiring it"

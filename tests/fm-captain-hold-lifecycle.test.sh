@@ -962,6 +962,44 @@ test_retire_lets_a_discarded_inventory_close_through_the_gate() {
   pass "an attested inventory whose tasks the captain discarded closes through the gate on recorded evidence"
 }
 
+# Retirement exists for an established absence only. When the backlog cannot
+# tell whether the held id is gone - here a beads backend whose configuration
+# names no graph, so the migrated-hold scan cannot run - both the retirement
+# and verify of an already retired entry refuse by name instead of spending
+# "cannot tell" as "deleted".
+test_retire_refuses_when_resolution_cannot_establish_absence() {
+  local home scout evidence err
+  home=$(make_home retire-unresolvable)
+  scout=sample-unresolved-scout
+  cat > "$home/.tasks.toml" <<'EOF'
+backend = "beads"
+
+[beads]
+binary = "bd"
+prefix = "fm"
+EOF
+  write_known_rows_stub "$(fm_fakebin "$home")" "$scout"
+  write_scout_with_attested_inventory "$home" "$scout" sample-unclear-call
+  evidence="$home/data/backlog.before-sample-discard.md"
+  printf -- '- sample-unclear-call was cancelled\n' > "$evidence"
+  cp "$home/state/$scout.meta" "$home/meta.before-retire"
+
+  err=$(run_captain "$home" complete "$scout" --retire sample-unclear-call --evidence "$evidence" 2>&1) \
+    && fail "retirement was accepted while the backlog could not establish the held id is gone"
+  assert_contains "$err" "cannot retire sample-unclear-call" "the refusal must name the held id"
+  assert_contains "$err" "carries no graph path" "the refusal must carry the resolution reason"
+  cmp -s "$home/meta.before-retire" "$home/state/$scout.meta" \
+    || fail "a refused retirement must leave the metadata unchanged"
+
+  printf '%s\n' "decision_keys=" "retired_decision_keys=sample-unclear-call" \
+    "retired_decision_key.sample-unclear-call=file:$evidence at 2026-10-11T00:00:00Z" >> "$home/state/$scout.meta"
+  err=$(run_captain "$home" verify "$scout" 2>&1) \
+    && fail "verify kept an entry retired while the backlog could not establish the held id is gone"
+  assert_contains "$err" "cannot keep retired sample-unclear-call" "the verify refusal must name the held id"
+  assert_contains "$err" "carries no graph path" "the verify refusal must carry the resolution reason"
+  pass "retirement and verify refuse when the backlog cannot establish that a held id is gone"
+}
+
 # The recorded-answer rule: answering closes with the captain's exact words, an
 # exact retry is idempotent, a drifted retry is rejected, dependent work routed
 # behind the answered task is released by the close, and the completion gate is
@@ -4797,6 +4835,7 @@ test_hold_decodes_a_bare_scalar_body_without_the_nonref_default
 test_retained_body_keeps_its_utf8_bytes
 test_completion_gate_attests_and_transfers
 test_retire_lets_a_discarded_inventory_close_through_the_gate
+test_retire_refuses_when_resolution_cannot_establish_absence
 test_answer_records_and_closes
 test_release_frees_held_work
 test_hold_stamp_precedes_hold_visibility
