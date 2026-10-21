@@ -1018,6 +1018,83 @@ EOF
   pass "retirement and verify refuse when the backlog cannot establish that a held id is gone"
 }
 
+# Only a row read that reports the held row positively absent counts toward
+# retirement. An all-retired inventory over a missing data directory, a beads
+# graph where two rows carry the held id's migration marker, and a backlog file
+# the row read cannot open are each refused by name on complete and verify.
+test_retire_refuses_unless_every_read_reports_the_row_absent() {
+  local home scout evidence err fb
+  home=$(make_home retire-verify-missing-data)
+  scout=sample-verify-missing-scout
+  write_scout_with_attested_inventory "$home" "$scout" sample-gone-call
+  evidence="$home/state/backlog.before-sample-discard.md"
+  printf -- '- sample-gone-call was cancelled\n' > "$evidence"
+  printf '%s\n' "decision_keys=" "retired_decision_keys=sample-gone-call" \
+    "retired_decision_key.sample-gone-call=file:$evidence at 2026-10-11T00:00:00Z" >> "$home/state/$scout.meta"
+  run_captain "$home" verify "$scout" >/dev/null || fail "verify refused an all-retired inventory over a readable backlog"
+  err=$(PATH="$home/fakebin:$PATH" REAL_TASKS_AXI="$TASKS_AXI_BIN" FM_HOME="$home" \
+    FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data-missing" FM_CONFIG_OVERRIDE="$home/config" \
+    "$ROOT/bin/fm-captain-hold.sh" verify "$scout" 2>&1) \
+    && fail "verify kept an all-retired inventory while the data directory could not be resolved"
+  assert_contains "$err" "cannot keep retired sample-gone-call" "the missing-data verify refusal must name the held id"
+
+  home=$(make_home retire-ambiguous-marker)
+  scout=sample-ambiguous-scout
+  printf '%s\n' 'backend = "beads"' '' '[beads]' "path = \"$home/graph\"" 'binary = "bd"' 'prefix = "fm"' \
+    > "$home/.tasks.toml"
+  fb=$(fm_fakebin "$home")
+  write_known_rows_stub "$fb" "$scout"
+  cat > "$fb/bd" <<'SH'
+#!/usr/bin/env bash
+[ "${1:-}" = list ] || exit 1
+printf '%s\n' '[{"id":"fm-first","notes":"migrated from data/backlog.md id sample-twice-call"},{"id":"fm-second","notes":"migrated from data/backlog.md id sample-twice-call on 2026-09-04"}]'
+SH
+  chmod +x "$fb/bd"
+  write_scout_with_attested_inventory "$home" "$scout" sample-twice-call
+  evidence="$home/data/backlog.before-sample-discard.md"
+  printf -- '- sample-twice-call was cancelled\n' > "$evidence"
+  cp "$home/state/$scout.meta" "$home/meta.before-retire"
+  err=$(run_captain "$home" complete "$scout" --retire sample-twice-call --evidence "$evidence" 2>&1) \
+    && fail "retirement was accepted while two rows carry the held id's migration marker"
+  assert_contains "$err" "cannot retire sample-twice-call" "the ambiguous-marker refusal must name the held id"
+  assert_contains "$err" "is ambiguous" "the ambiguous-marker refusal must carry the resolution reason"
+  cmp -s "$home/meta.before-retire" "$home/state/$scout.meta" \
+    || fail "a refused ambiguous retirement must leave the metadata unchanged"
+  printf '%s\n' "decision_keys=" "retired_decision_keys=sample-twice-call" \
+    "retired_decision_key.sample-twice-call=file:$evidence at 2026-10-11T00:00:00Z" >> "$home/state/$scout.meta"
+  err=$(run_captain "$home" verify "$scout" 2>&1) \
+    && fail "verify kept an entry retired while two rows carry its migration marker"
+  assert_contains "$err" "cannot keep retired sample-twice-call" "the ambiguous-marker verify refusal must name the held id"
+  assert_contains "$err" "is ambiguous" "the ambiguous-marker verify refusal must carry the resolution reason"
+
+  if [ "$(id -u)" -eq 0 ]; then
+    pass "retirement and verify refuse unless every row read reports the held row absent (unreadable case skipped as root)"
+    return 0
+  fi
+  home=$(make_home retire-unreadable-backlog)
+  scout=sample-unreadable-scout
+  write_scout_with_attested_inventory "$home" "$scout" sample-hidden-call
+  evidence="$home/state/backlog.before-sample-discard.md"
+  printf -- '- sample-hidden-call was cancelled\n' > "$evidence"
+  cp "$home/state/$scout.meta" "$home/meta.before-retire"
+  chmod 000 "$home/data/backlog.md"
+  err=$(run_captain "$home" complete "$scout" --retire sample-hidden-call --evidence "$evidence" 2>&1) \
+    && { chmod 644 "$home/data/backlog.md"; fail "retirement was accepted while the backlog file could not be read"; }
+  assert_contains "$err" "cannot retire sample-hidden-call" "the unreadable-backlog refusal must name the held id"
+  assert_contains "$err" "failed without reporting the row absent" "the unreadable-backlog refusal must say the read was not an absence"
+  cmp -s "$home/meta.before-retire" "$home/state/$scout.meta" \
+    || fail "a refused retirement over an unreadable backlog must leave the metadata unchanged"
+  printf '%s\n' "decision_keys=" "retired_decision_keys=sample-hidden-call" \
+    "retired_decision_key.sample-hidden-call=file:$evidence at 2026-10-11T00:00:00Z" >> "$home/state/$scout.meta"
+  err=$(run_captain "$home" verify "$scout" 2>&1) \
+    && { chmod 644 "$home/data/backlog.md"; fail "verify kept an entry retired while the backlog file could not be read"; }
+  chmod 644 "$home/data/backlog.md"
+  assert_contains "$err" "cannot keep retired sample-hidden-call" "the unreadable-backlog verify refusal must name the held id"
+  assert_contains "$err" "failed without reporting the row absent" "the unreadable-backlog verify refusal must say the read was not an absence"
+  run_captain "$home" verify "$scout" >/dev/null || fail "verify refused the retired entry once the backlog was readable again"
+  pass "retirement and verify refuse unless every row read reports the held row absent"
+}
+
 # The recorded-answer rule: answering closes with the captain's exact words, an
 # exact retry is idempotent, a drifted retry is rejected, dependent work routed
 # behind the answered task is released by the close, and the completion gate is
@@ -4854,6 +4931,7 @@ test_retained_body_keeps_its_utf8_bytes
 test_completion_gate_attests_and_transfers
 test_retire_lets_a_discarded_inventory_close_through_the_gate
 test_retire_refuses_when_resolution_cannot_establish_absence
+test_retire_refuses_unless_every_read_reports_the_row_absent
 test_answer_records_and_closes
 test_release_frees_held_work
 test_hold_stamp_precedes_hold_visibility

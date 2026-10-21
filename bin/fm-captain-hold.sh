@@ -673,7 +673,7 @@ captain_migration_scan_load() {  # <resolved-data-dir>
 # a row solely when that row is itself still held for the captain.
 resolve_migrated_entry() {  # <origin-or-empty> <entry>
   local origin=$1 entry=$2 data root entries prefix derived show backend
-  local candidate candidate_matches prefixed matches count prefixed_matches prefixed_count
+  local candidate candidate_matches prefixed matches count prefixed_matches prefixed_count rc
   data=$(fm_backlog_data_absolute "$DATA") || {
     printf 'fm-captain-hold: the migrated hold of %s cannot be resolved: %s\n' \
       "$entry" "${FM_BACKLOG_TRANSITION_ERROR:-the configured data directory $DATA cannot be resolved}" >&2
@@ -735,10 +735,13 @@ resolve_migrated_entry() {  # <origin-or-empty> <entry>
     esac
     # Same shell rule as task_show_or_fail: the row is read out of
     # TASK_SHOW_OUTPUT, so the read cannot sit inside a command substitution.
-    task_show "$prefixed" 2>/dev/null || {
-      [ "$?" -ne 124 ] || return 124
-      continue
-    }
+    rc=0
+    resolve_entry_show "$prefixed" || rc=$?
+    case "$rc" in
+      0) ;;
+      2) return 2 ;;
+      *) continue ;;
+    esac
     show=$TASK_SHOW_OUTPUT
     [ "$(show_field_value "$show" hold_kind)" = captain ] || continue
     prefixed_matches="${prefixed_matches}${prefixed_matches:+$NL_SEP}$prefixed"
@@ -759,11 +762,27 @@ resolve_migrated_entry() {  # <origin-or-empty> <entry>
 # Prints "<resolved id> <how>", where <how> is exact, legacy, migrated-note or
 # migrated-prefix, so a caller can record which evidence carried the attestation.
 # A caller that must tell "the task is gone" apart from "something failed"
-# sets RESOLVE_ENTRY_NOT_FOUND_STATUS on the call: the terminal not-found
-# branch then returns that status after naming the entry on stderr, while every
-# earlier failure keeps fail's ordinary exit. Unset, not-found is an ordinary
-# fail, so the other callers are unchanged.
+# sets RESOLVE_ENTRY_NOT_FOUND_STATUS on the call: every row read must then
+# report the row positively absent (tasks-axi's NOT_FOUND code) to count as a
+# miss, any other read failure fails by name, and the terminal not-found
+# branch returns that status after naming the entry on stderr, while every
+# earlier failure keeps fail's ordinary exit. Unset, a failed read is a miss
+# and not-found is an ordinary fail, so the other callers are unchanged.
 RESOLVE_ENTRY_NOT_FOUND_STATUS=
+# task_show for resolve_entry: 0 found, 1 a miss, and - only when the caller
+# asked for RESOLVE_ENTRY_NOT_FOUND_STATUS - 2 for a read that failed without
+# reporting the row absent, after naming the id and the reason on stderr.
+resolve_entry_show() {  # <id>
+  local reason
+  task_show "$1" && return 0
+  [ -n "$RESOLVE_ENTRY_NOT_FOUND_STATUS" ] || return 1
+  ! printf '%s\n' "$TASK_SHOW_OUTPUT" | grep -q '^code: NOT_FOUND$' || return 1
+  reason=${TASK_SHOW_OUTPUT%%$'\n'*}
+  printf 'fm-captain-hold: tasks-axi show %s failed without reporting the row absent: %s\n' \
+    "$1" "${reason:-no output}" >&2
+  return 2
+}
+
 resolve_entry_not_found() {  # <message>
   [ -n "$RESOLVE_ENTRY_NOT_FOUND_STATUS" ] || fail "$1"
   printf 'fm-captain-hold: %s\n' "$1" >&2
@@ -771,17 +790,20 @@ resolve_entry_not_found() {  # <message>
 }
 
 resolve_entry() {  # <origin-or-empty> <entry>; prints "<id> <how>" or fails
-  local origin=$1 entry=$2 legacy migrated rc
-  if task_show "$entry"; then
-    printf '%s exact' "$entry"
-    return 0
-  fi
+  local origin=$1 entry=$2 legacy migrated rc=0
+  resolve_entry_show "$entry" || rc=$?
+  case "$rc" in
+    0) printf '%s exact' "$entry"; return 0 ;;
+    2) return 2 ;;
+  esac
   if [ -n "$origin" ] && [ "$origin" != "$BINDING_ANY" ]; then
     legacy=$(legacy_hold_id "$origin" "$entry")
-    if task_show "$legacy"; then
-      printf '%s legacy' "$legacy"
-      return 0
-    fi
+    rc=0
+    resolve_entry_show "$legacy" || rc=$?
+    case "$rc" in
+      0) printf '%s legacy' "$legacy"; return 0 ;;
+      2) return 2 ;;
+    esac
   fi
   rc=0
   migrated=$(resolve_migrated_entry "$origin" "$entry") || rc=$?
@@ -1789,9 +1811,11 @@ sorted_key_minus() {  # <comma-list> <newline-separated-removed-keys>
 # Absence is what retirement exists for, so only an established absence
 # passes: resolve_entry's own terminal not-found result, asked for through
 # RESOLVE_ENTRY_NOT_FOUND_STATUS so it cannot be confused with any earlier
-# failure exit. A read bound, a resolution that cannot tell (an ambiguous
-# migration marker, an unreadable scan), and an unresolvable data directory
-# or backend are all refused by name rather than spent as absence.
+# failure exit, and reached only when every row read reported the row absent.
+# A read bound, a row read that failed for any other reason (an unreadable
+# backlog, a backend or addressing error), a resolution that cannot tell (an
+# ambiguous migration marker, an unreadable scan), and an unresolvable data
+# directory or backend are all refused by name rather than spent as absence.
 RETIRE_ABSENT_STATUS=3
 refuse_open_retirement() {  # <origin> <held-id> <verb>
   local origin=$1 held=$2 verb=$3 resolved rc=0 id state err reason
