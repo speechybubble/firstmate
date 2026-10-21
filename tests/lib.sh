@@ -311,6 +311,7 @@ fm_test_stop_remote_workers() {  # <remote-root>
     FM_TEST_WORKER_MATCH="$worker" "$ps_bin" -eo pid=,args= 2>/dev/null \
       | FM_TEST_WORKER_MATCH="$worker" awk 'index($0, ENVIRON["FM_TEST_WORKER_MATCH"]) { print $1 }'
   }
+  # shellcheck disable=SC2329 # Invoked indirectly through fm_test_wait_until.
   fm_test_remote_workers_gone() {
     [ -z "$(fm_test_remote_worker_pids)" ]
   }
