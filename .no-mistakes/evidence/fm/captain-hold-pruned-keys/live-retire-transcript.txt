@@ -1,0 +1,126 @@
+== 2026-09-26: hold three captain calls and attest them
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh hold avenholt-image-design --title Decide avenholt-image-design --reason captain call from the reading --repo trelume --origin trelume-thoughts-reading
+avenholt-image-design
+[exit 0]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh hold avenholt-website-implementation --title Decide avenholt-website-implementation --reason captain call from the reading --repo trelume --origin trelume-thoughts-reading
+avenholt-website-implementation
+[exit 0]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh hold trelume-process-adoption --title Decide trelume-process-adoption --reason captain call from the reading --repo trelume --origin trelume-thoughts-reading
+trelume-process-adoption
+[exit 0]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh complete trelume-thoughts-reading avenholt-image-design avenholt-website-implementation trelume-process-adoption
+complete: trelume-thoughts-reading captain-call inventory reviewed (avenholt-image-design,avenholt-website-implementation,trelume-process-adoption)
+[exit 0]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh verify trelume-thoughts-reading
+verified: trelume-thoughts-reading captain-call inventory
+[exit 0]
+
+== 2026-10-11: captain cancels; dated backup, then rows deleted
+== reproduction: every exit refuses
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh verify trelume-thoughts-reading
+fm-captain-hold: no captain-held task avenholt-image-design and no migrated hold for it in this home's configured backlog (data directory /tmp/fm-lab.49xKKk/data); the nearest legacy identity trelume-thoughts-reading-decision-avenholt-image-design also resolves to nothing
+[exit 1]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh complete trelume-thoughts-reading --none
+fm-captain-hold: no captain-held task avenholt-image-design and no migrated hold for it in this home's configured backlog (data directory /tmp/fm-lab.49xKKk/data); the nearest legacy identity trelume-thoughts-reading-decision-avenholt-image-design also resolves to nothing
+[exit 1]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-teardown.sh trelume-thoughts-reading
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+fm-captain-hold: no captain-held task avenholt-image-design and no migrated hold for it in this home's configured backlog (data directory /tmp/fm-lab.49xKKk/data); the nearest legacy identity trelume-thoughts-reading-decision-avenholt-image-design also resolves to nothing
+REFUSED: scout task trelume-thoughts-reading has not passed the captain-call completion gate.
+Inventory its report and any visual review through bin/fm-captain-hold.sh before teardown.
+[exit 1]
+
+== adversarial refusals
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh complete trelume-thoughts-reading --retire avenholt-image-design
+fm-captain-hold: retiring avenholt-image-design requires --evidence naming a readable file that records the discard
+[exit 1]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh complete trelume-thoughts-reading --retire avenholt-image-design --evidence /tmp/fm-lab.49xKKk/data/unrelated.md
+fm-captain-hold: evidence file /tmp/fm-lab.49xKKk/data/unrelated.md does not mention avenholt-image-design; retirement refused
+[exit 1]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh complete trelume-thoughts-reading --retire never-held-id --evidence /tmp/fm-lab.49xKKk/data/backlog.before-avenholt-discard-20261011.md
+fm-captain-hold: never-held-id is not in the recorded captain-call inventory of trelume-thoughts-reading (decision_keys=avenholt-image-design,avenholt-website-implementation,trelume-process-adoption); nothing to retire
+[exit 1]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh hold trelume-process-adoption --title Decide again --reason still open --repo trelume --origin trelume-thoughts-reading
+trelume-process-adoption
+[exit 0]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh complete trelume-thoughts-reading --retire trelume-process-adoption --evidence /tmp/fm-lab.49xKKk/data/backlog.before-avenholt-discard-20261011.md
+fm-captain-hold: cannot retire trelume-process-adoption: it resolves to task trelume-process-adoption, which is still open (state queued); answer the captain call instead of retiring it
+[exit 1]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh complete trelume-thoughts-reading --retire avenholt-image-design --evidence /tmp/fm-lab.49xKKk/data/backlog.before-avenholt-discard-20261011.md
+fm-captain-hold: cannot retire avenholt-image-design: its backlog resolution could not establish that the task is gone (fm-captain-hold: tasks-axi show avenholt-image-design reported the row absent, but the backlog it read is not present: backlog file is not a regular file at /tmp/fm-lab.49xKKk/data/backlog.md )
+[exit 1]
+-- meta has no retirement lines after refusals:
+0
+
+== general correction: retire on the dated backup
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh complete trelume-thoughts-reading --retire avenholt-image-design --evidence /tmp/fm-lab.49xKKk/data/backlog.before-avenholt-discard-20261011.md --retire avenholt-website-implementation --evidence /tmp/fm-lab.49xKKk/data/backlog.before-avenholt-discard-20261011.md --retire trelume-process-adoption --evidence /tmp/fm-lab.49xKKk/data/backlog.before-avenholt-discard-20261011.md
+complete: trelume-thoughts-reading captain-call inventory reviewed [retired on evidence: avenholt-image-design,avenholt-website-implementation,trelume-process-adoption]
+[exit 0]
+-- meta:
+window=firstmate:fm-trelume-thoughts-reading
+worktree=/tmp/fm-lab.49xKKk/projects/missing-trelume-thoughts-reading
+project=/tmp/fm-lab.49xKKk/projects/trelume
+harness=codex
+kind=scout
+mode=scout
+spawn_gen=lab-trelume-thoughts-reading
+decisions_reviewed=1
+decision_keys=avenholt-image-design,avenholt-website-implementation,trelume-process-adoption
+decisions_reviewed=1
+decision_keys=
+retired_decision_key.avenholt-image-design=file:/tmp/fm-lab.49xKKk/data/backlog.before-avenholt-discard-20261011.md at 2026-10-21T05:08:38Z
+retired_decision_key.avenholt-website-implementation=file:/tmp/fm-lab.49xKKk/data/backlog.before-avenholt-discard-20261011.md at 2026-10-21T05:08:38Z
+retired_decision_key.trelume-process-adoption=file:/tmp/fm-lab.49xKKk/data/backlog.before-avenholt-discard-20261011.md at 2026-10-21T05:08:38Z
+retired_decision_keys=avenholt-image-design,avenholt-website-implementation,trelume-process-adoption
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh verify trelume-thoughts-reading
+verified: trelume-thoughts-reading captain-call inventory
+[exit 0]
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh complete trelume-thoughts-reading --none
+complete: trelume-thoughts-reading captain-call inventory reviewed [retired on evidence: avenholt-image-design,avenholt-website-implementation,trelume-process-adoption]
+[exit 0]
+
+== retired id cannot come back as live inventory
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh complete trelume-thoughts-reading avenholt-image-design
+fm-captain-hold: avenholt-image-design is retired from the captain-call inventory of trelume-thoughts-reading and cannot be listed as live inventory again
+[exit 1]
+
+== verify refuses a retired entry when backlog goes missing
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-captain-hold.sh verify trelume-thoughts-reading
+fm-captain-hold: cannot keep retired avenholt-image-design: its backlog resolution could not establish that the task is gone (fm-captain-hold: tasks-axi show avenholt-image-design reported the row absent, but the backlog it read is not present: backlog file is not a regular file at /tmp/fm-lab.49xKKk/data/backlog.md )
+[exit 1]
+
+== teardown now passes the completion gate
+
+$ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M5EBJXTEY67JHHCY6H661FRN/bin/fm-teardown.sh trelume-thoughts-reading
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+teardown trelume-thoughts-reading complete (window firstmate:fm-trelume-thoughts-reading, worktree /tmp/fm-lab.49xKKk/projects/missing-trelume-thoughts-reading)
+Backlog: trelume-thoughts-reading is closed in /tmp/fm-lab.49xKKk/data/backlog.md. Run bin/fm-tasks-axi.sh ready for dependency-cleared candidates, check date gates, and dispatch only work whose blockers are gone and date is due.
+[exit 0]
+-- report survives: report.md
+-- external calls: none
+lab removed: yes

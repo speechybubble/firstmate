@@ -1,0 +1,5 @@
+ok - the completion gate attests captain-held inventory and transfers open status decisions
+ok - an attested inventory whose tasks the captain discarded closes through the gate on recorded evidence
+ok - retirement and verify refuse when the backlog cannot establish that a held id is gone
+ok - retirement and verify refuse unless every row read reports the held row absent
+exit=0
