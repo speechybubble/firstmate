@@ -42,19 +42,18 @@ EOF
 }
 
 # The remote-route cases drive the real remote job worker, which outlives the
-# command that staged its job. Stop it before the shared fixture cleanup runs,
-# and keep that cleanup (tests/lib.sh owns it) rather than replacing the trap.
+# command that staged its job. Stop its whole tree and wait for it to exit
+# before the shared fixture cleanup removes the tree it writes into (a kill
+# that only signalled the serving child left cleanup failing with "Directory
+# not empty" after every case had passed), and keep that cleanup (tests/lib.sh
+# owns it) rather than replacing the trap.
 pf_test_cleanup() {
-  local pid_file="${REMOTE_FIXTURE_JOBS:-$TMP_ROOT/remote-jobs}/worker.pid" pid
   if [ -n "$PF_TEST_LOCK_HOLDER" ]; then
     kill "$PF_TEST_LOCK_HOLDER" 2>/dev/null || true
     wait "$PF_TEST_LOCK_HOLDER" 2>/dev/null || true
     PF_TEST_LOCK_HOLDER=
   fi
-  if [ -f "$pid_file" ]; then
-    pid=$(cat "$pid_file" 2>/dev/null) || pid=
-    [ -z "$pid" ] || kill "$pid" 2>/dev/null || true
-  fi
+  [ -z "${REMOTE_FIXTURE_ROOT:-}" ] || fm_test_stop_remote_workers "$REMOTE_FIXTURE_ROOT"
   fm_test_cleanup
 }
 trap pf_test_cleanup EXIT
@@ -817,7 +816,7 @@ assert_local_secondmate_parent_record() {
 }
 
 test_local_secondmate_seed_publishes_parent_before_identity() {
-  local parent child parent_resolved fakebin entered release manifest_out real_mv seed_pid wait_count
+  local parent child parent_resolved fakebin entered release manifest_out real_mv seed_pid
   parent=$(make_home seed-publication-parent relay-off)
   child="$TMP_ROOT/seed-publication-child"
   parent_resolved=$(cd "$parent" && pwd -P)
@@ -832,10 +831,9 @@ destination=${!#}
 case "$destination" in
   */.fm-secondmate-home)
     touch "$FM_TEST_PUBLISH_ENTERED"
-    wait_count=0
+    deadline=$((SECONDS + ${FM_TEST_STUB_MAX_BLOCK_SECONDS:-120}))
     while [ ! -f "$FM_TEST_PUBLISH_RELEASE" ]; do
-      wait_count=$((wait_count + 1))
-      [ "$wait_count" -le 250 ] || exit 97
+      [ "$SECONDS" -lt "$deadline" ] || exit 97
       sleep 0.02
     done
     ;;
@@ -849,14 +847,10 @@ SH
     FM_TEST_PUBLISH_RELEASE="$release" \
     "$ROOT/bin/fm-home-seed.sh" mate "$child" --no-projects > "$manifest_out" 2>&1 &
   seed_pid=$!
-  wait_count=0
-  while [ ! -f "$entered" ]; do
-    kill -0 "$seed_pid" 2>/dev/null \
-      || fail "local seeding exited before its identity completion marker: $(cat "$manifest_out")"
-    wait_count=$((wait_count + 1))
-    [ "$wait_count" -le 250 ] || fail "local seeding never reached its identity completion marker"
-    sleep 0.02
-  done
+  # Seeding reaches the held identity publication in well under a second on an
+  # idle host and took longer than five on a loaded one.
+  fm_test_wait_until 120 fm_test_file_or_process_exited "$entered" "$seed_pid" || true
+  [ -f "$entered" ] || fail "local seeding never reached its identity completion marker: $(cat "$manifest_out")"
   assert_local_secondmate_parent_record "$child" "$parent_resolved"
   assert_absent "$child/.fm-secondmate-home" \
     "the local identity marker must remain absent until durable parent publication completes"
@@ -2058,7 +2052,7 @@ test_pending_skips_concurrent_retirement() {
     fm_pf_registry_lock_release "$FM_RACE_HOME/state" pf-race
   ' &
   locker_pid=$!
-  for _ in $(seq 1 100); do [ -e "$home/lock-ready" ] && break; sleep 0.02; done
+  fm_test_wait_until 120 fm_test_file_or_process_exited "$home/lock-ready" "$locker_pid" || true
   [ -e "$home/lock-ready" ] || fail "race locker did not start"
 
   real_tasks=$(command -v tasks-axi)
@@ -2075,7 +2069,7 @@ SH
   REAL_TASKS_AXI="$real_tasks" PENDING_LISTED="$home/pending-listed" \
     run_pf "$home" pending > "$home/pending-race.out" 2>&1 &
   pending_pid=$!
-  for _ in $(seq 1 100); do [ -e "$home/pending-listed" ] && break; sleep 0.02; done
+  fm_test_wait_until 120 fm_test_file_or_process_exited "$home/pending-listed" "$pending_pid" || true
   [ -e "$home/pending-listed" ] || fail "pending did not snapshot the backlog"
   : > "$home/release-lock"
   wait "$locker_pid" || fail "race retirement failed"
@@ -3797,7 +3791,7 @@ test_rejection_wake_survives_a_poll_that_cannot_write() {
     "a refusal must queue a wake"
 
   PATH="$home/fakebin:$PATH" FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$home" \
-    FM_STATE_OVERRIDE="$home/state" "$POLL" >&- 2>/dev/null || true
+    FM_STATE_OVERRIDE="$home/state" bash "$POLL" >&- 2>/dev/null || true
   assert_present "$home/state/public-followup/rejection-wakes/$event_id" \
     "a wake whose line could not be written must stay queued"
   assert_contains "$(run_poll "$home")" "public-followup rejected $event_id" \

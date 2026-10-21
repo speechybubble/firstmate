@@ -258,6 +258,69 @@ fm_test_reap_watchers() {
 FM_TEST_STUB_MAX_BLOCK_SECONDS=${FM_TEST_STUB_MAX_BLOCK_SECONDS:-120}
 export FM_TEST_STUB_MAX_BLOCK_SECONDS
 
+# fm_test_wait_until <seconds> <command...> polls <command> until it succeeds
+# or <seconds> of wall time pass. A background process that reaches a state
+# within milliseconds on an idle host can need tens of seconds on a loaded CI
+# runner, so a case waits on the state itself for a bound sized to the slowest
+# green run, never on a count of sleeps whose duration load stretches.
+fm_test_wait_until() {
+  local deadline=$((SECONDS + $1))
+  shift
+  until "$@"; do
+    [ "$SECONDS" -lt "$deadline" ] || return 1
+    sleep 0.02
+  done
+}
+
+# fm_test_process_exited <pid> succeeds once <pid> is gone or a zombie. A
+# background child this shell has not reaped yet still answers `kill -0`.
+fm_test_process_exited() {
+  local state
+  kill -0 "$1" 2>/dev/null || return 0
+  state=$(ps -o state= -p "$1" 2>/dev/null) || return 0
+  case "$state" in *Z*) return 0 ;; esac
+  return 1
+}
+
+# fm_test_file_or_process_exited <path> <pid> succeeds once the marker <path>
+# exists or the process expected to write it has exited, so a wait on a
+# background process's progress ends as soon as the process can make no more.
+fm_test_file_or_process_exited() {
+  [ -e "$1" ] || fm_test_process_exited "$2"
+}
+
+# fm_test_stop_remote_workers <remote-root> stops every remote job worker
+# process serving the fixture checkout at <remote-root> - the serving child,
+# its detached restart supervisor, and the job descendants in their group -
+# and waits for all of them to exit. The published worker.pid names only the
+# serving child, which the supervisor replaces when it dies, and a signalled
+# worker keeps publishing shutdown records for a moment, so a cleanup that
+# only signals that one pid can leave a worker recreating the state
+# directories while the fixture tree is removed ("Directory not empty").
+# The fixture root is a unique temporary path, so matching on it reaches no
+# other home's workers.
+fm_test_stop_remote_workers() {  # <remote-root>
+  local root=$1 worker pid ps_bin
+  worker="$root/bin/fm-remote-job-worker.sh"
+  if [ -x /bin/ps ]; then ps_bin=/bin/ps; elif [ -x /usr/bin/ps ]; then ps_bin=/usr/bin/ps; else return 0; fi
+  # shellcheck source=bin/fm-remote-job-lib.sh
+  . "$ROOT/bin/fm-remote-job-lib.sh"
+  # The path travels through the environment: on the awk command line it
+  # would match awk's own process.
+  fm_test_remote_worker_pids() {
+    FM_TEST_WORKER_MATCH="$worker" "$ps_bin" -eo pid=,args= 2>/dev/null \
+      | FM_TEST_WORKER_MATCH="$worker" awk 'index($0, ENVIRON["FM_TEST_WORKER_MATCH"]) { print $1 }'
+  }
+  # shellcheck disable=SC2329 # Invoked indirectly through fm_test_wait_until.
+  fm_test_remote_workers_gone() {
+    [ -z "$(fm_test_remote_worker_pids)" ]
+  }
+  for pid in $(fm_test_remote_worker_pids); do
+    fm_remote_job_stop_worker_tree "$pid" || true
+  done
+  fm_test_wait_until 120 fm_test_remote_workers_gone || true
+}
+
 # Remove a fixture tree even when it holds a read-only directory, such as the
 # spawn-owned state/<id>.git-hooks strip directory.
 fm_test_remove_tree() {
