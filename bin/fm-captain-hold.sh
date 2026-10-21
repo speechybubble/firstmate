@@ -758,6 +758,18 @@ resolve_migrated_entry() {  # <origin-or-empty> <entry>
 # beads backend - the migrated row the markdown-to-beads hold migration wrote.
 # Prints "<resolved id> <how>", where <how> is exact, legacy, migrated-note or
 # migrated-prefix, so a caller can record which evidence carried the attestation.
+# A caller that must tell "the task is gone" apart from "something failed"
+# sets RESOLVE_ENTRY_NOT_FOUND_STATUS on the call: the terminal not-found
+# branch then returns that status after naming the entry on stderr, while every
+# earlier failure keeps fail's ordinary exit. Unset, not-found is an ordinary
+# fail, so the other callers are unchanged.
+RESOLVE_ENTRY_NOT_FOUND_STATUS=
+resolve_entry_not_found() {  # <message>
+  [ -n "$RESOLVE_ENTRY_NOT_FOUND_STATUS" ] || fail "$1"
+  printf 'fm-captain-hold: %s\n' "$1" >&2
+  return "$RESOLVE_ENTRY_NOT_FOUND_STATUS"
+}
+
 resolve_entry() {  # <origin-or-empty> <entry>; prints "<id> <how>" or fails
   local origin=$1 entry=$2 legacy migrated rc
   if task_show "$entry"; then
@@ -780,9 +792,10 @@ resolve_entry() {  # <origin-or-empty> <entry>; prints "<id> <how>" or fails
   esac
   if [ -n "$origin" ] && [ "$origin" != "$BINDING_ANY" ]; then
     legacy=$(legacy_hold_id "$origin" "$entry")
-    fail "no captain-held task $entry and no migrated hold for it in this home's configured backlog (data directory $DATA); the nearest legacy identity $legacy also resolves to nothing"
+    resolve_entry_not_found "no captain-held task $entry and no migrated hold for it in this home's configured backlog (data directory $DATA); the nearest legacy identity $legacy also resolves to nothing"
+    return "$?"
   fi
-  fail "no captain-held task $entry and no migrated hold for it in this home's configured backlog (data directory $DATA)"
+  resolve_entry_not_found "no captain-held task $entry and no migrated hold for it in this home's configured backlog (data directory $DATA)"
 }
 
 body_hold_set_timestamp() {  # <decoded-task-body>
@@ -1774,19 +1787,22 @@ sorted_key_minus() {  # <comma-list> <newline-separated-removed-keys>
 
 # Refuse a retirement whose held id still resolves to a task that is not Done.
 # Absence is what retirement exists for, so only an established absence
-# (status 1) passes; a read bound or a resolution that cannot tell (status 2:
-# an ambiguous migration marker, an unresolvable backlog, an unreadable scan)
-# is refused by name rather than spent as absence.
+# passes: resolve_entry's own terminal not-found result, asked for through
+# RESOLVE_ENTRY_NOT_FOUND_STATUS so it cannot be confused with any earlier
+# failure exit. A read bound, a resolution that cannot tell (an ambiguous
+# migration marker, an unreadable scan), and an unresolvable data directory
+# or backend are all refused by name rather than spent as absence.
+RETIRE_ABSENT_STATUS=3
 refuse_open_retirement() {  # <origin> <held-id> <verb>
   local origin=$1 held=$2 verb=$3 resolved rc=0 id state err reason
   err=$(mktemp "${TMPDIR:-/tmp}/fm-captain-hold-retire.XXXXXX") \
     || fail "cannot stage the resolution diagnostics for $held"
-  resolved=$(resolve_entry "$origin" "$held" 2>"$err") || rc=$?
+  resolved=$(RESOLVE_ENTRY_NOT_FOUND_STATUS=$RETIRE_ABSENT_STATUS resolve_entry "$origin" "$held" 2>"$err") || rc=$?
   reason=$(sanitize_field "$(head -c 300 "$err" | tr '\n' ' ')")
   rm -f "$err"
   case "$rc" in
     0) ;;
-    1) return 0 ;;
+    "$RETIRE_ABSENT_STATUS") return 0 ;;
     124) fail "the backlog backend exceeded its read bound resolving $held" ;;
     *) fail "cannot $verb $held: its backlog resolution could not establish that the task is gone (${reason:-status $rc})" ;;
   esac

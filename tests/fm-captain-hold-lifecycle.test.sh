@@ -997,6 +997,24 @@ EOF
     && fail "verify kept an entry retired while the backlog could not establish the held id is gone"
   assert_contains "$err" "cannot keep retired sample-unclear-call" "the verify refusal must name the held id"
   assert_contains "$err" "carries no graph path" "the verify refusal must carry the resolution reason"
+
+  # A failure before resolution reaches its not-found branch is not absence
+  # either: with the configured data directory missing, the row read itself
+  # fails, and that generic failure must refuse the retirement too.
+  home=$(make_home retire-missing-data)
+  scout=sample-missing-data-scout
+  write_scout_with_attested_inventory "$home" "$scout" sample-unclear-call
+  evidence="$home/state/backlog.before-sample-discard.md"
+  printf -- '- sample-unclear-call was cancelled\n' > "$evidence"
+  cp "$home/state/$scout.meta" "$home/meta.before-retire"
+  err=$(PATH="$home/fakebin:$PATH" REAL_TASKS_AXI="$TASKS_AXI_BIN" FM_HOME="$home" \
+    FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data-missing" FM_CONFIG_OVERRIDE="$home/config" \
+    "$ROOT/bin/fm-captain-hold.sh" complete "$scout" --retire sample-unclear-call --evidence "$evidence" 2>&1) \
+    && fail "retirement was accepted while the data directory could not be resolved"
+  assert_contains "$err" "cannot retire sample-unclear-call" "the missing-data refusal must name the held id"
+  assert_contains "$err" "could not establish that the task is gone" "the missing-data refusal must say absence was not established"
+  cmp -s "$home/meta.before-retire" "$home/state/$scout.meta" \
+    || fail "a refused retirement over a missing data directory must leave the metadata unchanged"
   pass "retirement and verify refuse when the backlog cannot establish that a held id is gone"
 }
 
