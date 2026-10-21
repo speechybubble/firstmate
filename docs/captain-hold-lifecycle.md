@@ -115,9 +115,9 @@ An entry with no recorded origin, such as a hold made before origins were record
 
 The inventory only grows, so an attested entry whose task the captain later cancelled and deleted would otherwise refuse `--none`, `verify`, and scout teardown forever.
 `complete <origin> --retire <held-id> --evidence <file>` retires such an entry on recorded evidence: a readable file, such as a dated backlog backup or a cancellation record, that mentions the held id.
-It refuses without evidence, when the evidence file does not mention the held id, when the entry is not in the recorded inventory, and whenever the held id still resolves to a task that is not Done.
+It refuses without evidence, when the evidence file does not mention the held id, when the entry is not in the recorded inventory, whenever the held id still resolves to a task that is not Done, and whenever the backlog read cannot positively establish that the task is gone, such as a missing or unreadable backlog, an unresolvable data directory, or an ambiguous migration marker.
 The surviving ids are appended as a new `decision_keys=` line, the retired ids as `retired_decision_keys=`, and each retirement as one `retired_decision_key.<held-id>=` evidence line, so earlier lines remain as history.
-`verify` accepts a retired entry when its evidence line exists and the held id is not an open task again.
+`verify` accepts a retired entry when its evidence line exists and the same check still finds the held id gone or Done.
 A retired id cannot be listed as live inventory again: `complete` refuses naming it, and `verify` refuses an id recorded in both lists.
 The script header of `bin/fm-captain-hold.sh` owns the exact flag and metadata shapes.
 

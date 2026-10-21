@@ -161,16 +161,18 @@
 # readable file whose text mentions the held id (a dated backlog backup or a
 # cancellation record). A retirement is refused without `--evidence`, when the
 # evidence file does not mention the held id, when the entry is not in the
-# recorded inventory, and whenever the held id still resolves to a task that is
-# not Done, because an open captain call is never retired - it is answered. The
+# recorded inventory, whenever the held id still resolves to a task that is
+# not Done, and whenever the backlog read cannot positively establish that the
+# task is gone (see refuse_open_retirement), because an open captain call is
+# never retired - it is answered. The
 # pair may repeat, and it combines with `--none` or with new ids. History is
 # kept: the previous `decision_keys=`
 # lines stay in the metadata, the surviving ids are appended as a new
 # `decision_keys=` line, the retired ids are unioned into
 # `retired_decision_keys=`, and each retirement appends one
 # `retired_decision_key.<held-id>=file:<path> at <UTC stamp>` line.
-# `verify` accepts a retired entry when that evidence line exists and the held
-# id does not resolve to an open task again; an id present in both lists is
+# `verify` accepts a retired entry when that evidence line exists and the same
+# check still finds the held id gone or Done; an id present in both lists is
 # refused. A retired id is never listed as live inventory again: `complete`
 # refuses naming it, whether it was retired earlier or in the same call.
 # Metadata compatibility: the attestation keeps the historical
