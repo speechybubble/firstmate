@@ -1020,8 +1020,9 @@ EOF
 
 # Only a row read that reports the held row positively absent counts toward
 # retirement. An all-retired inventory over a missing data directory, a beads
-# graph where two rows carry the held id's migration marker, and a backlog file
-# the row read cannot open are each refused by name on complete and verify.
+# graph where two rows carry the held id's migration marker, a missing backlog
+# file, and a backlog file the row read cannot open are each refused by name on
+# complete and verify.
 test_retire_refuses_unless_every_read_reports_the_row_absent() {
   local home scout evidence err fb
   home=$(make_home retire-verify-missing-data)
@@ -1066,6 +1067,29 @@ SH
     && fail "verify kept an entry retired while two rows carry its migration marker"
   assert_contains "$err" "cannot keep retired sample-twice-call" "the ambiguous-marker verify refusal must name the held id"
   assert_contains "$err" "is ambiguous" "the ambiguous-marker verify refusal must carry the resolution reason"
+
+  home=$(make_home retire-missing-backlog)
+  scout=sample-missing-backlog-scout
+  write_scout_with_attested_inventory "$home" "$scout" sample-unlisted-call
+  evidence="$home/state/backlog.before-sample-discard.md"
+  printf -- '- sample-unlisted-call was cancelled\n' > "$evidence"
+  rm -f "$home/data/backlog.md"
+  cp "$home/state/$scout.meta" "$home/meta.before-retire"
+  err=$(run_captain "$home" complete "$scout" --retire sample-unlisted-call --evidence "$evidence" 2>&1) \
+    && fail "retirement was accepted while the backlog file was missing"
+  assert_contains "$err" "cannot retire sample-unlisted-call" "the missing-backlog refusal must name the held id"
+  assert_contains "$err" "backlog it read is not present" "the missing-backlog refusal must name the missing backlog"
+  cmp -s "$home/meta.before-retire" "$home/state/$scout.meta" \
+    || fail "a refused retirement over a missing backlog must leave the metadata unchanged"
+  printf '%s\n' "decision_keys=" "retired_decision_keys=sample-unlisted-call" \
+    "retired_decision_key.sample-unlisted-call=file:$evidence at 2026-10-11T00:00:00Z" >> "$home/state/$scout.meta"
+  cp "$home/state/$scout.meta" "$home/meta.before-verify"
+  err=$(run_captain "$home" verify "$scout" 2>&1) \
+    && fail "verify kept an entry retired while the backlog file was missing"
+  assert_contains "$err" "cannot keep retired sample-unlisted-call" "the missing-backlog verify refusal must name the held id"
+  assert_contains "$err" "backlog it read is not present" "the missing-backlog verify refusal must name the missing backlog"
+  cmp -s "$home/meta.before-verify" "$home/state/$scout.meta" \
+    || fail "a refused verify over a missing backlog must leave the metadata unchanged"
 
   if [ "$(id -u)" -eq 0 ]; then
     pass "retirement and verify refuse unless every row read reports the held row absent (unreadable case skipped as root)"

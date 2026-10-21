@@ -771,12 +771,18 @@ resolve_migrated_entry() {  # <origin-or-empty> <entry>
 RESOLVE_ENTRY_NOT_FOUND_STATUS=
 # task_show for resolve_entry: 0 found, 1 a miss, and - only when the caller
 # asked for RESOLVE_ENTRY_NOT_FOUND_STATUS - 2 for a read that failed without
-# reporting the row absent, after naming the id and the reason on stderr.
+# reporting the row absent, or that reported it absent from a backlog record
+# that is not there to read, after naming the id and the reason on stderr.
 resolve_entry_show() {  # <id>
-  local reason
+  local reason data
   task_show "$1" && return 0
   [ -n "$RESOLVE_ENTRY_NOT_FOUND_STATUS" ] || return 1
-  ! printf '%s\n' "$TASK_SHOW_OUTPUT" | grep -q '^code: NOT_FOUND$' || return 1
+  if printf '%s\n' "$TASK_SHOW_OUTPUT" | grep -q '^code: NOT_FOUND$'; then
+    data=$(fm_backlog_data_absolute "$DATA") && fm_backlog_source_present "$data" "$DATA" && return 1
+    printf 'fm-captain-hold: tasks-axi show %s reported the row absent, but the backlog it read is not present: %s\n' \
+      "$1" "${FM_BACKLOG_TRANSITION_ERROR:-the configured data directory $DATA cannot be resolved}" >&2
+    return 2
+  fi
   reason=${TASK_SHOW_OUTPUT%%$'\n'*}
   printf 'fm-captain-hold: tasks-axi show %s failed without reporting the row absent: %s\n' \
     "$1" "${reason:-no output}" >&2
