@@ -113,6 +113,14 @@ For a historical inventory that names its own origin, hold a separate captain ta
 An entry whose recorded origin differs from the one being completed is refused.
 An entry with no recorded origin, such as a hold made before origins were recorded or without `--origin`, is accepted on the durability check alone and named in the output.
 
+The inventory only grows, so an attested entry whose task the captain later cancelled and deleted would otherwise refuse `--none`, `verify`, and scout teardown forever.
+`complete <origin> --retire <held-id> --evidence <file>` retires such an entry on recorded evidence: a readable file, such as a dated backlog backup or a cancellation record, that mentions the held id.
+It refuses without evidence, when the evidence file does not mention the held id, when the entry is not in the recorded inventory, whenever the held id still resolves to a task that is not Done, and whenever the backlog read cannot positively establish that the task is gone, such as a missing or unreadable backlog, an unresolvable data directory, or an ambiguous migration marker.
+The surviving ids are appended as a new `decision_keys=` line, the retired ids as `retired_decision_keys=`, and each retirement as one `retired_decision_key.<held-id>=` evidence line, so earlier lines remain as history.
+`verify` accepts a retired entry when its evidence line exists and the same check still finds the held id gone or Done.
+A retired id cannot be listed as live inventory again: `complete` refuses naming it, and `verify` refuses an id recorded in both lists.
+The script header of `bin/fm-captain-hold.sh` owns the exact flag and metadata shapes.
+
 With a non-empty inventory, `complete` appends a `captain-held [key=<key>]` transfer event for every still-open keyed status decision.
 The event names the reviewed inventory.
 `bin/fm-classify-lib.sh` recognizes it as closing the live status copy without claiming that the captain has answered it.

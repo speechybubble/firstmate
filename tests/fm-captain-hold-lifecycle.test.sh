@@ -842,6 +842,283 @@ EOF
   pass "the completion gate attests captain-held inventory and transfers open status decisions"
 }
 
+# Reproduces the second mate's case with privacy-safe names: a finished scout's
+# attested inventory names captain-held tasks the captain later cancelled and
+# deleted from the backlog, with the deletion recorded in a dated backup file.
+# The gate unions keys and never drops one, so verify and scout teardown refuse
+# forever; retiring the entries on that recorded evidence is the gate's own exit.
+test_retire_lets_a_discarded_inventory_close_through_the_gate() {
+  local home scout backup out rc err
+  home=$(make_home retire-discarded)
+  scout=sample-reading-scout
+  mkdir -p "$home/data/$scout"
+  tasks_in "$home" add "$scout" "Read the sample notes" --kind scout --repo sample --start >/dev/null \
+    || fail "could not create the scout backlog fixture"
+  write_origin_meta "$home" "$scout"
+  printf 'working: report drafted\n' > "$home/state/$scout.status"
+  printf '# Sample reading\n\nThree follow-up calls were held for the captain.\n' > "$home/data/$scout/report.md"
+  for id in sample-image-design sample-site-build sample-process-adoption; do
+    run_captain "$home" hold "$id" --title "Decide $id" --reason "captain call from the reading" \
+      --repo sample --origin "$scout" >/dev/null || fail "could not hold $id"
+  done
+  run_captain "$home" complete "$scout" sample-image-design sample-site-build sample-process-adoption >/dev/null \
+    || fail "the original completion did not attest the three held tasks"
+  run_captain "$home" verify "$scout" >/dev/null || fail "verify refused the attested inventory before the discard"
+  printf 'done: report complete\n' >> "$home/state/$scout.status"
+
+  # The captain cancels the calls: the backlog is backed up, then the rows are deleted.
+  backup="$home/data/backlog.before-sample-discard-20261011.md"
+  cp "$home/data/backlog.md" "$backup"
+  for id in sample-image-design sample-site-build sample-process-adoption; do
+    tasks_in "$home" rm "$id" >/dev/null || fail "could not delete $id from the fixture backlog"
+  done
+
+  # Reproduction: the recorded inventory now names nothing, so every exit refuses.
+  if run_captain "$home" verify "$scout" >/dev/null 2>&1; then
+    fail "verify accepted an inventory whose tasks were deleted"
+  fi
+  if run_captain "$home" complete "$scout" --none >/dev/null 2>&1; then
+    fail "complete --none accepted an inventory whose tasks were deleted"
+  fi
+  set +e
+  run_teardown "$home" "$scout" > "$home/teardown.out" 2> "$home/teardown.err"
+  rc=$?
+  set -e
+  [ "$rc" -ne 0 ] || fail "scout teardown passed the completion gate over deleted inventory tasks"
+  assert_grep "completion gate" "$home/teardown.err" "teardown must name the completion gate"
+
+  # Refusals: no evidence, evidence that does not mention the key, evidence
+  # that is not a file, a key outside the inventory, and a key whose task is open.
+  if run_captain "$home" complete "$scout" --retire sample-image-design >/dev/null 2>&1; then
+    fail "retirement was accepted without --evidence"
+  fi
+  printf 'unrelated backup\n' > "$home/data/other-backup.md"
+  err=$(run_captain "$home" complete "$scout" --retire sample-image-design --evidence "$home/data/other-backup.md" 2>&1) \
+    && fail "retirement was accepted on evidence that never mentions the key"
+  case "$err" in *"does not mention sample-image-design"*) ;; *) fail "refusal did not name the missing mention: $err" ;; esac
+  if run_captain "$home" complete "$scout" --retire sample-image-design --evidence no-such-task >/dev/null 2>&1; then
+    fail "retirement was accepted on evidence that is not a file"
+  fi
+  if run_captain "$home" complete "$scout" --retire sample-never-held --evidence "$backup" >/dev/null 2>&1; then
+    fail "retirement was accepted for an id that is not in the recorded inventory"
+  fi
+  assert_no_grep "retired_decision_key" "$home/state/$scout.meta" "a refused retirement must record nothing"
+  run_captain "$home" hold sample-image-design --title "Decide sample-image-design" \
+    --reason "re-held while still open" --repo sample --origin "$scout" >/dev/null \
+    || fail "could not re-hold the image design call"
+  err=$(run_captain "$home" complete "$scout" --retire sample-image-design --evidence "$backup" 2>&1) \
+    && fail "retirement was accepted while the held task is still open"
+  case "$err" in *"still open"*) ;; *) fail "refusal did not say the task is still open: $err" ;; esac
+  tasks_in "$home" rm sample-image-design >/dev/null || fail "could not delete the re-held row"
+
+  # Acceptance: the dated backup mentions each deleted id.
+  out=$(run_captain "$home" complete "$scout" \
+    --retire sample-image-design --evidence "$backup" \
+    --retire sample-site-build --evidence "$backup" \
+    --retire sample-process-adoption --evidence "$backup") \
+    || fail "retirement on recorded evidence was refused"
+  case "$out" in *"retired on evidence: sample-image-design,sample-process-adoption,sample-site-build"*) ;; *) fail "completion line did not name the retired ids: $out" ;; esac
+  grep -qxF "decision_keys=sample-image-design,sample-process-adoption,sample-site-build" "$home/state/$scout.meta" \
+    || fail "the original inventory line must stay in the metadata as history"
+  [ "$(grep '^decision_keys=' "$home/state/$scout.meta" | tail -1)" = "decision_keys=" ] \
+    || fail "the surviving inventory line is not empty after retiring every entry"
+  grep -qxF "retired_decision_keys=sample-image-design,sample-process-adoption,sample-site-build" "$home/state/$scout.meta" \
+    || fail "retired ids must be recorded beside the surviving keys"
+  assert_grep "retired_decision_key.sample-site-build=file:$backup at 20" "$home/state/$scout.meta" \
+    "a file retirement must record the evidence path"
+  run_captain "$home" verify "$scout" >/dev/null || fail "verify refused the retired inventory"
+  run_captain "$home" complete "$scout" --none >/dev/null || fail "complete --none refused after retirement"
+  out=$(run_captain "$home" complete "$scout" --retire sample-site-build --evidence "$backup") \
+    || fail "an exact retirement retry was refused"
+  [ "$(grep -c '^retired_decision_key.sample-site-build=' "$home/state/$scout.meta")" = 1 ] \
+    || fail "a retirement retry duplicated the evidence line"
+
+  # A retired id held again is an open captain call: verify refuses it until it
+  # is answered, and a retired id is never listed as live inventory again.
+  run_captain "$home" hold sample-site-build --title "Decide sample-site-build" \
+    --reason "the captain reopened the site build call" --repo sample --origin "$scout" >/dev/null \
+    || fail "could not re-hold the site build call"
+  err=$(run_captain "$home" verify "$scout" 2>&1) && fail "verify kept a re-held task retired"
+  case "$err" in *"still open"*) ;; *) fail "verify refusal did not name the open task: $err" ;; esac
+  cp "$home/state/$scout.meta" "$home/meta.before-relist"
+  err=$(run_captain "$home" complete "$scout" sample-site-build 2>&1) \
+    && fail "a retired id was accepted as live inventory again"
+  case "$err" in *"sample-site-build is retired"*) ;; *) fail "refusal did not name the retired id: $err" ;; esac
+  printf 'sample-new-call was cancelled\n' > "$home/data/new-call-cancel.md"
+  err=$(run_captain "$home" complete "$scout" sample-new-call \
+    --retire sample-new-call --evidence "$home/data/new-call-cancel.md" 2>&1) \
+    && fail "an id both listed and retired in one call was accepted"
+  case "$err" in *"sample-new-call is retired"*) ;; *) fail "refusal did not name the id listed and retired together: $err" ;; esac
+  cmp -s "$home/meta.before-relist" "$home/state/$scout.meta" \
+    || fail "a refused re-listing must leave the metadata unchanged"
+  printf 'ship the site build as drafted\n' > "$home/site-build-answer.txt"
+  run_captain "$home" answer sample-site-build --decision-file "$home/site-build-answer.txt" >/dev/null \
+    || fail "could not answer the reopened call"
+  run_captain "$home" verify "$scout" >/dev/null || fail "verify refused the retired entry once its call was answered"
+
+  run_teardown "$home" "$scout" > "$home/teardown2.out" 2> "$home/teardown2.err" \
+    || fail "scout teardown still refused after retirement: $(cat "$home/teardown2.err")"
+  assert_present "$home/data/$scout/report.md" "the scout report must survive its cleanup"
+  pass "an attested inventory whose tasks the captain discarded closes through the gate on recorded evidence"
+}
+
+# Retirement exists for an established absence only. When the backlog cannot
+# tell whether the held id is gone - here a beads backend whose configuration
+# names no graph, so the migrated-hold scan cannot run - both the retirement
+# and verify of an already retired entry refuse by name instead of spending
+# "cannot tell" as "deleted".
+test_retire_refuses_when_resolution_cannot_establish_absence() {
+  local home scout evidence err
+  home=$(make_home retire-unresolvable)
+  scout=sample-unresolved-scout
+  cat > "$home/.tasks.toml" <<'EOF'
+backend = "beads"
+
+[beads]
+binary = "bd"
+prefix = "fm"
+EOF
+  write_known_rows_stub "$(fm_fakebin "$home")" "$scout"
+  write_scout_with_attested_inventory "$home" "$scout" sample-unclear-call
+  evidence="$home/data/backlog.before-sample-discard.md"
+  printf -- '- sample-unclear-call was cancelled\n' > "$evidence"
+  cp "$home/state/$scout.meta" "$home/meta.before-retire"
+
+  err=$(run_captain "$home" complete "$scout" --retire sample-unclear-call --evidence "$evidence" 2>&1) \
+    && fail "retirement was accepted while the backlog could not establish the held id is gone"
+  assert_contains "$err" "cannot retire sample-unclear-call" "the refusal must name the held id"
+  assert_contains "$err" "carries no graph path" "the refusal must carry the resolution reason"
+  cmp -s "$home/meta.before-retire" "$home/state/$scout.meta" \
+    || fail "a refused retirement must leave the metadata unchanged"
+
+  printf '%s\n' "decision_keys=" "retired_decision_keys=sample-unclear-call" \
+    "retired_decision_key.sample-unclear-call=file:$evidence at 2026-10-11T00:00:00Z" >> "$home/state/$scout.meta"
+  err=$(run_captain "$home" verify "$scout" 2>&1) \
+    && fail "verify kept an entry retired while the backlog could not establish the held id is gone"
+  assert_contains "$err" "cannot keep retired sample-unclear-call" "the verify refusal must name the held id"
+  assert_contains "$err" "carries no graph path" "the verify refusal must carry the resolution reason"
+
+  # A failure before resolution reaches its not-found branch is not absence
+  # either: with the configured data directory missing, the row read itself
+  # fails, and that generic failure must refuse the retirement too.
+  home=$(make_home retire-missing-data)
+  scout=sample-missing-data-scout
+  write_scout_with_attested_inventory "$home" "$scout" sample-unclear-call
+  evidence="$home/state/backlog.before-sample-discard.md"
+  printf -- '- sample-unclear-call was cancelled\n' > "$evidence"
+  cp "$home/state/$scout.meta" "$home/meta.before-retire"
+  err=$(PATH="$home/fakebin:$PATH" REAL_TASKS_AXI="$TASKS_AXI_BIN" FM_HOME="$home" \
+    FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data-missing" FM_CONFIG_OVERRIDE="$home/config" \
+    "$ROOT/bin/fm-captain-hold.sh" complete "$scout" --retire sample-unclear-call --evidence "$evidence" 2>&1) \
+    && fail "retirement was accepted while the data directory could not be resolved"
+  assert_contains "$err" "cannot retire sample-unclear-call" "the missing-data refusal must name the held id"
+  assert_contains "$err" "could not establish that the task is gone" "the missing-data refusal must say absence was not established"
+  cmp -s "$home/meta.before-retire" "$home/state/$scout.meta" \
+    || fail "a refused retirement over a missing data directory must leave the metadata unchanged"
+  pass "retirement and verify refuse when the backlog cannot establish that a held id is gone"
+}
+
+# Only a row read that reports the held row positively absent counts toward
+# retirement. An all-retired inventory over a missing data directory, a beads
+# graph where two rows carry the held id's migration marker, a missing backlog
+# file, and a backlog file the row read cannot open are each refused by name on
+# complete and verify.
+test_retire_refuses_unless_every_read_reports_the_row_absent() {
+  local home scout evidence err fb
+  home=$(make_home retire-verify-missing-data)
+  scout=sample-verify-missing-scout
+  write_scout_with_attested_inventory "$home" "$scout" sample-gone-call
+  evidence="$home/state/backlog.before-sample-discard.md"
+  printf -- '- sample-gone-call was cancelled\n' > "$evidence"
+  printf '%s\n' "decision_keys=" "retired_decision_keys=sample-gone-call" \
+    "retired_decision_key.sample-gone-call=file:$evidence at 2026-10-11T00:00:00Z" >> "$home/state/$scout.meta"
+  run_captain "$home" verify "$scout" >/dev/null || fail "verify refused an all-retired inventory over a readable backlog"
+  err=$(PATH="$home/fakebin:$PATH" REAL_TASKS_AXI="$TASKS_AXI_BIN" FM_HOME="$home" \
+    FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data-missing" FM_CONFIG_OVERRIDE="$home/config" \
+    "$ROOT/bin/fm-captain-hold.sh" verify "$scout" 2>&1) \
+    && fail "verify kept an all-retired inventory while the data directory could not be resolved"
+  assert_contains "$err" "cannot keep retired sample-gone-call" "the missing-data verify refusal must name the held id"
+
+  home=$(make_home retire-ambiguous-marker)
+  scout=sample-ambiguous-scout
+  printf '%s\n' 'backend = "beads"' '' '[beads]' "path = \"$home/graph\"" 'binary = "bd"' 'prefix = "fm"' \
+    > "$home/.tasks.toml"
+  fb=$(fm_fakebin "$home")
+  write_known_rows_stub "$fb" "$scout"
+  cat > "$fb/bd" <<'SH'
+#!/usr/bin/env bash
+[ "${1:-}" = list ] || exit 1
+printf '%s\n' '[{"id":"fm-first","notes":"migrated from data/backlog.md id sample-twice-call"},{"id":"fm-second","notes":"migrated from data/backlog.md id sample-twice-call on 2026-09-04"}]'
+SH
+  chmod +x "$fb/bd"
+  write_scout_with_attested_inventory "$home" "$scout" sample-twice-call
+  evidence="$home/data/backlog.before-sample-discard.md"
+  printf -- '- sample-twice-call was cancelled\n' > "$evidence"
+  cp "$home/state/$scout.meta" "$home/meta.before-retire"
+  err=$(run_captain "$home" complete "$scout" --retire sample-twice-call --evidence "$evidence" 2>&1) \
+    && fail "retirement was accepted while two rows carry the held id's migration marker"
+  assert_contains "$err" "cannot retire sample-twice-call" "the ambiguous-marker refusal must name the held id"
+  assert_contains "$err" "is ambiguous" "the ambiguous-marker refusal must carry the resolution reason"
+  cmp -s "$home/meta.before-retire" "$home/state/$scout.meta" \
+    || fail "a refused ambiguous retirement must leave the metadata unchanged"
+  printf '%s\n' "decision_keys=" "retired_decision_keys=sample-twice-call" \
+    "retired_decision_key.sample-twice-call=file:$evidence at 2026-10-11T00:00:00Z" >> "$home/state/$scout.meta"
+  err=$(run_captain "$home" verify "$scout" 2>&1) \
+    && fail "verify kept an entry retired while two rows carry its migration marker"
+  assert_contains "$err" "cannot keep retired sample-twice-call" "the ambiguous-marker verify refusal must name the held id"
+  assert_contains "$err" "is ambiguous" "the ambiguous-marker verify refusal must carry the resolution reason"
+
+  home=$(make_home retire-missing-backlog)
+  scout=sample-missing-backlog-scout
+  write_scout_with_attested_inventory "$home" "$scout" sample-unlisted-call
+  evidence="$home/state/backlog.before-sample-discard.md"
+  printf -- '- sample-unlisted-call was cancelled\n' > "$evidence"
+  rm -f "$home/data/backlog.md"
+  cp "$home/state/$scout.meta" "$home/meta.before-retire"
+  err=$(run_captain "$home" complete "$scout" --retire sample-unlisted-call --evidence "$evidence" 2>&1) \
+    && fail "retirement was accepted while the backlog file was missing"
+  assert_contains "$err" "cannot retire sample-unlisted-call" "the missing-backlog refusal must name the held id"
+  assert_contains "$err" "backlog it read is not present" "the missing-backlog refusal must name the missing backlog"
+  cmp -s "$home/meta.before-retire" "$home/state/$scout.meta" \
+    || fail "a refused retirement over a missing backlog must leave the metadata unchanged"
+  printf '%s\n' "decision_keys=" "retired_decision_keys=sample-unlisted-call" \
+    "retired_decision_key.sample-unlisted-call=file:$evidence at 2026-10-11T00:00:00Z" >> "$home/state/$scout.meta"
+  cp "$home/state/$scout.meta" "$home/meta.before-verify"
+  err=$(run_captain "$home" verify "$scout" 2>&1) \
+    && fail "verify kept an entry retired while the backlog file was missing"
+  assert_contains "$err" "cannot keep retired sample-unlisted-call" "the missing-backlog verify refusal must name the held id"
+  assert_contains "$err" "backlog it read is not present" "the missing-backlog verify refusal must name the missing backlog"
+  cmp -s "$home/meta.before-verify" "$home/state/$scout.meta" \
+    || fail "a refused verify over a missing backlog must leave the metadata unchanged"
+
+  if [ "$(id -u)" -eq 0 ]; then
+    pass "retirement and verify refuse unless every row read reports the held row absent (unreadable case skipped as root)"
+    return 0
+  fi
+  home=$(make_home retire-unreadable-backlog)
+  scout=sample-unreadable-scout
+  write_scout_with_attested_inventory "$home" "$scout" sample-hidden-call
+  evidence="$home/state/backlog.before-sample-discard.md"
+  printf -- '- sample-hidden-call was cancelled\n' > "$evidence"
+  cp "$home/state/$scout.meta" "$home/meta.before-retire"
+  chmod 000 "$home/data/backlog.md"
+  err=$(run_captain "$home" complete "$scout" --retire sample-hidden-call --evidence "$evidence" 2>&1) \
+    && { chmod 644 "$home/data/backlog.md"; fail "retirement was accepted while the backlog file could not be read"; }
+  assert_contains "$err" "cannot retire sample-hidden-call" "the unreadable-backlog refusal must name the held id"
+  assert_contains "$err" "failed without reporting the row absent" "the unreadable-backlog refusal must say the read was not an absence"
+  cmp -s "$home/meta.before-retire" "$home/state/$scout.meta" \
+    || fail "a refused retirement over an unreadable backlog must leave the metadata unchanged"
+  printf '%s\n' "decision_keys=" "retired_decision_keys=sample-hidden-call" \
+    "retired_decision_key.sample-hidden-call=file:$evidence at 2026-10-11T00:00:00Z" >> "$home/state/$scout.meta"
+  err=$(run_captain "$home" verify "$scout" 2>&1) \
+    && { chmod 644 "$home/data/backlog.md"; fail "verify kept an entry retired while the backlog file could not be read"; }
+  chmod 644 "$home/data/backlog.md"
+  assert_contains "$err" "cannot keep retired sample-hidden-call" "the unreadable-backlog verify refusal must name the held id"
+  assert_contains "$err" "failed without reporting the row absent" "the unreadable-backlog verify refusal must say the read was not an absence"
+  run_captain "$home" verify "$scout" >/dev/null || fail "verify refused the retired entry once the backlog was readable again"
+  pass "retirement and verify refuse unless every row read reports the held row absent"
+}
+
 # The recorded-answer rule: answering closes with the captain's exact words, an
 # exact retry is idempotent, a drifted retry is rejected, dependent work routed
 # behind the answered task is released by the close, and the completion gate is
@@ -4676,6 +4953,9 @@ test_uninventoried_report_decision_refuses_completion
 test_hold_decodes_a_bare_scalar_body_without_the_nonref_default
 test_retained_body_keeps_its_utf8_bytes
 test_completion_gate_attests_and_transfers
+test_retire_lets_a_discarded_inventory_close_through_the_gate
+test_retire_refuses_when_resolution_cannot_establish_absence
+test_retire_refuses_unless_every_read_reports_the_row_absent
 test_answer_records_and_closes
 test_release_frees_held_work
 test_hold_stamp_precedes_hold_visibility

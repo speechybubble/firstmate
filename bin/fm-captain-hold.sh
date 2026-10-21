@@ -28,7 +28,8 @@
 #   fm-captain-hold.sh bind <source-id> [<legacy-origin> | --any-origin]
 #   fm-captain-hold.sh unbind <source-id>
 #   fm-captain-hold.sh binding <source-id>
-#   fm-captain-hold.sh complete <origin-id> (--none | <task-id>...)
+#   fm-captain-hold.sh complete <origin-id> (--none | <task-id>...) \
+#     [--retire <held-id> --evidence <file>]...
 #   fm-captain-hold.sh verify <origin-id>
 #   fm-captain-hold.sh open <task-id> [--identity] [--distinguish-absent]
 #   fm-captain-hold.sh diverged
@@ -151,6 +152,29 @@
 # erase a source before this gate has succeeded: every recorded inventory
 # entry must still satisfy the same durability and origin checks as `complete`,
 # and no keyed status decision may be open.
+# RETIRING A RECORDED ENTRY ON EVIDENCE. The inventory only ever grows, and a
+# recorded entry whose task the captain later cancelled and deleted from the
+# backlog can no longer verify, so `complete --none` and scout teardown would
+# refuse forever. `complete <origin> --retire <held-id> --evidence <evidence>`
+# is the gate's own exit for that case: it moves the named entry out of the
+# live inventory on evidence instead of forcing the record. The evidence is a
+# readable file whose text mentions the held id (a dated backlog backup or a
+# cancellation record). A retirement is refused without `--evidence`, when the
+# evidence file does not mention the held id, when the entry is not in the
+# recorded inventory, whenever the held id still resolves to a task that is
+# not Done, and whenever the backlog read cannot positively establish that the
+# task is gone (see refuse_open_retirement), because an open captain call is
+# never retired - it is answered. The
+# pair may repeat, and it combines with `--none` or with new ids. History is
+# kept: the previous `decision_keys=`
+# lines stay in the metadata, the surviving ids are appended as a new
+# `decision_keys=` line, the retired ids are unioned into
+# `retired_decision_keys=`, and each retirement appends one
+# `retired_decision_key.<held-id>=file:<path> at <UTC stamp>` line.
+# `verify` accepts a retired entry when that evidence line exists and the same
+# check still finds the held id gone or Done; an id present in both lists is
+# refused. A retired id is never listed as live inventory again: `complete`
+# refuses naming it, whether it was retired earlier or in the same call.
 # Metadata compatibility: the attestation keeps the historical
 # `decisions_reviewed=1` and `decision_keys=` keys, and an inventory entry that
 # names no existing task resolves through the legacy `<origin>-decision-<entry>`
@@ -651,7 +675,7 @@ captain_migration_scan_load() {  # <resolved-data-dir>
 # a row solely when that row is itself still held for the captain.
 resolve_migrated_entry() {  # <origin-or-empty> <entry>
   local origin=$1 entry=$2 data root entries prefix derived show backend
-  local candidate candidate_matches prefixed matches count prefixed_matches prefixed_count
+  local candidate candidate_matches prefixed matches count prefixed_matches prefixed_count rc
   data=$(fm_backlog_data_absolute "$DATA") || {
     printf 'fm-captain-hold: the migrated hold of %s cannot be resolved: %s\n' \
       "$entry" "${FM_BACKLOG_TRANSITION_ERROR:-the configured data directory $DATA cannot be resolved}" >&2
@@ -713,10 +737,13 @@ resolve_migrated_entry() {  # <origin-or-empty> <entry>
     esac
     # Same shell rule as task_show_or_fail: the row is read out of
     # TASK_SHOW_OUTPUT, so the read cannot sit inside a command substitution.
-    task_show "$prefixed" 2>/dev/null || {
-      [ "$?" -ne 124 ] || return 124
-      continue
-    }
+    rc=0
+    resolve_entry_show "$prefixed" || rc=$?
+    case "$rc" in
+      0) ;;
+      2) return 2 ;;
+      *) continue ;;
+    esac
     show=$TASK_SHOW_OUTPUT
     [ "$(show_field_value "$show" hold_kind)" = captain ] || continue
     prefixed_matches="${prefixed_matches}${prefixed_matches:+$NL_SEP}$prefixed"
@@ -736,18 +763,55 @@ resolve_migrated_entry() {  # <origin-or-empty> <entry>
 # beads backend - the migrated row the markdown-to-beads hold migration wrote.
 # Prints "<resolved id> <how>", where <how> is exact, legacy, migrated-note or
 # migrated-prefix, so a caller can record which evidence carried the attestation.
-resolve_entry() {  # <origin-or-empty> <entry>; prints "<id> <how>" or fails
-  local origin=$1 entry=$2 legacy migrated rc
-  if task_show "$entry"; then
-    printf '%s exact' "$entry"
-    return 0
+# A caller that must tell "the task is gone" apart from "something failed"
+# sets RESOLVE_ENTRY_NOT_FOUND_STATUS on the call: every row read must then
+# report the row positively absent (tasks-axi's NOT_FOUND code) to count as a
+# miss, any other read failure fails by name, and the terminal not-found
+# branch returns that status after naming the entry on stderr, while every
+# earlier failure keeps fail's ordinary exit. Unset, a failed read is a miss
+# and not-found is an ordinary fail, so the other callers are unchanged.
+RESOLVE_ENTRY_NOT_FOUND_STATUS=
+# task_show for resolve_entry: 0 found, 1 a miss, and - only when the caller
+# asked for RESOLVE_ENTRY_NOT_FOUND_STATUS - 2 for a read that failed without
+# reporting the row absent, or that reported it absent from a backlog record
+# that is not there to read, after naming the id and the reason on stderr.
+resolve_entry_show() {  # <id>
+  local reason data
+  task_show "$1" && return 0
+  [ -n "$RESOLVE_ENTRY_NOT_FOUND_STATUS" ] || return 1
+  if printf '%s\n' "$TASK_SHOW_OUTPUT" | grep -q '^code: NOT_FOUND$'; then
+    data=$(fm_backlog_data_absolute "$DATA") && fm_backlog_source_present "$data" "$DATA" && return 1
+    printf 'fm-captain-hold: tasks-axi show %s reported the row absent, but the backlog it read is not present: %s\n' \
+      "$1" "${FM_BACKLOG_TRANSITION_ERROR:-the configured data directory $DATA cannot be resolved}" >&2
+    return 2
   fi
+  reason=${TASK_SHOW_OUTPUT%%$'\n'*}
+  printf 'fm-captain-hold: tasks-axi show %s failed without reporting the row absent: %s\n' \
+    "$1" "${reason:-no output}" >&2
+  return 2
+}
+
+resolve_entry_not_found() {  # <message>
+  [ -n "$RESOLVE_ENTRY_NOT_FOUND_STATUS" ] || fail "$1"
+  printf 'fm-captain-hold: %s\n' "$1" >&2
+  return "$RESOLVE_ENTRY_NOT_FOUND_STATUS"
+}
+
+resolve_entry() {  # <origin-or-empty> <entry>; prints "<id> <how>" or fails
+  local origin=$1 entry=$2 legacy migrated rc=0
+  resolve_entry_show "$entry" || rc=$?
+  case "$rc" in
+    0) printf '%s exact' "$entry"; return 0 ;;
+    2) return 2 ;;
+  esac
   if [ -n "$origin" ] && [ "$origin" != "$BINDING_ANY" ]; then
     legacy=$(legacy_hold_id "$origin" "$entry")
-    if task_show "$legacy"; then
-      printf '%s legacy' "$legacy"
-      return 0
-    fi
+    rc=0
+    resolve_entry_show "$legacy" || rc=$?
+    case "$rc" in
+      0) printf '%s legacy' "$legacy"; return 0 ;;
+      2) return 2 ;;
+    esac
   fi
   rc=0
   migrated=$(resolve_migrated_entry "$origin" "$entry") || rc=$?
@@ -758,9 +822,10 @@ resolve_entry() {  # <origin-or-empty> <entry>; prints "<id> <how>" or fails
   esac
   if [ -n "$origin" ] && [ "$origin" != "$BINDING_ANY" ]; then
     legacy=$(legacy_hold_id "$origin" "$entry")
-    fail "no captain-held task $entry and no migrated hold for it in this home's configured backlog (data directory $DATA); the nearest legacy identity $legacy also resolves to nothing"
+    resolve_entry_not_found "no captain-held task $entry and no migrated hold for it in this home's configured backlog (data directory $DATA); the nearest legacy identity $legacy also resolves to nothing"
+    return "$?"
   fi
-  fail "no captain-held task $entry and no migrated hold for it in this home's configured backlog (data directory $DATA)"
+  resolve_entry_not_found "no captain-held task $entry and no migrated hold for it in this home's configured backlog (data directory $DATA)"
 }
 
 body_hold_set_timestamp() {  # <decoded-task-body>
@@ -1729,9 +1794,74 @@ reconcile_note() {
   printf 'still-open: %s\n' "$id"
 }
 
+# --- retiring a recorded inventory entry on evidence ------------------------
+
+RETIRED_KEYS_FIELD=retired_decision_keys
+
+retired_keys_value() {  # <meta>
+  meta_value "$1" "$RETIRED_KEYS_FIELD"
+}
+
+# The recorded evidence line for one retired id, or empty. The key carries the
+# id verbatim, so it is matched as a fixed prefix rather than as a pattern.
+retired_evidence_line() {  # <meta> <held-id>
+  local prefix="retired_decision_key.$2="
+  awk -v p="$prefix" 'index($0, p) == 1 { line = substr($0, length(p) + 1) } END { if (line != "") print line }' "$1" 2>/dev/null || true
+}
+
+sorted_key_minus() {  # <comma-list> <newline-separated-removed-keys>
+  local existing=$1 removed=$2
+  printf '%s\n' "$existing" | tr ',' '\n' | sed '/^$/d' | LC_ALL=C sort -u \
+    | grep -vxF -f <(printf '%s\n' "$removed" | sed '/^$/d') | paste -sd, - || true
+}
+
+# Refuse a retirement whose held id still resolves to a task that is not Done.
+# Absence is what retirement exists for, so only an established absence
+# passes: resolve_entry's own terminal not-found result, asked for through
+# RESOLVE_ENTRY_NOT_FOUND_STATUS so it cannot be confused with any earlier
+# failure exit, and reached only when every row read reported the row absent.
+# A read bound, a row read that failed for any other reason (an unreadable
+# backlog, a backend or addressing error), a resolution that cannot tell (an
+# ambiguous migration marker, an unreadable scan), and an unresolvable data
+# directory or backend are all refused by name rather than spent as absence.
+RETIRE_ABSENT_STATUS=3
+refuse_open_retirement() {  # <origin> <held-id> <verb>
+  local origin=$1 held=$2 verb=$3 resolved rc=0 id state err reason
+  err=$(mktemp "${TMPDIR:-/tmp}/fm-captain-hold-retire.XXXXXX") \
+    || fail "cannot stage the resolution diagnostics for $held"
+  resolved=$(RESOLVE_ENTRY_NOT_FOUND_STATUS=$RETIRE_ABSENT_STATUS resolve_entry "$origin" "$held" 2>"$err") || rc=$?
+  reason=$(sanitize_field "$(head -c 300 "$err" | tr '\n' ' ')")
+  rm -f "$err"
+  case "$rc" in
+    0) ;;
+    "$RETIRE_ABSENT_STATUS") return 0 ;;
+    124) fail "the backlog backend exceeded its read bound resolving $held" ;;
+    *) fail "cannot $verb $held: its backlog resolution could not establish that the task is gone (${reason:-status $rc})" ;;
+  esac
+  id=${resolved%% *}
+  task_show "$id" || fail "cannot $verb $held: it resolves to task $id, which could not be read back"
+  state=$(show_field "$TASK_SHOW_OUTPUT" state)
+  [ "$state" = "done" ] \
+    || fail "cannot $verb $held: it resolves to task $id, which is still open (state $state); answer the captain call instead of retiring it"
+}
+
+# Verify the evidence file for retiring <held-id> and print its recorded form,
+# `file:<absolute path>`.
+verify_retirement_evidence() {  # <held-id> <evidence>; prints the recorded pointer
+  local held=$1 evidence=$2 abs
+  [ -n "$evidence" ] || fail "retiring $held requires --evidence naming a readable file that records the discard"
+  [ -f "$evidence" ] && [ -r "$evidence" ] \
+    || fail "evidence for retiring $held is not a readable file: $evidence"
+  grep -qF -- "$held" "$evidence" \
+    || fail "evidence file $evidence does not mention $held; retirement refused"
+  abs=$(cd "$(dirname "$evidence")" && pwd -P)/$(basename "$evidence")
+  printf 'file:%s' "$abs"
+}
+
 command_complete() {
   local origin=${1:-} meta previous='' supplied='' keys='' entry key status_file open has_meta=0 transfer_rc transfers=() resolved
   local resolved_how attested_by_prefix='' origin_state unrecorded_origin=''
+  local none=0 retire='' retire_ids='' retire_evidence='' previous_retired='' retired='' pointer stamp retired_now=''
   [ "$#" -ge 2 ] || { usage >&2; exit 2; }
   validate_slug origin-id "$origin"
   shift
@@ -1745,20 +1875,67 @@ command_complete() {
   fi
   require_tasks_axi
   origin_exists_here "$origin" || fail "origin $origin is not owned by the active home $FM_HOME"
-  if [ "$#" -eq 1 ] && [ "$1" = --none ]; then
-    supplied=''
-  else
-    while [ "$#" -gt 0 ]; do
-      [ "$1" != --none ] || fail "--none cannot be combined with task ids"
-      validate_slug task-id "$1"
-      supplied="${supplied}${supplied:+ }$1"
-      shift
-    done
-  fi
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --none)
+        [ -z "$supplied" ] || fail "--none cannot be combined with task ids"
+        none=1
+        ;;
+      --retire)
+        [ -z "$retire" ] || fail "--retire $retire needs its --evidence before the next --retire"
+        [ "$#" -ge 2 ] || fail "--retire requires a held task id"
+        validate_slug held-id "$2"
+        retire=$2
+        shift
+        ;;
+      --evidence)
+        [ -n "$retire" ] || fail "--evidence must follow --retire <held-id>"
+        [ "$#" -ge 2 ] || fail "--evidence requires a file path"
+        validate_one_line evidence "$2"
+        retire_ids="${retire_ids}${retire_ids:+$NL_SEP}$retire"
+        retire_evidence="${retire_evidence}${retire_evidence:+$NL_SEP}$2"
+        retire=''
+        shift
+        ;;
+      --*) fail "unknown option for complete: $1" ;;
+      *)
+        [ "$none" = 0 ] || fail "--none cannot be combined with task ids"
+        validate_slug task-id "$1"
+        supplied="${supplied}${supplied:+ }$1"
+        ;;
+    esac
+    shift
+  done
+  [ -z "$retire" ] || fail "retiring $retire requires --evidence naming a readable file that records the discard"
+  [ "$none" = 1 ] || [ -n "$supplied" ] || [ -n "$retire_ids" ] || { usage >&2; exit 2; }
   if [ "$has_meta" = 1 ]; then
     previous=$(meta_value "$meta" decision_keys)
+    previous_retired=$(retired_keys_value "$meta")
+  fi
+  retired=$(sorted_key_union "$previous_retired" "$retire_ids")
+  for entry in $supplied; do
+    ! list_has_key "$retired" "$entry" \
+      || fail "$entry is retired from the captain-call inventory of $origin and cannot be listed as live inventory again"
+  done
+  if [ -n "$retire_ids" ]; then
+    [ "$has_meta" = 1 ] || fail "origin $origin has no live metadata to retire an inventory entry from"
+    while IFS=$'\t' read -r entry pointer; do
+      [ -n "$entry" ] || continue
+      if ! list_has_key "$previous" "$entry"; then
+        if list_has_key "$previous_retired" "$entry"; then
+          continue
+        fi
+        fail "$entry is not in the recorded captain-call inventory of $origin (decision_keys=$previous); nothing to retire"
+      fi
+      refuse_open_retirement "$origin" "$entry" retire
+      pointer=$(verify_retirement_evidence "$entry" "$pointer") || exit $?
+      retired_now="${retired_now}${retired_now:+$NL_SEP}$entry	$pointer"
+    done <<EOF
+$(paste -d'\t' <(printf '%s\n' "$retire_ids") <(printf '%s\n' "$retire_evidence"))
+EOF
   fi
   keys=$(sorted_key_union "$previous" "$supplied")
+  keys=$(sorted_key_minus "$keys" "$retire_ids")
   if [ -n "$keys" ]; then
     while IFS= read -r entry; do
       [ -n "$entry" ] || continue
@@ -1788,6 +1965,18 @@ EOF
     if [ "$(meta_value "$meta" decisions_reviewed)" != 1 ] || [ "$previous" != "$keys" ]; then
       printf 'decisions_reviewed=1\ndecision_keys=%s\n' "$keys" >> "$meta"
     fi
+    if [ -n "$retired_now" ]; then
+      stamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+      while IFS=$'\t' read -r entry pointer; do
+        [ -n "$entry" ] || continue
+        printf 'retired_decision_key.%s=%s at %s\n' "$entry" "$pointer" "$stamp" >> "$meta"
+      done <<EOF
+$retired_now
+EOF
+    fi
+    if [ "$previous_retired" != "$retired" ]; then
+      printf '%s=%s\n' "$RETIRED_KEYS_FIELD" "$retired" >> "$meta"
+    fi
     fm_lock_release "$CAPTAIN_META_LOCK"
     CAPTAIN_META_LOCK_HELD=0
 
@@ -1811,13 +2000,14 @@ EOF
       fi
     fi
   fi
-  printf 'complete: %s captain-call inventory reviewed%s%s%s\n' "$origin" "${keys:+ ($keys)}" \
+  printf 'complete: %s captain-call inventory reviewed%s%s%s%s\n' "$origin" "${keys:+ ($keys)}" \
+    "${retired:+ [retired on evidence: $retired]}" \
     "${attested_by_prefix:+ [attested through the configured prefix: $attested_by_prefix]}" \
     "${unrecorded_origin:+ [no recorded origin on: $unrecorded_origin; not checked against $origin]}"
 }
 
 command_verify() {
-  local origin=${1:-} meta reviewed keys entry key open resolved
+  local origin=${1:-} meta reviewed keys retired entry key open resolved
   [ "$#" -eq 1 ] || { usage >&2; exit 2; }
   validate_slug origin-id "$origin"
   meta="$STATE/$origin.meta"
@@ -1826,12 +2016,25 @@ command_verify() {
   reviewed=$(meta_value "$meta" decisions_reviewed)
   [ "$reviewed" = 1 ] || fail "origin $origin has no completed captain-call inventory"
   keys=$(meta_value "$meta" decision_keys)
+  retired=$(retired_keys_value "$meta")
   if [ -n "$keys" ]; then
     while IFS= read -r entry; do
       [ -n "$entry" ] || continue
+      ! list_has_key "$retired" "$entry" \
+        || fail "$entry is recorded both as live inventory and as retired in $meta; re-run complete $origin naming or retiring it"
       verify_entry_durable "$origin" "$entry" >/dev/null
     done <<EOF
 $(printf '%s\n' "$keys" | tr ',' '\n')
+EOF
+  fi
+  if [ -n "$retired" ]; then
+    while IFS= read -r entry; do
+      [ -n "$entry" ] || continue
+      [ -n "$(retired_evidence_line "$meta" "$entry")" ] \
+        || fail "retired inventory entry $entry has no recorded evidence in $meta; re-run complete $origin --retire $entry --evidence <file>"
+      refuse_open_retirement "$origin" "$entry" "keep retired"
+    done <<EOF
+$(printf '%s\n' "$retired" | tr ',' '\n')
 EOF
   fi
   open=$(status_open_decisions "$STATE/$origin.status")
