@@ -2,9 +2,9 @@
 # Behavior tests for the two context-loss device libraries and the stow marker:
 #   - bin/fm-drain-filter-lib.sh: the per-command classifier and the per-turn
 #     transcript scan behind the turn-end guard's "filtered drain read" block
-#   - bin/fm-stow-cadence-lib.sh: the per-session compaction counter, the
-#     configured cadence and its malformed fallback, the stow-required record,
-#     and its live-session matching
+#   - bin/fm-stow-cadence-lib.sh: the per-session compaction counter, the fixed
+#     every-second-compaction cadence, the stow-required record, and its
+#     live-pid matching
 #   - bin/fm-stow-mark.sh: recording a pass for the lock-owning session
 # Hermetic over temp dirs and fixture transcripts; no harness is invoked.
 set -u
@@ -49,11 +49,23 @@ grep -n DECISION /tmp/d.txt')
 head -50 /tmp/x.log')
   assert_equals "$(printf 'redirect\t/tmp/x.log\nfiltered\thead\thead -50 /tmp/x.log')" "$out" "a tee copy that a later filter reads is filtered"
   out=$(classify 'bin/fm-wake-drain.sh > /tmp/d.txt; cat /tmp/d.txt')
-  assert_equals "redirect	/tmp/d.txt" "$out" "a redirected read that cat prints whole is not filtered"
+  assert_equals "$(printf 'redirect\t/tmp/d.txt\nunfiltered')" "$out" "a redirected read that cat prints whole is an unfiltered read"
   out=$(FM_DRAIN_FILTER_PENDING=$'/tmp/earlier.txt\n' classify 'cut -c1-80 /tmp/earlier.txt')
   assert_equals "filtered	cut	cut -c1-80 /tmp/earlier.txt" "$out" "a file an earlier command redirected into is tracked across commands"
   out=$(classify 'ls state | grep status')
   assert_equals "" "$out" "a filter that never touches the drain prints nothing"
+  out=$(classify 'grep -rn fm-wake-drain.sh docs | head -20')
+  assert_equals "" "$out" "naming the drain script as a grep argument is not a read"
+  out=$(classify 'git diff -- bin/fm-wake-drain.sh | head')
+  assert_equals "" "$out" "a git diff of the drain script is not a read"
+  out=$(classify 'cat bin/fm-wake-drain.sh | sed -n 1,40p')
+  assert_equals "" "$out" "cat of the drain source piped into sed is not a read"
+  out=$(classify 'timeout 60 bash /r/bin/fm-wake-drain.sh 2>&1 | tail -3')
+  assert_contains "$out" "filtered	tail	" "a drain run through timeout and bash is still a read"
+  out=$(classify 'bin/fm-wake-drain.sh > /tmp/d.txt
+cat /tmp/d.txt
+grep OPEN /tmp/d.txt')
+  assert_equals "$(printf 'redirect\t/tmp/d.txt\nunfiltered')" "$out" "a redirected read that cat prints whole is cleared before a later grep"
   pass "fm_drain_filter_classify: verdicts for piped, redirected, acknowledged, and unrelated commands"
 }
 
@@ -197,27 +209,27 @@ test_scan_window_without_turn_boundary_still_counts() {
 
 # --- cadence ----------------------------------------------------------------
 
-new_home() {  # <name> -> echoes state dir; config dir is its sibling
+new_home() {  # <name> -> echoes the home; its state dir is state/
   local home="$TMP_ROOT/$1"
-  mkdir -p "$home/state" "$home/config"
+  mkdir -p "$home/state"
   printf '%s\n' "$home"
 }
 
 test_cadence_default_every_two_and_mark_resets() {
-  local home state config
-  home=$(new_home cadence-default); state="$home/state"; config="$home/config"
-  if fm_stow_cadence_record_compaction "$state" "$config" "$$" sess-1; then
+  local home state
+  home=$(new_home cadence-default); state="$home/state"
+  if fm_stow_cadence_record_compaction "$state" "$$" sess-1; then
     fail "the first compaction must not require a pass"
   fi
   assert_equals 1 "$FM_STOW_CADENCE_COUNT" "first compaction counted"
   assert_equals 0 "$FM_STOW_CADENCE_DUE" "nothing due after one compaction"
   [ ! -e "$state/.stow-required" ] || fail "no stow-required record after one compaction"
-  fm_stow_cadence_record_compaction "$state" "$config" "$$" sess-1 || fail "the second compaction must require a pass"
-  assert_equals 2 "$FM_STOW_CADENCE_EVERY" "default cadence is 2"
+  fm_stow_cadence_record_compaction "$state" "$$" sess-1 || fail "the second compaction must require a pass"
+  assert_equals 2 "$FM_STOW_CADENCE_EVERY" "the cadence is the captain's fixed 2"
   [ -f "$state/.stow-required" ] || fail "the second compaction must write the stow-required record"
   fm_stow_cadence_required "$state" "$$" sess-1 || fail "the record must match the live session"
   assert_equals 2 "$FM_STOW_CADENCE_REQUIRED_COUNT" "the record names the compaction that made the pass due"
-  if fm_stow_cadence_record_compaction "$state" "$config" "$$" sess-1; then
+  if fm_stow_cadence_record_compaction "$state" "$$" sess-1; then
     fail "a third compaction with the pass still owed must not write a second record"
   fi
   assert_equals 1 "$FM_STOW_CADENCE_DUE" "the pass stays due until marked"
@@ -227,52 +239,34 @@ test_cadence_default_every_two_and_mark_resets() {
   if fm_stow_cadence_required "$state" "$$" sess-1; then
     fail "nothing is required after the mark"
   fi
-  if fm_stow_cadence_record_compaction "$state" "$config" "$$" sess-1; then
+  if fm_stow_cadence_record_compaction "$state" "$$" sess-1; then
     fail "the first compaction after a mark must not require a pass"
   fi
   assert_equals 1 "$FM_STOW_CADENCE_SINCE" "the cadence counts from the last pass"
-  fm_stow_cadence_record_compaction "$state" "$config" "$$" sess-1 || fail "the second compaction after a mark must require a pass again"
-  pass "fm_stow_cadence: every second compaction since the last pass requires one, and the mark resets the cadence"
-}
-
-test_cadence_config_value_and_malformed_fallback() {
-  local home state config
-  home=$(new_home cadence-config); state="$home/state"; config="$home/config"
-  printf '3\n' > "$config/stow-every-compactions"
-  fm_stow_cadence_record_compaction "$state" "$config" "$$" >/dev/null
-  fm_stow_cadence_record_compaction "$state" "$config" "$$" && fail "a cadence of 3 must not fire on the second compaction"
-  fm_stow_cadence_record_compaction "$state" "$config" "$$" || fail "a cadence of 3 must fire on the third compaction"
-  assert_equals 3 "$FM_STOW_CADENCE_EVERY" "the configured cadence is used"
-  printf 'two\n' > "$config/stow-every-compactions"
-  fm_stow_cadence_every "$config" >/dev/null
-  assert_equals 2 "$FM_STOW_CADENCE_EVERY" "a malformed cadence falls back to the default"
-  [ -n "$FM_STOW_CADENCE_NOTE" ] || fail "a malformed cadence must be reported in the note"
-  printf '0\n' > "$config/stow-every-compactions"
-  assert_equals 2 "$(fm_stow_cadence_every "$config")" "zero is not a cadence"
-  pass "fm_stow_cadence_every: configured value honored, malformed values fall back loudly"
+  fm_stow_cadence_record_compaction "$state" "$$" sess-1 || fail "the second compaction after a mark must require a pass again"
+  pass "fm_stow_cadence: every second compaction since the last pass requires one, the number is fixed, and the mark resets the cadence"
 }
 
 test_cadence_session_identity() {
-  local home state config dead
-  home=$(new_home cadence-identity); state="$home/state"; config="$home/config"
-  fm_stow_cadence_record_compaction "$state" "$config" "$$" sess-a >/dev/null
-  fm_stow_cadence_record_compaction "$state" "$config" "$$" sess-a || fail "second compaction must require"
-  if fm_stow_cadence_required "$state" "$$" sess-b; then
-    fail "a record for another session id must not match"
-  fi
-  fm_stow_cadence_required "$state" "$$" "" || fail "an empty caller session matches on pid alone"
+  local home state dead
+  home=$(new_home cadence-identity); state="$home/state"
+  fm_stow_cadence_record_compaction "$state" "$$" sess-a >/dev/null
+  fm_stow_cadence_record_compaction "$state" "$$" sess-a || fail "second compaction must require"
+  fm_stow_cadence_required "$state" "$$" || fail "the record matches the live pid"
+  fm_stow_cadence_record_compaction "$state" "$$" sess-after-clear
+  fm_stow_cadence_required "$state" "$$" || fail "a /clear that keeps the pid under a new session id still owes the pass"
   dead=999999
   while kill -0 "$dead" 2>/dev/null; do dead=$((dead + 1)); done
   printf 'pid=%s\nsession=\ncount=2\nat=1\n' "$dead" > "$state/.stow-required"
   if fm_stow_cadence_required "$state" "$dead"; then
     fail "a record for a dead pid must not block"
   fi
-  if fm_stow_cadence_record_compaction "$state" "$config" "$((dead + 1))"; then
+  if fm_stow_cadence_record_compaction "$state" "$((dead + 1))"; then
     fail "a new pid starts its own count at one"
   fi
   assert_equals 1 "$FM_STOW_CADENCE_COUNT" "a different pid resets the counter"
   [ ! -e "$state/.stow-required" ] || fail "a stale record for another pid is dropped by the new session's first compaction"
-  pass "fm_stow_cadence_required: matches only the live recorded session"
+  pass "fm_stow_cadence_required: matches the live recorded pid only, across a session id change"
 }
 
 test_stow_mark_script() {
@@ -304,7 +298,6 @@ test_scan_ignores_sidechain_and_tracks_redirects_across_commands
 test_scan_never_blocks_on_unreadable_input
 test_scan_window_without_turn_boundary_still_counts
 test_cadence_default_every_two_and_mark_resets
-test_cadence_config_value_and_malformed_fallback
 test_cadence_session_identity
 test_stow_mark_script
 

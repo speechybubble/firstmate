@@ -54,7 +54,7 @@ The guard remains a backstop.
 
 ## Guard predicates
 
-The turn-end guard checks primary scope first, then the two context-loss devices below, then supervision need, then watcher health.
+The turn-end guard checks primary scope first, then supervision need and watcher health, and evaluates the two context-loss devices below only on a Stop that supervision has already decided to let end.
 The mid-turn pull warning in `bin/fm-guard.sh` judges watcher health differently, as described under [pull-warning verdict by supervision model](#pull-warning-verdict-by-supervision-model).
 
 ### Primary scope
@@ -76,19 +76,22 @@ When the Stop payload names a transcript, the guard scans the current turn's Bas
 Acknowledgement and listing invocations (`--ack-through`, `--decisions`, `--help`) are not reads.
 The turn is everything after the last captain or command entry; a compaction summary continues the turn it interrupted, and subagent entries are ignored.
 If the last such read was filtered and no unfiltered read followed it, the guard blocks the stop once with the exact unfiltered command for this home and the reason, records the blocked turn in `state/.turnend-filtered-drain`, and allows the retry of that same turn.
-`bin/fm-drain-filter-lib.sh` owns the detection, its stated heuristics, and the bounded transcript window (`FM_TURNEND_TRANSCRIPT_TAIL_LINES`, default 3000 lines).
+A statement is a drain read only when the drain script is the command a pipeline segment executes, so a `grep` or `git diff` that merely names the file is not one.
+`bin/fm-drain-filter-lib.sh` owns the detection, its stated heuristics, and the fixed 3000-line transcript window.
 
 The device exists because the written rule against filtering held in none of 139 consecutive drain reads once the captain's correction had fallen out of context, while a fresh correction in live context held it for three days.
 Each block charges the Claude block budget under [failure progression and block budget](#failure-progression-and-block-budget), so the device stands down once that budget is spent and never contributes to Claude Code's 8-consecutive-block override.
+Because both devices run only after supervision has decided to allow the Stop, a supervision block always takes precedence and a device block never consumes one of supervision's repair prompts.
 It also stands down on anything it cannot read: no transcript path, an unreadable transcript, or a missing `jq`.
 
 Retirement: retire this predicate when the T15 drain fold has shipped and a fourteen-day Backpass window shows zero filtered drain reads.
 
 ### Stow pass required
 
-While `state/.stow-required` names the live session that holds `state/.lock` (and its trusted session id when both sides record one), the guard blocks the stop with the instruction to run the stow skill now.
-The compact session-start digest writes that record on every second compaction since the last recorded stow pass (`config/stow-every-compactions`, default 2) and prints `STOW_REQUIRED` beside it; the stow skill's last step, `bin/fm-stow-mark.sh`, records the pass and removes the record.
-`bin/fm-stow-cadence-lib.sh` owns the counter and records.
+While `state/.stow-required` names the live harness pid that holds `state/.lock`, the guard blocks the stop with the instruction to run the stow skill now.
+The compact session-start digest writes that record on every second compaction since the last recorded stow pass and prints `STOW_REQUIRED` beside it; the stow skill's last step, `bin/fm-stow-mark.sh`, records the pass and removes the record.
+Two is the captain's number and is fixed in `bin/fm-stow-cadence-lib.sh`, which owns the counter and records.
+The match is on the pid alone, so a `/clear` that keeps the pid and mints a new session id neither strands the record nor stands the guard down.
 
 Each block charges the same Claude block budget as the filtered drain read, so an unanswered requirement is bounded by that budget rather than wedging the session.
 The device stands down when the lock holds no numeric pid, the recorded pid is dead or belongs to another session, or the record is absent.
@@ -580,7 +583,7 @@ That warning uses `bin/fm-supervision-instructions.sh --repair-line`, so it alwa
 
 - The predicate.
 - The filtered drain read: a filtered read blocks once with the unfiltered command, the retry of the same turn is allowed, a later unfiltered read clears it, an acknowledgement is not a read, an earlier turn's filtered read is not charged to this one, a missing or unreadable transcript never blocks, and the block charges the session block budget.
-- The stow pass required record: a record for the live lock-owning session blocks, the recorded pass releases it, a record for a dead or foreign pid never blocks, and the block budget bounds repeated blocks.
+- The stow pass required record: a record for the live lock-owning pid blocks, the recorded pass releases it, a record for a dead or foreign pid never blocks, the block budget bounds repeated blocks, and a verified failure episode with a pass due still shows the supervision repair banner.
 - Main and secondmate primary scope.
 - Child-worktree exclusion.
 - `FM_HOME` and `FM_STATE_OVERRIDE` precedence.
@@ -602,7 +605,7 @@ That warning uses `bin/fm-supervision-instructions.sh --repair-line`, so it alwa
 - Malformed input.
 - Exactly-one-path safety.
 
-`tests/fm-stow-cadence.test.sh` covers the drain-filter classifier over fixture commands and transcripts, the compaction counter and cadence, the configured cadence value and its malformed fallback, and `bin/fm-stow-mark.sh`.
+`tests/fm-stow-cadence.test.sh` covers the drain-filter classifier over fixture commands and transcripts, including commands that merely name the drain script, the compaction counter and cadence, and `bin/fm-stow-mark.sh`.
 `tests/fm-session-start.test.sh` covers the compact digest's standing-corrections section (feedback entries verbatim, non-feedback entries excluded, the byte cap's truncated line, the absent-directory line) and its `STOW_REQUIRED` cadence, and that startup and clear never print the section.
 
 `tests/fm-turnend-foreign-owner-arm-fix.test.sh` runs the extracted isolated executable reproduction against real auto-arm and turn-end guard scripts.

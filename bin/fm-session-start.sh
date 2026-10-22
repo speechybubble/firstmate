@@ -49,13 +49,12 @@
 #                       because a compaction summary is exactly where those
 #                       get dropped; each entry prints as its file name and
 #                       its body after the frontmatter, newest first, bounded
-#                       by config/compact-corrections-bytes (default 4096,
-#                       FM_COMPACT_CORRECTIONS_BYTES overrides it) with an
-#                       explicit truncated line. STOW CADENCE counts the
-#                       compaction for the lock-owning session
+#                       by a fixed 16384-byte cap (COMPACT_CORRECTIONS_BYTES)
+#                       with an explicit truncated line. STOW CADENCE counts
+#                       the compaction for the lock-owning session
 #                       (bin/fm-stow-cadence-lib.sh) and prints STOW_REQUIRED
-#                       when config/stow-every-compactions (default 2) is
-#                       reached; the turn-end guard then blocks the stop until
+#                       on every second compaction since the last recorded
+#                       pass; the turn-end guard then blocks the stop until
 #                       bin/fm-stow-mark.sh records the pass. Startup, resume,
 #                       and clear never print this stage. Both devices stand
 #                       down on a read-only session.
@@ -63,8 +62,9 @@
 #                       ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/<slug>/
 #                       memory, where <slug> is the code root's absolute path
 #                       with every non-alphanumeric character replaced by `-`;
-#                       FM_HARNESS_MEMORY_DIR overrides it, and no other
-#                       primary harness has a known memory directory.
+#                       no other primary harness has a known memory directory.
+#                       FM_HARNESS_MEMORY_DIR is a test seam that points the
+#                       section at a fixture directory.
 #   4. supervision-instructions - the one emitted operating block for the
 #                       detected primary harness.
 #   5. read-once contract - the do-not-re-read contract covering every source
@@ -851,14 +851,10 @@ memory_entry_is_feedback() {  # <file>: frontmatter carries `type: feedback`
   ' "$1" 2>/dev/null
 }
 
-corrections_byte_cap() {
-  local cap=${FM_COMPACT_CORRECTIONS_BYTES:-} file="$CONFIG/compact-corrections-bytes"
-  if [ -z "$cap" ] && [ -f "$file" ] && [ ! -L "$file" ]; then
-    cap=$(head -n 1 "$file" 2>/dev/null | tr -d '[:space:]')
-  fi
-  case "$cap" in ''|*[!0-9]*|0) cap=4096 ;; esac
-  printf '%s\n' "$cap"
-}
+# Fixed cap on the standing-corrections bodies. 16384 bytes prints the whole
+# current set with room to grow; the truncated line covers the day it is
+# exceeded.
+COMPACT_CORRECTIONS_BYTES=16384
 
 memory_entry_body() {  # <file>: everything after the frontmatter, without leading blank lines
   awk '
@@ -871,8 +867,7 @@ memory_entry_body() {  # <file>: everything after the frontmatter, without leadi
 }
 
 print_standing_corrections() {
-  local dir cap used=0 shown=0 skipped=0 file body size
-  cap=$(corrections_byte_cap)
+  local dir cap=$COMPACT_CORRECTIONS_BYTES used=0 shown=0 skipped=0 file body size
   subsection "STANDING CORRECTIONS - captain corrections the compaction summary may have dropped"
   printf 'Every harness memory entry of type feedback, verbatim. Each is a correction the captain gave; the\n'
   printf 'summary that just replaced this context may have shortened or dropped it, so re-apply each one now.\n'
@@ -915,7 +910,7 @@ print_stow_cadence() {
   fi
   pid=${identity%% *}
   session=${identity#* }
-  if fm_stow_cadence_record_compaction "$STATE" "$CONFIG" "$pid" "$session"; then
+  if fm_stow_cadence_record_compaction "$STATE" "$pid" "$session"; then
     printf 'compaction %s of this session; %s since the last stow pass (cadence %s)\n' \
       "$FM_STOW_CADENCE_COUNT" "$FM_STOW_CADENCE_SINCE" "$FM_STOW_CADENCE_EVERY"
     printf 'STOW_REQUIRED: run the stow skill (/stow) now, before other work. Its last step runs\n'
@@ -929,7 +924,6 @@ print_stow_cadence() {
   else
     printf 'not counted: the cadence record under state/ could not be written\n'
   fi
-  [ -z "$FM_STOW_CADENCE_NOTE" ] || printf '%s\n' "$FM_STOW_CADENCE_NOTE"
 }
 
 if [ "$SESSION_SOURCE" = compact ]; then

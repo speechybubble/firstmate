@@ -2403,15 +2403,35 @@ test_hook_stow_required_ignores_dead_or_foreign_session() {
   printf 'pid=%s\nsession=\ncount=2\nat=1\n' "$dead" > "$dir/state/.stow-required"
   out=$(run_hook_claude "$dir" false); status=$?
   expect_code 0 "$status" "a record for another pid must never block"
-  printf 'pid=%s\nsession=other-session\ncount=2\nat=1\n' "$$" > "$dir/state/.stow-required"
+  printf 'pid=%s\nsession=before-clear\ncount=2\nat=1\n' "$$" > "$dir/state/.stow-required"
   printf 'sess-claude-mode\n' > "$dir/state/.lock-session"
   out=$(run_hook_claude "$dir" false); status=$?
-  expect_code 0 "$status" "a record for another session id must never block"
+  expect_code 2 "$status" "a record for the live pid still blocks after a /clear minted a new session id"
+  rm -f "$dir/state/.turnend-claude-blocks"
   printf 'session=sess-claude-mode\ncount=3\nepoch=\n' > "$dir/state/.turnend-claude-blocks"
   printf 'pid=%s\nsession=sess-claude-mode\ncount=2\nat=1\n' "$$" > "$dir/state/.stow-required"
   out=$(run_hook_claude "$dir" false); status=$?
   expect_code 0 "$status" "a spent block budget allows the stop even while a pass is owed"
   pass "fm-turnend-guard --claude: the stow device stands down for dead, foreign, or budget-exhausted sessions"
+}
+
+test_hook_supervision_block_wins_over_stow_required() {
+  local dir out status
+  dir=$(make_primary_dir "$TMP_ROOT/device-stow-vs-supervision")
+  : > "$dir/state/task1.meta"
+  seed_claude_failure "$dir" failed
+  printf '%s\n' "$$" > "$dir/state/.lock"
+  printf 'pid=%s\nsession=sess-claude-mode\ncount=2\nat=1\n' "$$" > "$dir/state/.stow-required"
+  out=$(FM_CLAUDE_AUTOARM_SYNC_WAIT_MS=200 run_hook_claude "$dir" false); status=$?
+  expect_code 2 "$status" "a verified failure episode with a stow pass due must still block"
+  assert_contains "$out" "TURN WOULD END BLIND" "the supervision repair banner is shown, not the device"
+  assert_not_contains "$out" "STOW PASS REQUIRED" "the device never pre-empts a supervision repair prompt"
+  touch "$dir/state/.last-watcher-beat"
+  rm -f "$dir/state/task1.meta"
+  out=$(run_hook_claude "$dir" false); status=$?
+  expect_code 2 "$status" "once supervision no longer blocks, the owed pass blocks"
+  assert_contains "$out" "STOW PASS REQUIRED" "the device runs on the allowed Stop"
+  pass "fm-turnend-guard --claude: a supervision block takes precedence over a device block and never loses its repair prompt"
 }
 
 test_hook_filtered_drain_blocks_once_then_allows_retry
@@ -2420,6 +2440,7 @@ test_hook_filtered_drain_never_blocks_without_readable_transcript
 test_hook_filtered_drain_respects_block_budget
 test_hook_stow_required_blocks_until_marked
 test_hook_stow_required_ignores_dead_or_foreign_session
+test_hook_supervision_block_wins_over_stow_required
 test_hook_away_daemon_allows_between_watcher_cycles
 test_hook_away_daemon_allows_over_dead_watcher_lock
 test_hook_away_mode_blocks_without_any_supervisor

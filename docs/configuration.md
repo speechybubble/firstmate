@@ -10,7 +10,7 @@ Start with the directory layout, then use the setting reference for the behavior
 | Firstmate's code, private files, or project location | [FM_HOME](#fm_home) and [operational home layout](#operational-home-layout-and-state) |
 | Task windows and worker tools | [Runtime backend](#runtime-backend-configbackend--fm_backend) and [harness support](#harness-support) |
 | Worker permissions, accounts, or environment | [Claude permission mode](#claude-permission-mode-configclaude-permission-mode), [worker account pin](#worker-account-pin-configclaude-account-configpi-account), [worker tool exclusions](#worker-tool-exclusions-configcrew-exclude-tools), and [worker launch environment](#worker-launch-environment-configlaunch-env-allowlist) |
-| Backlog, preferences, and memory | [Backlog backend](#backlog-backend-taskstoml--configbacklog-backend), [captain preferences](#captain-preferences-datacaptainmd--datacaptain-sharedmd), [startup memory budget](#startup-memory-budget-configstartup-memory-budget), [compact corrections cap](#compact-corrections-cap-configcompact-corrections-bytes), and [stow cadence](#stow-cadence-configstow-every-compactions) |
+| Backlog, preferences, and memory | [Backlog backend](#backlog-backend-taskstoml--configbacklog-backend), [captain preferences](#captain-preferences-datacaptainmd--datacaptain-sharedmd), and [startup memory budget](#startup-memory-budget-configstartup-memory-budget) |
 | Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), and [Calm preference](#calm-preference-configcalm) |
 | Persistent secondmates | [Secondmate routes](#secondmate-routes-datasecondmatesmd) |
 | Per-run overrides and tuning | [Environment variables](#environment-variables) |
@@ -678,20 +678,6 @@ An inherited `data/captain-shared.md` counts in a secondmate's total but remains
 The internal [`/stow` skill](../.agents/skills/stow/SKILL.md) owns curation and its automatic secondmate cascade, which accounts every home against this same per-home allowance separately rather than against a fleet total.
 
 The helper's header owns exact parsing, publication, and report output mechanics.
-
-## Compact corrections cap (config/compact-corrections-bytes)
-
-`config/compact-corrections-bytes` bounds the `STANDING CORRECTIONS` section the compact session-start digest prints: the body of every harness memory entry of type feedback, newest first, verbatim.
-The default is `4096` bytes when the file is absent, `FM_COMPACT_CORRECTIONS_BYTES` overrides the file for one run, and a malformed value falls back to the default.
-The section always prints at least the newest entry and names how many it left out, so a cap below the current set is visible rather than silent.
-`bin/fm-session-start.sh`'s header owns which directory the entries come from.
-
-## Stow cadence (config/stow-every-compactions)
-
-`config/stow-every-compactions` sets how many compactions of one primary session may pass before the compact session-start digest requires a stow pass.
-The default is `2`, the captain's number, and applies when the file is absent.
-The file holds one positive base-10 integer followed by exactly one newline; a malformed value falls back to the default and the digest's `STOW CADENCE` subsection says so, because the cadence is a reminder schedule rather than a safety gate.
-`bin/fm-stow-cadence-lib.sh` owns the counter records under `state/`, and [`turnend-guard.md`](turnend-guard.md#stow-pass-required) owns the guard that holds the turn until `bin/fm-stow-mark.sh` records the pass.
 
 ### Daily startup growth check
 
@@ -2485,9 +2471,6 @@ FM_CLAUDE_AUTOARM_ATTEMPTS=2   # bounded Stop-owned arm attempts per Claude auto
 FM_CLAUDE_AUTOARM_SYNC_WAIT_MS=800   # milliseconds the --claude turn-end guard waits for watcher health, an open Stop auto-arm generation claim, or a fresh epoch before deciding recovery ownership or failure progression
 FM_CLAUDE_AUTOARM_EPOCH_FRESH=15   # seconds a recorded auto-arm outcome remains eligible for the current event epoch's recovery or failure decision
 FM_CLAUDE_TURNEND_BLOCK_BUDGET=3   # consecutive --claude guard re-blocks before the verified one-time attended fail-open; safely below Claude Code's 8-block override; the filtered-drain and stow-required device blocks charge the same budget
-FM_TURNEND_TRANSCRIPT_TAIL_LINES=3000   # transcript lines the turn-end guard scans for a filtered fm-wake-drain.sh read in the current turn
-FM_COMPACT_CORRECTIONS_BYTES=   # one-run override of config/compact-corrections-bytes, the byte cap on the compact digest's STANDING CORRECTIONS section
-FM_HARNESS_MEMORY_DIR=   # overrides the harness memory directory the compact digest reads feedback entries from (default: the Claude project memory directory, see bin/fm-session-start.sh)
 FM_ARM_CONFIRM_TIMEOUT=10   # seconds fm-watch-arm waits to confirm a fresh watcher before reporting FAILED; default 30 on Git Bash/MSYS
 FM_ARM_ATTACH_POLL=0.5  # seconds between checks while fm-watch-arm follows an attached watcher cycle (bin/fm-watch-arm.sh header)
 FM_OPENCODE_ARM_READY_TIMEOUT_MS=12000   # milliseconds the OpenCode primary watcher plugin waits for an arm attempt to report started, healthy, wake, or failure; default 35000 on Windows to stay above the MSYS confirm budget

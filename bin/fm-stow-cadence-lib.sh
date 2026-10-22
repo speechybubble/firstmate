@@ -21,26 +21,22 @@
 # trusted id state/.lock-session records when one exists; a record naming
 # another pid belongs to a previous session and is replaced, never continued.
 #
-# Cadence: config/stow-every-compactions, one positive base-10 integer plus one
-# newline, default 2 (the captain's number). A malformed value falls back to
-# the default and FM_STOW_CADENCE_NOTE says so; it is a cadence, not a safety
-# gate, so it degrades to the default rather than refusing.
+# Cadence: every second compaction since the last recorded pass. The number 2
+# is the captain's and is fixed here (FM_STOW_CADENCE_EVERY), not configured.
 #
 # Functions (every one returns 1 instead of acting when <state> is unusable):
-#   fm_stow_cadence_every <config>
-#       Prints the effective cadence and sets FM_STOW_CADENCE_EVERY to it;
-#       sets FM_STOW_CADENCE_NOTE on fallback (call it outside a command
-#       substitution to read either variable).
-#   fm_stow_cadence_record_compaction <state> <config> <pid> [session]
+#   fm_stow_cadence_record_compaction <state> <pid> [session]
 #       Counts one compaction for <pid> and decides whether a pass is now due.
 #       Returns 0 when it wrote .stow-required this call, 1 otherwise. Sets
 #       FM_STOW_CADENCE_COUNT, FM_STOW_CADENCE_SINCE (compactions since the
-#       last pass), FM_STOW_CADENCE_EVERY, and FM_STOW_CADENCE_DUE (0|1, also
-#       1 when an earlier .stow-required for this pid is still unanswered).
-#   fm_stow_cadence_required <state> <pid> [session]
-#       Returns 0 when .stow-required exists for the live session <pid> (and
-#       for <session> when both sides name one), setting
-#       FM_STOW_CADENCE_REQUIRED_COUNT and FM_STOW_CADENCE_REQUIRED_AT.
+#       last pass), and FM_STOW_CADENCE_DUE (0|1, also 1 when an earlier
+#       .stow-required for this pid is still unanswered).
+#   fm_stow_cadence_required <state> <pid>
+#       Returns 0 when .stow-required exists for the live harness <pid>,
+#       setting FM_STOW_CADENCE_REQUIRED_COUNT and FM_STOW_CADENCE_REQUIRED_AT.
+#       The match is on the pid alone: a /clear keeps the pid and mints a new
+#       session id, and the pass is still owed by that same process; the
+#       recorded session is informational.
 #   fm_stow_cadence_mark <state> <pid> [session]
 #       Records a completed pass: writes .stow-pass, sets stowed_at to the
 #       current count in .compactions (creating it at count 0 for a session
@@ -49,8 +45,9 @@
 #       Prints "<pid> <session>" from state/.lock and state/.lock-session, or
 #       returns 1 when the lock holds no numeric pid.
 
-FM_STOW_CADENCE_DEFAULT_EVERY=2
-FM_STOW_CADENCE_NOTE=
+FM_STOW_CADENCE_EVERY=2
+# The FM_STOW_CADENCE_* result variables below are read by callers after each
+# function returns (bin/fm-session-start.sh, bin/fm-turnend-guard.sh).
 
 _fm_stow_cadence_regular() {  # <path>: a regular, non-symlink file
   [ -f "$1" ] && [ ! -L "$1" ]
@@ -81,34 +78,13 @@ fm_stow_cadence_lock_identity() {  # <state>
   printf '%s %s\n' "$pid" "$session"
 }
 
-fm_stow_cadence_every() {  # <config>
-  local file="$1/stow-every-compactions" value
-  FM_STOW_CADENCE_NOTE=
-  FM_STOW_CADENCE_EVERY=$FM_STOW_CADENCE_DEFAULT_EVERY
-  if [ ! -e "$file" ] && [ ! -L "$file" ]; then
-    printf '%s\n' "$FM_STOW_CADENCE_EVERY"
-    return 0
-  fi
-  if _fm_stow_cadence_regular "$file" && value=$(cat "$file" 2>/dev/null) \
-    && [ "$(printf '%s' "$value" | wc -l | tr -d ' ')" -eq 0 ] \
-    && printf '%s' "$value" | grep -Eq '^[1-9][0-9]*$'; then
-    FM_STOW_CADENCE_EVERY=$value
-    printf '%s\n' "$FM_STOW_CADENCE_EVERY"
-    return 0
-  fi
-  FM_STOW_CADENCE_NOTE="config/stow-every-compactions is malformed (one positive integer plus one newline expected); using the default $FM_STOW_CADENCE_DEFAULT_EVERY"
-  printf '%s\n' "$FM_STOW_CADENCE_EVERY"
-}
-
-fm_stow_cadence_record_compaction() {  # <state> <config> <pid> [session]
-  local state=$1 config=$2 pid=$3 session=${4:-} file count=0 stowed_at=0 old_pid='' every
+fm_stow_cadence_record_compaction() {  # <state> <pid> [session]
+  local state=$1 pid=$2 session=${3:-} file count=0 stowed_at=0 old_pid=''
   FM_STOW_CADENCE_COUNT=0
   FM_STOW_CADENCE_SINCE=0
   FM_STOW_CADENCE_DUE=0
   [ -d "$state" ] || return 1
   case "$pid" in ''|*[!0-9]*) return 1 ;; esac
-  fm_stow_cadence_every "$config" >/dev/null
-  every=$FM_STOW_CADENCE_EVERY
   file="$state/.compactions"
   if _fm_stow_cadence_regular "$file"; then
     old_pid=$(_fm_stow_cadence_field "$file" pid)
@@ -130,22 +106,24 @@ stowed_at=$stowed_at
   FM_STOW_CADENCE_SINCE=$((count - stowed_at))
   if _fm_stow_cadence_regular "$state/.stow-required" \
     && [ "$(_fm_stow_cadence_field "$state/.stow-required" pid)" = "$pid" ]; then
+    # shellcheck disable=SC2034
     FM_STOW_CADENCE_DUE=1
     return 1
   fi
   rm -f "$state/.stow-required" 2>/dev/null || true
-  [ "$FM_STOW_CADENCE_SINCE" -ge "$every" ] || return 1
+  [ "$FM_STOW_CADENCE_SINCE" -ge "$FM_STOW_CADENCE_EVERY" ] || return 1
   _fm_stow_cadence_write "$state/.stow-required" "pid=$pid
 session=$session
 count=$count
 at=$(date +%s)
 " || return 1
+  # shellcheck disable=SC2034
   FM_STOW_CADENCE_DUE=1
   return 0
 }
 
-fm_stow_cadence_required() {  # <state> <pid> [session]
-  local state=$1 pid=$2 session=${3:-} file recorded_pid recorded_session
+fm_stow_cadence_required() {  # <state> <pid>
+  local state=$1 pid=$2 file recorded_pid
   FM_STOW_CADENCE_REQUIRED_COUNT=
   FM_STOW_CADENCE_REQUIRED_AT=
   file="$state/.stow-required"
@@ -154,11 +132,9 @@ fm_stow_cadence_required() {  # <state> <pid> [session]
   recorded_pid=$(_fm_stow_cadence_field "$file" pid)
   [ "$recorded_pid" = "$pid" ] || return 1
   kill -0 "$pid" 2>/dev/null || return 1
-  recorded_session=$(_fm_stow_cadence_field "$file" session)
-  if [ -n "$session" ] && [ -n "$recorded_session" ] && [ "$session" != "$recorded_session" ]; then
-    return 1
-  fi
+  # shellcheck disable=SC2034
   FM_STOW_CADENCE_REQUIRED_COUNT=$(_fm_stow_cadence_field "$file" count)
+  # shellcheck disable=SC2034
   FM_STOW_CADENCE_REQUIRED_AT=$(_fm_stow_cadence_field "$file" at)
   return 0
 }
@@ -184,6 +160,7 @@ count=$count
 at=$(date +%s)
 " || return 1
   rm -f "$state/.stow-required" 2>/dev/null || true
+  # shellcheck disable=SC2034
   FM_STOW_CADENCE_COUNT=$count
   return 0
 }

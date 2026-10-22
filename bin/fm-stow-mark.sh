@@ -45,5 +45,5 @@ if ! fm_stow_cadence_mark "$STATE" "$pid" "$session"; then
   printf 'fm-stow-mark: could not write the stow records under %s\n' "$STATE" >&2
   exit 1
 fi
-printf 'stow pass recorded for session pid %s at compaction %s; the next pass is due after the configured cadence (bin/fm-stow-cadence-lib.sh)\n' \
+printf 'stow pass recorded for session pid %s at compaction %s; the next pass is due two compactions from now (bin/fm-stow-cadence-lib.sh)\n' \
   "$pid" "$FM_STOW_CADENCE_COUNT"

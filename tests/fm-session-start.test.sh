@@ -3167,23 +3167,16 @@ EOF
   mkdir -p "$memory"
   write_memory_entry "$memory" older-correction feedback "An older correction that the cap should drop first."
   touch -t 202501010000 "$memory/older-correction.md"
-  write_memory_entry "$memory" newest-correction feedback "The newest correction always prints."
+  write_memory_entry "$memory" newest-correction feedback "$(head -c 16300 /dev/zero | tr '\0' x) - the newest correction always prints."
   FM_FAKE_HARNESS_PID=$$ run_session_start "$home" "$root" "$fakebin:$BASE_PATH" >/dev/null
-  printf '60\n' > "$home/config/compact-corrections-bytes"
   out=$(run_compact_session_start "$home" "$root" "$fakebin:$BASE_PATH" "$memory")
-  assert_contains "$out" "The newest correction always prints." "the newest entry prints even when it alone fills the cap"
-  assert_not_contains "$out" "An older correction that the cap should drop first." "the cap drops the oldest entry"
-  assert_contains "$out" "truncated: 1 more feedback entry not shown (byte cap 60); read them in $memory" "the cap announces what it left out"
+  assert_contains "$out" "the newest correction always prints." "the newest entry prints even when it alone fills the cap"
+  assert_not_contains "$out" "An older correction that the cap should drop first." "the fixed cap drops the oldest entry"
+  assert_contains "$out" "truncated: 1 more feedback entry not shown (byte cap 16384); read them in $memory" "the cap announces what it left out"
   assert_not_contains "$out" "node_type: memory" "entries print as their body, not their frontmatter"
-  out=$(run_compact_session_start "$home" "$root" "$fakebin:$BASE_PATH" "$memory" FM_COMPACT_CORRECTIONS_BYTES=4096)
-  assert_contains "$out" "An older correction that the cap should drop first." "the environment override widens the configured cap"
   out=$(run_compact_session_start "$home" "$root" "$fakebin:$BASE_PATH" "$TMP_ROOT/compact-cap-absent")
   assert_contains "$out" "no harness memory directory at $TMP_ROOT/compact-cap-absent" "an absent memory directory is named, never invented"
-  printf 'lots\n' > "$home/config/stow-every-compactions"
-  out=$(run_compact_session_start "$home" "$root" "$fakebin:$BASE_PATH" "$memory")
-  assert_contains "$out" "config/stow-every-compactions is malformed" "a malformed cadence is reported in the digest"
-  assert_contains "$out" "a stow pass is STILL REQUIRED" "the malformed cadence falls back to the default and the owed pass stays owed"
-  pass "--source compact bounds the corrections by the byte cap and reports an absent memory directory or malformed cadence"
+  pass "--source compact bounds the corrections by the fixed byte cap and reports an absent memory directory"
 }
 
 test_compact_devices_skip_in_read_only_session() {

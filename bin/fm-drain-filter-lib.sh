@@ -51,8 +51,14 @@
 #
 # Heuristics, stated so their limits are inspectable: statements split on
 # newlines, `;`, `&&`, and `||`, pipelines on single `|`, without shell
-# quoting awareness; a read captured in `$(...)` and filtered later through a
-# variable is not detected. Both directions of error are bounded: a miss lets
+# quoting awareness. A segment is a drain read only when fm-wake-drain.sh is
+# the command it executes: the first word after any leading `VAR=value`
+# assignments and `env`, `command`, `exec`, `nice`, `timeout <n>`, or
+# `bash`/`sh` prefixes, so `grep -rn fm-wake-drain.sh docs | head` or
+# `git diff -- bin/fm-wake-drain.sh | head` is ordinary source inspection, not
+# a read. A redirected read that a later `cat` prints whole is cleared before
+# any further filter on that file. A read captured in `$(...)` and filtered
+# later through a variable is not detected. Both directions of error are bounded: a miss lets
 # the existing instruction rule stand alone, as before, and a false hit costs
 # one bounded block that names the exact unfiltered command.
 
@@ -71,6 +77,20 @@ FM_DRAIN_FILTER_COMMAND=
 _fm_drain_filter_awk() {  # <mode>
   awk -v mode="$1" -v pending_files="${FM_DRAIN_FILTER_PENDING:-}" '
     function trim(s) { sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s); return s }
+    # The command a segment executes, after leading assignments and wrappers.
+    function exec_word(s,    w) {
+      s = trim(s)
+      while (1) {
+        if (s ~ /^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+/) { sub(/^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+/, "", s); continue }
+        if (s ~ /^(env|command|exec|nice|bash|sh)[[:space:]]+/) { sub(/^(env|command|exec|nice|bash|sh)[[:space:]]+/, "", s); continue }
+        if (s ~ /^timeout[[:space:]]+[0-9]+[smh]?[[:space:]]+/) { sub(/^timeout[[:space:]]+[0-9]+[smh]?[[:space:]]+/, "", s); continue }
+        break
+      }
+      w = s; sub(/[[:space:]].*$/, "", w)
+      gsub(/[\x27"]/, "", w)
+      return w
+    }
+    function is_drain(seg,    w) { w = exec_word(seg); return w ~ /(^|\/)fm-wake-drain(\.sh)?$/ }
     function first_word(s,    w) { s = trim(s); w = s; sub(/[[:space:]].*$/, "", w); return w }
     function is_filter(w) { return w ~ /^(grep|egrep|fgrep|head|tail|cut|awk|sed)$/ }
     function excerpt(s) { s = trim(s); gsub(/\t/, " ", s); if (length(s) > 200) s = substr(s, 1, 197) "..."; return s }
@@ -132,7 +152,7 @@ _fm_drain_filter_awk() {  # <mode>
         nseg = split(stmt, segs, "|")
         drain = 0
         for (k = 1; k <= nseg; k++) {
-          if (segs[k] ~ /fm-wake-drain(\.sh)?([[:space:]]|$|\x27|")/) {
+          if (is_drain(segs[k])) {
             if (segs[k] ~ /--ack-through|--decisions|--help|(^|[[:space:]])-h([[:space:]]|$)/) { drain = -1; break }
             drain = k; break
           }
@@ -153,6 +173,16 @@ _fm_drain_filter_awk() {  # <mode>
           continue
         }
         if (drain == -1 || pending == 0) continue
+        # A whole read of a redirected file (cat with no filter after it)
+        # clears that file: what followed was read in full.
+        if (exec_word(segs[1]) == "cat") {
+          hit = ""
+          for (k = 2; k <= nseg; k++) { w = first_word(segs[k]); if (is_filter(w)) { hit = w; break } }
+          if (hit == "") {
+            for (f = 1; f <= pending; f++) if (files[f] != "" && index(stmt, files[f]) > 0) { files[f] = ""; verdict("unfiltered", "", stmt) }
+            continue
+          }
+        }
         hit = ""
         for (k = 1; k <= nseg; k++) { w = first_word(segs[k]); if (is_filter(w)) { hit = w; break } }
         if (hit == "") continue
