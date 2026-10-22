@@ -2471,19 +2471,27 @@ test_hook_stow_required_bounded_on_healthy_supervised_primary() {
 }
 
 test_hook_stow_required_skips_read_only_session() {
-  local dir out status owner
+  local dir out status owner home claude
   dir=$(make_primary_dir "$TMP_ROOT/device-stow-read-only")
+  home=$(cd "$dir" && pwd)
   mkdir -p "$TMP_ROOT/device-stow-read-only-bin"
-  # shellcheck disable=SC2016 # the fixture script expands $1 itself.
-  printf '#!/bin/bash\nsleep "$1"\n:\n' > "$TMP_ROOT/device-stow-read-only-bin/claude"
-  chmod +x "$TMP_ROOT/device-stow-read-only-bin/claude"
-  "$TMP_ROOT/device-stow-read-only-bin/claude" 300 &
+  claude="$TMP_ROOT/device-stow-read-only-bin/claude"
+  # A claude-named process that stays the parent of its command, so both the
+  # lock owner and the read-only session's hook have a Claude harness ancestry
+  # whether or not the test itself runs under Claude.
+  # shellcheck disable=SC2016 # the fixture script expands "$@" itself.
+  printf '#!/bin/bash\n"$@"\n:\n' > "$claude"
+  chmod +x "$claude"
+  "$claude" sleep 300 >/dev/null 2>&1 &
   owner=$!
   printf '%s\n' "$owner" > "$dir/state/.lock"
   printf 'owner-session\n' > "$dir/state/.lock-session"
   printf 'pid=%s\nsession=owner-session\ncount=2\nat=1\n' "$owner" > "$dir/state/.stow-required"
   [ "$(ps -o comm= -p "$owner")" = claude ] || fail "the fixture lock owner must read as a live claude process"
-  out=$(run_hook_claude "$dir" false); status=$?
+  out=$(printf '{"stop_hook_active":false,"session_id":"sess-claude-mode"}' \
+    | env -u CLAUDE_PID -u CLAUDE_CODE_SESSION_ID CLAUDECODE=1 FM_HOME="$home" \
+      "$claude" bash "$dir/bin/fm-turnend-guard.sh" --claude 2>&1); status=$?
+  pkill -P "$owner" 2>/dev/null || true
   kill "$owner" 2>/dev/null || true
   wait "$owner" 2>/dev/null || true
   expect_code 0 "$status" "a read-only session beside a live foreign lock owner must not be blocked for the owner's stow pass"
