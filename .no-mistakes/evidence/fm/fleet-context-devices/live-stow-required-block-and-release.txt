@@ -1,0 +1,61 @@
+❯ /compact
+  ⎿  Compacted (ctrl+o to see full summary)
+  ⎿  Referenced file AGENTS.md
+❯ Lab test step: reply with the word PING and end the turn. If a Stop hook blocks you about a stow pass, do what it says (run the stow skill).
+● Captain, PING.
+● Ran 4 stop hooks
+  ⎿  Stop hook error: Unreconciled native captain input (not a task list or permission to execute):
+  [3043d33e-03ee-41cd-b9f7-07ef2b078fbb] ALREADY ANSWERED: a reply reached the captain after this message. Lab test step: reply with the word PING and end the turn. If a Stop hook blocks you
+  about a stow pass, do what it says (run the stow skill).
+  Reconcile every intent in these messages against later corrections, cancellations, priorities and existing records.
+  Use existing task IDs and owners; never replay a request merely because it is listed.
+  Record outliving work and its next action in the backlog, then run bin/fm-request-continuity.sh dispose <id> recorded <task-id>... --summary "<handling>".
+  An ALREADY ANSWERED message whose reply fully handled it needs no task and no new answer: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then end the turn
+  with no further text, because the captain already has that reply.
+  If that reply did not actually address an ALREADY ANSWERED message, answer it now and then dispose it.
+  A disposition does not establish task execution, completion or semantic correctness.
+  ⎿  Stop hook error: [[ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || exit 0; exec "$CLAUDE_PROJECT_DIR"/bin/fm-turnend-guard.sh --claude]:
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ●  STOW PASS REQUIRED BEFORE THIS TURN ENDS
+  ●  Compaction 2 of this session made a stow pass due (the compact digest printed STOW_REQUIRED),
+  ●  and no pass has been recorded since. A compaction summary is where captain corrections get lost.
+  ●  Run the stow skill now (/stow). Its final step runs /tmp/fm-labcode.y4KpTj/fm/bin/fm-stow-mark.sh, which records
+  ●  the pass and releases this block. The block is bounded by the session block budget.
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+● The stop hook asks for a stow pass, so I'm running the stow skill as the captain instructed.
+● Skill(stow)
+  ⎿  Successfully loaded skill
+  Ran 2 shell commands
+● Captain, the stow pass is done and recorded.
+  Stow receipt:
+  - Startup-memory budget 7500 tokens. Total before and after: 0, within budget.
+  - captain.md, captain-shared.md, learnings.md: all absent, unchanged. No memory file was created because this lab session produced no durable finding beyond the lab fixture correction already held
+    in harness memory.
+  - Nothing archived, offloaded, or proposed for offload.
+  - No open work records to file or correct. The backlog is empty and the only work this session held was the two completed lab test steps.
+  - No second mates registered, so the cascade had nothing to reach.
+  - No unresolved exceptions. The pass was recorded and the next one is due two compactions from now.
+  The session is safe to reset: nothing this session knew has been lost. That is not a claim that the home's durable records are correct, since this pass checked only what the session itself named.
+✻ Cooked for 24s · done 6:43 PM
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Lab test step: reply with the word PONG and end the turn.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 7% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+-rw------- 1 denni denni   77 Oct 22 18:43 .compactions
+-rw------- 1 denni denni   79 Oct 22 18:43 .stow-pass
+
+[exited with code 0]
+# state/.compactions after /stow
+pid=1595339
+session=ed52f5b3-236e-4d24-a462-412f825a4001
+count=2
+stowed_at=2
+
+# state/.stow-pass after /stow
+pid=1595339
+session=ed52f5b3-236e-4d24-a462-412f825a4001
+count=2
+at=1792658625
+
+# .stow-required present? no

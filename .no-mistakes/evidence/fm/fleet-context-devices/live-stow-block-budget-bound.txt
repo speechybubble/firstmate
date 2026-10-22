@@ -1,0 +1,65 @@
+
+● Captain, NOSTOW.
+
+● Ran 4 stop hooks
+  ⎿  Stop hook error: Unreconciled native captain input (not a task list or permission to execute):
+  [59e194a3-8776-4d2d-b206-8053bbfe35ec] ALREADY ANSWERED: a reply reached the captain after this message. Lab test of the guard block budget: reply NOSTOW and end the turn. If any Stop hook
+  asks for a stow pass, do NOT run /stow and do NOT run any tool or command; just reply NOSTOW again and end the turn. Repeat every time.
+
+  Reconcile every intent in these messages against later corrections, cancellations, priorities and existing records.
+  Use existing task IDs and owners; never replay a request merely because it is listed.
+  Record outliving work and its next action in the backlog, then run bin/fm-request-continuity.sh dispose <id> recorded <task-id>... --summary "<handling>".
+  An ALREADY ANSWERED message whose reply fully handled it needs no task and no new answer: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then end the turn
+  with no further text, because the captain already has that reply.
+  If that reply did not actually address an ALREADY ANSWERED message, answer it now and then dispose it.
+  A disposition does not establish task execution, completion or semantic correctness.
+  ⎿  Stop hook error: [[ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || exit 0; exec "$CLAUDE_PROJECT_DIR"/bin/fm-turnend-guard.sh --claude]:
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ●  STOW PASS REQUIRED BEFORE THIS TURN ENDS
+  ●  Compaction 4 of this session made a stow pass due (the compact digest printed STOW_REQUIRED),
+  ●  and no pass has been recorded since. A compaction summary is where captain corrections get lost.
+  ●  Run the stow skill now (/stow). Its final step runs /tmp/fm-labcode.y4KpTj/fm/bin/fm-stow-mark.sh, which records
+  ●  the pass and releases this block. The block is bounded by the session block budget.
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+● Captain, NOSTOW.
+
+● Ran 4 stop hooks
+  ⎿  Stop hook error: [[ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || exit 0; exec "$CLAUDE_PROJECT_DIR"/bin/fm-turnend-guard.sh --claude]:
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ●  STOW PASS REQUIRED BEFORE THIS TURN ENDS
+  ●  Compaction 4 of this session made a stow pass due (the compact digest printed STOW_REQUIRED),
+  ●  and no pass has been recorded since. A compaction summary is where captain corrections get lost.
+  ●  Run the stow skill now (/stow). Its final step runs /tmp/fm-labcode.y4KpTj/fm/bin/fm-stow-mark.sh, which records
+  ●  the pass and releases this block. The block is bounded by the session block budget.
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+● Captain, NOSTOW.
+
+● Ran 4 stop hooks
+  ⎿  Stop hook error: [[ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || exit 0; exec "$CLAUDE_PROJECT_DIR"/bin/fm-turnend-guard.sh --claude]:
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ●  STOW PASS REQUIRED BEFORE THIS TURN ENDS
+  ●  Compaction 4 of this session made a stow pass due (the compact digest printed STOW_REQUIRED),
+  ●  and no pass has been recorded since. A compaction summary is where captain corrections get lost.
+  ●  Run the stow skill now (/stow). Its final step runs /tmp/fm-labcode.y4KpTj/fm/bin/fm-stow-mark.sh, which records
+  ●  the pass and releases this block. The block is bounded by the session block budget.
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+● Captain, NOSTOW.
+
+✻ Brewed for 11s · done 6:49 PM
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Lab test done: now run /stow and record the pass
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 7% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+# .stow-required still present after the allowed 4th stop (budget spent, record kept):
+pid=1595339
+session=ed52f5b3-236e-4d24-a462-412f825a4001
+count=4
+at=1792658965

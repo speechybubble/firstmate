@@ -1,0 +1,34 @@
+ ▐▛███▛█   Claude Code v2.1.308
+▝▜██████▀  Fable 5.1 with medium effort · Claude Max
+ ▝▝   ▝▝   /tmp/fm-labcode.y4KpTj/fm
+❯ Lab test (second session): reply with the word RO and end the turn. If a Stop hook asks you to run a stow pass, do not run it; just reply RO-BLOCKED and end the turn.
+● RO
+✻ Brewed for 5s · done 6:52 PM
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 6% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+# state/.stow-required (owner pid 1595339 live, still owed) at the read-only Stop:
+pid=1595339
+session=ed52f5b3-236e-4d24-a462-412f825a4001
+count=4
+at=1792658965
+# state/.lock:
+1595339
+# second-session digest lock lines:
+LOCK
+error: another live firstmate session holds the lock (pid 1595339, session ed52f5b3-236e-4d24-a462-412f825a4001); operate read-only until resolved
+●  READ-ONLY SESSION - FLEET LOCK OWNERSHIP WAS NOT VERIFIED
+●  error: another live firstmate session holds the lock (pid 1595339, session ed52f5b3-236e-4d24-a462-412f825a4001); operate read-only until resolved
+●  diagnostics and the rest of this read-only-safe digest still ran below.
+# read-only second session /compact digest COMPACTION section:
+COMPACTION
+================================================================================
+skipped (read-only session): standing corrections and the stow cadence belong to the session that holds the lock.
+================================================================================
+# owner .compactions after the read-only compaction (unchanged count=4):
+pid=1595339
+session=ed52f5b3-236e-4d24-a462-412f825a4001
+count=4
+stowed_at=2

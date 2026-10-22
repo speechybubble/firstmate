@@ -1,0 +1,66 @@
+
+ ▐▛███▛█   Claude Code v2.1.308
+▝▜██████▀  Fable 5.1 with medium effort · Claude Max
+ ▝▝   ▝▝   /tmp/fm-labcode.y4KpTj/fm
+
+
+❯ Lab test: run exactly this one Bash command: bin/fm-wake-drain.sh | head -3   and then end your turn with a one-line reply. If a stop hook tells you something, follow it.
+
+● Captain, running the one lab command now.
+
+  Ran 1 shell command
+
+● Captain, the command ran and printed nothing; the wake queue is empty.
+
+● Ran 4 stop hooks
+  ⎿  Stop hook error: [[ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || exit 0; exec "$CLAUDE_PROJECT_DIR"/bin/fm-turnend-guard.sh --claude]:
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ●  WAKE DRAIN OUTPUT WAS FILTERED THIS TURN
+  ●  A Bash call piped bin/fm-wake-drain.sh through head: bin/fm-wake-drain.sh | head -3
+  ●  A filtered drain hides sections this turn must handle: OPEN DECISIONS, UNREAD STATUS,
+  ●  RECORD DIVERGENCE, and the WAKE_ACK_REQUIRED command. No later unfiltered read followed it.
+  ●  Re-read it whole now and handle everything it prints before ending the turn:
+  ●    FM_HOME=/tmp/fm-lab.7OzB7b /tmp/fm-labcode.y4KpTj/fm/bin/fm-wake-drain.sh
+  ●  This block fires once per turn; the next stop of this turn is allowed.
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ⎿  Stop hook error: Unreconciled native captain input (not a task list or permission to execute):
+  [862c92ed-e72d-429e-a4b6-9050e3516668] ALREADY ANSWERED: a reply reached the captain after this message. Lab test: run exactly this one Bash command: bin/fm-wake-drain.sh | head -3   and
+  then end your turn with a one-line reply. If a stop hook tells you something, follow it.
+
+  Reconcile every intent in these messages against later corrections, cancellations, priorities and existing records.
+  Use existing task IDs and owners; never replay a request merely because it is listed.
+  Record outliving work and its next action in the backlog, then run bin/fm-request-continuity.sh dispose <id> recorded <task-id>... --summary "<handling>".
+  An ALREADY ANSWERED message whose reply fully handled it needs no task and no new answer: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then end the turn
+  with no further text, because the captain already has that reply.
+  If that reply did not actually address an ALREADY ANSWERED message, answer it now and then dispose it.
+  A disposition does not establish task execution, completion or semantic correctness.
+
+  Ran 2 shell commands
+
+● Captain, the full unfiltered drain re-read came back empty as well, so there was nothing further to handle.
+
+✻ Brewed for 19s · done 6:38 PM
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Lab test passed, the stop hook caught the filtered drain
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 6% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
+# state/.turnend-filtered-drain
+session=ed52f5b3-236e-4d24-a462-412f825a4001
+turn=862c92ed-e72d-429e-a4b6-9050e3516668
+# state/.lock / .lock-session
+1595339
+ed52f5b3-236e-4d24-a462-412f825a4001
