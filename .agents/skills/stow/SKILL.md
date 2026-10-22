@@ -274,6 +274,12 @@ It is never a claim that the home's durable records are correct, because this pa
 Do not hide an over-budget result behind a reset-safe claim.
 In a primary home the receipt is written after the cascade below, not instead of it.
 
+## Record the pass
+
+Run `bin/fm-stow-mark.sh` as the last step of every pass, after the receipt and, in a primary home, after the cascade.
+It records the pass for the session holding the lock and releases the turn-end guard's stow-required block that the compact digest's `STOW_REQUIRED` line announced (`bin/fm-stow-cadence-lib.sh` owns the cadence records; `docs/turnend-guard.md` "Stow pass required" owns the guard behavior).
+A pass that was not recorded still owes the mark: if the command reports a failure, name it in the receipt rather than calling the session reset-safe.
+
 ## Automatic cascade to secondmates
 
 In a primary home, every `/stow` cascades to every registered secondmate after this home's own required pass and knowledge sweep are complete.

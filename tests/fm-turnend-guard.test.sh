@@ -205,6 +205,8 @@ install_guard_scripts() {
   cp "$ROOT/bin/fm-codex-watch-lib.sh" "$dir/bin/fm-codex-watch-lib.sh"
   cp "$ROOT/bin/fm-cursor-lib.sh" "$dir/bin/fm-cursor-lib.sh"
   cp "$ROOT/bin/fm-treehouse-slot-lib.sh" "$dir/bin/fm-treehouse-slot-lib.sh"
+  cp "$ROOT/bin/fm-drain-filter-lib.sh" "$dir/bin/fm-drain-filter-lib.sh"
+  cp "$ROOT/bin/fm-stow-cadence-lib.sh" "$dir/bin/fm-stow-cadence-lib.sh"
   mkdir -p "$dir/docs"
   cp -R "$ROOT/docs/supervision-protocols" "$dir/docs/supervision-protocols"
   chmod +x "$dir/bin/fm-turnend-guard.sh" "$dir/bin/fm-turnend-guard-grok.sh" "$dir/bin/fm-operational-input.sh" "$dir/bin/fm-supervision-instructions.sh" "$dir/bin/fm-harness.sh"
@@ -2290,6 +2292,243 @@ test_hook_claude_mode_away_mode_never_uses_stop_autoarm_fail_open
 test_hook_claude_mode_allow_resets_budget
 test_hook_claude_mode_waits_for_late_claim
 test_hook_claude_mode_secondmate_reblocks_like_primary
+# --- context-loss devices -----------------------------------------------------
+# The filtered drain read and the stow-required record run before the
+# supervision predicate, so a home with nothing in flight (silent otherwise) is
+# the cleanest fixture: any exit 2 below comes from the device alone.
+
+write_transcript() {  # <path> <command> [second-command]
+  {
+    printf '{"type":"user","uuid":"turn-1","message":{"role":"user","content":"handle the wakes"}}\n'
+    jq -cn --arg cmd "$2" '{type:"assistant",uuid:"a1",message:{role:"assistant",content:[{type:"tool_use",id:"t",name:"Bash",input:{command:$cmd}}]}}'
+    printf '{"type":"user","uuid":"r1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":"ok"}]}}\n'
+    if [ -n "${3:-}" ]; then
+      jq -cn --arg cmd "$3" '{type:"assistant",uuid:"a2",message:{role:"assistant",content:[{type:"tool_use",id:"t2",name:"Bash",input:{command:$cmd}}]}}'
+      printf '{"type":"user","uuid":"r2","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","content":"ok"}]}}\n'
+    fi
+  } > "$1"
+}
+
+run_hook_claude_transcript() {  # <dir> <transcript> [session]
+  local dir=$1 transcript=$2 session=${3:-sess-device} home
+  home=$(cd "$dir" && pwd)
+  jq -cn --arg t "$transcript" --arg s "$session" '{stop_hook_active:false,session_id:$s,transcript_path:$t}' \
+    | CLAUDECODE=1 FM_HOME="$home" bash "$dir/bin/fm-turnend-guard.sh" --claude 2>&1
+}
+
+test_hook_filtered_drain_blocks_once_then_allows_retry() {
+  local dir out status transcript
+  dir=$(make_primary_dir "$TMP_ROOT/device-filtered")
+  transcript="$TMP_ROOT/device-filtered.jsonl"
+  write_transcript "$transcript" 'FM_HOME=/h /r/bin/fm-wake-drain.sh 2>&1 | tail -40'
+  out=$(run_hook_claude_transcript "$dir" "$transcript"); status=$?
+  expect_code 2 "$status" "a filtered drain read in the current turn must block the stop"
+  assert_contains "$out" "WAKE DRAIN OUTPUT WAS FILTERED THIS TURN" "the block names the device"
+  assert_contains "$out" "through tail: " "the block names the filter"
+  assert_contains "$out" "FM_HOME=$(cd "$dir" && pwd) $(cd "$dir" && pwd)/bin/fm-wake-drain.sh" "the block names the exact unfiltered command for this home"
+  assert_contains "$(cat "$dir/state/.turnend-claude-blocks")" "count=1" "the device block charges the session block budget"
+  out=$(run_hook_claude_transcript "$dir" "$transcript"); status=$?
+  expect_code 0 "$status" "the retry of the same turn must be allowed"
+  assert_not_contains "$out" "WAKE DRAIN OUTPUT WAS FILTERED" "the retry carries no second block"
+  pass "fm-turnend-guard --claude: a filtered drain read blocks once with the unfiltered command, then the retry is allowed"
+}
+
+test_hook_filtered_drain_cleared_by_later_unfiltered_read() {
+  local dir out status transcript
+  dir=$(make_primary_dir "$TMP_ROOT/device-cleared")
+  transcript="$TMP_ROOT/device-cleared.jsonl"
+  write_transcript "$transcript" 'bin/fm-wake-drain.sh | head -20' 'bin/fm-wake-drain.sh'
+  out=$(run_hook_claude_transcript "$dir" "$transcript"); status=$?
+  expect_code 0 "$status" "a later unfiltered read clears the filtered one"
+  [ ! -e "$dir/state/.turnend-filtered-drain" ] || fail "no block record when nothing was blocked"
+  write_transcript "$transcript" 'bin/fm-wake-drain.sh --ack-through 7 --recovery-generation 1.2.x | tail -3'
+  out=$(run_hook_claude_transcript "$dir" "$transcript"); status=$?
+  expect_code 0 "$status" "a filtered acknowledgement is not a filtered read"
+  pass "fm-turnend-guard --claude: a later unfiltered read or an acknowledgement never blocks"
+}
+
+test_hook_filtered_drain_never_blocks_without_readable_transcript() {
+  local dir out status
+  dir=$(make_primary_dir "$TMP_ROOT/device-noread")
+  out=$(run_hook_claude_transcript "$dir" "$TMP_ROOT/absent-transcript.jsonl"); status=$?
+  expect_code 0 "$status" "an absent transcript must never block"
+  out=$(run_hook_claude "$dir" false); status=$?
+  expect_code 0 "$status" "a payload without transcript_path must never block"
+  pass "fm-turnend-guard --claude: the filtered-drain device stands down without a readable transcript"
+}
+
+append_assistant_text() {  # <path> <prefix> <count>
+  local i
+  for ((i = 1; i <= $3; i++)); do
+    printf '{"type":"assistant","uuid":"%s-%s","message":{"role":"assistant","content":[{"type":"text","text":"working"}]}}\n' "$2" "$i"
+  done >> "$1"
+}
+
+test_hook_filtered_drain_long_turn_blocks_once() {
+  local dir out status transcript
+  dir=$(make_primary_dir "$TMP_ROOT/device-long-turn")
+  transcript="$TMP_ROOT/device-long-turn.jsonl"
+  printf '{"type":"user","uuid":"turn-1","message":{"role":"user","content":"handle the wakes"}}\n' > "$transcript"
+  append_assistant_text "$transcript" pad 3100
+  jq -cn '{type:"assistant",uuid:"a1",message:{role:"assistant",content:[{type:"tool_use",id:"t",name:"Bash",input:{command:"bin/fm-wake-drain.sh | tail -5"}}]}}' >> "$transcript"
+  printf '{"type":"user","uuid":"r1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":"ok"}]}}\n' >> "$transcript"
+  out=$(run_hook_claude_transcript "$dir" "$transcript"); status=$?
+  expect_code 2 "$status" "a filtered drain read in a turn longer than the transcript window must block"
+  assert_contains "$(cat "$dir/state/.turnend-filtered-drain")" "turn=window:" "the fixture must exercise the window turn id"
+  append_assistant_text "$transcript" more 50
+  out=$(run_hook_claude_transcript "$dir" "$transcript"); status=$?
+  expect_code 0 "$status" "the shifted window id of the same long turn must not re-block"
+  assert_not_contains "$out" "WAKE DRAIN OUTPUT WAS FILTERED" "no second block in a long turn"
+  pass "fm-turnend-guard --claude: a filtered drain read in a turn longer than the transcript window blocks only once"
+}
+
+test_hook_filtered_drain_respects_block_budget() {
+  local dir out status transcript
+  dir=$(make_primary_dir "$TMP_ROOT/device-budget")
+  transcript="$TMP_ROOT/device-budget.jsonl"
+  write_transcript "$transcript" 'bin/fm-wake-drain.sh | grep OPEN'
+  printf 'session=sess-device\ncount=3\nepoch=\n' > "$dir/state/.turnend-claude-blocks"
+  out=$(run_hook_claude_transcript "$dir" "$transcript"); status=$?
+  expect_code 0 "$status" "a spent block budget must allow the stop instead of blocking again"
+  assert_not_contains "$out" "WAKE DRAIN OUTPUT WAS FILTERED" "no block banner once the budget is spent"
+  pass "fm-turnend-guard --claude: the filtered-drain device never exceeds the session block budget"
+}
+
+test_hook_stow_required_blocks_until_marked() {
+  local dir out status home
+  dir=$(make_primary_dir "$TMP_ROOT/device-stow")
+  home=$(cd "$dir" && pwd)
+  cp "$ROOT/bin/fm-stow-mark.sh" "$dir/bin/fm-stow-mark.sh"
+  printf '%s\n' "$$" > "$dir/state/.lock"
+  printf 'sess-claude-mode\n' > "$dir/state/.lock-session"
+  printf 'pid=%s\nsession=sess-claude-mode\ncount=2\nat=1\n' "$$" > "$dir/state/.stow-required"
+  out=$(run_hook_claude "$dir" false); status=$?
+  expect_code 2 "$status" "a stow-required record for the live lock-owning session must block"
+  assert_contains "$out" "STOW PASS REQUIRED BEFORE THIS TURN ENDS" "the block names the device"
+  assert_contains "$out" "Compaction 2 of this session" "the block names the compaction that made the pass due"
+  assert_contains "$out" "$home/bin/fm-stow-mark.sh" "the block names the marker command"
+  out=$(run_hook_claude "$dir" false); status=$?
+  expect_code 2 "$status" "an unanswered requirement blocks again"
+  assert_contains "$(cat "$dir/state/.turnend-claude-blocks")" "count=2" "each stow block charges the budget"
+  FM_HOME="$home" bash "$dir/bin/fm-stow-mark.sh" >/dev/null || fail "the marker must record the pass"
+  out=$(run_hook_claude "$dir" false); status=$?
+  expect_code 0 "$status" "the recorded pass releases the block"
+  pass "fm-turnend-guard --claude: a stow-required record blocks until bin/fm-stow-mark.sh records the pass"
+}
+
+test_hook_stow_required_ignores_dead_or_foreign_session() {
+  local dir out status dead
+  dir=$(make_primary_dir "$TMP_ROOT/device-stow-foreign")
+  dead=$(nonexistent_pid)
+  printf '%s\n' "$dead" > "$dir/state/.lock"
+  printf 'pid=%s\nsession=\ncount=2\nat=1\n' "$dead" > "$dir/state/.stow-required"
+  out=$(run_hook_claude "$dir" false); status=$?
+  expect_code 0 "$status" "a record for a dead lock pid must never block"
+  printf '%s\n' "$$" > "$dir/state/.lock"
+  printf 'pid=%s\nsession=\ncount=2\nat=1\n' "$dead" > "$dir/state/.stow-required"
+  out=$(run_hook_claude "$dir" false); status=$?
+  expect_code 0 "$status" "a record for another pid must never block"
+  printf 'pid=%s\nsession=before-clear\ncount=2\nat=1\n' "$$" > "$dir/state/.stow-required"
+  printf 'sess-claude-mode\n' > "$dir/state/.lock-session"
+  out=$(run_hook_claude "$dir" false); status=$?
+  expect_code 2 "$status" "a record for the live pid still blocks after a /clear minted a new session id"
+  rm -f "$dir/state/.turnend-claude-blocks"
+  printf 'session=sess-claude-mode\ncount=3\nepoch=\n' > "$dir/state/.turnend-claude-blocks"
+  printf 'pid=%s\nsession=sess-claude-mode\ncount=2\nat=1\n' "$$" > "$dir/state/.stow-required"
+  out=$(run_hook_claude "$dir" false); status=$?
+  expect_code 0 "$status" "a spent block budget allows the stop even while a pass is owed"
+  pass "fm-turnend-guard --claude: the stow device stands down for dead, foreign, or budget-exhausted sessions"
+}
+
+test_hook_stow_required_bounded_on_healthy_supervised_primary() {
+  local dir out status pid identity n
+  dir=$(make_primary_dir "$TMP_ROOT/device-stow-supervised")
+  : > "$dir/state/task1.meta"
+  sleep 60 &
+  pid=$!
+  identity=$(watcher_identity "$dir" "$pid") || {
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    fail "could not identify live watcher holder"
+  }
+  record_watcher_lock "$dir" "$pid" "$identity"
+  touch "$dir/state/.last-watcher-beat"
+  printf '%s\n' "$$" > "$dir/state/.lock"
+  printf 'pid=%s\nsession=sess-claude-mode\ncount=2\nat=1\n' "$$" > "$dir/state/.stow-required"
+  for n in 1 2 3; do
+    out=$(run_hook_claude "$dir" false); status=$?
+    expect_code 2 "$status" "stow block $n on a healthy supervised primary must block"
+    assert_contains "$out" "STOW PASS REQUIRED" "stow block $n names the device"
+    assert_contains "$(cat "$dir/state/.turnend-claude-blocks")" "count=$n" "stow block $n accumulates on the session block budget"
+  done
+  out=$(run_hook_claude "$dir" false); status=$?
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  expect_code 0 "$status" "the stop after the spent budget must be allowed on a healthy supervised primary"
+  assert_not_contains "$out" "STOW PASS REQUIRED" "no block banner once the budget is spent"
+  [ ! -e "$dir/state/.turnend-claude-blocks" ] || fail "the allowed supervised stop resets the block budget"
+  pass "fm-turnend-guard --claude: the stow device on a healthy supervised primary blocks at most the block budget, then allows"
+}
+
+test_hook_stow_required_skips_read_only_session() {
+  local dir out status owner home claude
+  dir=$(make_primary_dir "$TMP_ROOT/device-stow-read-only")
+  home=$(cd "$dir" && pwd)
+  mkdir -p "$TMP_ROOT/device-stow-read-only-bin"
+  claude="$TMP_ROOT/device-stow-read-only-bin/claude"
+  # A claude-named process that stays the parent of its command, so both the
+  # lock owner and the read-only session's hook have a Claude harness ancestry
+  # whether or not the test itself runs under Claude.
+  # shellcheck disable=SC2016 # the fixture script expands "$@" itself.
+  printf '#!/bin/bash\n"$@"\n:\n' > "$claude"
+  chmod +x "$claude"
+  "$claude" sleep 300 >/dev/null 2>&1 &
+  owner=$!
+  printf '%s\n' "$owner" > "$dir/state/.lock"
+  printf 'owner-session\n' > "$dir/state/.lock-session"
+  printf 'pid=%s\nsession=owner-session\ncount=2\nat=1\n' "$owner" > "$dir/state/.stow-required"
+  [ "$(ps -o comm= -p "$owner")" = claude ] || fail "the fixture lock owner must read as a live claude process"
+  out=$(printf '{"stop_hook_active":false,"session_id":"sess-claude-mode"}' \
+    | env -u CLAUDE_PID -u CLAUDE_CODE_SESSION_ID CLAUDECODE=1 FM_HOME="$home" \
+      "$claude" bash "$dir/bin/fm-turnend-guard.sh" --claude 2>&1); status=$?
+  pkill -P "$owner" 2>/dev/null || true
+  kill "$owner" 2>/dev/null || true
+  wait "$owner" 2>/dev/null || true
+  expect_code 0 "$status" "a read-only session beside a live foreign lock owner must not be blocked for the owner's stow pass"
+  assert_not_contains "$out" "STOW PASS REQUIRED" "no stow banner in a read-only session"
+  [ ! -e "$dir/state/.turnend-claude-blocks" ] || fail "a read-only session must not charge the block budget"
+  pass "fm-turnend-guard --claude: the stow device never blocks a read-only session beside a live foreign lock owner"
+}
+
+test_hook_supervision_block_wins_over_stow_required() {
+  local dir out status
+  dir=$(make_primary_dir "$TMP_ROOT/device-stow-vs-supervision")
+  : > "$dir/state/task1.meta"
+  seed_claude_failure "$dir" failed
+  printf '%s\n' "$$" > "$dir/state/.lock"
+  printf 'pid=%s\nsession=sess-claude-mode\ncount=2\nat=1\n' "$$" > "$dir/state/.stow-required"
+  out=$(FM_CLAUDE_AUTOARM_SYNC_WAIT_MS=200 run_hook_claude "$dir" false); status=$?
+  expect_code 2 "$status" "a verified failure episode with a stow pass due must still block"
+  assert_contains "$out" "TURN WOULD END BLIND" "the supervision repair banner is shown, not the device"
+  assert_not_contains "$out" "STOW PASS REQUIRED" "the device never pre-empts a supervision repair prompt"
+  touch "$dir/state/.last-watcher-beat"
+  rm -f "$dir/state/task1.meta"
+  out=$(run_hook_claude "$dir" false); status=$?
+  expect_code 2 "$status" "once supervision no longer blocks, the owed pass blocks"
+  assert_contains "$out" "STOW PASS REQUIRED" "the device runs on the allowed Stop"
+  pass "fm-turnend-guard --claude: a supervision block takes precedence over a device block and never loses its repair prompt"
+}
+
+test_hook_filtered_drain_blocks_once_then_allows_retry
+test_hook_filtered_drain_cleared_by_later_unfiltered_read
+test_hook_filtered_drain_never_blocks_without_readable_transcript
+test_hook_filtered_drain_long_turn_blocks_once
+test_hook_filtered_drain_respects_block_budget
+test_hook_stow_required_blocks_until_marked
+test_hook_stow_required_ignores_dead_or_foreign_session
+test_hook_stow_required_bounded_on_healthy_supervised_primary
+test_hook_stow_required_skips_read_only_session
+test_hook_supervision_block_wins_over_stow_required
 test_hook_away_daemon_allows_between_watcher_cycles
 test_hook_away_daemon_allows_over_dead_watcher_lock
 test_hook_away_mode_blocks_without_any_supervisor

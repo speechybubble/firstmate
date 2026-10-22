@@ -89,6 +89,27 @@
 #      re-block (budget_account_current_epoch owns that rule), so an inert
 #      hook that leaves the ledger frozen cannot hold the guard in an
 #      unbounded re-block loop below that override.
+#
+# Two context-loss devices run only on the paths where the supervision
+# predicate has already decided to let this Stop end, in every mode, because
+# they guard the turn's own reading rather than the watcher and must never take
+# one of supervision's bounded repair prompts (docs/turnend-guard.md "Filtered
+# drain read" and "Stow pass required"):
+#   - filtered drain read: when the Stop payload names a transcript whose
+#     current turn piped bin/fm-wake-drain.sh output through a filter with no
+#     later unfiltered read (bin/fm-drain-filter-lib.sh), block ONCE per turn
+#     with the exact unfiltered command; the retry of the same turn is allowed
+#     (state/.turnend-filtered-drain records the blocked turn; a turn longer
+#     than the transcript window counts as blocked once this session has a
+#     record, since its window id shifts on every Stop).
+#   - stow pass required: while state/.stow-required names the live harness
+#     pid holding state/.lock (bin/fm-stow-cadence-lib.sh), block until
+#     bin/fm-stow-mark.sh has recorded the pass; a read-only session beside a
+#     live foreign lock owner is never blocked.
+# Both charge the Claude block budget above (budget_charge_device) and stand
+# down once it is spent, so neither can reach Claude Code's 8-consecutive-block
+# override, and both stand down silently on anything they cannot read: no
+# transcript, no jq, no lock, a dead or foreign session.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -204,6 +225,10 @@ if [ "$CLAUDE_MODE" -eq 1 ]; then
   # shellcheck source=bin/fm-session-lock-lib.sh
   . "$SCRIPT_DIR/fm-session-lock-lib.sh"
 fi
+# shellcheck source=bin/fm-drain-filter-lib.sh
+. "$SCRIPT_DIR/fm-drain-filter-lib.sh"
+# shellcheck source=bin/fm-stow-cadence-lib.sh
+. "$SCRIPT_DIR/fm-stow-cadence-lib.sh"
 
 BUDGET_FILE="$STATE/.turnend-claude-blocks"
 BUDGET_LOCK="$STATE/.turnend-claude-blocks.lock"
@@ -218,17 +243,121 @@ budget_reset() {
   fm_lock_release "$BUDGET_LOCK"
 }
 
+# --- context-loss devices ----------------------------------------------------
+# Charge one device block to the per-session budget. Returns 0 when the block
+# may proceed and 1 when the budget is spent, in which case the caller allows
+# the stop (the device never contributes to Claude's consecutive-block
+# override). Outside --claude mode the harness adapter already bounds blocks to
+# one per turn, so nothing is charged there.
+budget_charge_device() {
+  local old_session old_count old_epoch count tmp
+  [ "$CLAUDE_MODE" -eq 1 ] || return 0
+  fm_lock_try_acquire "$BUDGET_LOCK" || return 1
+  old_session=$(sed -n '1s/^session=//p' "$BUDGET_FILE" 2>/dev/null || true)
+  old_count=$(sed -n '2s/^count=//p' "$BUDGET_FILE" 2>/dev/null || true)
+  old_epoch=$(sed -n '3s/^epoch=//p' "$BUDGET_FILE" 2>/dev/null || true)
+  case "$old_count" in ''|*[!0-9]*) old_count=0 ;; esac
+  if [ "$old_session" = "$SESSION_ID" ]; then
+    count=$((old_count + 1))
+  else
+    count=1
+    old_epoch=
+  fi
+  if [ "$count" -gt "$BLOCK_BUDGET" ]; then
+    fm_lock_release "$BUDGET_LOCK"
+    return 1
+  fi
+  tmp="$BUDGET_FILE.tmp.$$"
+  if ! printf 'session=%s\ncount=%s\nepoch=%s\n' "$SESSION_ID" "$count" "$old_epoch" > "$tmp" 2>/dev/null \
+    || ! mv -f "$tmp" "$BUDGET_FILE" 2>/dev/null; then
+    rm -f "$tmp" 2>/dev/null || true
+    fm_lock_release "$BUDGET_LOCK"
+    return 1
+  fi
+  fm_lock_release "$BUDGET_LOCK"
+  return 0
+}
+
+device_rule='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+FILTERED_DRAIN_RECORD="$STATE/.turnend-filtered-drain"
+TRANSCRIPT_TAIL_LINES=3000
+# Evaluated only where the supervision predicate has already decided to let
+# this Stop end (run_context_devices is called from those allow paths), so a
+# device block never consumes a supervision repair prompt and the supervision
+# banner always wins when both would fire.
+run_context_devices() {
+  local blocked_turn tmp lock_identity lock_pid transcript_path
+  # Filtered drain read: block once per turn, naming the unfiltered command.
+  transcript_path=$(printf '%s' "$PAYLOAD" | jq -r '.transcript_path // empty | strings' 2>/dev/null || true)
+  if [ -n "$transcript_path" ] \
+    && fm_drain_filter_scan "$transcript_path" "$TRANSCRIPT_TAIL_LINES"; then
+  blocked_turn=
+  if [ -f "$FILTERED_DRAIN_RECORD" ] && [ ! -L "$FILTERED_DRAIN_RECORD" ] \
+    && [ "$(sed -n '1s/^session=//p' "$FILTERED_DRAIN_RECORD" 2>/dev/null)" = "$SESSION_ID" ]; then
+    blocked_turn=$(sed -n '2s/^turn=//p' "$FILTERED_DRAIN_RECORD" 2>/dev/null || true)
+    case "$FM_DRAIN_FILTER_TURN" in window:*) blocked_turn=$FM_DRAIN_FILTER_TURN ;; esac
+  fi
+  if [ "$blocked_turn" != "$FM_DRAIN_FILTER_TURN" ] && budget_charge_device; then
+    tmp="$FILTERED_DRAIN_RECORD.tmp.$$"
+    if printf 'session=%s\nturn=%s\n' "$SESSION_ID" "$FM_DRAIN_FILTER_TURN" > "$tmp" 2>/dev/null \
+      && mv -f "$tmp" "$FILTERED_DRAIN_RECORD" 2>/dev/null; then
+      {
+        printf '●%s\n' "$device_rule"
+        printf '●  WAKE DRAIN OUTPUT WAS FILTERED THIS TURN\n'
+        printf '●  A Bash call piped bin/fm-wake-drain.sh through %s: %s\n' "$FM_DRAIN_FILTER_NAME" "$FM_DRAIN_FILTER_COMMAND"
+        printf '●  A filtered drain hides sections this turn must handle: OPEN DECISIONS, UNREAD STATUS,\n'
+        printf '●  RECORD DIVERGENCE, and the WAKE_ACK_REQUIRED command. No later unfiltered read followed it.\n'
+        printf '●  Re-read it whole now and handle everything it prints before ending the turn:\n'
+        printf '●    FM_HOME=%s %s/bin/fm-wake-drain.sh\n' "$FM_HOME" "$FM_ROOT"
+        printf '●  This block fires once per turn; the next stop of this turn is allowed.\n'
+        printf '●%s\n' "$device_rule"
+      } >&2
+      exit 2
+    fi
+    rm -f "$tmp" 2>/dev/null || true
+  fi
+fi
+
+  # Stow pass required: block while the compact digest's STOW_REQUIRED record
+  # names the live lock-owning harness pid and no pass has been recorded
+  # since. The match is on the pid alone: a /clear keeps the pid and mints a
+  # new session id, and the pass is still owed by that same process. A
+  # read-only session beside a live foreign lock owner owes no pass.
+  if [ "$CLAUDE_MODE" -eq 1 ] && fm_session_lock_foreign_owner_live "$STATE"; then
+    return 0
+  fi
+  if lock_identity=$(fm_stow_cadence_lock_identity "$STATE"); then
+  lock_pid=${lock_identity%% *}
+  if fm_stow_cadence_required "$STATE" "$lock_pid" && budget_charge_device; then
+    {
+      printf '●%s\n' "$device_rule"
+      printf '●  STOW PASS REQUIRED BEFORE THIS TURN ENDS\n'
+      printf '●  Compaction %s of this session made a stow pass due (the compact digest printed STOW_REQUIRED),\n' "$FM_STOW_CADENCE_REQUIRED_COUNT"
+      printf '●  and no pass has been recorded since. A compaction summary is where captain corrections get lost.\n'
+      printf '●  Run the stow skill now (/stow). Its final step runs %s/bin/fm-stow-mark.sh, which records\n' "$FM_ROOT"
+      printf '●  the pass and releases this block. The block is bounded by the session block budget.\n'
+      printf '●%s\n' "$device_rule"
+    } >&2
+    exit 2
+  fi
+  fi
+}
+
 fm_supervision_status "$STATE" "$GRACE"
 if [ "$FM_SUP_NEEDED" = false ]; then
+  run_context_devices
   [ -e "$FAILURE_NOTICE" ] || budget_reset
   exit 0
 fi
 # One owner of the "supervision is on, let this turn end" exit contract, shared
 # by every proof of supervision below.
 allow_supervised_stop() {
-  [ "$CLAUDE_MODE" -eq 1 ] || exit 0
-  fm_failure_episode_reset "$STATE" && exit 0
-  exit 2
+  run_context_devices
+  if [ "$CLAUDE_MODE" -eq 1 ]; then
+    fm_failure_episode_reset "$STATE" || exit 2
+  fi
+  exit 0
 }
 
 if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME"; then
@@ -540,6 +669,7 @@ i=0
 while [ "$i" -lt $((SYNC_WAIT_MS / 100)) ]; do
   if autoarm_owns_recovery; then
     if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME"; then
+      run_context_devices
       fm_failure_episode_reset "$STATE" || exit 2
     fi
     exit 0
@@ -549,6 +679,7 @@ while [ "$i" -lt $((SYNC_WAIT_MS / 100)) ]; do
 done
 if autoarm_owns_recovery; then
   if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME"; then
+    run_context_devices
     fm_failure_episode_reset "$STATE" || exit 2
   fi
   exit 0

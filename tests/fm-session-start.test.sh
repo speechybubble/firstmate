@@ -1607,7 +1607,7 @@ SH
   assert_contains "$out" 'stopped during the "lock" stage' \
     "the abnormal-death banner did not name the stage that never finished"
   assert_contains "$out" \
-    "wake-queue supervision-instructions read-once fleet-state network-checks context next-step" \
+    "wake-queue compaction supervision-instructions read-once fleet-state network-checks context next-step" \
     "the abnormal-death banner did not list every stage that never ran"
   assert_not_contains "$out" "RUNTIME BOUND" \
     "an abnormal death was misreported as the runtime bound firing"
@@ -2241,7 +2241,7 @@ EOF
   assert_contains "$out" "RUNTIME BOUND" "the truncation banner did not name the bound it hit"
   assert_contains "$out" 'stopped during the "bootstrap" stage' "the truncation banner did not name the incomplete stage"
   assert_contains "$out" "RECONCILE these stages" "the truncation banner did not tell the agent what to reconcile"
-  assert_contains "$out" "wake-queue supervision-instructions read-once fleet-state network-checks context next-step" \
+  assert_contains "$out" "wake-queue compaction supervision-instructions read-once fleet-state network-checks context next-step" \
     "the truncation banner did not list every stage that never ran"
   assert_not_contains "$out" "NEXT STEP" "a truncated digest claimed to have reached its closing reminder"
   assert_absent "$home/state/.session-start-complete" \
@@ -3070,7 +3070,171 @@ test_runtime_bound_truncates_loudly_and_exits_zero
 test_portable_timeout_escalates_term_resistant_process
 test_runtime_bound_leaves_a_healthy_digest_untouched
 test_runtime_bound_leaves_harness_ancestry_headroom
+# --- compaction devices (--source compact) ------------------------------------
+# Standing corrections and the stow cadence print only on a compaction. The
+# fixture memory directory stands in for the Claude project memory directory
+# through FM_HARNESS_MEMORY_DIR, so no real harness memory is read.
+
+write_memory_entry() {  # <dir> <name> <type> <body>
+  cat > "$1/$2.md" <<EOF
+---
+name: $2
+description: "$2 summary"
+metadata:
+  node_type: memory
+  type: $3
+---
+
+$4
+EOF
+}
+
+run_compact_session_start() {  # <home> <root> <path> <memory-dir> [extra env assignments...]
+  local home=$1 root=$2 path=$3 memory=$4
+  shift 4
+  env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
+    FM_FAKE_HARNESS_PID=$$ FM_HARNESS_MEMORY_DIR="$memory" "$@" \
+    FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$path" \
+    "$SESSION_START" --reemit --source compact
+}
+
+test_compact_prints_standing_corrections_and_stow_cadence() {
+  local rec root home fakebin memory startup compact1 compact2 clear_out marked compact3
+  rec=$(new_world compact-devices)
+  IFS='|' read -r root home fakebin <<EOF
+$rec
+EOF
+  make_fake_toolchain "$fakebin"
+  make_fake_ps_claude "$fakebin"
+  memory="$TMP_ROOT/compact-devices-memory"
+  mkdir -p "$memory"
+  write_memory_entry "$memory" drain-unfiltered feedback "Read bin/fm-wake-drain.sh output whole every time; never pipe it through grep."
+  write_memory_entry "$memory" migration-goal project "Firstmate owns finishing the migration."
+  touch -t 202501010000 "$memory/drain-unfiltered.md"
+  write_memory_entry "$memory" concise-merge-reports feedback "Merge outcomes in 2-3 lines: what landed plus URL."
+
+  startup=$(FM_FAKE_HARNESS_PID=$$ run_session_start "$home" "$root" "$fakebin:$BASE_PATH")
+  assert_not_contains "$startup" "STANDING CORRECTIONS" "a startup must not print the compaction section"
+  assert_not_contains "$startup" "STOW CADENCE" "a startup must not count a compaction"
+  [ "$(cat "$home/state/.lock")" = "$$" ] || fail "the startup fixture did not take the lock as the fake harness pid"
+
+  compact1=$(run_compact_session_start "$home" "$root" "$fakebin:$BASE_PATH" "$memory")
+  assert_contains "$compact1" "STANDING CORRECTIONS - captain corrections the compaction summary may have dropped" \
+    "a compaction prints the standing-corrections heading"
+  assert_contains "$compact1" "--- concise-merge-reports.md" "the newest feedback entry prints first"
+  assert_contains "$compact1" "Merge outcomes in 2-3 lines: what landed plus URL." "feedback bodies print verbatim"
+  assert_contains "$compact1" "never pipe it through grep." "every feedback entry prints"
+  assert_not_contains "$compact1" "Firstmate owns finishing the migration." "a non-feedback entry is excluded"
+  assert_contains "$compact1" "compaction 1 of this session; 1 since the last stow pass (cadence 2), no pass due yet" \
+    "the first compaction is counted without requiring a pass"
+  assert_not_contains "$compact1" "STOW_REQUIRED" "no pass is required after one compaction"
+  case "$compact1" in
+    *"STANDING CORRECTIONS"*"READ-ONCE"*) ;;
+    *) fail "the compaction section must print before the read-once contract, where a truncated tail cannot take it" ;;
+  esac
+
+  compact2=$(run_compact_session_start "$home" "$root" "$fakebin:$BASE_PATH" "$memory")
+  assert_contains "$compact2" "compaction 2 of this session; 2 since the last stow pass (cadence 2)" "the second compaction is counted"
+  assert_contains "$compact2" "STOW_REQUIRED: run the stow skill (/stow) now" "the second compaction requires a stow pass"
+  [ -f "$home/state/.stow-required" ] || fail "the second compaction must write the stow-required record"
+  assert_contains "$(cat "$home/state/.stow-required")" "pid=$$" "the record names the lock-owning session"
+
+  clear_out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$root" FM_FAKE_HARNESS_PID=$$ FM_HARNESS_MEMORY_DIR="$memory" PATH="$fakebin:$BASE_PATH" \
+    env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
+    "$SESSION_START" --reemit --source clear)
+  assert_not_contains "$clear_out" "STANDING CORRECTIONS" "a clear must not print the compaction section"
+  assert_contains "$(cat "$home/state/.compactions")" "count=2" "a clear is not counted as a compaction"
+
+  compact3=$(run_compact_session_start "$home" "$root" "$fakebin:$BASE_PATH" "$memory")
+  assert_contains "$compact3" "a stow pass is STILL REQUIRED from an earlier compaction" "an unanswered requirement is restated, not re-issued"
+  marked=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$root" "$ROOT/bin/fm-stow-mark.sh" 2>&1) || fail "fm-stow-mark.sh failed: $marked"
+  [ ! -e "$home/state/.stow-required" ] || fail "the recorded pass must release the requirement"
+  compact3=$(run_compact_session_start "$home" "$root" "$fakebin:$BASE_PATH" "$memory")
+  assert_contains "$compact3" "compaction 4 of this session; 1 since the last stow pass (cadence 2), no pass due yet" \
+    "the cadence restarts from the recorded pass"
+  pass "--source compact prints the feedback entries verbatim and requires a stow pass every second compaction"
+}
+
+test_compact_corrections_cap_and_absent_directory() {
+  local rec root home fakebin memory out
+  rec=$(new_world compact-cap)
+  IFS='|' read -r root home fakebin <<EOF
+$rec
+EOF
+  make_fake_toolchain "$fakebin"
+  make_fake_ps_claude "$fakebin"
+  memory="$TMP_ROOT/compact-cap-memory"
+  mkdir -p "$memory"
+  write_memory_entry "$memory" older-correction feedback "An older correction that the cap should drop first."
+  touch -t 202501010000 "$memory/older-correction.md"
+  write_memory_entry "$memory" newest-correction feedback "$(head -c 16300 /dev/zero | tr '\0' x) - the newest correction always prints."
+  FM_FAKE_HARNESS_PID=$$ run_session_start "$home" "$root" "$fakebin:$BASE_PATH" >/dev/null
+  out=$(run_compact_session_start "$home" "$root" "$fakebin:$BASE_PATH" "$memory")
+  assert_contains "$out" "the newest correction always prints." "the newest entry prints even when it alone fills the cap"
+  assert_not_contains "$out" "An older correction that the cap should drop first." "the fixed cap drops the oldest entry"
+  assert_contains "$out" "truncated: 1 more feedback entry not shown (byte cap 16384); read them in $memory" "the cap announces what it left out"
+  assert_not_contains "$out" "node_type: memory" "entries print as their body, not their frontmatter"
+  out=$(run_compact_session_start "$home" "$root" "$fakebin:$BASE_PATH" "$TMP_ROOT/compact-cap-absent")
+  assert_contains "$out" "no harness memory directory at $TMP_ROOT/compact-cap-absent" "an absent memory directory is named, never invented"
+  pass "--source compact bounds the corrections by the fixed byte cap and reports an absent memory directory"
+}
+
+test_compact_corrections_cap_counts_bytes() {
+  local rec root home fakebin memory out wide
+  rec=$(new_world compact-cap-bytes)
+  IFS='|' read -r root home fakebin <<EOF
+$rec
+EOF
+  make_fake_toolchain "$fakebin"
+  make_fake_ps_claude "$fakebin"
+  memory="$TMP_ROOT/compact-cap-bytes-memory"
+  mkdir -p "$memory"
+  wide=$(printf '\303\251%.0s' $(seq 6000))
+  write_memory_entry "$memory" older-wide feedback "$wide - an older multibyte correction past the byte cap."
+  touch -t 202501010000 "$memory/older-wide.md"
+  write_memory_entry "$memory" newest-wide feedback "$wide - the newest multibyte correction."
+  FM_FAKE_HARNESS_PID=$$ run_session_start "$home" "$root" "$fakebin:$BASE_PATH" >/dev/null
+  out=$(run_compact_session_start "$home" "$root" "$fakebin:$BASE_PATH" "$memory" LC_ALL=C.UTF-8)
+  assert_contains "$out" "the newest multibyte correction." "the newest multibyte entry prints"
+  assert_not_contains "$out" "an older multibyte correction past the byte cap." "two 12000-byte entries exceed the 16384-byte cap even at 6000 characters each"
+  assert_contains "$out" "truncated: 1 more feedback entry not shown (byte cap 16384); read them in $memory" "the cap counts bytes, not characters"
+  pass "--source compact measures the corrections cap in bytes for multibyte entries"
+}
+
+test_compact_devices_skip_in_read_only_session() {
+  local rec root home fakebin memory out holder_pid
+  rec=$(new_world compact-read-only)
+  IFS='|' read -r root home fakebin <<EOF
+$rec
+EOF
+  make_fake_toolchain "$fakebin"
+  make_fake_ps_claude "$fakebin"
+  memory="$TMP_ROOT/compact-read-only-memory"
+  mkdir -p "$memory"
+  write_memory_entry "$memory" a-correction feedback "A correction."
+  # Another live process holds the lock, so this compaction is lock-refused.
+  sleep 300 &
+  holder_pid=$!
+  printf '%s\n' "$holder_pid" > "$home/state/.lock"
+  out=$(env -u CLAUDECODE -u PI_CODING_AGENT -u FM_PI_HARNESS -u GROK_AGENT \
+    FM_HARNESS_MEMORY_DIR="$memory" \
+    FM_HOME="$home" FM_ROOT_OVERRIDE="$root" PATH="$fakebin:$BASE_PATH" \
+    "$SESSION_START" --source compact)
+  kill "$holder_pid" 2>/dev/null || true
+  wait "$holder_pid" 2>/dev/null || true
+  assert_contains "$out" "READ-ONLY SESSION" "the fixture must be a lock-refused session"
+  assert_contains "$out" "skipped (read-only session): standing corrections and the stow cadence belong to the session that holds the lock." \
+    "a read-only compaction skips both devices"
+  assert_not_contains "$out" "A correction." "a read-only session prints no corrections"
+  [ ! -e "$home/state/.compactions" ] || fail "a read-only session must not count a compaction"
+  pass "--source compact in a read-only session skips the corrections and the cadence"
+}
+
 test_reemit_skips_startup_sweeps_but_keeps_the_wake_drain
+test_compact_prints_standing_corrections_and_stow_cadence
+test_compact_corrections_cap_and_absent_directory
+test_compact_corrections_cap_counts_bytes
+test_compact_devices_skip_in_read_only_session
 test_agents_baseline_stays_at_true_start_and_reemits_on_every_drifted_pi_compact
 test_read_only_pi_compact_refreshes_against_its_own_session_identity
 test_codex_unreachable_reset_sources_do_not_claim_instruction_refresh
