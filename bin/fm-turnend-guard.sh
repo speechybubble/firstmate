@@ -89,6 +89,22 @@
 #      re-block (budget_account_current_epoch owns that rule), so an inert
 #      hook that leaves the ledger frozen cannot hold the guard in an
 #      unbounded re-block loop below that override.
+#
+# Two context-loss devices run before the supervision predicate, in every
+# mode, because they guard the turn's own reading rather than the watcher
+# (docs/turnend-guard.md "Filtered drain read" and "Stow pass required"):
+#   - filtered drain read: when the Stop payload names a transcript whose
+#     current turn piped bin/fm-wake-drain.sh output through a filter with no
+#     later unfiltered read (bin/fm-drain-filter-lib.sh), block ONCE per turn
+#     with the exact unfiltered command; the retry of the same turn is allowed
+#     (state/.turnend-filtered-drain records the blocked turn).
+#   - stow pass required: while state/.stow-required names this live session
+#     (bin/fm-stow-cadence-lib.sh), block until bin/fm-stow-mark.sh has
+#     recorded the pass.
+# Both charge the Claude block budget above (budget_charge_device) and stand
+# down once it is spent, so neither can reach Claude Code's 8-consecutive-block
+# override, and both stand down silently on anything they cannot read: no
+# transcript, no jq, no lock, a dead or foreign session.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -204,6 +220,10 @@ if [ "$CLAUDE_MODE" -eq 1 ]; then
   # shellcheck source=bin/fm-session-lock-lib.sh
   . "$SCRIPT_DIR/fm-session-lock-lib.sh"
 fi
+# shellcheck source=bin/fm-drain-filter-lib.sh
+. "$SCRIPT_DIR/fm-drain-filter-lib.sh"
+# shellcheck source=bin/fm-stow-cadence-lib.sh
+. "$SCRIPT_DIR/fm-stow-cadence-lib.sh"
 
 BUDGET_FILE="$STATE/.turnend-claude-blocks"
 BUDGET_LOCK="$STATE/.turnend-claude-blocks.lock"
@@ -217,6 +237,97 @@ budget_reset() {
   rm -f "$BUDGET_FILE" 2>/dev/null || true
   fm_lock_release "$BUDGET_LOCK"
 }
+
+# --- context-loss devices ----------------------------------------------------
+# Charge one device block to the per-session budget. Returns 0 when the block
+# may proceed and 1 when the budget is spent, in which case the caller allows
+# the stop (the device never contributes to Claude's consecutive-block
+# override). Outside --claude mode the harness adapter already bounds blocks to
+# one per turn, so nothing is charged there.
+budget_charge_device() {
+  local old_session old_count old_epoch count tmp
+  [ "$CLAUDE_MODE" -eq 1 ] || return 0
+  fm_lock_try_acquire "$BUDGET_LOCK" || return 1
+  old_session=$(sed -n '1s/^session=//p' "$BUDGET_FILE" 2>/dev/null || true)
+  old_count=$(sed -n '2s/^count=//p' "$BUDGET_FILE" 2>/dev/null || true)
+  old_epoch=$(sed -n '3s/^epoch=//p' "$BUDGET_FILE" 2>/dev/null || true)
+  case "$old_count" in ''|*[!0-9]*) old_count=0 ;; esac
+  if [ "$old_session" = "$SESSION_ID" ]; then
+    count=$((old_count + 1))
+  else
+    count=1
+    old_epoch=
+  fi
+  if [ "$count" -gt "$BLOCK_BUDGET" ]; then
+    fm_lock_release "$BUDGET_LOCK"
+    return 1
+  fi
+  tmp="$BUDGET_FILE.tmp.$$"
+  if ! printf 'session=%s\ncount=%s\nepoch=%s\n' "$SESSION_ID" "$count" "$old_epoch" > "$tmp" 2>/dev/null \
+    || ! mv -f "$tmp" "$BUDGET_FILE" 2>/dev/null; then
+    rm -f "$tmp" 2>/dev/null || true
+    fm_lock_release "$BUDGET_LOCK"
+    return 1
+  fi
+  fm_lock_release "$BUDGET_LOCK"
+  return 0
+}
+
+device_rule='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+# Filtered drain read: block once per turn, naming the unfiltered command.
+FILTERED_DRAIN_RECORD="$STATE/.turnend-filtered-drain"
+TRANSCRIPT_PATH=$(printf '%s' "$PAYLOAD" | jq -r '.transcript_path // empty | strings' 2>/dev/null || true)
+if [ -n "$TRANSCRIPT_PATH" ] \
+  && fm_drain_filter_scan "$TRANSCRIPT_PATH" "${FM_TURNEND_TRANSCRIPT_TAIL_LINES:-3000}"; then
+  blocked_turn=
+  if [ -f "$FILTERED_DRAIN_RECORD" ] && [ ! -L "$FILTERED_DRAIN_RECORD" ] \
+    && [ "$(sed -n '1s/^session=//p' "$FILTERED_DRAIN_RECORD" 2>/dev/null)" = "$SESSION_ID" ]; then
+    blocked_turn=$(sed -n '2s/^turn=//p' "$FILTERED_DRAIN_RECORD" 2>/dev/null || true)
+  fi
+  if [ "$blocked_turn" != "$FM_DRAIN_FILTER_TURN" ] && budget_charge_device; then
+    tmp="$FILTERED_DRAIN_RECORD.tmp.$$"
+    if printf 'session=%s\nturn=%s\n' "$SESSION_ID" "$FM_DRAIN_FILTER_TURN" > "$tmp" 2>/dev/null \
+      && mv -f "$tmp" "$FILTERED_DRAIN_RECORD" 2>/dev/null; then
+      {
+        printf '●%s\n' "$device_rule"
+        printf '●  WAKE DRAIN OUTPUT WAS FILTERED THIS TURN\n'
+        printf '●  A Bash call piped bin/fm-wake-drain.sh through %s: %s\n' "$FM_DRAIN_FILTER_NAME" "$FM_DRAIN_FILTER_COMMAND"
+        printf '●  A filtered drain hides sections this turn must handle: OPEN DECISIONS, UNREAD STATUS,\n'
+        printf '●  RECORD DIVERGENCE, and the WAKE_ACK_REQUIRED command. No later unfiltered read followed it.\n'
+        printf '●  Re-read it whole now and handle everything it prints before ending the turn:\n'
+        printf '●    FM_HOME=%s %s/bin/fm-wake-drain.sh\n' "$FM_HOME" "$FM_ROOT"
+        printf '●  This block fires once per turn; the next stop of this turn is allowed.\n'
+        printf '●%s\n' "$device_rule"
+      } >&2
+      exit 2
+    fi
+    rm -f "$tmp" 2>/dev/null || true
+  fi
+fi
+
+# Stow pass required: block while the compact digest's STOW_REQUIRED record
+# names this live session and no pass has been recorded since.
+# The session compared against the record is this Stop's own id when the
+# payload carries one, so a second Claude session reading the same home is not
+# held for a pass that belongs to the lock owner.
+if lock_identity=$(fm_stow_cadence_lock_identity "$STATE"); then
+  lock_pid=${lock_identity%% *}
+  lock_session=${lock_identity#* }
+  [ "$SESSION_ID" = unknown ] || lock_session=$SESSION_ID
+  if fm_stow_cadence_required "$STATE" "$lock_pid" "$lock_session" && budget_charge_device; then
+    {
+      printf '●%s\n' "$device_rule"
+      printf '●  STOW PASS REQUIRED BEFORE THIS TURN ENDS\n'
+      printf '●  Compaction %s of this session made a stow pass due (the compact digest printed STOW_REQUIRED),\n' "$FM_STOW_CADENCE_REQUIRED_COUNT"
+      printf '●  and no pass has been recorded since. A compaction summary is where captain corrections get lost.\n'
+      printf '●  Run the stow skill now (/stow). Its final step runs %s/bin/fm-stow-mark.sh, which records\n' "$FM_ROOT"
+      printf '●  the pass and releases this block. The block is bounded by the session block budget.\n'
+      printf '●%s\n' "$device_rule"
+    } >&2
+    exit 2
+  fi
+fi
 
 fm_supervision_status "$STATE" "$GRACE"
 if [ "$FM_SUP_NEEDED" = false ]; then

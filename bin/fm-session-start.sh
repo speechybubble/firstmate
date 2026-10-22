@@ -42,6 +42,29 @@
 #                       First, on every harness and away posture, it seeds the
 #                       outcome store's display tail copy when that is absent
 #                       (bin/fm-branch-outcome.sh seed-tail).
+#   3b. compaction    - only when --source is compact (the stage name is
+#                       `compaction`): the two context-loss devices. STANDING
+#                       CORRECTIONS reprints, verbatim, every harness memory
+#                       entry of type feedback - the captain's corrections -
+#                       because a compaction summary is exactly where those
+#                       get dropped; each entry prints as its file name and
+#                       its body after the frontmatter, newest first, bounded
+#                       by config/compact-corrections-bytes (default 4096,
+#                       FM_COMPACT_CORRECTIONS_BYTES overrides it) with an
+#                       explicit truncated line. STOW CADENCE counts the
+#                       compaction for the lock-owning session
+#                       (bin/fm-stow-cadence-lib.sh) and prints STOW_REQUIRED
+#                       when config/stow-every-compactions (default 2) is
+#                       reached; the turn-end guard then blocks the stop until
+#                       bin/fm-stow-mark.sh records the pass. Startup, resume,
+#                       and clear never print this stage. Both devices stand
+#                       down on a read-only session.
+#                       The Claude memory directory is
+#                       ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/<slug>/
+#                       memory, where <slug> is the code root's absolute path
+#                       with every non-alphanumeric character replaced by `-`;
+#                       FM_HARNESS_MEMORY_DIR overrides it, and no other
+#                       primary harness has a known memory directory.
 #   4. supervision-instructions - the one emitted operating block for the
 #                       detected primary harness.
 #   5. read-once contract - the do-not-re-read contract covering every source
@@ -275,7 +298,7 @@ done
 # The ordered stage list is the contract behind the truncation banner: the child
 # names the stage it is entering, and the parent reports every stage at or after
 # that one as never emitted. Keep it in the exact order the digest prints.
-SESSION_START_STAGES='lock bootstrap wake-queue supervision-instructions read-once fleet-state network-checks context next-step'
+SESSION_START_STAGES='lock bootstrap wake-queue compaction supervision-instructions read-once fleet-state network-checks context next-step'
 
 stage() {  # <stage-name>: breadcrumb for the parent's truncation banner
   [ -n "${FM_SESSION_START_STAGE_FILE:-}" ] || return 0
@@ -371,6 +394,8 @@ PRIMARY_HARNESS=$("$SCRIPT_DIR/fm-harness.sh" 2>/dev/null || printf unknown)
 . "$SCRIPT_DIR/fm-wake-lib.sh"
 # shellcheck source=bin/fm-line-cap-lib.sh
 . "$SCRIPT_DIR/fm-line-cap-lib.sh"
+# shellcheck source=bin/fm-stow-cadence-lib.sh
+. "$SCRIPT_DIR/fm-stow-cadence-lib.sh"
 # shellcheck source=bin/fm-hold-reason-lib.sh
 . "$SCRIPT_DIR/fm-hold-reason-lib.sh"
 
@@ -796,6 +821,124 @@ else
     printf '%s\n' "$DRAIN_OUT"
   else
     printf '(no queued wakes)\n'
+  fi
+fi
+
+# --- 3b. compaction devices ----------------------------------------------------
+# Only a compaction prints this stage (see the header's stage list). Everything
+# here reads local files and the cadence record, so it stays inside the digest's
+# no-network contract.
+stage compaction
+harness_memory_dir() {
+  local base slug root
+  if [ -n "${FM_HARNESS_MEMORY_DIR:-}" ]; then
+    printf '%s\n' "$FM_HARNESS_MEMORY_DIR"
+    return 0
+  fi
+  [ "$PRIMARY_HARNESS" = claude ] || return 1
+  base=${CLAUDE_CONFIG_DIR:-${HOME:-}/.claude}
+  root=$(cd "$FM_ROOT" 2>/dev/null && pwd -P) || root=$FM_ROOT
+  slug=$(printf '%s' "$root" | sed 's/[^A-Za-z0-9]/-/g')
+  printf '%s/projects/%s/memory\n' "$base" "$slug"
+}
+
+memory_entry_is_feedback() {  # <file>: frontmatter carries `type: feedback`
+  awk '
+    NR == 1 && $0 != "---" { exit 1 }
+    NR > 1 && $0 == "---" { exit 1 }
+    NR > 1 && $0 ~ /^[[:space:]]*type:[[:space:]]*feedback[[:space:]]*$/ { found = 1; exit 0 }
+    END { exit found ? 0 : 1 }
+  ' "$1" 2>/dev/null
+}
+
+corrections_byte_cap() {
+  local cap=${FM_COMPACT_CORRECTIONS_BYTES:-} file="$CONFIG/compact-corrections-bytes"
+  if [ -z "$cap" ] && [ -f "$file" ] && [ ! -L "$file" ]; then
+    cap=$(head -n 1 "$file" 2>/dev/null | tr -d '[:space:]')
+  fi
+  case "$cap" in ''|*[!0-9]*|0) cap=4096 ;; esac
+  printf '%s\n' "$cap"
+}
+
+memory_entry_body() {  # <file>: everything after the frontmatter, without leading blank lines
+  awk '
+    NR == 1 && $0 == "---" { infront = 1; next }
+    infront && $0 == "---" { infront = 0; skipping = 1; next }
+    infront { next }
+    skipping && $0 == "" { next }
+    { skipping = 0; print }
+  ' "$1" 2>/dev/null
+}
+
+print_standing_corrections() {
+  local dir cap used=0 shown=0 skipped=0 file body size
+  cap=$(corrections_byte_cap)
+  subsection "STANDING CORRECTIONS - captain corrections the compaction summary may have dropped"
+  printf 'Every harness memory entry of type feedback, verbatim. Each is a correction the captain gave; the\n'
+  printf 'summary that just replaced this context may have shortened or dropped it, so re-apply each one now.\n'
+  if ! dir=$(harness_memory_dir); then
+    printf 'no harness memory directory is known for primary harness %s\n' "$PRIMARY_HARNESS"
+    return 0
+  fi
+  if [ ! -d "$dir" ]; then
+    printf 'no harness memory directory at %s\n' "$dir"
+    return 0
+  fi
+  # Newest first, so a truncated cap drops the oldest correction, not the latest.
+  while IFS= read -r file; do
+    [ -n "$file" ] && [ -f "$file" ] && [ ! -L "$file" ] || continue
+    memory_entry_is_feedback "$file" || continue
+    body=$(memory_entry_body "$file")
+    size=${#body}
+    if [ $((used + size)) -gt "$cap" ] && [ "$shown" -gt 0 ]; then
+      skipped=$((skipped + 1))
+      continue
+    fi
+    printf -- '--- %s\n%s\n' "${file##*/}" "$body"
+    used=$((used + size))
+    shown=$((shown + 1))
+  done < <(ls -t "$dir"/*.md 2>/dev/null)
+  if [ "$skipped" -gt 0 ]; then
+    printf 'truncated: %s more feedback entr%s not shown (byte cap %s); read them in %s\n' \
+      "$skipped" "$([ "$skipped" -eq 1 ] && printf y || printf ies)" "$cap" "$dir"
+  elif [ "$shown" -eq 0 ]; then
+    printf 'no feedback entries in %s\n' "$dir"
+  fi
+}
+
+print_stow_cadence() {
+  local identity pid session
+  subsection "STOW CADENCE"
+  if ! identity=$(fm_stow_cadence_lock_identity "$STATE"); then
+    printf 'not counted: state/.lock holds no session pid\n'
+    return 0
+  fi
+  pid=${identity%% *}
+  session=${identity#* }
+  if fm_stow_cadence_record_compaction "$STATE" "$CONFIG" "$pid" "$session"; then
+    printf 'compaction %s of this session; %s since the last stow pass (cadence %s)\n' \
+      "$FM_STOW_CADENCE_COUNT" "$FM_STOW_CADENCE_SINCE" "$FM_STOW_CADENCE_EVERY"
+    printf 'STOW_REQUIRED: run the stow skill (/stow) now, before other work. Its last step runs\n'
+    printf 'bin/fm-stow-mark.sh, which records the pass; until then the turn-end guard blocks this session from ending a turn.\n'
+  elif [ "$FM_STOW_CADENCE_DUE" -eq 1 ]; then
+    printf 'compaction %s of this session; a stow pass is STILL REQUIRED from an earlier compaction - run /stow now.\n' \
+      "$FM_STOW_CADENCE_COUNT"
+  elif [ "$FM_STOW_CADENCE_COUNT" -gt 0 ]; then
+    printf 'compaction %s of this session; %s since the last stow pass (cadence %s), no pass due yet\n' \
+      "$FM_STOW_CADENCE_COUNT" "$FM_STOW_CADENCE_SINCE" "$FM_STOW_CADENCE_EVERY"
+  else
+    printf 'not counted: the cadence record under state/ could not be written\n'
+  fi
+  [ -z "$FM_STOW_CADENCE_NOTE" ] || printf '%s\n' "$FM_STOW_CADENCE_NOTE"
+}
+
+if [ "$SESSION_SOURCE" = compact ]; then
+  section "COMPACTION"
+  if [ "$READ_ONLY" -eq 1 ]; then
+    printf 'skipped (read-only session): standing corrections and the stow cadence belong to the session that holds the lock.\n'
+  else
+    print_standing_corrections
+    print_stow_cadence
   fi
 fi
 
