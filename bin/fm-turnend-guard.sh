@@ -345,10 +345,10 @@ fi
 # One owner of the "supervision is on, let this turn end" exit contract, shared
 # by every proof of supervision below.
 allow_supervised_stop() {
+  run_context_devices
   if [ "$CLAUDE_MODE" -eq 1 ]; then
     fm_failure_episode_reset "$STATE" || exit 2
   fi
-  run_context_devices
   exit 0
 }
 
@@ -661,8 +661,8 @@ i=0
 while [ "$i" -lt $((SYNC_WAIT_MS / 100)) ]; do
   if autoarm_owns_recovery; then
     if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME"; then
-      fm_failure_episode_reset "$STATE" || exit 2
       run_context_devices
+      fm_failure_episode_reset "$STATE" || exit 2
     fi
     exit 0
   fi
@@ -671,8 +671,8 @@ while [ "$i" -lt $((SYNC_WAIT_MS / 100)) ]; do
 done
 if autoarm_owns_recovery; then
   if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME"; then
-    fm_failure_episode_reset "$STATE" || exit 2
     run_context_devices
+    fm_failure_episode_reset "$STATE" || exit 2
   fi
   exit 0
 fi

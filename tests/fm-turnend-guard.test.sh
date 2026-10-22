@@ -2415,6 +2415,36 @@ test_hook_stow_required_ignores_dead_or_foreign_session() {
   pass "fm-turnend-guard --claude: the stow device stands down for dead, foreign, or budget-exhausted sessions"
 }
 
+test_hook_stow_required_bounded_on_healthy_supervised_primary() {
+  local dir out status pid identity n
+  dir=$(make_primary_dir "$TMP_ROOT/device-stow-supervised")
+  : > "$dir/state/task1.meta"
+  sleep 60 &
+  pid=$!
+  identity=$(watcher_identity "$dir" "$pid") || {
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    fail "could not identify live watcher holder"
+  }
+  record_watcher_lock "$dir" "$pid" "$identity"
+  touch "$dir/state/.last-watcher-beat"
+  printf '%s\n' "$$" > "$dir/state/.lock"
+  printf 'pid=%s\nsession=sess-claude-mode\ncount=2\nat=1\n' "$$" > "$dir/state/.stow-required"
+  for n in 1 2 3; do
+    out=$(run_hook_claude "$dir" false); status=$?
+    expect_code 2 "$status" "stow block $n on a healthy supervised primary must block"
+    assert_contains "$out" "STOW PASS REQUIRED" "stow block $n names the device"
+    assert_contains "$(cat "$dir/state/.turnend-claude-blocks")" "count=$n" "stow block $n accumulates on the session block budget"
+  done
+  out=$(run_hook_claude "$dir" false); status=$?
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+  expect_code 0 "$status" "the stop after the spent budget must be allowed on a healthy supervised primary"
+  assert_not_contains "$out" "STOW PASS REQUIRED" "no block banner once the budget is spent"
+  [ ! -e "$dir/state/.turnend-claude-blocks" ] || fail "the allowed supervised stop resets the block budget"
+  pass "fm-turnend-guard --claude: the stow device on a healthy supervised primary blocks at most the block budget, then allows"
+}
+
 test_hook_supervision_block_wins_over_stow_required() {
   local dir out status
   dir=$(make_primary_dir "$TMP_ROOT/device-stow-vs-supervision")
@@ -2440,6 +2470,7 @@ test_hook_filtered_drain_never_blocks_without_readable_transcript
 test_hook_filtered_drain_respects_block_budget
 test_hook_stow_required_blocks_until_marked
 test_hook_stow_required_ignores_dead_or_foreign_session
+test_hook_stow_required_bounded_on_healthy_supervised_primary
 test_hook_supervision_block_wins_over_stow_required
 test_hook_away_daemon_allows_between_watcher_cycles
 test_hook_away_daemon_allows_over_dead_watcher_lock

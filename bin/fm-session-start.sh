@@ -884,7 +884,7 @@ print_standing_corrections() {
     [ -n "$file" ] && [ -f "$file" ] && [ ! -L "$file" ] || continue
     memory_entry_is_feedback "$file" || continue
     body=$(memory_entry_body "$file")
-    size=${#body}
+    size=$(printf '%s' "$body" | LC_ALL=C wc -c)
     if [ $((used + size)) -gt "$cap" ] && [ "$shown" -gt 0 ]; then
       skipped=$((skipped + 1))
       continue

@@ -3179,6 +3179,28 @@ EOF
   pass "--source compact bounds the corrections by the fixed byte cap and reports an absent memory directory"
 }
 
+test_compact_corrections_cap_counts_bytes() {
+  local rec root home fakebin memory out wide
+  rec=$(new_world compact-cap-bytes)
+  IFS='|' read -r root home fakebin <<EOF
+$rec
+EOF
+  make_fake_toolchain "$fakebin"
+  make_fake_ps_claude "$fakebin"
+  memory="$TMP_ROOT/compact-cap-bytes-memory"
+  mkdir -p "$memory"
+  wide=$(printf '\303\251%.0s' $(seq 6000))
+  write_memory_entry "$memory" older-wide feedback "$wide - an older multibyte correction past the byte cap."
+  touch -t 202501010000 "$memory/older-wide.md"
+  write_memory_entry "$memory" newest-wide feedback "$wide - the newest multibyte correction."
+  FM_FAKE_HARNESS_PID=$$ run_session_start "$home" "$root" "$fakebin:$BASE_PATH" >/dev/null
+  out=$(run_compact_session_start "$home" "$root" "$fakebin:$BASE_PATH" "$memory" LC_ALL=C.UTF-8)
+  assert_contains "$out" "the newest multibyte correction." "the newest multibyte entry prints"
+  assert_not_contains "$out" "an older multibyte correction past the byte cap." "two 12000-byte entries exceed the 16384-byte cap even at 6000 characters each"
+  assert_contains "$out" "truncated: 1 more feedback entry not shown (byte cap 16384); read them in $memory" "the cap counts bytes, not characters"
+  pass "--source compact measures the corrections cap in bytes for multibyte entries"
+}
+
 test_compact_devices_skip_in_read_only_session() {
   local rec root home fakebin memory out holder_pid
   rec=$(new_world compact-read-only)
@@ -3211,6 +3233,7 @@ EOF
 test_reemit_skips_startup_sweeps_but_keeps_the_wake_drain
 test_compact_prints_standing_corrections_and_stow_cadence
 test_compact_corrections_cap_and_absent_directory
+test_compact_corrections_cap_counts_bytes
 test_compact_devices_skip_in_read_only_session
 test_agents_baseline_stays_at_true_start_and_reemits_on_every_drifted_pi_compact
 test_read_only_pi_compact_refreshes_against_its_own_session_identity
