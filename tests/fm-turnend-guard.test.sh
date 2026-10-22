@@ -2474,6 +2474,7 @@ test_hook_stow_required_skips_read_only_session() {
   local dir out status owner
   dir=$(make_primary_dir "$TMP_ROOT/device-stow-read-only")
   mkdir -p "$TMP_ROOT/device-stow-read-only-bin"
+  # shellcheck disable=SC2016 # the fixture script expands $1 itself.
   printf '#!/bin/bash\nsleep "$1"\n:\n' > "$TMP_ROOT/device-stow-read-only-bin/claude"
   chmod +x "$TMP_ROOT/device-stow-read-only-bin/claude"
   "$TMP_ROOT/device-stow-read-only-bin/claude" 300 &
