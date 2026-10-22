@@ -2357,6 +2357,31 @@ test_hook_filtered_drain_never_blocks_without_readable_transcript() {
   pass "fm-turnend-guard --claude: the filtered-drain device stands down without a readable transcript"
 }
 
+append_assistant_text() {  # <path> <prefix> <count>
+  local i
+  for ((i = 1; i <= $3; i++)); do
+    printf '{"type":"assistant","uuid":"%s-%s","message":{"role":"assistant","content":[{"type":"text","text":"working"}]}}\n' "$2" "$i"
+  done >> "$1"
+}
+
+test_hook_filtered_drain_long_turn_blocks_once() {
+  local dir out status transcript
+  dir=$(make_primary_dir "$TMP_ROOT/device-long-turn")
+  transcript="$TMP_ROOT/device-long-turn.jsonl"
+  printf '{"type":"user","uuid":"turn-1","message":{"role":"user","content":"handle the wakes"}}\n' > "$transcript"
+  append_assistant_text "$transcript" pad 3100
+  jq -cn '{type:"assistant",uuid:"a1",message:{role:"assistant",content:[{type:"tool_use",id:"t",name:"Bash",input:{command:"bin/fm-wake-drain.sh | tail -5"}}]}}' >> "$transcript"
+  printf '{"type":"user","uuid":"r1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":"ok"}]}}\n' >> "$transcript"
+  out=$(run_hook_claude_transcript "$dir" "$transcript"); status=$?
+  expect_code 2 "$status" "a filtered drain read in a turn longer than the transcript window must block"
+  assert_contains "$(cat "$dir/state/.turnend-filtered-drain")" "turn=window:" "the fixture must exercise the window turn id"
+  append_assistant_text "$transcript" more 50
+  out=$(run_hook_claude_transcript "$dir" "$transcript"); status=$?
+  expect_code 0 "$status" "the shifted window id of the same long turn must not re-block"
+  assert_not_contains "$out" "WAKE DRAIN OUTPUT WAS FILTERED" "no second block in a long turn"
+  pass "fm-turnend-guard --claude: a filtered drain read in a turn longer than the transcript window blocks only once"
+}
+
 test_hook_filtered_drain_respects_block_budget() {
   local dir out status transcript
   dir=$(make_primary_dir "$TMP_ROOT/device-budget")
@@ -2445,6 +2470,27 @@ test_hook_stow_required_bounded_on_healthy_supervised_primary() {
   pass "fm-turnend-guard --claude: the stow device on a healthy supervised primary blocks at most the block budget, then allows"
 }
 
+test_hook_stow_required_skips_read_only_session() {
+  local dir out status owner
+  dir=$(make_primary_dir "$TMP_ROOT/device-stow-read-only")
+  mkdir -p "$TMP_ROOT/device-stow-read-only-bin"
+  printf '#!/bin/bash\nsleep "$1"\n:\n' > "$TMP_ROOT/device-stow-read-only-bin/claude"
+  chmod +x "$TMP_ROOT/device-stow-read-only-bin/claude"
+  "$TMP_ROOT/device-stow-read-only-bin/claude" 300 &
+  owner=$!
+  printf '%s\n' "$owner" > "$dir/state/.lock"
+  printf 'owner-session\n' > "$dir/state/.lock-session"
+  printf 'pid=%s\nsession=owner-session\ncount=2\nat=1\n' "$owner" > "$dir/state/.stow-required"
+  [ "$(ps -o comm= -p "$owner")" = claude ] || fail "the fixture lock owner must read as a live claude process"
+  out=$(run_hook_claude "$dir" false); status=$?
+  kill "$owner" 2>/dev/null || true
+  wait "$owner" 2>/dev/null || true
+  expect_code 0 "$status" "a read-only session beside a live foreign lock owner must not be blocked for the owner's stow pass"
+  assert_not_contains "$out" "STOW PASS REQUIRED" "no stow banner in a read-only session"
+  [ ! -e "$dir/state/.turnend-claude-blocks" ] || fail "a read-only session must not charge the block budget"
+  pass "fm-turnend-guard --claude: the stow device never blocks a read-only session beside a live foreign lock owner"
+}
+
 test_hook_supervision_block_wins_over_stow_required() {
   local dir out status
   dir=$(make_primary_dir "$TMP_ROOT/device-stow-vs-supervision")
@@ -2467,10 +2513,12 @@ test_hook_supervision_block_wins_over_stow_required() {
 test_hook_filtered_drain_blocks_once_then_allows_retry
 test_hook_filtered_drain_cleared_by_later_unfiltered_read
 test_hook_filtered_drain_never_blocks_without_readable_transcript
+test_hook_filtered_drain_long_turn_blocks_once
 test_hook_filtered_drain_respects_block_budget
 test_hook_stow_required_blocks_until_marked
 test_hook_stow_required_ignores_dead_or_foreign_session
 test_hook_stow_required_bounded_on_healthy_supervised_primary
+test_hook_stow_required_skips_read_only_session
 test_hook_supervision_block_wins_over_stow_required
 test_hook_away_daemon_allows_between_watcher_cycles
 test_hook_away_daemon_allows_over_dead_watcher_lock
