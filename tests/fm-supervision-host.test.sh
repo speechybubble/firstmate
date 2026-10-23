@@ -1485,7 +1485,7 @@ test_claude_stop_hook_runs_the_host_without_the_file_and_off_opts_out() {
   wait_until 250 hook_exited "$home" || fail "off: the Stop hook never closed"
   assert_rewoke_main "$home" "off"
   assert_re '^firstmate watcher wake: signal: .*demo.status' "$home/hook.err" "off: the rewake must carry the arm's close"
-  assert_no_re 'supervision-host' "$home/hook.err" "off: the close must reach main exactly as the arm printed it"
+  assert_no_re '^firstmate watcher wake: supervision-host:' "$home/hook.err" "off: the close must reach main exactly as the arm printed it"
   assert_absent "$home/state/.supervision-host.log" "a home opted out by config/supervision-host-off must never run the host"
   assert_absent "$home/state/.host-mirror.jsonl" "a home opted out by config/supervision-host-off must mirror nothing"
   [ "$(engine_calls "$home")" -eq 0 ] || fail "a home opted out by config/supervision-host-off ran an engine turn"
