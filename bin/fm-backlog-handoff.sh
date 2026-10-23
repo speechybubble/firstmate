@@ -76,7 +76,14 @@
 # or undeletable stale marker is reported and ignored by later resumes and
 # handoffs, so wake-state cleanup neither suppresses a new wake nor fails a
 # completed remote handoff.
-# Usage: fm-backlog-handoff.sh <secondmate-id> <item-key>...
+# The receiver wake names the routed item keys and carries the caller's optional
+# --note verbatim on its own line, so one marked message tells the mate what
+# landed and what firstmate wants done with it; a second steer after the handoff
+# only costs the mate a second reply and main a second wake. The mate's reply
+# returns on <state>/<id>.status with the correlation printed at the end, so no
+# caller needs to wait inline for it. A --resume-pending wake has no keys at
+# hand and keeps the generic text.
+# Usage: fm-backlog-handoff.sh <secondmate-id> <item-key>... [--note <text>]
 #        fm-backlog-handoff.sh --resume-pending
 set -eu
 
@@ -99,6 +106,21 @@ MAIN_BACKLOG="$DATA/backlog.md"
 . "$SCRIPT_DIR/fm-pending-reply-lib.sh"
 
 RECEIVER_WAKE_MESSAGE='New routed work is in your backlog. Run bin/fm-session-start.sh now, then act on the routed task.'
+HANDOFF_NOTE=
+
+# The receiver wake text for one routed batch: the generic instruction naming
+# the item keys, then the caller's note on its own line when one was given.
+receiver_wake_message() { # <item-key>...
+  local keys="$*" text
+  if [ -n "$keys" ]; then
+    text="New routed work is in your backlog: $keys. Run bin/fm-session-start.sh now, then act on the routed task."
+  else
+    text=$RECEIVER_WAKE_MESSAGE
+  fi
+  [ -z "$HANDOFF_NOTE" ] || text="$text
+$HANDOFF_NOTE"
+  printf '%s' "$text"
+}
 
 ACTIVE_HANDOFF_LOCK=
 ACTIVE_REGISTRY_LOCK=
@@ -131,7 +153,7 @@ if [ "${1:-}" = --resume-pending ]; then
   shift
 else
   [ "$#" -ge 2 ] || {
-    echo "usage: fm-backlog-handoff.sh <secondmate-id> <item-key>..." >&2
+    echo "usage: fm-backlog-handoff.sh <secondmate-id> <item-key>... [--note <text>]" >&2
     exit 1
   }
   ID=$1
@@ -141,6 +163,37 @@ else
     ;;
   esac
   shift
+  KEY_ARGS=()
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --note)
+      [ "$#" -ge 2 ] && [ -n "$(printf '%s' "$2" | tr -d '[:space:]')" ] || {
+        echo "error: --note needs a nonempty text" >&2
+        exit 1
+      }
+      HANDOFF_NOTE=$2
+      shift 2
+      ;;
+    --note=*)
+      HANDOFF_NOTE=${1#--note=}
+      [ -n "$(printf '%s' "$HANDOFF_NOTE" | tr -d '[:space:]')" ] || {
+        echo "error: --note needs a nonempty text" >&2
+        exit 1
+      }
+      shift
+      ;;
+    *)
+      KEY_ARGS+=("$1")
+      shift
+      ;;
+    esac
+  done
+  [ "${#KEY_ARGS[@]}" -ge 1 ] || {
+    echo "usage: fm-backlog-handoff.sh <secondmate-id> <item-key>... [--note <text>]" >&2
+    exit 1
+  }
+  set -- "${KEY_ARGS[@]}"
+  RECEIVER_WAKE_MESSAGE=$(receiver_wake_message "$@")
 fi
 
 secondmate_home() {
@@ -607,6 +660,7 @@ wake_pending_secondmate_receiver() { # <secondmate-id> [retain-confirmed]
     }
     wake_secondmate_receiver "$id" "$corr" || return 1
   fi
+  printf '  receiver reply returns on %s as corr=%s; no inline wait is needed\n' "$STATE/$id.status" "$corr"
   if [ "$retain" = 1 ]; then
     receiver_wake_state_write "$id" "confirmed:$corr" || {
       printf 'error: receiver wake for secondmate %s was confirmed, but confirmed state could not be recorded\n' "$id" >&2

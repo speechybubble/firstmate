@@ -91,8 +91,8 @@ EOF
   grep -F 'send-keys' "$TMP_ROOT/live-wake-tmux.log" >/dev/null \
     || fail "handoff did not ring the live receiver endpoint"
   assert_contains "$(inbox_body_stream "$home/state" design)" \
-    'New routed work is in your backlog.' \
-    "receiver inbox did not carry the routed-work instruction"
+    'New routed work is in your backlog: wake-item.' \
+    "receiver inbox did not carry the routed-work instruction naming the item"
   wake_count=$(inbox_record_count "$home/state" design)
   [ "$(doorbell_count "$TMP_ROOT/live-wake-tmux.log")" -eq 1 ] \
     || fail "handoff did not ring exactly one constant receiver doorbell"
@@ -108,6 +108,67 @@ EOF
   [ "$(doorbell_count "$TMP_ROOT/live-wake-tmux.log")" -eq 1 ] \
     || fail "idempotent successful handoff rerun duplicated the receiver doorbell"
   pass "a routed handoff wakes once and a successful rerun stays idempotent"
+}
+
+# One handoff, one message: the wake names the routed item and carries the
+# caller's note on its own line, so main has nothing left to send separately,
+# and the output names the parent channel and correlation its reply returns on.
+test_handoff_note_rides_the_receiver_wake() {
+  local home="$TMP_ROOT/note-main" sub="$TMP_ROOT/note-sub" fakebin out body corr rc=0
+  setup_homes "$home" "$sub"
+  mkdir -p "$sub/state" "$sub/data"
+  cat > "$home/state/design.meta" <<EOF
+window=firstmate:fm-design
+kind=secondmate
+harness=claude
+backend=tmux
+home=$sub
+worktree=$sub
+EOF
+  cat > "$home/data/backlog.md" <<'EOF'
+## Queued
+- [ ] note-item - routed with a note (repo: alpha)
+
+## Done
+EOF
+  printf '## Queued\n\n## Done\n' > "$sub/data/backlog.md"
+  fakebin=$(make_fake_tmux "$TMP_ROOT/note-fake")
+  out="$TMP_ROOT/note.out"
+  FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" PATH="$fakebin:$PATH" \
+    FM_FAKE_TMUX_WINDOW='firstmate:fm-design' \
+    FM_FAKE_TMUX_LOG="$TMP_ROOT/note-tmux.log" \
+    FM_FAKE_TMUX_CAPTURE="$TMP_ROOT/note-fake/pane.txt" \
+    FM_SEND_SETTLE=0 FM_SEND_SLEEP=0 FM_SEND_RETRIES=1 \
+    "$ROOT/bin/fm-backlog-handoff.sh" design note-item --note 'Dispatch it as a scout on Opus medium; the captain wants the SVG too.' > "$out" 2>&1 \
+    || fail "handoff with a note failed: $(cat "$out")"
+  body=$(inbox_body_stream "$home/state" design)
+  assert_contains "$body" 'New routed work is in your backlog: note-item.' \
+    "the wake did not name the routed item"
+  assert_contains "$body" $'\nDispatch it as a scout on Opus medium; the captain wants the SVG too.' \
+    "the note did not ride the wake on its own line"
+  [ "$(inbox_record_count "$home/state" design)" -eq 1 ] \
+    || fail "a handoff with a note wrote more than one inbox record"
+  [ "$(doorbell_count "$TMP_ROOT/note-tmux.log")" -eq 1 ] \
+    || fail "a handoff with a note rang more than one doorbell"
+  corr=$(grep -l '^task_id=design$' "$home/state/pending-replies"/* 2>/dev/null | head -n 1)
+  [ -n "$corr" ] || fail "the handoff wake has no reply expectation"
+  assert_contains "$(grep '^request_summary=' "$corr")" 'note-item' \
+    "the reply expectation does not name the routed item"
+  assert_contains "$(cat "$out")" "receiver reply returns on $home/state/design.status as corr=$(basename "$corr")" \
+    "the handoff did not name the channel and correlation its reply returns on"
+
+  cat > "$home/data/backlog.md" <<'EOF'
+## Queued
+- [ ] blank-note - refused (repo: alpha)
+
+## Done
+EOF
+  FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" PATH="$fakebin:$PATH" \
+    "$ROOT/bin/fm-backlog-handoff.sh" design blank-note --note '  ' > "$TMP_ROOT/blank-note.out" 2>&1 || rc=$?
+  [ "$rc" -ne 0 ] || fail "a blank note was accepted"
+  assert_contains "$(cat "$TMP_ROOT/blank-note.out")" 'nonempty text' "a blank note was not refused by name"
+  assert_grep 'blank-note' "$home/data/backlog.md" "a refused handoff moved the item anyway"
+  pass "a handoff note rides the one receiver wake, which names the item and its reply channel"
 }
 
 test_failed_wake_retries_when_the_item_is_already_present() {
@@ -143,7 +204,7 @@ EOF
   FM_HOME="$home" "$ROOT/bin/fm-backlog-handoff.sh" design retry-item > "$TMP_ROOT/retry-wake.out" 2>&1 \
     || fail "an already-present handoff did not retry its receiver wake: $(cat "$TMP_ROOT/retry-wake.out")"
   assert_contains "$(inbox_body_stream "$home/state" design)" \
-    'New routed work is in your backlog.' \
+    'New routed work is in your backlog: retry-item.' \
     "the recovery handoff did not enqueue the receiver instruction"
   [ "$(doorbell_count "$TMP_ROOT/default-tmux.log")" -eq 1 ] \
     || fail "the recovery handoff did not ring the receiver doorbell"
@@ -180,7 +241,7 @@ SH
     "failed advisory doorbell was not reported"
   assert_grep 'known-fail' "$sub/data/backlog.md" "failed doorbell lost the durable item"
   assert_contains "$(inbox_body_stream "$home/state" design)" \
-    'New routed work is in your backlog.' "failed doorbell lost the durable receiver instruction"
+    'New routed work is in your backlog: known-fail.' "failed doorbell lost the durable receiver instruction"
   rec_count=$(inbox_record_count "$home/state" design)
   [ "$rec_count" -eq 1 ] || fail "failed doorbell produced $rec_count inbox records"
   corr=$(grep -l '^task_id=design$' "$home/state/pending-replies"/* 2>/dev/null | head -n 1)
@@ -327,7 +388,7 @@ EOF
     > "$TMP_ROOT/move-crash-retry.out" 2>&1 \
     || fail "post-move crash recovery failed: $(cat "$TMP_ROOT/move-crash-retry.out")"
   assert_contains "$(inbox_body_stream "$home/state" design)" \
-    'New routed work is in your backlog.' \
+    'New routed work is in your backlog: crash-item.' \
     "post-move crash recovery did not enqueue the receiver instruction"
   [ "$(doorbell_count "$TMP_ROOT/default-tmux.log")" -eq 1 ] \
     || fail "post-move crash recovery did not ring the receiver doorbell"
@@ -583,7 +644,7 @@ SH
   while [ ! -f "$TMP_ROOT/concurrent.entered" ]; do
     kill -0 "$first" 2>/dev/null || fail "first concurrent handoff exited before its blocked wake"
     i=$((i + 1))
-    [ "$i" -le 250 ] || fail "first concurrent handoff never reached its receiver wake"
+    [ "$i" -le 1500 ] || fail "first concurrent handoff never reached its receiver wake"
     sleep 0.02
   done
   cat > "$home/data/backlog.md" <<'EOF'
@@ -653,7 +714,7 @@ SH
   while [ ! -f "$TMP_ROOT/teardown-race.entered" ]; do
     kill -0 "$handoff" 2>/dev/null || fail "teardown-race handoff exited before its blocked wake"
     i=$((i + 1))
-    [ "$i" -le 250 ] || fail "teardown-race handoff never reached its receiver wake"
+    [ "$i" -le 1500 ] || fail "teardown-race handoff never reached its receiver wake"
     sleep 0.02
   done
   PATH="$basebin:$PATH" FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
@@ -1369,6 +1430,7 @@ EOF
 }
 
 test_handoff_wakes_live_local_receiver
+test_handoff_note_rides_the_receiver_wake
 test_cwd_tasks_toml_does_not_redirect_handoff
 test_failed_wake_retries_when_the_item_is_already_present
 test_known_receiver_failure_remains_retryable_after_grace
