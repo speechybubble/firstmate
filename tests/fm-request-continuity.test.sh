@@ -9,27 +9,32 @@
 # JSONL in the shape Claude Code writes. Cases:
 #   1. A session that does not own the home records and blocks nothing.
 #   2. Chat from before activation is never reinterpreted as new input.
-#   3. An omitted request blocks the stop exactly once, stays visible to later
-#      context, and Firstmate's own doorbell input is not captain input, even
-#      after its record is pruned.
+#   3. An omitted request blocks the stop exactly once with a one-line reason
+#      naming the ids and `list`, stays visible to later context, and
+#      Firstmate's own doorbell input is not captain input, even after its
+#      record is pruned.
 #   3b. A steering-inbox doorbell built for this session's own $FM_TASK_INBOX is
 #      not captain input; one naming another inbox, quoted inside captain
 #      text, or reaching a session without that export still blocks.
 #   4. `recorded` requires a readable existing task; `reply` stays provisional
 #      until a normal nonempty reply, narration before a tool call is not that
 #      reply, and interruption or a later captain message invalidates it.
-#   4b. When a reply already followed the input, the stop block says so and
+#   4b. When a reply already followed the input, the listing says so and
 #      asks only for the disposition, which completes without another reply;
 #      input that no reply followed keeps the original reply-then-answer
 #      prompt and its provisional stage.
 #      An answered label keeps an answer-now path for a reply that missed the
-#      message, and only the stop block says to end the turn.
+#      message, and the disposition confirmation never says to end the turn.
 #   5. Compaction keeps unresolved input restorable from the full transcript;
 #      a slash skill invocation is captain input, while a command Claude Code
 #      answers locally, its output, and a shell-mode echo are not.
 #   6. A staged outcome acknowledgement commits only after a turn-ending reply,
 #      not narration before a tool call; an intervening captain message,
 #      interruption or Firstmate input invalidates it, and replay is idempotent.
+#   7. The Stop block reason is one line under 160 characters however many
+#      inputs are unresolved, and the `list` command it names prints every
+#      input with the reconciliation instructions the reason leaves out, which
+#      the context hook still carries in full.
 # shellcheck disable=SC2016 # the fake harness's child shell expands FM_HOME.
 set -u
 
@@ -166,6 +171,7 @@ test_omission_recovers_once_and_stays_visible() {
   printf '%s' "$out" | jq -e '.decision == "block"' >/dev/null || fail "the omitted request did not block the stop: $out"
   case "$out" in *u-a*u-b*) ;; *) fail "the reconciliation did not list both unresolved inputs: $out" ;; esac
   case "$out" in *u-op*) fail "Firstmate's own doorbell input was treated as captain input: $out" ;; esac
+  assert_one_line_reason "$(printf '%s' "$out" | jq -r '.reason')"
   # Records are pruned after their retention; the doorbell stays Firstmate's.
   rm -f "$home/state/operational-inbox/"*.msg
   out=$(context_hook "$home" UserPromptSubmit)
@@ -239,19 +245,19 @@ test_dispositions_are_verified_and_reply_is_provisional() {
   case "$out" in *"already staged"*) ;; *) fail "a repeated reply stage was not idempotent: $out" ;; esac
   out=$(as_owner "$home" list)
   case "$out" in *u-a*) fail "a recorded request stayed unresolved: $out" ;; esac
-  case "$out" in *"[u-b] (reply staged)"*) ;; *) fail "the staged reply was not shown as provisional: $out" ;; esac
+  case "$out" in *"[u-b] REPLY ALREADY STAGED"*) ;; *) fail "the staged reply was not shown as provisional: $out" ;; esac
   as_owner "$home" dispose u-c reply --summary "will draft now" >/dev/null || fail "second reply stage refused"
   # Narration before a tool call is not the reply, and interruption then
   # invalidates the stage, so the later answer cannot clear u-c.
   narrate "$home" "Counting the workers now."
   tool_turn "$home"
   out=$(as_owner "$home" list)
-  case "$out" in *"[u-c] (reply staged)"*) ;; *) fail "narration before a tool call delivered a staged reply: $out" ;; esac
+  case "$out" in *"[u-c] REPLY ALREADY STAGED"*) ;; *) fail "narration before a tool call delivered a staged reply: $out" ;; esac
   interrupt "$home" u-int
   reply "$home" "Three workers are running."
   out=$(as_owner "$home" list)
   case "$out" in *u-c*) ;; *) fail "an interrupted reply stage was completed by a later answer: $out" ;; esac
-  case "$out" in *"(reply staged)"*) fail "interruption did not invalidate the staged replies: $out" ;; esac
+  case "$out" in *"REPLY ALREADY STAGED"*) fail "interruption did not invalidate the staged replies: $out" ;; esac
   case "$out" in *u-b*) ;; *) fail "the interrupted stage for u-b was cleared by a later answer: $out" ;; esac
   case "$out" in *u-int*) fail "the harness interruption marker was treated as captain input: $out" ;; esac
   tool_turn "$home"
@@ -265,7 +271,9 @@ test_dispositions_are_verified_and_reply_is_provisional() {
 }
 
 # The 17 October shape: the reply reached the captain before the stop hook
-# found the input undisposed, and the old block text asked for a second answer.
+# found the input undisposed, and the old text asked for a second answer. The
+# Stop reason names the ids and `list`; the markers and the prompt live in
+# the listing.
 test_reply_already_given_needs_no_second_answer() {
   local home="$TMP_ROOT/answered" out
   make_home "$home"
@@ -279,10 +287,13 @@ test_reply_already_given_needs_no_second_answer() {
   out=$(stop_hook "$home")
   printf '%s' "$out" | jq -e '.decision == "block"' >/dev/null || fail "answered but undisposed input did not block the stop: $out"
   out=$(printf '%s' "$out" | jq -r '.reason')
+  assert_one_line_reason "$out"
+  case "$out" in *u-a*u-b*) ;; *) fail "the reason did not name both answered inputs: $out" ;; esac
+  out=$(as_owner "$home" list)
   assert_contains "$out" "[u-a] ALREADY ANSWERED" "input a reply followed must be marked answered"
   assert_contains "$out" "[u-b] ALREADY ANSWERED" "input queued mid-turn and then answered must be marked answered"
-  assert_contains "$out" "end the turn with no further text" "the block must say the given reply stands"
-  case "$out" in *"give the substantive answer"*) fail "the block asked for a second answer after the reply: $out" ;; esac
+  assert_contains "$out" "the earlier reply stands and needs no repeat." "the listing must say the given reply stands"
+  case "$out" in *"give the substantive answer"*) fail "the listing asked for a second answer after the reply: $out" ;; esac
   out=$(as_owner "$home" dispose u-a reply --summary "answered the Multica change")
   assert_contains "$out" "already given" "the disposition must confirm the given reply stands"
   as_owner "$home" dispose u-b reply --summary "listed the six decisions" >/dev/null || fail "the second answered disposition was refused"
@@ -294,29 +305,32 @@ test_reply_already_given_needs_no_second_answer() {
   tool_turn "$home"
   say "$home" u-d "Also, what is 7 times 6?"
   reply "$home" "42."
-  out=$(stop_hook "$home" | jq -r '.reason')
+  stop_hook "$home" >/dev/null
+  out=$(as_owner "$home" list)
   assert_contains "$out" "[u-c] ALREADY ANSWERED" "the reply after u-d also followed u-c"
   say "$home" u-e "Rotate the staging key."
   narrate "$home" "Rotating it now."
   tool_turn "$home"
   out=$(stop_hook "$home" | jq -r '.reason')
+  assert_one_line_reason "$out"
+  case "$out" in *u-e*) ;; *) fail "the reason did not name the new unanswered input: $out" ;; esac
+  out=$(as_owner "$home" list)
   assert_contains "$out" "once, then give the substantive answer." "input with no following reply must keep the original prompt"
   assert_contains "$out" "the earlier reply stands and needs no repeat." "the earlier answered input must keep its marker"
-  case "$out" in *"end the turn"*) fail "the block told Firstmate to end the turn while unanswered input is listed: $out" ;; esac
   case "$out" in *"[u-e] ALREADY"*) fail "narration before a tool call counted as a reply: $out" ;; esac
   out=$(as_owner "$home" dispose u-e reply --summary "will confirm the rotation")
   assert_contains "$out" "reply staged for u-e" "input with no following reply must stage its reply disposition"
   out=$(as_owner "$home" list)
-  case "$out" in *"[u-e] (reply staged)"*) ;; *) fail "the unanswered disposition did not stay provisional: $out" ;; esac
+  case "$out" in *"[u-e] REPLY ALREADY STAGED"*) ;; *) fail "the unanswered disposition did not stay provisional: $out" ;; esac
   reply "$home" "The staging key is rotated."
   out=$(as_owner "$home" list)
   case "$out" in *u-e*) fail "a staged reply followed by a reply stayed unresolved: $out" ;; esac
-  pass "a reply already given makes the block ask only for the disposition, which completes at once, while input no reply followed keeps the reply-then-answer prompt"
+  pass "a reply already given makes the listing ask only for the disposition, which completes at once, while input no reply followed keeps the reply-then-answer prompt"
 }
 
 # A mid-turn question the final reply ignored is still labelled answered, so
-# the block keeps the answer-now path, and only the stop block says to end the
-# turn; the next prompt's context and the disposition confirmation do not.
+# the listing and the next prompt's context keep the answer-now path, and the
+# disposition confirmation never says to end the turn.
 test_ignored_mid_turn_question_keeps_answer_path() {
   local home="$TMP_ROOT/ignored" out
   make_home "$home"
@@ -327,10 +341,11 @@ test_ignored_mid_turn_question_keeps_answer_path() {
   say "$home" u-b "What's the ETA?"
   reply "$home" "The release notes cover the new sync engine."
   out=$(stop_hook "$home" | jq -r '.reason')
+  assert_one_line_reason "$out"
+  out=$(as_owner "$home" list)
   assert_contains "$out" "[u-b] ALREADY ANSWERED" "the ignored mid-turn question carries the answered label"
   assert_contains "$out" "If that reply did not actually address an ALREADY ANSWERED message, answer it now and then dispose it." \
-    "the block must keep the answer-now path for an answered-labelled input"
-  assert_contains "$out" "end the turn with no further text" "the stop block says the given reply stands"
+    "the listing must keep the answer-now path for an answered-labelled input"
   say "$home" u-c "Now tag the release."
   out=$(context_hook "$home" UserPromptSubmit | jq -r '.hookSpecificOutput.additionalContext')
   assert_contains "$out" "[u-a] ALREADY ANSWERED" "the next prompt's context still lists the answered input"
@@ -340,7 +355,57 @@ test_ignored_mid_turn_question_keeps_answer_path() {
   out=$(as_owner "$home" dispose u-a reply --summary "summarised the notes")
   assert_contains "$out" "needs no repeat" "the disposition confirms the given reply stands"
   case "$out" in *"end the turn"*) fail "the disposition confirmation told Firstmate to end the turn: $out" ;; esac
-  pass "an ignored mid-turn question keeps the answer-now path, and only the stop block says to end the turn"
+  pass "an ignored mid-turn question keeps the answer-now path, and nothing tells Firstmate to end the turn"
+}
+
+# Claude Code shows a blocking Stop reason to the captain, so it must be one
+# line under 160 characters that names the command printing the full text.
+assert_one_line_reason() {  # <reason>
+  case "$1" in *$'\n'*) fail "the Stop reason is not one line: $1" ;; esac
+  [ "${#1}" -lt 160 ] || fail "the Stop reason is ${#1} characters, not under 160: $1"
+  case "$1" in *"run bin/fm-request-continuity.sh list"*) ;; *) fail "the Stop reason does not name the command that prints the instructions: $1" ;; esac
+  case "$1" in *"Reconcile every intent"*|*"A disposition does not establish"*) fail "the Stop reason carries the reconciliation text: $1" ;; esac
+}
+
+test_stop_reason_is_one_bounded_line_and_list_prints_the_rest() {
+  local home="$TMP_ROOT/bounded" out reason i id shown
+  make_home "$home"
+  : > "$home/transcript.jsonl"
+  stop_hook "$home" >/dev/null
+  # Twelve inputs with ids the length of Claude's transcript uuids.
+  for i in 01 02 03 04 05 06 07 08 09 10 11 12; do
+    say "$home" "0000000$i-aaaa-bbbb-cccc-dddddddddddd" "Request number $i."
+  done
+  out=$(stop_hook "$home")
+  printf '%s' "$out" | jq -e '.decision == "block"' >/dev/null || fail "twelve unresolved inputs did not block the stop: $out"
+  reason=$(printf '%s' "$out" | jq -r '.reason')
+  assert_one_line_reason "$reason"
+  assert_contains "$reason" "00000001-aaaa-bbbb-cccc-dddddddddddd" "the reason must carry the first unresolved id"
+  shown=$(printf '%s' "$reason" | grep -o 'aaaa-bbbb-cccc-dddddddddddd' | wc -l | tr -d ' ')
+  [ "$shown" -ge 1 ] && [ "$shown" -lt 12 ] || fail "the reason must carry the ids that fit, got $shown: $reason"
+  assert_contains "$reason" "(+$((12 - shown)) more)" "the reason must count the ids it leaves out"
+  out=$(as_owner "$home" list)
+  for i in 01 02 03 04 05 06 07 08 09 10 11 12; do
+    assert_contains "$out" "[0000000$i-aaaa-bbbb-cccc-dddddddddddd] Request number $i." "the listing must print every input in full"
+  done
+  assert_contains "$out" "Reconcile every intent in these messages against later corrections, cancellations, priorities and existing records." \
+    "the listing must print the reconciliation instructions the reason points at"
+  assert_contains "$out" "A disposition does not establish task execution, completion or semantic correctness." "the listing must end with the disposition caveat"
+  case "$out" in *"further messages remain"*) fail "the listing truncated the inputs: $out" ;; esac
+  out=$(context_hook "$home" UserPromptSubmit | jq -r '.hookSpecificOutput.additionalContext')
+  assert_contains "$out" "4 further messages remain; list them with bin/fm-request-continuity.sh list." "the context keeps its bounded preview"
+  assert_contains "$out" "Reconcile every intent in these messages" "the context keeps the full instructions"
+  # A single id leaves room for it; the bound still holds.
+  home="$TMP_ROOT/bounded-one"
+  make_home "$home"
+  : > "$home/transcript.jsonl"
+  stop_hook "$home" >/dev/null
+  id="deadbeef-aaaa-bbbb-cccc-dddddddddddd"
+  say "$home" "$id" "One request."
+  reason=$(stop_hook "$home" | jq -r '.reason')
+  assert_one_line_reason "$reason"
+  assert_equals "$reason" "Unreconciled captain input $id: run bin/fm-request-continuity.sh list" "a single id is named outright"
+  pass "the Stop reason is one bounded line naming the ids that fit and the list command, which prints every input with the full instructions"
 }
 
 test_compaction_keeps_input_restorable() {
@@ -421,6 +486,7 @@ test_steering_doorbell_is_not_captain_input
 test_dispositions_are_verified_and_reply_is_provisional
 test_reply_already_given_needs_no_second_answer
 test_ignored_mid_turn_question_keeps_answer_path
+test_stop_reason_is_one_bounded_line_and_list_prints_the_rest
 test_compaction_keeps_input_restorable
 test_outcome_ack_commits_only_after_reply
 printf 'all fm-request-continuity tests passed\n'

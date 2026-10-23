@@ -1297,7 +1297,8 @@ main_drain() {  # <home>; prints the drain and sets MAIN_ACK
 
 assert_rewoke_main() {  # <home> <label>
   expect_code 2 "$(cat "$1/hook.rc")" "$2: the Stop hook must rewake main: $(cat "$1/hook.err"; cat "$1/state/.watcher-down" 2>/dev/null)"
-  assert_grep 'firstmate watcher wake - one supervision event needs a handling turn now.' "$1/hook.err" "$2: the rewake banner is missing"
+  assert_grep '^firstmate watcher wake' "$1/hook.err" "$2: the rewake banner is missing"
+  [ "$(grep -c . "$1/hook.err")" -eq 1 ] || fail "$2: the rewake banner is not one line: $(cat "$1/hook.err")"
   assert_re '^epoch=[0-9]+ owner_pid=[0-9]+ outcome=rewake ' "$1/state/.claude-autoarm-epoch" "$2: the auto-arm ledger must record the rewake"
 }
 
@@ -1315,7 +1316,7 @@ test_claude_stop_hook_delivers_a_main_only_pass_through() {
   wait_until 250 hook_exited "$home" || fail "hook main-only: the Stop hook never closed: $(cat "$home/state/.supervision-host.log")"
   assert_re '	pass-through	attended	main-only	signal:' "$home/state/.supervision-host.log" "fixture: the close was not a main-only pass-through"
   assert_rewoke_main "$home" "hook main-only"
-  assert_re '^signal: .*demo.status' "$home/hook.err" "the rewake must carry the close"
+  assert_re '^firstmate watcher wake: signal: .*demo.status' "$home/hook.err" "the rewake must carry the close"
   watcher_live "$home" || fail "hook main-only: the pass-through left no successor watcher"
   pass "host+hook: an attended main-only pass-through rewakes main and keeps its successor watcher"
 }
@@ -1332,7 +1333,7 @@ test_claude_stop_hook_restores_handoff_when_successor_closed_before_exit_to_main
   wait_until 150 watcher_live "$home" || fail "closed successor: the Stop hook never started a watcher cycle"
   append_status "$home" 'first actionable wake'
   wait_until 600 hook_exited "$home" || fail "closed successor: the Stop hook did not finish: $(cat "$home/state/.supervision-host.log")"
-  assert_re '^supervision-host: branch-outcome: ' "$home/hook.err" "the host must hand its captain outcome to main"
+  assert_re '^firstmate watcher wake: supervision-host: branch-outcome: ' "$home/hook.err" "the host must hand its captain outcome to main"
   expect_code 2 "$(cat "$home/hook.rc")" "the Stop hook must rewake main after the successor closed"
   assert_re '^(pending|announced):downtime:' "$home/state/.watcher-down" \
     "the closed handling successor must leave a deliverable downtime episode"
@@ -1414,7 +1415,7 @@ test_claude_stop_hook_restores_handoff_when_successor_closed_mid_engine_turn() {
     "fixture: the closed handling successor must leave the marker in handling before the host hands back"
   printf 'continue\n' > "$home/stub-release"
   wait_until 600 hook_exited "$home" || fail "closed successor: the Stop hook did not finish: $(cat "$home/state/.supervision-host.log")"
-  assert_re '^supervision-host: branch-outcome: ' "$home/hook.err" "the host must hand its captain outcome to main"
+  assert_re '^firstmate watcher wake: supervision-host: branch-outcome: ' "$home/hook.err" "the host must hand its captain outcome to main"
   expect_code 2 "$(cat "$home/hook.rc")" "the Stop hook must rewake main after the successor closed"
   assert_re '^epoch=[0-9]+ owner_pid=[0-9]+ outcome=rewake ' "$home/state/.claude-autoarm-epoch" \
     "the hand-back must commit the rewake"
@@ -1441,7 +1442,7 @@ test_claude_stop_hook_rewakes_a_present_captain_beside_a_quiet_record() {
   wait_until 250 hook_exited "$home" || fail "hook quiet: the Stop hook never closed: $(cat "$home/state/.supervision-host.log")"
   assert_re '	handled	turn=[^	]*	posture=attended	' "$home/state/.supervision-host.log" "a quiet record must leave the host's turn attended"
   assert_rewoke_main "$home" "hook quiet"
-  assert_re '^supervision-host: branch-outcome: ' "$home/hook.err" "the rewake must carry the captain outcome"
+  assert_re '^firstmate watcher wake: supervision-host: branch-outcome: ' "$home/hook.err" "the rewake must carry the captain outcome"
   assert_no_grep 'not a return' "$home/hook.err" "a present captain's rewake must not call itself away-posture supervision"
   drained=$(main_drain "$home")
   assert_contains "$drained" " ago] demo: stub escalated: " "main's drain must present the captain outcome beside a quiet record"
@@ -1483,8 +1484,8 @@ test_claude_stop_hook_runs_the_host_without_the_file_and_off_opts_out() {
   append_status "$home" 'step one'
   wait_until 250 hook_exited "$home" || fail "off: the Stop hook never closed"
   assert_rewoke_main "$home" "off"
-  assert_re '^signal: .*demo.status' "$home/hook.err" "off: the rewake must carry the arm's close"
-  assert_no_re '^supervision-host' "$home/hook.err" "off: the close must reach main exactly as the arm printed it"
+  assert_re '^firstmate watcher wake: signal: .*demo.status' "$home/hook.err" "off: the rewake must carry the arm's close"
+  assert_no_re 'supervision-host' "$home/hook.err" "off: the close must reach main exactly as the arm printed it"
   assert_absent "$home/state/.supervision-host.log" "a home opted out by config/supervision-host-off must never run the host"
   assert_absent "$home/state/.host-mirror.jsonl" "a home opted out by config/supervision-host-off must mirror nothing"
   [ "$(engine_calls "$home")" -eq 0 ] || fail "a home opted out by config/supervision-host-off ran an engine turn"
@@ -1727,7 +1728,7 @@ test_next_park_takes_over_the_cycle_a_pass_through_left_for_main() {
   append_status "$home" 'which region?' needs-decision
   wait_until 250 hook_exited "$home" || fail "takeover: the owned cycle did not deliver the next close: $(cat "$home/state/.supervision-host.log")"
   assert_rewoke_main "$home" "takeover (next close)"
-  assert_re '^signal: .*demo.status' "$home/hook.err" "takeover: the next close must carry the watcher's reason line"
+  assert_re '^firstmate watcher wake: signal: .*demo.status' "$home/hook.err" "takeover: the next close must carry the watcher's reason line"
   pass "host+hook: the next park takes over the cycle a main-only pass-through left, so one arm owns it"
 }
 
@@ -1783,7 +1784,7 @@ test_unrecorded_successor_is_stopped_rather_than_left_for_main() {
   assert_re '	pass-through	attended	main-only	signal:' "$home/state/.supervision-host.log" "fixture: the close was not a main-only pass-through"
   assert_re '	pass-through	successor-unrecorded	signal:' "$home/state/.supervision-host.log" "unrecorded successor: the failed record was not logged"
   assert_rewoke_main "$home" "unrecorded successor (pass-through)"
-  assert_re '^signal: .*demo.status' "$home/hook.err" "unrecorded successor: the close must carry the watcher's reason line"
+  assert_re '^firstmate watcher wake: signal: .*demo.status' "$home/hook.err" "unrecorded successor: the close must carry the watcher's reason line"
   wait_until 100 no_home_arms "$home" || fail "unrecorded successor: an arm outlived the host:"$'\n'"$(home_arms "$home")"
   rmdir "$home/state/.supervision-host-left" \
     || fail "unrecorded successor: the record left inside the directory was not removed: $(ls -A "$home/state/.supervision-host-left")"

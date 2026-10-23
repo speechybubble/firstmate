@@ -15,6 +15,9 @@ set -u
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 TMP_ROOT=$(fm_test_tmproot fm-claude-stop-autoarm)
+# The fixed tail of every one-line rewake banner (bin/fm-claude-stop-autoarm.sh "Translation").
+BANNER_POINTER=' - run bin/fm-wake-drain.sh first, handle what it prints, then its exact WAKE_ACK_REQUIRED command; the next turn end re-arms, so do NOT run bin/fm-watch-arm.sh.'
+
 fm_git_identity fmtest fmtest@example.invalid
 
 FAKEBIN=$(fm_fakebin "$TMP_ROOT/fakebin")
@@ -493,7 +496,7 @@ test_actionable_close_with_live_successor_rewakes_once() {
   expect_code 0 "$status2" "a repeated non-actionable close with the live successor must stay quiet"
   [ "$(printf '%s\n' "$out" | grep -c '^firstmate watcher wake')" -eq 1 ] \
     || fail "actionable close with a live successor did not emit exactly one wake banner: $out"
-  [ "$(printf '%s\n' "$out" | grep -c '^stale: fixture-win actionable')" -eq 1 ] \
+  [ "$(printf '%s\n' "$out" | grep -c '^firstmate watcher wake: stale: fixture-win actionable')" -eq 1 ] \
     || fail "actionable close with a live successor did not surface its reason exactly once: $out"
   [ -z "$out2" ] || fail "repeated hook duplicated the delivered actionable result: $out2"
   kill -0 "$pid" 2>/dev/null || fail "actionable delivery stopped or replaced the live successor"
@@ -1514,9 +1517,9 @@ test_host_handback_under_away_record_is_not_a_return() {
   write_host_fixture "$dir" handed-back
   out=$(run_autoarm "$dir" 2>/dev/null); status=$?
   expect_code 2 "$status" "a wake the host hands back must rewake main"
-  assert_contains "$out" "signal: fixture.status" "the handed-back wake must carry its reason line"
-  assert_contains "$out" "supervision-host: the away session could not take this wake" "the handed-back wake must say why"
-  assert_contains "$out" "not from the captain: it is not a return" "an away-posture handback must say it is not the captain's return"
+  assert_one_line_banner "$out"
+  assert_contains "$out" "firstmate watcher wake (automatic supervision under the away-posture record, not from the captain: it is not a return, so handle it under the away posture): supervision-host: the away session could not take this wake: fixture; this wake is yours (+1 more)" \
+    "an away-posture handback must say it is not the captain's return and why the host handed the wake back, ahead of the wake line the drain presents"
   pass "auto-arm: a wake the host hands back under the away record says it is automatic supervision, not a return"
 }
 
@@ -1533,27 +1536,32 @@ test_host_handback_beside_a_quiet_record_carries_no_away_note() {
   write_host_fixture "$dir" handed-back
   out=$(run_autoarm "$dir" 2>/dev/null); status=$?
   expect_code 2 "$status" "a wake the host hands back must rewake main"
-  assert_contains "$out" "signal: fixture.status" "the handed-back wake must carry its reason line"
+  assert_contains "$out" "firstmate watcher wake: supervision-host: the away session could not take this wake" "the handed-back wake must carry the host's reason line"
   assert_not_contains "$out" "not a return" "a present captain's rewake must not call itself away-posture supervision"
   pass "auto-arm: a wake the host hands back beside a quiet record carries no away note"
 }
 
-test_plain_arm_banner_keeps_its_wake_line_cap() {
+# Claude Code shows the rewake banner to the captain, so it is one line: the
+# first reason line, a count of the rest, and the drain-first pointer.
+assert_one_line_banner() {  # <stderr>
+  [ "$(printf '%s\n' "$1" | grep -c .)" -eq 1 ] || fail "the rewake banner is not one line:"$'\n'"$1"
+  assert_contains "$1" "run bin/fm-wake-drain.sh first" "the rewake must direct the drain-first protocol"
+  assert_not_contains "$1" "idempotent re-handling" "the rewake must not carry the protocol text the drain and the session-start block own"
+}
+
+test_plain_arm_banner_is_one_line_naming_the_first_wake() {
   local dir out expected
   dir=$(make_primary_dir "$TMP_ROOT/plain-banner")
   : > "$dir/state/task.meta"
   write_arm_fixture "$dir" actionable-many
   out=$(run_autoarm "$dir" 2>/dev/null)
-  expected=$(
-    printf 'firstmate watcher wake - one supervision event needs a handling turn now.\n'
-    for i in 1 2 3 4 5 6 7 8; do printf 'stale: fixture-%s actionable\n' "$i"; done
-    printf 'Run bin/fm-wake-drain.sh first, handle the wake, then run its exact WAKE_ACK_REQUIRED --ack-through command. Until that post-handling acknowledgement, interruption leaves the wake durable for idempotent re-handling. This Stop hook owns watcher continuity: when the handling turn ends, the next needed cycle arms automatically - do NOT run bin/fm-watch-arm.sh after an ordinary wake.\n'
-  )
+  expected='firstmate watcher wake: stale: fixture-1 actionable (+9 more)'"$BANNER_POINTER"
   [ "$out" = "$expected" ] || fail "the plain-arm rewake banner changed:"$'\n'"$out"
-  pass "auto-arm: without the host the rewake banner is unchanged, eight wake lines at most"
+  assert_one_line_banner "$out"
+  pass "auto-arm: without the host the rewake banner is one line naming the first wake and counting the rest"
 }
 
-test_host_handback_carries_every_host_line() {
+test_host_handback_names_the_host_line_and_counts_the_rest() {
   local dir out status expected
   dir=$(make_primary_dir "$TMP_ROOT/host-many")
   mkdir -p "$dir/config"
@@ -1562,15 +1570,10 @@ test_host_handback_carries_every_host_line() {
   write_host_fixture "$dir" handed-back-many
   out=$(run_autoarm "$dir" 2>/dev/null); status=$?
   expect_code 2 "$status" "a wake the host hands back must rewake main"
-  expected=$(
-    printf 'supervision-host: the away session could not take this wake: fixture; relay its outcomes\n'
-    for i in 1 2 3 4 5 6 7 8 9 10; do printf 'supervision-host: outcome %s for demo [routine]: fixture %s\n' "$i" "$i"; done
-  )
-  [ "$(printf '%s\n' "$out" | grep '^supervision-host:')" = "$expected" ] \
-    || fail "the rewake must carry every host line in the host's order:"$'\n'"$out"
-  [ "$(printf '%s\n' "$out" | grep -c '^signal: ')" -eq 8 ] || fail "the host's wake lines must keep the eight-line cap:"$'\n'"$out"
-  assert_contains "$out" "signal: fixture-8.status" "the first eight wake lines must reach the rewake"
-  pass "auto-arm: a host handback delivers every host line, while its wake lines keep their cap"
+  expected='firstmate watcher wake: supervision-host: the away session could not take this wake: fixture; relay its outcomes (+20 more)'"$BANNER_POINTER"
+  [ "$out" = "$expected" ] || fail "the host handback rewake banner changed:"$'\n'"$out"
+  assert_one_line_banner "$out"
+  pass "auto-arm: a host handback names the host's first line ahead of the wake lines and counts the rest"
 }
 
 test_host_stand_down_is_silent() {
@@ -1757,8 +1760,8 @@ test_host_absent_flag_runs_the_host
 test_host_boundary_rewakes_with_the_host_line
 test_host_handback_under_away_record_is_not_a_return
 test_host_handback_beside_a_quiet_record_carries_no_away_note
-test_plain_arm_banner_keeps_its_wake_line_cap
-test_host_handback_carries_every_host_line
+test_plain_arm_banner_is_one_line_naming_the_first_wake
+test_host_handback_names_the_host_line_and_counts_the_rest
 test_host_stand_down_is_silent
 test_host_benign_rewake_refusal_opens_no_failure_episode
 test_host_lost_handback_notifies_once_per_episode

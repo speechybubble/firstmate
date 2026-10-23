@@ -111,7 +111,7 @@ FIRST=$(jq -r 'select(.type == "user" and has("promptSource") and (.message.cont
   || fail "the Stop hook did not request recovery for the omitted input exactly once: $(receipts)"
 receipts | jq -e -s --arg id "$FIRST" 'any(.[]; .type == "disposition" and .id == $id)' >/dev/null \
   || fail "the model did not record a disposition after the Stop hook's block: $(receipts)"
-STOP_BLOCKS=$(grep -c 'Unreconciled native captain input' "$LAB/turn1.jsonl" || true)
+STOP_BLOCKS=$(grep -c 'Unreconciled captain input' "$LAB/turn1.jsonl" || true)
 [ "$STOP_BLOCKS" -ge 1 ] || fail "the Stop hook's reconciliation request never reached the conversation"
 
 # 3. A staged outcome acknowledgement commits at the stop that follows its reply.

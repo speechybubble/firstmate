@@ -280,6 +280,27 @@ budget_charge_device() {
 
 device_rule='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
 
+# Render one block message to stderr: a headline and the sentences that
+# explain and point at the recovery. Claude Code shows a blocking Stop hook's
+# text to the captain, so --claude mode prints exactly one line; the default
+# mode keeps the boxed banner.
+emit_block() {  # <headline> <sentence>...
+  local headline=$1 line sentence
+  shift
+  if [ "$CLAUDE_MODE" -eq 1 ]; then
+    line="$headline:"
+    for sentence in "$@"; do line="$line $sentence"; done
+    printf '%s\n' "${line//$'\n'/ }" >&2
+    return 0
+  fi
+  {
+    printf '●%s\n' "$device_rule"
+    printf '●  %s\n' "$headline"
+    for line in "$@"; do printf '●  %s\n' "$line"; done
+    printf '●%s\n' "$device_rule"
+  } >&2
+}
+
 FILTERED_DRAIN_RECORD="$STATE/.turnend-filtered-drain"
 TRANSCRIPT_TAIL_LINES=3000
 # Evaluated only where the supervision predicate has already decided to let
@@ -302,17 +323,11 @@ run_context_devices() {
     tmp="$FILTERED_DRAIN_RECORD.tmp.$$"
     if printf 'session=%s\nturn=%s\n' "$SESSION_ID" "$FM_DRAIN_FILTER_TURN" > "$tmp" 2>/dev/null \
       && mv -f "$tmp" "$FILTERED_DRAIN_RECORD" 2>/dev/null; then
-      {
-        printf '●%s\n' "$device_rule"
-        printf '●  WAKE DRAIN OUTPUT WAS FILTERED THIS TURN\n'
-        printf '●  A Bash call piped bin/fm-wake-drain.sh through %s: %s\n' "$FM_DRAIN_FILTER_NAME" "$FM_DRAIN_FILTER_COMMAND"
-        printf '●  A filtered drain hides sections this turn must handle: OPEN DECISIONS, UNREAD STATUS,\n'
-        printf '●  RECORD DIVERGENCE, and the WAKE_ACK_REQUIRED command. No later unfiltered read followed it.\n'
-        printf '●  Re-read it whole now and handle everything it prints before ending the turn:\n'
-        printf '●    FM_HOME=%s %s/bin/fm-wake-drain.sh\n' "$FM_HOME" "$FM_ROOT"
-        printf '●  This block fires once per turn; the next stop of this turn is allowed.\n'
-        printf '●%s\n' "$device_rule"
-      } >&2
+      emit_block 'WAKE DRAIN OUTPUT WAS FILTERED THIS TURN' \
+        "A Bash call piped bin/fm-wake-drain.sh through $FM_DRAIN_FILTER_NAME: $(printf '%s' "$FM_DRAIN_FILTER_COMMAND" | tr '\n' ' ')" \
+        'A filtered drain hides sections this turn must handle (OPEN DECISIONS, UNREAD STATUS, RECORD DIVERGENCE, the WAKE_ACK_REQUIRED command) and no later unfiltered read followed it.' \
+        "Re-read it whole now and handle everything it prints before ending the turn: FM_HOME=$FM_HOME $FM_ROOT/bin/fm-wake-drain.sh" \
+        'This block fires once per turn; the next stop of this turn is allowed.'
       exit 2
     fi
     rm -f "$tmp" 2>/dev/null || true
@@ -330,15 +345,9 @@ fi
   if lock_identity=$(fm_stow_cadence_lock_identity "$STATE"); then
   lock_pid=${lock_identity%% *}
   if fm_stow_cadence_required "$STATE" "$lock_pid" && budget_charge_device; then
-    {
-      printf '●%s\n' "$device_rule"
-      printf '●  STOW PASS REQUIRED BEFORE THIS TURN ENDS\n'
-      printf '●  Compaction %s of this session made a stow pass due (the compact digest printed STOW_REQUIRED),\n' "$FM_STOW_CADENCE_REQUIRED_COUNT"
-      printf '●  and no pass has been recorded since. A compaction summary is where captain corrections get lost.\n'
-      printf '●  Run the stow skill now (/stow). Its final step runs %s/bin/fm-stow-mark.sh, which records\n' "$FM_ROOT"
-      printf '●  the pass and releases this block. The block is bounded by the session block budget.\n'
-      printf '●%s\n' "$device_rule"
-    } >&2
+    emit_block 'STOW PASS REQUIRED BEFORE THIS TURN ENDS' \
+      "Compaction $FM_STOW_CADENCE_REQUIRED_COUNT of this session made a stow pass due (the compact digest printed STOW_REQUIRED) and no pass has been recorded since; a compaction summary is where captain corrections get lost." \
+      "Run the stow skill now (/stow); its final step runs $FM_ROOT/bin/fm-stow-mark.sh, which records the pass and releases this block, bounded by the session block budget."
     exit 2
   fi
   fi
@@ -383,32 +392,28 @@ if [ "$(fm_path_age "$STATE/.last-watcher-beat")" -lt "$AFK_GRACE" ] \
 fi
 
 block_stop() {
-  local afk x_mode reason rule
+  local afk x_mode reason condition
   afk=0
   [ -e "$STATE/.afk" ] && afk=1
   x_mode=0
   [ -f "$CONFIG/x-mode.env" ] && x_mode=1
   reason=$("$SCRIPT_DIR/fm-supervision-instructions.sh" --afk "$afk" --x-mode "$x_mode" --repair-line 2>/dev/null \
     || printf '%s\n' 'tasks in flight, no live watcher - repair missing watcher supervision according to the session-start operating block before ending the turn')
-  rule='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-  {
-    printf '●%s\n' "$rule"
-    printf '●  TURN WOULD END BLIND - SUPERVISION IS OFF\n'
-    if [ "$FM_SUP_IN_FLIGHT" -gt 0 ]; then
-      printf '●  %s task(s) in flight, but no live watcher holds this home lock (last beat: %s).\n' "$FM_SUP_IN_FLIGHT" "$FM_SUP_BEACON_DESC"
-    elif [ "$FM_SUP_SOURCES" -gt 0 ]; then
-      printf '●  %s process-event source(s) registered, but no live watcher holds this home lock (last beat: %s).\n' "$FM_SUP_SOURCES" "$FM_SUP_BEACON_DESC"
-    elif [ "$FM_SUP_CHECKS" -gt 0 ]; then
-      printf '●  %s registered custom check(s), but no live watcher holds this home lock (last beat: %s).\n' "$FM_SUP_CHECKS" "$FM_SUP_BEACON_DESC"
-    else
-      printf '●  X-mode relay polling needs supervision, but no live watcher holds this home lock (last beat: %s).\n' "$FM_SUP_BEACON_DESC"
-    fi
-    if [ "$CLAUDE_MODE" -eq 1 ]; then
-      printf '●  The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.\n'
-    fi
-    printf '●  %s\n' "$reason"
-    printf '●%s\n' "$rule"
-  } >&2
+  if [ "$FM_SUP_IN_FLIGHT" -gt 0 ]; then
+    condition="$FM_SUP_IN_FLIGHT task(s) in flight, but no live watcher holds this home lock (last beat: $FM_SUP_BEACON_DESC)."
+  elif [ "$FM_SUP_SOURCES" -gt 0 ]; then
+    condition="$FM_SUP_SOURCES process-event source(s) registered, but no live watcher holds this home lock (last beat: $FM_SUP_BEACON_DESC)."
+  elif [ "$FM_SUP_CHECKS" -gt 0 ]; then
+    condition="$FM_SUP_CHECKS registered custom check(s), but no live watcher holds this home lock (last beat: $FM_SUP_BEACON_DESC)."
+  else
+    condition="X-mode relay polling needs supervision, but no live watcher holds this home lock (last beat: $FM_SUP_BEACON_DESC)."
+  fi
+  if [ "$CLAUDE_MODE" -eq 1 ]; then
+    emit_block 'TURN WOULD END BLIND - SUPERVISION IS OFF' "$condition" \
+      'The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.' "$reason"
+  else
+    emit_block 'TURN WOULD END BLIND - SUPERVISION IS OFF' "$condition" "$reason"
+  fi
   exit 2
 }
 

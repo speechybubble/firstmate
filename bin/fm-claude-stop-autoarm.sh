@@ -59,10 +59,10 @@
 #     the one way a process survives a Claude hook: nohup, stdio detached, in
 #     its own process group (the shape bin/fm-startup-network.sh uses;
 #     docs/verification/supervision.md records the survival check). The hook
-#     waits for the successor's one status line, adds one banner line when no
-#     live watcher was confirmed, and never withholds the wake for it; the
-#     next Stop's foreground arm attaches to that live cycle. The supervision
-#     host owns its own successors, so its path is unchanged.
+#     waits for the successor's one status line, adds the failure to the
+#     banner line when no live watcher was confirmed, and never withholds the
+#     wake for it; the next Stop's foreground arm attaches to that live cycle.
+#     The supervision host owns its own successors, so its path is unchanged.
 #   - Supervision host: a home that runs it (by default on this Claude
 #     primary; docs/configuration.md "Supervision host" owns the gate and its
 #     opt-out) runs bin/fm-supervision-host.sh in the arm's place, bound
@@ -70,8 +70,9 @@
 #     To this hook it is an arm that also takes away-posture wakes itself and
 #     ends its own park before the hook timeout with a "supervision-host:"
 #     line, which is actionable here like a wake line; its rewake banner
-#     carries every "supervision-host:" line the host printed, in order, while
-#     its wake lines keep the arm's eight-line cap. A "supervision-host stood
+#     names the first "supervision-host:" line the host printed ahead of any
+#     wake line, because the drain presents the wakes and the host's stored
+#     outcomes but not the host's explanation. A "supervision-host stood
 #     down:" close exits 0 silently, and a host that died without a close is
 #     retried instead of being judged by the healthy-watcher predicate
 #     (docs/supervision-host.md). On a home that opted out nothing below
@@ -79,7 +80,12 @@
 #   - Translation: while supervision is still needed and AFK remains inactive,
 #     an actionable arm close (signal:/stale:/check:/heartbeat) prints one
 #     rewake banner to stderr and exits 2, which wakes Claude even while idle
-#     ("Stop hook feedback"). The irrevocable commit point is the EXIT STATUS:
+#     ("Stop hook feedback"). Claude Code shows that banner to the captain, so
+#     it is ONE line: the "firstmate watcher wake" prefix, the first reason
+#     line, a "+N more" count for the rest, and the drain-first pointer; the
+#     durable wake queue holds every line and docs/supervision-protocols/
+#     claude.md owns the handling protocol. The irrevocable commit point is the
+#     EXIT STATUS:
 #     the harness delivers the collected stderr only on exit 2, so an owned
 #     terminal commit decides the exit. Markerless outcomes commit with the
 #     ledger write; the failure notice additionally requires its marker write.
@@ -122,7 +128,7 @@ Usage: fm-claude-stop-autoarm.sh
 Claude Stop hook registered in .claude/settings.json; not for manual use.
 It reads the Stop payload on stdin and, in a primary home that needs
 supervision, arms the watcher or supervision host for this session.
-Exit 0 is silent; exit 2 carries a rewake banner on stderr.
+Exit 0 is silent; exit 2 carries a one-line rewake banner on stderr.
 EOF
 }
 
@@ -519,20 +525,25 @@ if [ "$ACTIONABLE" -eq 1 ]; then
   if [ "$HOST_MODE" -eq 0 ]; then
     start_handling_successor "$CLOSED_ARM_PID" || true
   fi
-  {
-    printf 'firstmate watcher wake - one supervision event needs a handling turn now.\n'
-    if [ "$HOST_MODE" -eq 1 ]; then
-      [ -n "$OUT" ] && awk '/^supervision-host:/ { print; next } /^(signal:|stale:|check:|heartbeat)/ && shown++ < 8' "$OUT" 2>/dev/null
-    else
-      [ -n "$OUT" ] && grep -E '^(signal:|stale:|check:|heartbeat)' "$OUT" 2>/dev/null | head -8
-    fi
-    if [ "$HOST_MODE" -eq 1 ] && [ -e "$STATE/.afk-contract" ] \
-      && [ "$(FM_STATE_OVERRIDE="$STATE" "$SCRIPT_DIR/fm-afk-contract.sh" mode 2>/dev/null)" != quiet ]; then
-      printf 'This wake comes from automatic supervision under the away-posture record, not from the captain: it is not a return, so handle it under the away posture.\n'
-    fi
-    [ -z "$SUCCESSOR_FAILURE" ] || printf '%s\n' "$SUCCESSOR_FAILURE"
-    printf 'Run bin/fm-wake-drain.sh first, handle the wake, then run its exact WAKE_ACK_REQUIRED --ack-through command. Until that post-handling acknowledgement, interruption leaves the wake durable for idempotent re-handling. This Stop hook owns watcher continuity: when the handling turn ends, the next needed cycle arms automatically - do NOT run bin/fm-watch-arm.sh after an ordinary wake.\n'
-  } >&2
+  # One line (header "Translation"): the host's first line wins over a wake
+  # line because the drain shows the wakes but not the host's explanation.
+  BANNER='firstmate watcher wake'
+  REASON_LINES=
+  [ -n "$OUT" ] && REASON_LINES=$(grep -E '^(supervision-host:|signal:|stale:|check:|heartbeat)' "$OUT" 2>/dev/null)
+  REASON=
+  if [ "$HOST_MODE" -eq 1 ]; then
+    REASON=$(printf '%s\n' "$REASON_LINES" | grep '^supervision-host:' | head -n 1)
+  fi
+  [ -n "$REASON" ] || REASON=$(printf '%s\n' "$REASON_LINES" | grep . | head -n 1)
+  REASON_COUNT=$(printf '%s\n' "$REASON_LINES" | grep -c . || true)
+  if [ "$HOST_MODE" -eq 1 ] && [ -e "$STATE/.afk-contract" ] \
+    && [ "$(FM_STATE_OVERRIDE="$STATE" "$SCRIPT_DIR/fm-afk-contract.sh" mode 2>/dev/null)" != quiet ]; then
+    BANNER="$BANNER (automatic supervision under the away-posture record, not from the captain: it is not a return, so handle it under the away posture)"
+  fi
+  BANNER="$BANNER: ${REASON:-one supervision event needs a handling turn now}"
+  [ "$REASON_COUNT" -le 1 ] || BANNER="$BANNER (+$((REASON_COUNT - 1)) more)"
+  [ -z "$SUCCESSOR_FAILURE" ] || BANNER="$BANNER; $SUCCESSOR_FAILURE"
+  printf '%s - run bin/fm-wake-drain.sh first, handle what it prints, then its exact WAKE_ACK_REQUIRED command; the next turn end re-arms, so do NOT run bin/fm-watch-arm.sh.\n' "$BANNER" >&2
   if autoarm_commit rewake; then
     [ -z "$OUT" ] || rm -f "$OUT" 2>/dev/null || true
     exit 2

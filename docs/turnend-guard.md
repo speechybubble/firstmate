@@ -353,6 +353,10 @@ Claude runs the guard with `--claude`, which ignores `stop_hook_active` and coop
 Claude Code sets `stop_hook_active=true` on every stop after any stop-hook continuation, including `asyncRewake` rewakes.
 Under the default one-shot behavior, that re-opened the 2026-07-21 blind window.
 
+Claude Code shows a blocking Stop hook's text to the captain as a blocking error, so in `--claude` mode every block message is one line: the headline, the condition, and the repair instruction or the exact unfiltered command, for the supervision banner and both context-loss devices alike.
+The default mode keeps the boxed banner.
+The same rule shapes the auto-arm's rewake banner (one line naming the first reason line and counting the rest, `bin/fm-claude-stop-autoarm.sh` "Translation") and the native-input reconciliation's Stop reason below; [`supervision-protocols/claude.md`](supervision-protocols/claude.md) owns the protocol those lines point at.
+
 Before the Claude cooperative budget can re-block a Stop, the guard checks for a live foreign session-lock owner and takes the same safe diagnostic exit described under "Guard predicates" ([foreign session-lock owner](#foreign-session-lock-owner)).
 
 The Claude mode waits up to `FM_CLAUDE_AUTOARM_SYNC_WAIT_MS` (default 800 milliseconds).
@@ -678,10 +682,11 @@ Run `tests/fm-pi-request-intake.test.sh` for the real installed SDK with an in-p
 ### Claude Code
 
 `bin/fm-request-continuity.sh` reads the session transcript named in each hook payload and keeps its receipts in the home's private state; its header owns the formats and commands.
-The tracked `.claude/settings.json` runs it at `SessionStart` and `UserPromptSubmit`, which restore unresolved input as additional context, and at `Stop`, which blocks the stop once per unresolved source message with the reconciliation request.
+The tracked `.claude/settings.json` runs it at `SessionStart` and `UserPromptSubmit`, which restore unresolved input as additional context with the reconciliation request, and at `Stop`, which blocks the stop once per unresolved source message.
+Because Claude Code shows a blocking reason to the captain, that reason is one line under 160 characters naming the unresolved ids that fit, a count of the rest, and `bin/fm-request-continuity.sh list`, which prints every unresolved input with the reconciliation request.
 When a normal reply already followed an unresolved message, the request marks it answered and asks for its disposition without a new answer unless that reply did not address it, and a `reply` disposition then completes at once, so the reply already given stands instead of prompting a second answer.
 A slash command is captain input only when the model receives it; a command Claude Code answers itself, such as `/compact`, and shell-mode input are not.
-Main records dispositions with `bin/fm-request-continuity.sh dispose` and lists unresolved input with `bin/fm-request-continuity.sh list`.
+Main records dispositions with `bin/fm-request-continuity.sh dispose` and lists unresolved input, with the reconciliation request, through `bin/fm-request-continuity.sh list`.
 On a Claude-owned home the wake drain's `BRANCH OUTCOMES` section asks for `bin/fm-request-continuity.sh outcome-ack`, which only stages the acknowledgement; the `Stop` hook commits it through `bin/fm-branch-outcome.sh mark-processed` once a normal nonempty reply follows with no captain message between.
 A normal reply is turn-ending assistant text (`stop_reason` `end_turn`); narration written before a tool call is not one.
 A direct `mark-processed` call still acknowledges immediately, and other non-Pi primaries keep that immediate acknowledgement.

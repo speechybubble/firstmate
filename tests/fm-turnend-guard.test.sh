@@ -1279,6 +1279,14 @@ SH
   chmod +x "$dir/bin/fm-watch-arm.sh"
 }
 
+# Claude Code shows a blocking Stop hook's text to the captain, so every
+# --claude block message is one line (docs/turnend-guard.md "Claude cooperative
+# mode"); the default mode keeps its boxed banner, which case 1 above covers.
+assert_claude_block_is_one_line() {  # <stderr>
+  [ "$(printf '%s\n' "$1" | grep -c .)" -eq 1 ] || fail "the --claude block is not one line:"$'\n'"$1"
+  case "$1" in *'●'*) fail "the --claude block carries the boxed banner: $1" ;; esac
+}
+
 # The 2026-07-21 incident regression: after a spent forced continuation the old
 # one-shot loop guard ALLOWED a blind stop (stop_hook_active=true) while the
 # watcher was already dead. In --claude mode the guard must re-block instead.
@@ -1290,6 +1298,8 @@ test_hook_claude_mode_reblocks_stop_hook_active_when_unhealthy() {
   expect_code 2 "$status" "--claude mode must re-block a stop_hook_active=true stop while unhealthy with no auto-arm claim"
   assert_contains "$out" "TURN WOULD END BLIND" "--claude re-block must carry the blind-turn banner"
   assert_contains "$out" "Stop-owned auto-arm did not claim" "--claude re-block must explain the missing auto-arm claim"
+  assert_contains "$out" "task(s) in flight, but no live watcher holds this home lock" "--claude re-block must name the condition"
+  assert_claude_block_is_one_line "$out"
   pass "fm-turnend-guard --claude: re-blocks a loop-guarded stop while unhealthy and unclaimed (incident regression)"
 }
 
@@ -2326,6 +2336,7 @@ test_hook_filtered_drain_blocks_once_then_allows_retry() {
   assert_contains "$out" "WAKE DRAIN OUTPUT WAS FILTERED THIS TURN" "the block names the device"
   assert_contains "$out" "through tail: " "the block names the filter"
   assert_contains "$out" "FM_HOME=$(cd "$dir" && pwd) $(cd "$dir" && pwd)/bin/fm-wake-drain.sh" "the block names the exact unfiltered command for this home"
+  assert_claude_block_is_one_line "$out"
   assert_contains "$(cat "$dir/state/.turnend-claude-blocks")" "count=1" "the device block charges the session block budget"
   out=$(run_hook_claude_transcript "$dir" "$transcript"); status=$?
   expect_code 0 "$status" "the retry of the same turn must be allowed"
@@ -2407,6 +2418,7 @@ test_hook_stow_required_blocks_until_marked() {
   assert_contains "$out" "STOW PASS REQUIRED BEFORE THIS TURN ENDS" "the block names the device"
   assert_contains "$out" "Compaction 2 of this session" "the block names the compaction that made the pass due"
   assert_contains "$out" "$home/bin/fm-stow-mark.sh" "the block names the marker command"
+  assert_claude_block_is_one_line "$out"
   out=$(run_hook_claude "$dir" false); status=$?
   expect_code 2 "$status" "an unanswered requirement blocks again"
   assert_contains "$(cat "$dir/state/.turnend-claude-blocks")" "count=2" "each stow block charges the budget"
