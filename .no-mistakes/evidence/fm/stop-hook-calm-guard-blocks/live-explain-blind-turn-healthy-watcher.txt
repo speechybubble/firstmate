@@ -1,0 +1,4 @@
+$ bin/fm-turnend-guard.sh explain blind-turn   # labtask.meta in flight, auto-armed watcher live
+TURN WOULD END BLIND - SUPERVISION IS OFF
+A live watcher or away-mode daemon supervises this home now (last beat: 7s ago), so this block does not currently apply.
+exit=0

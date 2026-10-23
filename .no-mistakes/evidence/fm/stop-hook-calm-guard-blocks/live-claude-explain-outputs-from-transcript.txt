@@ -1,0 +1,22 @@
+WAKE DRAIN OUTPUT WAS FILTERED THIS TURN
+A Bash call piped bin/fm-wake-drain.sh through tail: bin/fm-wake-drain.sh 2>&1 | tail -5
+A filtered drain hides sections this turn must handle (OPEN DECISIONS, UNREAD STATUS, RECORD DIVERGENCE, the WAKE_ACK_REQUIRED command) and no later unfiltered read followed it.
+Re-read it whole now and handle everything it prints before ending the turn: FM_HOME=/tmp/fm-lab.ZTuLeW /tmp/fm-lab.ZTuLeW-primary/bin/fm-wake-drain.sh
+This block fires once per turn; the next stop of this turn is allowed.
+--
+STOW PASS REQUIRED BEFORE THIS TURN ENDS
+Compaction 2 of this session made a stow pass due (the compact digest printed STOW_REQUIRED) and no pass has been recorded since; a compaction summary is where captain corrections get lost.
+Run the stow skill now (/stow); its final step runs /tmp/fm-lab.ZTuLeW-primary/bin/fm-stow-mark.sh, which records the pass and releases this block, bounded by the session block budget.
+---
+Unreconciled native captain input (not a task list or permission to execute):
+--
+STOW PASS REQUIRED BEFORE THIS TURN ENDS
+Compaction 2 of this session made a stow pass due (the compact digest printed STOW_REQUIRED) and no pass has been recorded since; a compaction summary is where captain corrections get lost.
+Run the stow skill now (/stow); its final step runs /tmp/fm-lab.ZTuLeW-primary/bin/fm-stow-mark.sh, which records the pass and releases this block, bounded by the session block budget.
+Unreconciled native captain input (not a task list or permission to execute):
+[0412646e-2f2b-4d0b-8915-2c43c27b2a24] ALREADY ANSWERED: a reply reached the captain after this message. Lab test: reply with the single word ok and end your turn. If a Stop hook blocks you, run the explain command it names, quote its output to me verbatim, and end the turn without any repair.
+--
+TURN WOULD END BLIND - SUPERVISION IS OFF
+1 task(s) in flight, but no live watcher holds this home lock (last beat: 17s ago).
+The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.
+Away mode owns watcher supervision; load /afk and ensure the daemon is running instead of starting normal supervision directly.
