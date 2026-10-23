@@ -48,11 +48,19 @@
 # Subcommands (hooks read their payload on stdin and never fail the turn):
 #   hook stop           Stop: commit staged outcome acknowledgements followed by
 #                       a reply, then, at most once per source message, block
-#                       the stop with the unresolved-input reconciliation.
+#                       the stop. Claude Code shows a blocking reason to the
+#                       captain, so the reason is one line under 160 characters
+#                       naming the unresolved input ids (as many as fit, then a
+#                       "+N more" count) and `list`, never the reconciliation
+#                       text itself; when every input is already answered it
+#                       adds a cue to dispose and end the turn silently.
 #   hook context        SessionStart and UserPromptSubmit: restore unresolved
 #                       input as additional context (compaction, resume, and
-#                       every new prompt), with a bounded preview.
-#   list                print unresolved input ids and full text.
+#                       every new prompt), with a bounded preview followed by
+#                       the reconciliation instructions.
+#   list                print every unresolved input with its full text and the
+#                       reconciliation instructions: the text a Stop block
+#                       points at.
 #   dispose <id> recorded <task-id>... --summary <text>
 #   dispose <id> reply --summary <text>
 #                       record a disposition; `recorded` verifies each task id
@@ -275,32 +283,67 @@ pending_requests() {  # <session> <transcript>
   PENDING=$(printf '%s' "$result" | jq -c '.requests[]')
 }
 
-describe() {  # <requests-jsonl> [stop]
-  local requests=$1 event=${2:-} count close
+# Print the unresolved input, the first <limit> messages or all of them for 0,
+# followed by the reconciliation instructions. The Stop block never carries
+# this text (see stop_reason); the context hook and `list` do. Only `list`, the
+# text a Stop block points at, passes stop, which adds the end-the-turn close
+# when every input is already answered.
+describe() {  # <requests-jsonl> <limit> [stop]
+  local requests=$1 limit=$2 event=${3:-} count shown answered=
+  printf '%s\n' "$requests" | jq -e 'select(.answered | not)' >/dev/null 2>&1 || answered=1
   count=$(printf '%s\n' "$requests" | grep -c . || true)
+  shown=$count
+  [ "$limit" -gt 0 ] && [ "$count" -gt "$limit" ] && shown=$limit
   printf 'Unreconciled native captain input (not a task list or permission to execute):\n'
-  printf '%s\n' "$requests" | head -n "$PREVIEW_LIMIT" | jq -r '
+  printf '%s\n' "$requests" | head -n "$shown" | jq -r '
     "[\(.id)] " + (if .replyStaged then "REPLY ALREADY STAGED: answer now; do not record another disposition. "
                     elif .answered then "ALREADY ANSWERED: a reply reached the captain after this message. " else "" end) + .text + "\n"'
-  if [ "$count" -gt "$PREVIEW_LIMIT" ]; then
-    printf '%s further messages remain; list them with bin/fm-request-continuity.sh list.\n' "$((count - PREVIEW_LIMIT))"
+  if [ "$count" -gt "$shown" ]; then
+    printf '%s further messages remain; list them with bin/fm-request-continuity.sh list.\n' "$((count - shown))"
   fi
   cat <<'TEXT'
 Reconcile every intent in these messages against later corrections, cancellations, priorities and existing records.
 Use existing task IDs and owners; never replay a request merely because it is listed.
 Record outliving work and its next action in the backlog, then run bin/fm-request-continuity.sh dispose <id> recorded <task-id>... --summary "<handling>".
 TEXT
-  close='; the earlier reply stands and needs no repeat.'
-  if printf '%s\n' "$requests" | jq -e 'select(.answered | not)' >/dev/null 2>&1; then
+  if [ -z "$answered" ]; then
     printf '%s\n' 'Questions and work fully handled in this reply need no task: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then give the substantive answer.'
-  elif [ "$event" = stop ]; then
-    close=', then end the turn with no further text, because the captain already has that reply.'
   fi
   if printf '%s\n' "$requests" | jq -e 'select(.answered)' >/dev/null 2>&1; then
-    printf '%s\n' "An ALREADY ANSWERED message whose reply fully handled it needs no task and no new answer: run bin/fm-request-continuity.sh dispose <id> reply --summary \"<handling>\" once$close"
+    printf '%s\n' 'An ALREADY ANSWERED message whose reply fully handled it needs no task and no new answer: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once; the earlier reply stands and needs no repeat.'
     printf '%s\n' 'If that reply did not actually address an ALREADY ANSWERED message, answer it now and then dispose it.'
   fi
+  [ -z "$answered" ] || [ "$event" != stop ] || printf '%s\n' 'Every message listed is ALREADY ANSWERED: after disposing, end the turn with no further text, because the captain already has that reply.'
   printf '%s\n' 'A disposition does not establish task execution, completion or semantic correctness.'
+}
+
+# The one-line Stop block reason: the unresolved ids that fit under
+# STOP_REASON_LIMIT characters in order, a "+N more" count for the rest, and
+# the command that prints the full text, plus a cue to end the turn silently
+# when every input is already answered. An id too long to fit alone leaves
+# only the count.
+STOP_REASON_LIMIT=160
+stop_reason() {  # <requests-jsonl>
+  local ids=() n shown line rest tail=
+  printf '%s\n' "$1" | jq -e 'select(.answered | not)' >/dev/null 2>&1 \
+    || tail='; already answered: dispose and end the turn with no further text'
+  while IFS= read -r line; do [ -n "$line" ] && ids+=("$line"); done < <(printf '%s\n' "$1" | jq -r '.id')
+  n=${#ids[@]}
+  shown=$n
+  while :; do
+    rest=$((n - shown))
+    if [ "$shown" -eq 0 ]; then
+      line="Unreconciled captain input ($n messages): run bin/fm-request-continuity.sh list$tail"
+    else
+      line="Unreconciled captain input $(printf '%s, ' "${ids[@]:0:$shown}" | sed 's/, $//')"
+      [ "$rest" -eq 0 ] || line="$line (+$rest more)"
+      line="$line: run bin/fm-request-continuity.sh list$tail"
+    fi
+    [ "${#line}" -lt "$STOP_REASON_LIMIT" ] && break
+    [ "$shown" -gt 0 ] || break
+    shown=$((shown - 1))
+  done
+  printf '%s' "$line"
 }
 
 payload_field() {  # <payload> <field>
@@ -345,7 +388,7 @@ hook() {
       # Persist the attempt before asking, so a lost or ignored follow-up can
       # never become an endless loop; the input stays visible to later turns.
       append_receipt "$SESSION" "{\"type\":\"recovery\",\"ids\":$ids}" || exit 0
-      reason=$(describe "$requests" stop)
+      reason=$(stop_reason "$requests")
       jq -n -c --arg reason "$reason" '{decision: "block", reason: $reason}'
       ;;
     context)
@@ -353,7 +396,7 @@ hook() {
       local name
       name=$(payload_field "$payload" hook_event_name)
       [ -n "$name" ] || name=SessionStart
-      jq -n -c --arg ctx "$(describe "$requests")" --arg name "$name" \
+      jq -n -c --arg ctx "$(describe "$requests" "$PREVIEW_LIMIT")" --arg name "$name" \
         '{hookSpecificOutput: {hookEventName: $name, additionalContext: $ctx}}'
       ;;
   esac
@@ -379,7 +422,7 @@ cmd_list() {
     printf 'no unresolved native captain input\n'
     return 0
   fi
-  printf '%s\n' "$requests" | jq -r '"[\(.id)]\(if .replyStaged then " (reply staged)" else "" end)\n\(.text)\n"'
+  describe "$requests" 0 stop
 }
 
 cmd_dispose() {

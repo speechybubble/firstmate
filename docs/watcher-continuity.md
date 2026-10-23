@@ -181,7 +181,7 @@ So that successor is the one deliberate detached launch in the continuity path:
 This is the shape `bin/fm-startup-network.sh` uses, and [`verification/supervision.md`](verification/supervision.md#detached-session-open-workers-survive-the-hook) verified that it survives the hook.
 
 The next Stop's foreground arm attaches to that live cycle.
-A successor that confirms no live watcher adds one line to the rewake banner and never withholds the wake.
+A successor that confirms no live watcher adds its failure to the one-line rewake banner and never withholds the wake.
 The next Stop then re-arms as before.
 
 ### Durable queue and turn-end backstop
