@@ -285,9 +285,11 @@ pending_requests() {  # <session> <transcript>
 
 # Print the unresolved input, the first <limit> messages or all of them for 0,
 # followed by the reconciliation instructions. The Stop block never carries
-# this text (see stop_reason); the context hook and `list` do.
-describe() {  # <requests-jsonl> <limit>
-  local requests=$1 limit=$2 count shown answered=
+# this text (see stop_reason); the context hook and `list` do. Only `list`, the
+# text a Stop block points at, passes stop, which adds the end-the-turn close
+# when every input is already answered.
+describe() {  # <requests-jsonl> <limit> [stop]
+  local requests=$1 limit=$2 event=${3:-} count shown answered=
   printf '%s\n' "$requests" | jq -e 'select(.answered | not)' >/dev/null 2>&1 || answered=1
   count=$(printf '%s\n' "$requests" | grep -c . || true)
   shown=$count
@@ -311,7 +313,7 @@ TEXT
     printf '%s\n' 'An ALREADY ANSWERED message whose reply fully handled it needs no task and no new answer: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once; the earlier reply stands and needs no repeat.'
     printf '%s\n' 'If that reply did not actually address an ALREADY ANSWERED message, answer it now and then dispose it.'
   fi
-  [ -z "$answered" ] || printf '%s\n' 'Every message listed is ALREADY ANSWERED: after disposing, end the turn with no further text, because the captain already has that reply.'
+  [ -z "$answered" ] || [ "$event" != stop ] || printf '%s\n' 'Every message listed is ALREADY ANSWERED: after disposing, end the turn with no further text, because the captain already has that reply.'
   printf '%s\n' 'A disposition does not establish task execution, completion or semantic correctness.'
 }
 
@@ -420,7 +422,7 @@ cmd_list() {
     printf 'no unresolved native captain input\n'
     return 0
   fi
-  describe "$requests" 0
+  describe "$requests" 0 stop
 }
 
 cmd_dispose() {

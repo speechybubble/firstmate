@@ -26,7 +26,7 @@
 #      An answered label keeps an answer-now path for a reply that missed the
 #      message; when every listed input is answered, the Stop reason and the
 #      listing say to end the turn silently, and neither does while unanswered
-#      input is listed or in the disposition confirmation.
+#      input is listed, in the context hook, or in the disposition confirmation.
 #   5. Compaction keeps unresolved input restorable from the full transcript;
 #      a slash skill invocation is captain input, while a command Claude Code
 #      answers locally, its output, and a shell-mode echo are not.
@@ -277,7 +277,7 @@ test_dispositions_are_verified_and_reply_is_provisional() {
 # Stop reason names the ids and `list`; the markers and the prompt live in
 # the listing.
 test_reply_already_given_needs_no_second_answer() {
-  local home="$TMP_ROOT/answered" out
+  local home="$TMP_ROOT/answered" out event
   make_home "$home"
   : > "$home/transcript.jsonl"
   stop_hook "$home" >/dev/null
@@ -298,6 +298,11 @@ test_reply_already_given_needs_no_second_answer() {
   assert_contains "$out" "the earlier reply stands and needs no repeat." "the listing must say the given reply stands"
   assert_contains "$out" "after disposing, end the turn with no further text" "the listing must say to end the turn silently"
   case "$out" in *"give the substantive answer"*) fail "the listing asked for a second answer after the reply: $out" ;; esac
+  for event in UserPromptSubmit SessionStart; do
+    out=$(context_hook "$home" "$event" | jq -r '.hookSpecificOutput.additionalContext')
+    assert_contains "$out" "[u-a] ALREADY ANSWERED" "the $event context must list the answered input"
+    case "$out" in *"end the turn"*) fail "the $event context told Firstmate to end the turn: $out" ;; esac
+  done
   out=$(as_owner "$home" dispose u-a reply --summary "answered the Multica change")
   assert_contains "$out" "already given" "the disposition must confirm the given reply stands"
   as_owner "$home" dispose u-b reply --summary "listed the six decisions" >/dev/null || fail "the second answered disposition was refused"
