@@ -75,7 +75,7 @@ It also requires `AGENTS.md`, `bin/`, and the effective state directory.
 When the Stop payload names a transcript, the guard scans the current turn's Bash calls for a read of `bin/fm-wake-drain.sh` whose output was piped into `grep`, `egrep`, `fgrep`, `head`, `tail`, `cut`, `awk`, or `sed`, or redirected to a file that a later filter read.
 Acknowledgement and listing invocations (`--ack-through`, `--decisions`, `--help`) are not reads.
 The turn is everything after the last captain or command entry; a compaction summary continues the turn it interrupted, and subagent entries are ignored.
-If the last such read was filtered and no unfiltered read followed it, the guard blocks the stop once with the exact unfiltered command for this home and the reason, records the blocked turn in `state/.turnend-filtered-drain`, and allows the retry of that same turn.
+If the last such read was filtered and no unfiltered read followed it, the guard blocks the stop once with the exact unfiltered command for this home and the reason, records the blocked turn, the filter, and the piped command in `state/.turnend-filtered-drain`, and allows the retry of that same turn.
 A statement is a drain read only when the drain script is the command a pipeline segment executes, so a `grep` or `git diff` that merely names the file is not one.
 A turn longer than the transcript window has no stable turn id, so once this session has a block record such a turn counts as already blocked and cannot re-block every Stop.
 `bin/fm-drain-filter-lib.sh` owns the detection, its stated heuristics, and the fixed 3000-line transcript window.
@@ -353,8 +353,10 @@ Claude runs the guard with `--claude`, which ignores `stop_hook_active` and coop
 Claude Code sets `stop_hook_active=true` on every stop after any stop-hook continuation, including `asyncRewake` rewakes.
 Under the default one-shot behavior, that re-opened the 2026-07-21 blind window.
 
-Claude Code shows a blocking Stop hook's text to the captain as a blocking error, so in `--claude` mode every block message is one line: the headline, the condition, and the repair instruction or the exact unfiltered command, for the supervision banner and both context-loss devices alike.
-The default mode keeps the boxed banner.
+Claude Code shows a blocking Stop hook's text to the captain as a blocking error, so in `--claude` mode every block message is one line under 160 characters: the block's headline, the filter's one-word name for a filtered drain read, and `Firstmate: bin/fm-turnend-guard.sh explain <key>`, for the supervision banner (`blind-turn`) and both context-loss devices (`filtered-drain`, `stow-required`) alike.
+`bin/fm-turnend-guard.sh explain <key>` prints that block's headline and full sentences, one per line, filled in from this home's records: the condition and repair instruction for `blind-turn`, the recorded piped command and the exact unfiltered command for `filtered-drain`, and the compaction count and marker command for `stow-required`.
+One table in the guard renders both the line and `explain`, so the two cannot drift.
+The default mode keeps the boxed banner with every sentence.
 The same rule shapes the auto-arm's rewake banner (one line naming the first reason line and counting the rest, `bin/fm-claude-stop-autoarm.sh` "Translation") and the native-input reconciliation's Stop reason below; [`supervision-protocols/claude.md`](supervision-protocols/claude.md) owns the protocol those lines point at.
 
 Before the Claude cooperative budget can re-block a Stop, the guard checks for a live foreign session-lock owner and takes the same safe diagnostic exit described under "Guard predicates" ([foreign session-lock owner](#foreign-session-lock-owner)).
@@ -588,6 +590,7 @@ That warning uses `bin/fm-supervision-instructions.sh --repair-line`, so it alwa
 `tests/fm-turnend-guard.test.sh` covers:
 
 - The predicate.
+- The `--claude` one-line block: the 160-character bound and `explain` cue for all three blocks, and the `explain` round trip that prints each block's full text, also without records.
 - The filtered drain read: a filtered read blocks once with the unfiltered command, the retry of the same turn is allowed, a later unfiltered read clears it, an acknowledgement is not a read, an earlier turn's filtered read is not charged to this one, a turn longer than the transcript window blocks only once, a missing or unreadable transcript never blocks, and the block charges the session block budget.
 - The stow pass required record: a record for the live lock-owning pid blocks, the recorded pass releases it, a record for a dead or foreign pid never blocks, a read-only session beside a live foreign lock owner is never blocked, the block budget bounds repeated blocks on both the idle and the healthy supervised paths, and a verified failure episode with a pass due still shows the supervision repair banner.
 - Main and secondmate primary scope.
