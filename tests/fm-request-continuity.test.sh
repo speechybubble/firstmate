@@ -24,7 +24,9 @@
 #      input that no reply followed keeps the original reply-then-answer
 #      prompt and its provisional stage.
 #      An answered label keeps an answer-now path for a reply that missed the
-#      message, and the disposition confirmation never says to end the turn.
+#      message; when every listed input is answered, the Stop reason and the
+#      listing say to end the turn silently, and neither does while unanswered
+#      input is listed or in the disposition confirmation.
 #   5. Compaction keeps unresolved input restorable from the full transcript;
 #      a slash skill invocation is captain input, while a command Claude Code
 #      answers locally, its output, and a shell-mode echo are not.
@@ -289,10 +291,12 @@ test_reply_already_given_needs_no_second_answer() {
   out=$(printf '%s' "$out" | jq -r '.reason')
   assert_one_line_reason "$out"
   case "$out" in *u-a*u-b*) ;; *) fail "the reason did not name both answered inputs: $out" ;; esac
+  assert_contains "$out" "already answered: dispose and end the turn with no further text" "the Stop reason must say to end the turn silently"
   out=$(as_owner "$home" list)
   assert_contains "$out" "[u-a] ALREADY ANSWERED" "input a reply followed must be marked answered"
   assert_contains "$out" "[u-b] ALREADY ANSWERED" "input queued mid-turn and then answered must be marked answered"
   assert_contains "$out" "the earlier reply stands and needs no repeat." "the listing must say the given reply stands"
+  assert_contains "$out" "after disposing, end the turn with no further text" "the listing must say to end the turn silently"
   case "$out" in *"give the substantive answer"*) fail "the listing asked for a second answer after the reply: $out" ;; esac
   out=$(as_owner "$home" dispose u-a reply --summary "answered the Multica change")
   assert_contains "$out" "already given" "the disposition must confirm the given reply stands"
@@ -314,9 +318,11 @@ test_reply_already_given_needs_no_second_answer() {
   out=$(stop_hook "$home" | jq -r '.reason')
   assert_one_line_reason "$out"
   case "$out" in *u-e*) ;; *) fail "the reason did not name the new unanswered input: $out" ;; esac
+  case "$out" in *"end the turn"*) fail "the Stop reason said to end the turn while unanswered input is listed: $out" ;; esac
   out=$(as_owner "$home" list)
   assert_contains "$out" "once, then give the substantive answer." "input with no following reply must keep the original prompt"
   assert_contains "$out" "the earlier reply stands and needs no repeat." "the earlier answered input must keep its marker"
+  case "$out" in *"end the turn"*) fail "the listing said to end the turn while unanswered input is listed: $out" ;; esac
   case "$out" in *"[u-e] ALREADY"*) fail "narration before a tool call counted as a reply: $out" ;; esac
   out=$(as_owner "$home" dispose u-e reply --summary "will confirm the rotation")
   assert_contains "$out" "reply staged for u-e" "input with no following reply must stage its reply disposition"
@@ -329,8 +335,9 @@ test_reply_already_given_needs_no_second_answer() {
 }
 
 # A mid-turn question the final reply ignored is still labelled answered, so
-# the listing and the next prompt's context keep the answer-now path, and the
-# disposition confirmation never says to end the turn.
+# the listing and the next prompt's context keep the answer-now path; the Stop
+# reason and the listing say to end the turn only while every input is
+# answered, and the disposition confirmation never does.
 test_ignored_mid_turn_question_keeps_answer_path() {
   local home="$TMP_ROOT/ignored" out
   make_home "$home"
@@ -342,10 +349,12 @@ test_ignored_mid_turn_question_keeps_answer_path() {
   reply "$home" "The release notes cover the new sync engine."
   out=$(stop_hook "$home" | jq -r '.reason')
   assert_one_line_reason "$out"
+  assert_contains "$out" "already answered: dispose and end the turn with no further text" "the Stop reason says the given reply stands"
   out=$(as_owner "$home" list)
   assert_contains "$out" "[u-b] ALREADY ANSWERED" "the ignored mid-turn question carries the answered label"
   assert_contains "$out" "If that reply did not actually address an ALREADY ANSWERED message, answer it now and then dispose it." \
     "the listing must keep the answer-now path for an answered-labelled input"
+  assert_contains "$out" "after disposing, end the turn with no further text" "the listing says the given reply stands"
   say "$home" u-c "Now tag the release."
   out=$(context_hook "$home" UserPromptSubmit | jq -r '.hookSpecificOutput.additionalContext')
   assert_contains "$out" "[u-a] ALREADY ANSWERED" "the next prompt's context still lists the answered input"
@@ -355,7 +364,7 @@ test_ignored_mid_turn_question_keeps_answer_path() {
   out=$(as_owner "$home" dispose u-a reply --summary "summarised the notes")
   assert_contains "$out" "needs no repeat" "the disposition confirms the given reply stands"
   case "$out" in *"end the turn"*) fail "the disposition confirmation told Firstmate to end the turn: $out" ;; esac
-  pass "an ignored mid-turn question keeps the answer-now path, and nothing tells Firstmate to end the turn"
+  pass "an ignored mid-turn question keeps the answer-now path, and only an all-answered Stop reason and listing say to end the turn"
 }
 
 # Claude Code shows a blocking Stop reason to the captain, so it must be one

@@ -52,7 +52,8 @@
 #                       captain, so the reason is one line under 160 characters
 #                       naming the unresolved input ids (as many as fit, then a
 #                       "+N more" count) and `list`, never the reconciliation
-#                       text itself.
+#                       text itself; when every input is already answered it
+#                       adds a cue to dispose and end the turn silently.
 #   hook context        SessionStart and UserPromptSubmit: restore unresolved
 #                       input as additional context (compaction, resume, and
 #                       every new prompt), with a bounded preview followed by
@@ -286,7 +287,8 @@ pending_requests() {  # <session> <transcript>
 # followed by the reconciliation instructions. The Stop block never carries
 # this text (see stop_reason); the context hook and `list` do.
 describe() {  # <requests-jsonl> <limit>
-  local requests=$1 limit=$2 count shown
+  local requests=$1 limit=$2 count shown answered=
+  printf '%s\n' "$requests" | jq -e 'select(.answered | not)' >/dev/null 2>&1 || answered=1
   count=$(printf '%s\n' "$requests" | grep -c . || true)
   shown=$count
   [ "$limit" -gt 0 ] && [ "$count" -gt "$limit" ] && shown=$limit
@@ -302,34 +304,38 @@ Reconcile every intent in these messages against later corrections, cancellation
 Use existing task IDs and owners; never replay a request merely because it is listed.
 Record outliving work and its next action in the backlog, then run bin/fm-request-continuity.sh dispose <id> recorded <task-id>... --summary "<handling>".
 TEXT
-  if printf '%s\n' "$requests" | jq -e 'select(.answered | not)' >/dev/null 2>&1; then
+  if [ -z "$answered" ]; then
     printf '%s\n' 'Questions and work fully handled in this reply need no task: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once, then give the substantive answer.'
   fi
   if printf '%s\n' "$requests" | jq -e 'select(.answered)' >/dev/null 2>&1; then
     printf '%s\n' 'An ALREADY ANSWERED message whose reply fully handled it needs no task and no new answer: run bin/fm-request-continuity.sh dispose <id> reply --summary "<handling>" once; the earlier reply stands and needs no repeat.'
     printf '%s\n' 'If that reply did not actually address an ALREADY ANSWERED message, answer it now and then dispose it.'
   fi
+  [ -z "$answered" ] || printf '%s\n' 'Every message listed is ALREADY ANSWERED: after disposing, end the turn with no further text, because the captain already has that reply.'
   printf '%s\n' 'A disposition does not establish task execution, completion or semantic correctness.'
 }
 
 # The one-line Stop block reason: the unresolved ids that fit under
 # STOP_REASON_LIMIT characters in order, a "+N more" count for the rest, and
-# the command that prints the full text. An id too long to fit alone leaves
+# the command that prints the full text, plus a cue to end the turn silently
+# when every input is already answered. An id too long to fit alone leaves
 # only the count.
 STOP_REASON_LIMIT=160
 stop_reason() {  # <requests-jsonl>
-  local ids=() n shown line rest
+  local ids=() n shown line rest tail=
+  printf '%s\n' "$1" | jq -e 'select(.answered | not)' >/dev/null 2>&1 \
+    || tail='; already answered: dispose and end the turn with no further text'
   while IFS= read -r line; do [ -n "$line" ] && ids+=("$line"); done < <(printf '%s\n' "$1" | jq -r '.id')
   n=${#ids[@]}
   shown=$n
   while :; do
     rest=$((n - shown))
     if [ "$shown" -eq 0 ]; then
-      line="Unreconciled captain input ($n messages): run bin/fm-request-continuity.sh list"
+      line="Unreconciled captain input ($n messages): run bin/fm-request-continuity.sh list$tail"
     else
       line="Unreconciled captain input $(printf '%s, ' "${ids[@]:0:$shown}" | sed 's/, $//')"
       [ "$rest" -eq 0 ] || line="$line (+$rest more)"
-      line="$line: run bin/fm-request-continuity.sh list"
+      line="$line: run bin/fm-request-continuity.sh list$tail"
     fi
     [ "${#line}" -lt "$STOP_REASON_LIMIT" ] && break
     [ "$shown" -gt 0 ] || break
