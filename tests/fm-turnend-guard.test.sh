@@ -1932,7 +1932,7 @@ test_hook_claude_mode_away_mode_never_uses_stop_autoarm_fail_open() {
 }
 
 test_hook_claude_mode_allow_resets_budget() {
-  local dir pid identity out status
+  local dir pid identity out status explain_out
   dir=$(make_primary_dir "$TMP_ROOT/hook-claude-reset")
   : > "$dir/state/task1.meta"
   out=$(FM_CLAUDE_AUTOARM_SYNC_WAIT_MS=100 run_hook_claude "$dir" false); status=$?
@@ -1949,11 +1949,16 @@ test_hook_claude_mode_allow_resets_budget() {
   }
   record_watcher_lock "$dir" "$pid" "$identity"
   touch "$dir/state/.last-watcher-beat"
+  explain_out=$(run_explain "$dir" blind-turn)
   out=$(run_hook_claude "$dir" false); status=$?
   kill "$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
   rm -rf "$dir/state/.watch.lock"
   expect_code 0 "$status" "--claude must allow once the watcher is healthy again"
+  assert_contains "$explain_out" "supervises this home now" "explain after recovery must name the live supervision"
+  assert_contains "$explain_out" "does not currently apply" "explain after recovery must say the blind-turn block no longer applies"
+  assert_not_contains "$explain_out" "no live watcher" "explain after recovery must not claim the watcher is missing"
+  assert_not_contains "$explain_out" "recovery is NOT already under way" "explain after recovery must not claim recovery is absent"
   [ ! -f "$dir/state/.turnend-claude-blocks" ] || fail "--claude allow must reset the consecutive-block budget"
   [ ! -f "$dir/state/.claude-autoarm-failure-notified" ] || fail "positive watcher recovery must reset the failure notice"
   [ ! -f "$dir/state/.claude-autoarm-failure-alarmed" ] || fail "positive watcher recovery must reset the attended alarm"
@@ -2382,6 +2387,7 @@ test_explain_without_records_and_unknown_key() {
   out=$(run_explain "$dir" blind-turn); status=$?
   expect_code 0 "$status" "explain blind-turn must succeed on an unsupervised home"
   assert_contains "$out" "does not currently apply" "explain must say the blind-turn block does not apply when nothing needs supervision"
+  [ "$(printf '%s\n' "$out" | grep -c .)" -eq 2 ] || fail "explain must print only the headline and the not-applying condition:"$'\n'"$out"
   out=$(run_explain "$dir" bogus); status=$?
   expect_code 2 "$status" "explain must refuse an unknown block"
   assert_contains "$out" "explain filtered-drain|stow-required|blind-turn" "the refusal must name the valid blocks"
