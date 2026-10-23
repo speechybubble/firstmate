@@ -1,0 +1,50 @@
+
+ ▐▛███▛█   Claude Code v2.1.309
+▝▜██████▀  Fable 5.1 with low effort · Claude Max
+ ▝▝   ▝▝   /tmp/fm-lab.DidCCK/project-sup
+
+
+❯ Run exactly bin/fm-wake-drain.sh 2>&1 | tail -3 with Bash, then reply with one word.
+
+  Ran 1 shell command
+
+● Done.
+
+● Ran 2 stop hooks
+  ⎿  Stop hook error: [[ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || exit 0; exec "$CLAUDE_PROJECT_DIR"/bin/fm-turnend-guard.sh --claude]: WAKE DRAIN OUTPUT WAS FILTERED THIS TURN: A Bash call piped
+  bin/fm-wake-drain.sh through tail: bin/fm-wake-drain.sh 2>&1 | tail -3 A filtered drain hides sections this turn must handle (OPEN DECISIONS, UNREAD STATUS, RECORD DIVERGENCE, the WAKE_ACK_REQUIRED command) and
+  no later unfiltered read followed it. Re-read it whole now and handle everything it prints before ending the turn: FM_HOME=/tmp/fm-lab.DidCCK/suphome /tmp/fm-lab.DidCCK/project-sup/bin/fm-wake-drain.sh This
+  block fires once per turn; the next stop of this turn is allowed.
+
+
+  Ran 1 shell command
+
+● The unfiltered drain printed nothing, so there is nothing to handle.
+
+✻ Sautéed for 12s · done 1:09 PM
+
+❯ Reply with only OK.
+
+● OK
+
+✻ Cogitated for 2s · done 1:10 PM
+
+● Stop hook feedback
+
+  Ran 2 shell commands
+
+● Wake acknowledged. One decision is open for you: the demo task asks which region it should deploy to. Answer it with:
+
+  bin/fm-send.sh demo --resolve-key <key> '<region>'
+
+✻ Brewed for 15s · done 1:11 PM
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (shift+tab to cycle)

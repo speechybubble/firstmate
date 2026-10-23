@@ -1,0 +1,50 @@
+
+ ▐▛███▛█   Claude Code v2.1.309
+▝▜██████▀  Fable 5.1 with low effort · Claude Max
+ ▝▝   ▝▝   /tmp/fm-lab.DidCCK/project-sup
+
+
+❯ Run exactly bin/fm-wake-drain.sh 2>&1 | tail -3 with Bash, then reply with one word.
+
+  Ran 1 shell command
+
+● Done.
+
+● Ran 2 stop hooks
+  ⎿  Stop hook error: [[ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || exit 0; exec "$CLAUDE_PROJECT_DIR"/bin/fm-turnend-guard.sh --claude]: WAKE DRAIN OUTPUT WAS FILTERED THIS TURN: A Bash call piped
+  bin/fm-wake-drain.sh through tail: bin/fm-wake-drain.sh 2>&1 | tail -3 A filtered drain hides sections this turn must handle (OPEN DECISIONS, UNREAD STATUS, RECORD DIVERGENCE, the WAKE_ACK_REQUIRED command) and
+  no later unfiltered read followed it. Re-read it whole now and handle everything it prints before ending the turn: FM_HOME=/tmp/fm-lab.DidCCK/suphome /tmp/fm-lab.DidCCK/project-sup/bin/fm-wake-drain.sh This
+  block fires once per turn; the next stop of this turn is allowed.
+
+
+  Ran 1 shell command
+
+● The unfiltered drain printed nothing, so there is nothing to handle.
+
+✻ Sautéed for 12s · done 1:09 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                                      tmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for focus tracking
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ bypass permissions on (shift+tab to cycle)

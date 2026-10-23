@@ -1,0 +1,7 @@
+<task-notification>
+<summary>Stop hook feedback</summary>
+</task-notification>
+<system-reminder>
+Stop hook blocking error from command "Stop": firstmate watcher wake: signal: /tmp/fm-lab.DidCCK/suphome/state/demo.status - run bin/fm-wake-drain.sh first, handle what it prints, then its exact WAKE_ACK_REQUIRED command; the next turn end re-arms, so do NOT run bin/fm-watch-arm.sh.
+
+</system-reminder>

@@ -1,0 +1,9 @@
+{"type":"start","after":0}
+{"type":"recovery","ids":["5ec5a990-daf9-4dcc-ba6e-67eb0a71682e"]}
+{"type":"disposition","id":"5ec5a990-daf9-4dcc-ba6e-67eb0a71682e","disposition":"reply","tasks":[],"summary":"Answered 42; Q3 release note already tracked as backlog task t-relnote, no new task needed","at":45}
+{"type":"outcome-stage","through":1,"at":61}
+{"type":"outcome-commit","through":1}
+{"type":"recovery","ids":["253265c4-6a71-498c-8d64-34882da5035c"]}
+{"type":"disposition","id":"253265c4-6a71-498c-8d64-34882da5035c","disposition":"reply","tasks":[],"summary":"Ran outcome-ack --through 1 and told the captain PR 9 is ready for review","at":78}
+{"type":"recovery","ids":["a8ea6388-7317-489d-af65-949c42edc843"]}
+{"type":"recovery","ids":["3fb85022-6bbd-41e8-b3db-77928ae05447"]}

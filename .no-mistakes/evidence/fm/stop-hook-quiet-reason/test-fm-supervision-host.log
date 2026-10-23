@@ -1,0 +1,4 @@
+not ok - the host must hand its captain outcome to main
+--- /tmp/fm-supervision-host.tBmQ7r/hook-successor-closed-before-return/hook.err ---
+firstmate watcher wake: signal: /tmp/fm-supervision-host.tBmQ7r/hook-successor-closed-before-return/state/demo.status - run bin/fm-wake-drain.sh first, handle what it prints, then its exact WAKE_ACK_REQUIRED command; the next turn end re-arms, so do NOT run bin/fm-watch-arm.sh.
+exit=1
