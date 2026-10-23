@@ -1297,7 +1297,7 @@ main_drain() {  # <home>; prints the drain and sets MAIN_ACK
 
 assert_rewoke_main() {  # <home> <label>
   expect_code 2 "$(cat "$1/hook.rc")" "$2: the Stop hook must rewake main: $(cat "$1/hook.err"; cat "$1/state/.watcher-down" 2>/dev/null)"
-  assert_grep '^firstmate watcher wake' "$1/hook.err" "$2: the rewake banner is missing"
+  assert_re '^firstmate watcher wake' "$1/hook.err" "$2: the rewake banner is missing"
   [ "$(grep -c . "$1/hook.err")" -eq 1 ] || fail "$2: the rewake banner is not one line: $(cat "$1/hook.err")"
   assert_re '^epoch=[0-9]+ owner_pid=[0-9]+ outcome=rewake ' "$1/state/.claude-autoarm-epoch" "$2: the auto-arm ledger must record the rewake"
 }
