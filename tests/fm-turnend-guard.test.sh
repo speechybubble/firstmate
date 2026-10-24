@@ -1280,11 +1280,24 @@ SH
 }
 
 # Claude Code shows a blocking Stop hook's text to the captain, so every
-# --claude block message is one line (docs/turnend-guard.md "Claude cooperative
+# --claude block message is one short line under 160 characters naming the
+# `explain` command for its block (docs/turnend-guard.md "Claude cooperative
 # mode"); the default mode keeps its boxed banner, which case 1 above covers.
-assert_claude_block_is_one_line() {  # <stderr>
+assert_claude_block_is_one_line() {  # <stderr> <key>
   [ "$(printf '%s\n' "$1" | grep -c .)" -eq 1 ] || fail "the --claude block is not one line:"$'\n'"$1"
   case "$1" in *'●'*) fail "the --claude block carries the boxed banner: $1" ;; esac
+  [ "${#1}" -lt 160 ] || fail "the --claude block is ${#1} characters, not under 160: $1"
+  case "$1" in
+    *". Firstmate: bin/fm-turnend-guard.sh explain $2") ;;
+    *) fail "the --claude block does not end with the explain command for $2: $1" ;;
+  esac
+}
+
+# The full text a --claude block points at, read back as firstmate would.
+run_explain() {  # <dir> <key>
+  local home
+  home=$(cd "$1" && pwd)
+  FM_HOME="$home" bash "$1/bin/fm-turnend-guard.sh" explain "$2" </dev/null 2>&1
 }
 
 # The 2026-07-21 incident regression: after a spent forced continuation the old
@@ -1297,9 +1310,12 @@ test_hook_claude_mode_reblocks_stop_hook_active_when_unhealthy() {
   out=$(FM_CLAUDE_AUTOARM_SYNC_WAIT_MS=200 run_hook_claude "$dir" true); status=$?
   expect_code 2 "$status" "--claude mode must re-block a stop_hook_active=true stop while unhealthy with no auto-arm claim"
   assert_contains "$out" "TURN WOULD END BLIND" "--claude re-block must carry the blind-turn banner"
-  assert_contains "$out" "Stop-owned auto-arm did not claim" "--claude re-block must explain the missing auto-arm claim"
-  assert_contains "$out" "task(s) in flight, but no live watcher holds this home lock" "--claude re-block must name the condition"
-  assert_claude_block_is_one_line "$out"
+  assert_claude_block_is_one_line "$out" blind-turn
+  out=$(run_explain "$dir" blind-turn)
+  assert_contains "$out" "TURN WOULD END BLIND - SUPERVISION IS OFF" "explain must print the blind-turn headline"
+  assert_contains "$out" "1 task(s) in flight, but no live watcher holds this home lock" "explain must name the condition"
+  assert_contains "$out" "Stop-owned auto-arm did not claim" "explain must explain the missing auto-arm claim"
+  [ "$(printf '%s\n' "$out" | grep -c .)" -eq 4 ] || fail "explain must print the headline and three sentences, one per line:"$'\n'"$out"
   pass "fm-turnend-guard --claude: re-blocks a loop-guarded stop while unhealthy and unclaimed (incident regression)"
 }
 
@@ -1309,7 +1325,7 @@ test_hook_claude_mode_reblocks_x_mode_without_tasks() {
   : > "$dir/state/x-watch.check.sh"
   out=$(FM_CLAUDE_AUTOARM_SYNC_WAIT_MS=200 run_hook_claude "$dir" true); status=$?
   expect_code 2 "$status" "--claude mode must re-block an X-mode-only stop when no auto-arm claims recovery"
-  assert_contains "$out" "X-mode relay polling needs supervision" "--claude X-mode re-block must name the active supervision need"
+  assert_contains "$(run_explain "$dir" blind-turn)" "X-mode relay polling needs supervision" "--claude X-mode re-block must name the active supervision need"
   [ -f "$dir/state/.turnend-claude-blocks" ] || fail "--claude X-mode re-block must consume the shared block budget"
   pass "fm-turnend-guard --claude: X-mode-only homes re-block when auto-arm recovery is absent"
 }
@@ -1458,7 +1474,7 @@ test_hook_claude_mode_blocks_on_abandoned_autoarm_claim() {
   wait "$pid" 2>/dev/null || true
   expect_code 2 "$status" "an owner lock left behind by a finished claim must not pass for recovery under way"
   assert_contains "$out" "TURN WOULD END BLIND" "abandoned-claim block must carry the blind-turn banner"
-  assert_contains "$out" "2 task(s) in flight" "abandoned-claim block must name the unsupervised work"
+  assert_contains "$(run_explain "$dir" blind-turn)" "2 task(s) in flight" "abandoned-claim block must name the unsupervised work"
   pass "fm-turnend-guard --claude: an abandoned auto-arm claim no longer allows a blind stop (incident regression)"
 }
 
@@ -1487,7 +1503,7 @@ test_hook_claude_mode_blocks_on_pid_reused_arming_claim() {
   wait "$pid" 2>/dev/null || true
   expect_code 2 "$status" "a claim whose recorded identity no longer matches its live pid must not pass for recovery under way"
   assert_contains "$out" "TURN WOULD END BLIND" "reused-pid claim block must carry the blind-turn banner"
-  assert_contains "$out" "2 task(s) in flight" "reused-pid claim block must name the unsupervised work"
+  assert_contains "$(run_explain "$dir" blind-turn)" "2 task(s) in flight" "reused-pid claim block must name the unsupervised work"
   pass "fm-turnend-guard --claude: a claim whose pid was reused stops counting as recovery even while its entry reads arming"
 }
 
@@ -1512,7 +1528,7 @@ test_hook_claude_mode_blocks_on_stuck_arming_claim() {
   wait "$pid" 2>/dev/null || true
   expect_code 2 "$status" "a live owner stuck arming past grace with a stale beacon must not pass for recovery under way"
   assert_contains "$out" "TURN WOULD END BLIND" "stuck-arming claim block must carry the blind-turn banner"
-  assert_contains "$out" "2 task(s) in flight" "stuck-arming claim block must name the unsupervised work"
+  assert_contains "$(run_explain "$dir" blind-turn)" "2 task(s) in flight" "stuck-arming claim block must name the unsupervised work"
   pass "fm-turnend-guard --claude: a hung owner frozen at arming with no watcher beat no longer allows a blind stop"
 }
 
@@ -1558,7 +1574,7 @@ test_hook_claude_mode_blocks_on_stuck_generation_claim() {
   wait "$pid" 2>/dev/null || true
   expect_code 2 "$status" "a stuck generation claim must not pass for recovery under way"
   assert_contains "$out" "TURN WOULD END BLIND" "stuck-generation-claim block must carry the blind-turn banner"
-  assert_contains "$out" "2 task(s) in flight" "stuck-generation-claim block must name the unsupervised work"
+  assert_contains "$(run_explain "$dir" blind-turn)" "2 task(s) in flight" "stuck-generation-claim block must name the unsupervised work"
   pass "fm-turnend-guard --claude: a stuck generation claim no longer allows a blind stop"
 }
 
@@ -1910,13 +1926,13 @@ test_hook_claude_mode_away_mode_never_uses_stop_autoarm_fail_open() {
   seed_claude_budget "$dir" 3
   out=$(FM_CLAUDE_AUTOARM_SYNC_WAIT_MS=100 run_hook_claude "$dir" true); status=$?
   expect_code 2 "$status" "away mode must not use a stale Stop-autoarm failure to fail open"
-  assert_contains "$out" 'Away mode owns watcher supervision' "away-mode block lost its daemon ownership guidance"
+  assert_contains "$(run_explain "$dir" blind-turn)" 'Away mode owns watcher supervision' "away-mode block lost its daemon ownership guidance"
   assert_absent "$dir/state/.claude-autoarm-failure-alarmed" "away mode consumed the Stop-autoarm attended alarm"
   pass "fm-turnend-guard --claude: away ownership excludes the Stop-autoarm fail-open"
 }
 
 test_hook_claude_mode_allow_resets_budget() {
-  local dir pid identity out status
+  local dir pid identity out status explain_out
   dir=$(make_primary_dir "$TMP_ROOT/hook-claude-reset")
   : > "$dir/state/task1.meta"
   out=$(FM_CLAUDE_AUTOARM_SYNC_WAIT_MS=100 run_hook_claude "$dir" false); status=$?
@@ -1933,11 +1949,16 @@ test_hook_claude_mode_allow_resets_budget() {
   }
   record_watcher_lock "$dir" "$pid" "$identity"
   touch "$dir/state/.last-watcher-beat"
+  explain_out=$(run_explain "$dir" blind-turn)
   out=$(run_hook_claude "$dir" false); status=$?
   kill "$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
   rm -rf "$dir/state/.watch.lock"
   expect_code 0 "$status" "--claude must allow once the watcher is healthy again"
+  assert_contains "$explain_out" "supervises this home now" "explain after recovery must name the live supervision"
+  assert_contains "$explain_out" "does not currently apply" "explain after recovery must say the blind-turn block no longer applies"
+  assert_not_contains "$explain_out" "no live watcher" "explain after recovery must not claim the watcher is missing"
+  assert_not_contains "$explain_out" "recovery is NOT already under way" "explain after recovery must not claim recovery is absent"
   [ ! -f "$dir/state/.turnend-claude-blocks" ] || fail "--claude allow must reset the consecutive-block budget"
   [ ! -f "$dir/state/.claude-autoarm-failure-notified" ] || fail "positive watcher recovery must reset the failure notice"
   [ ! -f "$dir/state/.claude-autoarm-failure-alarmed" ] || fail "positive watcher recovery must reset the attended alarm"
@@ -2327,21 +2348,50 @@ run_hook_claude_transcript() {  # <dir> <transcript> [session]
 }
 
 test_hook_filtered_drain_blocks_once_then_allows_retry() {
-  local dir out status transcript
+  local dir out status transcript home expected
   dir=$(make_primary_dir "$TMP_ROOT/device-filtered")
   transcript="$TMP_ROOT/device-filtered.jsonl"
   write_transcript "$transcript" 'FM_HOME=/h /r/bin/fm-wake-drain.sh 2>&1 | tail -40'
   out=$(run_hook_claude_transcript "$dir" "$transcript"); status=$?
   expect_code 2 "$status" "a filtered drain read in the current turn must block the stop"
-  assert_contains "$out" "WAKE DRAIN OUTPUT WAS FILTERED THIS TURN" "the block names the device"
-  assert_contains "$out" "through tail: " "the block names the filter"
-  assert_contains "$out" "FM_HOME=$(cd "$dir" && pwd) $(cd "$dir" && pwd)/bin/fm-wake-drain.sh" "the block names the exact unfiltered command for this home"
-  assert_claude_block_is_one_line "$out"
+  assert_contains "$out" "WAKE DRAIN OUTPUT WAS FILTERED THIS TURN (tail)" "the block names the device and the filter"
+  assert_not_contains "$out" "fm-wake-drain.sh" "the piped command and the re-read command stay behind explain"
+  assert_claude_block_is_one_line "$out" filtered-drain
+  home=$(cd "$dir" && pwd)
+  expected="WAKE DRAIN OUTPUT WAS FILTERED THIS TURN
+A Bash call piped bin/fm-wake-drain.sh through tail: FM_HOME=/h /r/bin/fm-wake-drain.sh 2>&1 | tail -40
+A filtered drain hides sections this turn must handle (OPEN DECISIONS, UNREAD STATUS, RECORD DIVERGENCE, the WAKE_ACK_REQUIRED command) and no later unfiltered read followed it.
+Re-read it whole now and handle everything it prints before ending the turn: FM_HOME=$home $home/bin/fm-wake-drain.sh
+This block fires once per turn; the next stop of this turn is allowed."
+  [ "$(run_explain "$dir" filtered-drain)" = "$expected" ] \
+    || fail "explain must print the full filtered-drain text with the recorded command:"$'\n'"$(run_explain "$dir" filtered-drain)"
   assert_contains "$(cat "$dir/state/.turnend-claude-blocks")" "count=1" "the device block charges the session block budget"
   out=$(run_hook_claude_transcript "$dir" "$transcript"); status=$?
   expect_code 0 "$status" "the retry of the same turn must be allowed"
   assert_not_contains "$out" "WAKE DRAIN OUTPUT WAS FILTERED" "the retry carries no second block"
   pass "fm-turnend-guard --claude: a filtered drain read blocks once with the unfiltered command, then the retry is allowed"
+}
+
+# explain reads no hook payload, refuses an unknown block, and still prints the
+# full text when the home holds no record to fill it from.
+test_explain_without_records_and_unknown_key() {
+  local dir out status
+  dir=$(make_primary_dir "$TMP_ROOT/explain-norecord")
+  out=$(run_explain "$dir" filtered-drain); status=$?
+  expect_code 0 "$status" "explain filtered-drain must succeed without a record"
+  assert_contains "$out" "through a filter (this home has no record of the command)." "explain must say the command was not recorded"
+  assert_contains "$out" "/bin/fm-wake-drain.sh"$'\n' "explain must still print the unfiltered re-read command"
+  out=$(run_explain "$dir" stow-required); status=$?
+  expect_code 0 "$status" "explain stow-required must succeed without a record"
+  assert_contains "$out" "A compaction of this session made a stow pass due" "explain must not invent a compaction count"
+  out=$(run_explain "$dir" blind-turn); status=$?
+  expect_code 0 "$status" "explain blind-turn must succeed on an unsupervised home"
+  assert_contains "$out" "does not currently apply" "explain must say the blind-turn block does not apply when nothing needs supervision"
+  [ "$(printf '%s\n' "$out" | grep -c .)" -eq 2 ] || fail "explain must print only the headline and the not-applying condition:"$'\n'"$out"
+  out=$(run_explain "$dir" bogus); status=$?
+  expect_code 2 "$status" "explain must refuse an unknown block"
+  assert_contains "$out" "explain filtered-drain|stow-required|blind-turn" "the refusal must name the valid blocks"
+  pass "fm-turnend-guard explain: prints the full text without records and refuses an unknown block"
 }
 
 test_hook_filtered_drain_cleared_by_later_unfiltered_read() {
@@ -2406,7 +2456,7 @@ test_hook_filtered_drain_respects_block_budget() {
 }
 
 test_hook_stow_required_blocks_until_marked() {
-  local dir out status home
+  local dir out status home expected
   dir=$(make_primary_dir "$TMP_ROOT/device-stow")
   home=$(cd "$dir" && pwd)
   cp "$ROOT/bin/fm-stow-mark.sh" "$dir/bin/fm-stow-mark.sh"
@@ -2416,9 +2466,12 @@ test_hook_stow_required_blocks_until_marked() {
   out=$(run_hook_claude "$dir" false); status=$?
   expect_code 2 "$status" "a stow-required record for the live lock-owning session must block"
   assert_contains "$out" "STOW PASS REQUIRED BEFORE THIS TURN ENDS" "the block names the device"
-  assert_contains "$out" "Compaction 2 of this session" "the block names the compaction that made the pass due"
-  assert_contains "$out" "$home/bin/fm-stow-mark.sh" "the block names the marker command"
-  assert_claude_block_is_one_line "$out"
+  assert_claude_block_is_one_line "$out" stow-required
+  expected="STOW PASS REQUIRED BEFORE THIS TURN ENDS
+Compaction 2 of this session made a stow pass due (the compact digest printed STOW_REQUIRED) and no pass has been recorded since; a compaction summary is where captain corrections get lost.
+Run the stow skill now (/stow); its final step runs $home/bin/fm-stow-mark.sh, which records the pass and releases this block, bounded by the session block budget."
+  [ "$(run_explain "$dir" stow-required)" = "$expected" ] \
+    || fail "explain must print the full stow text with the compaction count:"$'\n'"$(run_explain "$dir" stow-required)"
   out=$(run_hook_claude "$dir" false); status=$?
   expect_code 2 "$status" "an unanswered requirement blocks again"
   assert_contains "$(cat "$dir/state/.turnend-claude-blocks")" "count=2" "each stow block charges the budget"
@@ -2532,6 +2585,7 @@ test_hook_supervision_block_wins_over_stow_required() {
 }
 
 test_hook_filtered_drain_blocks_once_then_allows_retry
+test_explain_without_records_and_unknown_key
 test_hook_filtered_drain_cleared_by_later_unfiltered_read
 test_hook_filtered_drain_never_blocks_without_readable_transcript
 test_hook_filtered_drain_long_turn_blocks_once

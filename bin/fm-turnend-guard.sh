@@ -37,7 +37,7 @@
 # regularly unheld at a turn boundary with nothing wrong. A live
 # identity-matched daemon holding this home, plus a fresh beacon, is what
 # proves supervision there - see fm_afk_daemon_owns_supervision in
-# bin/fm-wake-lib.sh. The beacon freshness test there uses AFK_GRACE
+# bin/fm-wake-lib.sh. The beacon freshness test there uses a grace
 # (fm_poll_derived_grace, docs/turnend-guard.md "Guard grace and the poll
 # cadence"), not the flat $GRACE every other check on this page uses: the
 # daemon starts a fresh one-shot watcher only after it finishes handling the
@@ -45,7 +45,7 @@
 # window under load (a slow registered check, a busy supervisor pane) with the
 # daemon perfectly healthy throughout. The strict watcher predicate and $GRACE
 # are unchanged everywhere else, including for a dead daemon pid or a beacon
-# older than AFK_GRACE, which still block.
+# older than that grace, which still block.
 #
 # Loop-guard, codex/Grok (default) mode: never block twice in the same turn.
 # Codex uses stop_hook_active and Grok uses stopHookActive; typed camel-case
@@ -99,13 +99,16 @@
 #     current turn piped bin/fm-wake-drain.sh output through a filter with no
 #     later unfiltered read (bin/fm-drain-filter-lib.sh), block ONCE per turn
 #     with the exact unfiltered command; the retry of the same turn is allowed
-#     (state/.turnend-filtered-drain records the blocked turn; a turn longer
-#     than the transcript window counts as blocked once this session has a
-#     record, since its window id shifts on every Stop).
+#     (state/.turnend-filtered-drain records the blocked turn, the filter, and
+#     the piped command for `explain`; a turn longer than the transcript window
+#     counts as blocked once this session has a record, since its window id
+#     shifts on every Stop).
 #   - stow pass required: while state/.stow-required names the live harness
 #     pid holding state/.lock (bin/fm-stow-cadence-lib.sh), block until
 #     bin/fm-stow-mark.sh has recorded the pass; a read-only session beside a
 #     live foreign lock owner is never blocked.
+# In --claude mode every block, these two and the blind-turn banner, is one
+# line naming `explain <key>`, which prints the full text (emit_block).
 # Both charge the Claude block budget above (budget_charge_device) and stand
 # down once it is spent, so neither can reach Claude Code's 8-consecutive-block
 # override, and both stand down silently on anything they cannot read: no
@@ -129,12 +132,27 @@ case "$SYNC_WAIT_MS" in ''|*[!0-9]*) SYNC_WAIT_MS=800 ;; esac
 case "$EPOCH_FRESH" in ''|*[!0-9]*|0) EPOCH_FRESH=15 ;; esac
 case "$BLOCK_BUDGET" in ''|*[!0-9]*|0) BLOCK_BUDGET=3 ;; esac
 
+usage() {
+  echo "usage: $(basename "$0") [--claude|--cursor|--codex]" >&2
+  echo "       $(basename "$0") explain filtered-drain|stow-required|blind-turn" >&2
+  exit 2
+}
+
+# `explain <key>` prints, to stdout, the full text of the block the --claude
+# one-line message names (see block_text below), filled in from this home's
+# current records. It reads no hook payload and never blocks anything.
+EXPLAIN_KEY=
+if [ "${1:-}" = explain ]; then
+  [ "$#" -eq 2 ] || usage
+  case "$2" in filtered-drain|stow-required|blind-turn) EXPLAIN_KEY=$2 ;; *) usage ;; esac
+  shift 2
+fi
 for arg in "$@"; do
   case "$arg" in
     --claude) CLAUDE_MODE=1 ;;
     --cursor) CURSOR_MODE=1 ;;
     --codex) CODEX_MODE=1 ;;
-    *) echo "usage: $(basename "$0") [--claude|--cursor|--codex]" >&2; exit 2 ;;
+    *) usage ;;
   esac
 done
 
@@ -171,6 +189,174 @@ trap record_parent_stop_state EXIT
 . "$SCRIPT_DIR/fm-primary-scope-lib.sh"
 # shellcheck source=bin/fm-hook-host-lib.sh
 . "$SCRIPT_DIR/fm-hook-host-lib.sh"
+
+# --- block messages ----------------------------------------------------------
+# The one table of block texts. block_text sets BLOCK_HEADLINE and BLOCK_LINES
+# for <key> from the BLOCK_* inputs its detector (or explain_block) filled in,
+# so the boxed banner, the --claude one-line message, and `explain` render the
+# same sentences and cannot drift apart.
+BLOCK_FILTER_NAME=
+BLOCK_FILTER_COMMAND=
+BLOCK_STOW_COUNT=
+BLOCK_CONDITION=
+BLOCK_REASON=
+block_text() {  # <key>
+  local opening
+  case "$1" in
+    filtered-drain)
+      BLOCK_HEADLINE='WAKE DRAIN OUTPUT WAS FILTERED THIS TURN'
+      if [ -n "$BLOCK_FILTER_NAME" ]; then
+        opening="A Bash call piped bin/fm-wake-drain.sh through $BLOCK_FILTER_NAME: $BLOCK_FILTER_COMMAND"
+      else
+        opening='A Bash call piped bin/fm-wake-drain.sh through a filter (this home has no record of the command).'
+      fi
+      BLOCK_LINES=("$opening"
+        'A filtered drain hides sections this turn must handle (OPEN DECISIONS, UNREAD STATUS, RECORD DIVERGENCE, the WAKE_ACK_REQUIRED command) and no later unfiltered read followed it.'
+        "Re-read it whole now and handle everything it prints before ending the turn: FM_HOME=$FM_HOME $FM_ROOT/bin/fm-wake-drain.sh"
+        'This block fires once per turn; the next stop of this turn is allowed.')
+      ;;
+    stow-required)
+      BLOCK_HEADLINE='STOW PASS REQUIRED BEFORE THIS TURN ENDS'
+      if [ -n "$BLOCK_STOW_COUNT" ]; then
+        opening="Compaction $BLOCK_STOW_COUNT of this session"
+      else
+        opening='A compaction of this session'
+      fi
+      BLOCK_LINES=("$opening made a stow pass due (the compact digest printed STOW_REQUIRED) and no pass has been recorded since; a compaction summary is where captain corrections get lost."
+        "Run the stow skill now (/stow); its final step runs $FM_ROOT/bin/fm-stow-mark.sh, which records the pass and releases this block, bounded by the session block budget.")
+      ;;
+    blind-turn)
+      BLOCK_HEADLINE='TURN WOULD END BLIND - SUPERVISION IS OFF'
+      if [ -z "$BLOCK_REASON" ]; then
+        BLOCK_LINES=("$BLOCK_CONDITION")
+      elif [ "$CLAUDE_MODE" -eq 1 ] || [ -n "$EXPLAIN_KEY" ]; then
+        BLOCK_LINES=("$BLOCK_CONDITION"
+          'The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.'
+          "$BLOCK_REASON")
+      else
+        BLOCK_LINES=("$BLOCK_CONDITION" "$BLOCK_REASON")
+      fi
+      ;;
+  esac
+}
+
+# Fill BLOCK_CONDITION and BLOCK_REASON for the blind-turn block from the
+# FM_SUP_* values fm_supervision_status set. When `explain` finds supervision
+# needed by nothing or already proven, the condition says the block does not
+# apply and BLOCK_REASON stays empty.
+blind_turn_inputs() {
+  local afk x_mode
+  if [ "$FM_SUP_NEEDED" = false ]; then
+    BLOCK_CONDITION="Nothing in this home needs supervision right now (last beat: $FM_SUP_BEACON_DESC), so this block does not currently apply."
+    return 0
+  fi
+  if [ -n "$EXPLAIN_KEY" ] && supervision_proven; then
+    BLOCK_CONDITION="A live watcher or away-mode daemon supervises this home now (last beat: $FM_SUP_BEACON_DESC), so this block does not currently apply."
+    return 0
+  fi
+  afk=0
+  [ -e "$STATE/.afk" ] && afk=1
+  x_mode=0
+  [ -f "$CONFIG/x-mode.env" ] && x_mode=1
+  BLOCK_REASON=$("$SCRIPT_DIR/fm-supervision-instructions.sh" --afk "$afk" --x-mode "$x_mode" --repair-line 2>/dev/null \
+    || printf '%s\n' 'tasks in flight, no live watcher - repair missing watcher supervision according to the session-start operating block before ending the turn')
+  if [ "$FM_SUP_IN_FLIGHT" -gt 0 ]; then
+    BLOCK_CONDITION="$FM_SUP_IN_FLIGHT task(s) in flight, but no live watcher holds this home lock (last beat: $FM_SUP_BEACON_DESC)."
+  elif [ "$FM_SUP_SOURCES" -gt 0 ]; then
+    BLOCK_CONDITION="$FM_SUP_SOURCES process-event source(s) registered, but no live watcher holds this home lock (last beat: $FM_SUP_BEACON_DESC)."
+  elif [ "$FM_SUP_CHECKS" -gt 0 ]; then
+    BLOCK_CONDITION="$FM_SUP_CHECKS registered custom check(s), but no live watcher holds this home lock (last beat: $FM_SUP_BEACON_DESC)."
+  else
+    BLOCK_CONDITION="X-mode relay polling needs supervision, but no live watcher holds this home lock (last beat: $FM_SUP_BEACON_DESC)."
+  fi
+}
+
+# Exit 0 when a proof of supervision holds: a healthy watcher, or in away mode
+# a live daemon with a fresh beacon. The guard allows the Stop on it, and
+# `explain blind-turn` reports the block as not applying on it.
+# Away mode transfers supervision ownership from the watcher to the away-mode
+# daemon, which runs the watcher one-shot and starts its replacement after every
+# wake (bin/fm-supervise-daemon.sh). A turn boundary regularly lands in that
+# hand-off, when no watcher process holds the lock and nothing is wrong, so
+# requiring one here alarmed on healthy away-mode supervision. A live
+# identity-matched daemon holding this home is the right owner to test for.
+# The beacon half of the predicate still applies: a daemon that stops
+# restarting its watcher still blocks once the beacon passes grace, and a home
+# with no daemon and no watcher blocks exactly as before. It uses a grace
+# (poll-cadence-derived, see the comment above) instead of the flat $GRACE
+# every other check on this page uses, so a daemon that is genuinely still
+# cycling - just slower than a fixed 300s window - is not misread as down.
+supervision_proven() {
+  local afk_grace
+  fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME" && return 0
+  afk_grace=${FM_GUARD_GRACE:-$(fm_poll_derived_grace)}
+  [ "$(fm_path_age "$STATE/.last-watcher-beat")" -lt "$afk_grace" ] \
+    && fm_afk_daemon_owns_supervision "$STATE"
+}
+
+device_rule='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
+
+# Render one block to stderr. Claude Code shows a blocking Stop hook's text to
+# the captain, so --claude mode prints one short line under 160 characters:
+# the headline (plus the filter's one-word name for filtered-drain) and the
+# `explain` command that prints the full sentences for firstmate. The default
+# mode keeps the boxed banner with every sentence.
+emit_block() {  # <key>
+  local line
+  block_text "$1"
+  if [ "$CLAUDE_MODE" -eq 1 ]; then
+    line=$BLOCK_HEADLINE
+    [ "$1" != filtered-drain ] || [ -z "$BLOCK_FILTER_NAME" ] || line="$line ($BLOCK_FILTER_NAME)"
+    printf '%s. Firstmate: bin/fm-turnend-guard.sh explain %s\n' "$line" "$1" >&2
+    return 0
+  fi
+  {
+    printf '●%s\n' "$device_rule"
+    printf '●  %s\n' "$BLOCK_HEADLINE"
+    for line in "${BLOCK_LINES[@]}"; do printf '●  %s\n' "$line"; done
+    printf '●%s\n' "$device_rule"
+  } >&2
+}
+
+FILTERED_DRAIN_RECORD="$STATE/.turnend-filtered-drain"
+
+# `explain <key>`: the headline and every sentence of that block, one per line,
+# with this home's recorded values: the piped command from the filtered-drain
+# record, the compaction that made the stow pass due, and the current
+# supervision condition and repair line.
+explain_block() {  # <key>
+  local lock_identity line
+  case "$1" in
+    filtered-drain)
+      if [ -f "$FILTERED_DRAIN_RECORD" ] && [ ! -L "$FILTERED_DRAIN_RECORD" ]; then
+        BLOCK_FILTER_NAME=$(sed -n 's/^filter=//p' "$FILTERED_DRAIN_RECORD" 2>/dev/null | head -n 1)
+        BLOCK_FILTER_COMMAND=$(sed -n 's/^command=//p' "$FILTERED_DRAIN_RECORD" 2>/dev/null | head -n 1)
+      fi
+      ;;
+    stow-required)
+      if lock_identity=$(fm_stow_cadence_lock_identity "$STATE") \
+        && fm_stow_cadence_required "$STATE" "${lock_identity%% *}"; then
+        BLOCK_STOW_COUNT=$FM_STOW_CADENCE_REQUIRED_COUNT
+      fi
+      ;;
+    blind-turn)
+      fm_supervision_status "$STATE" "$GRACE"
+      blind_turn_inputs
+      ;;
+  esac
+  block_text "$1"
+  printf '%s\n' "$BLOCK_HEADLINE"
+  for line in "${BLOCK_LINES[@]}"; do printf '%s\n' "$line"; done
+}
+
+if [ -n "$EXPLAIN_KEY" ]; then
+  # shellcheck source=bin/fm-wake-lib.sh
+  . "$SCRIPT_DIR/fm-wake-lib.sh"
+  # shellcheck source=bin/fm-stow-cadence-lib.sh
+  . "$SCRIPT_DIR/fm-stow-cadence-lib.sh"
+  explain_block "$EXPLAIN_KEY"
+  exit 0
+fi
 
 # Read the whole turn-end hook payload once; never block on unreadable/absent
 # stdin.
@@ -278,30 +464,6 @@ budget_charge_device() {
   return 0
 }
 
-device_rule='━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-
-# Render one block message to stderr: a headline and the sentences that
-# explain and point at the recovery. Claude Code shows a blocking Stop hook's
-# text to the captain, so --claude mode prints exactly one line; the default
-# mode keeps the boxed banner.
-emit_block() {  # <headline> <sentence>...
-  local headline=$1 line sentence
-  shift
-  if [ "$CLAUDE_MODE" -eq 1 ]; then
-    line="$headline:"
-    for sentence in "$@"; do line="$line $sentence"; done
-    printf '%s\n' "${line//$'\n'/ }" >&2
-    return 0
-  fi
-  {
-    printf '●%s\n' "$device_rule"
-    printf '●  %s\n' "$headline"
-    for line in "$@"; do printf '●  %s\n' "$line"; done
-    printf '●%s\n' "$device_rule"
-  } >&2
-}
-
-FILTERED_DRAIN_RECORD="$STATE/.turnend-filtered-drain"
 TRANSCRIPT_TAIL_LINES=3000
 # Evaluated only where the supervision predicate has already decided to let
 # this Stop end (run_context_devices is called from those allow paths), so a
@@ -321,13 +483,12 @@ run_context_devices() {
   fi
   if [ "$blocked_turn" != "$FM_DRAIN_FILTER_TURN" ] && budget_charge_device; then
     tmp="$FILTERED_DRAIN_RECORD.tmp.$$"
-    if printf 'session=%s\nturn=%s\n' "$SESSION_ID" "$FM_DRAIN_FILTER_TURN" > "$tmp" 2>/dev/null \
+    BLOCK_FILTER_NAME=$FM_DRAIN_FILTER_NAME
+    BLOCK_FILTER_COMMAND=$(printf '%s' "$FM_DRAIN_FILTER_COMMAND" | tr '\n' ' ')
+    if printf 'session=%s\nturn=%s\nfilter=%s\ncommand=%s\n' "$SESSION_ID" "$FM_DRAIN_FILTER_TURN" \
+        "$BLOCK_FILTER_NAME" "$BLOCK_FILTER_COMMAND" > "$tmp" 2>/dev/null \
       && mv -f "$tmp" "$FILTERED_DRAIN_RECORD" 2>/dev/null; then
-      emit_block 'WAKE DRAIN OUTPUT WAS FILTERED THIS TURN' \
-        "A Bash call piped bin/fm-wake-drain.sh through $FM_DRAIN_FILTER_NAME: $(printf '%s' "$FM_DRAIN_FILTER_COMMAND" | tr '\n' ' ')" \
-        'A filtered drain hides sections this turn must handle (OPEN DECISIONS, UNREAD STATUS, RECORD DIVERGENCE, the WAKE_ACK_REQUIRED command) and no later unfiltered read followed it.' \
-        "Re-read it whole now and handle everything it prints before ending the turn: FM_HOME=$FM_HOME $FM_ROOT/bin/fm-wake-drain.sh" \
-        'This block fires once per turn; the next stop of this turn is allowed.'
+      emit_block filtered-drain
       exit 2
     fi
     rm -f "$tmp" 2>/dev/null || true
@@ -345,9 +506,8 @@ fi
   if lock_identity=$(fm_stow_cadence_lock_identity "$STATE"); then
   lock_pid=${lock_identity%% *}
   if fm_stow_cadence_required "$STATE" "$lock_pid" && budget_charge_device; then
-    emit_block 'STOW PASS REQUIRED BEFORE THIS TURN ENDS' \
-      "Compaction $FM_STOW_CADENCE_REQUIRED_COUNT of this session made a stow pass due (the compact digest printed STOW_REQUIRED) and no pass has been recorded since; a compaction summary is where captain corrections get lost." \
-      "Run the stow skill now (/stow); its final step runs $FM_ROOT/bin/fm-stow-mark.sh, which records the pass and releases this block, bounded by the session block budget."
+    BLOCK_STOW_COUNT=$FM_STOW_CADENCE_REQUIRED_COUNT
+    emit_block stow-required
     exit 2
   fi
   fi
@@ -369,51 +529,13 @@ allow_supervised_stop() {
   exit 0
 }
 
-if fm_watcher_healthy "$STATE" "$WATCH" "$GRACE" "$FM_HOME"; then
-  allow_supervised_stop
-fi
-
-# Away mode transfers supervision ownership from the watcher to the away-mode
-# daemon, which runs the watcher one-shot and starts its replacement after every
-# wake (bin/fm-supervise-daemon.sh). A turn boundary regularly lands in that
-# hand-off, when no watcher process holds the lock and nothing is wrong, so
-# requiring one here alarmed on healthy away-mode supervision. A live
-# identity-matched daemon holding this home is the right owner to test for.
-# The beacon half of the predicate still applies: a daemon that stops
-# restarting its watcher still blocks once the beacon passes grace, and a home
-# with no daemon and no watcher blocks exactly as before. It uses AFK_GRACE
-# (poll-cadence-derived, see the comment above) instead of the flat $GRACE
-# every other check on this page uses, so a daemon that is genuinely still
-# cycling - just slower than a fixed 300s window - is not misread as down.
-AFK_GRACE=${FM_GUARD_GRACE:-$(fm_poll_derived_grace)}
-if [ "$(fm_path_age "$STATE/.last-watcher-beat")" -lt "$AFK_GRACE" ] \
-  && fm_afk_daemon_owns_supervision "$STATE"; then
+if supervision_proven; then
   allow_supervised_stop
 fi
 
 block_stop() {
-  local afk x_mode reason condition
-  afk=0
-  [ -e "$STATE/.afk" ] && afk=1
-  x_mode=0
-  [ -f "$CONFIG/x-mode.env" ] && x_mode=1
-  reason=$("$SCRIPT_DIR/fm-supervision-instructions.sh" --afk "$afk" --x-mode "$x_mode" --repair-line 2>/dev/null \
-    || printf '%s\n' 'tasks in flight, no live watcher - repair missing watcher supervision according to the session-start operating block before ending the turn')
-  if [ "$FM_SUP_IN_FLIGHT" -gt 0 ]; then
-    condition="$FM_SUP_IN_FLIGHT task(s) in flight, but no live watcher holds this home lock (last beat: $FM_SUP_BEACON_DESC)."
-  elif [ "$FM_SUP_SOURCES" -gt 0 ]; then
-    condition="$FM_SUP_SOURCES process-event source(s) registered, but no live watcher holds this home lock (last beat: $FM_SUP_BEACON_DESC)."
-  elif [ "$FM_SUP_CHECKS" -gt 0 ]; then
-    condition="$FM_SUP_CHECKS registered custom check(s), but no live watcher holds this home lock (last beat: $FM_SUP_BEACON_DESC)."
-  else
-    condition="X-mode relay polling needs supervision, but no live watcher holds this home lock (last beat: $FM_SUP_BEACON_DESC)."
-  fi
-  if [ "$CLAUDE_MODE" -eq 1 ]; then
-    emit_block 'TURN WOULD END BLIND - SUPERVISION IS OFF' "$condition" \
-      'The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.' "$reason"
-  else
-    emit_block 'TURN WOULD END BLIND - SUPERVISION IS OFF' "$condition" "$reason"
-  fi
+  blind_turn_inputs
+  emit_block blind-turn
   exit 2
 }
 
