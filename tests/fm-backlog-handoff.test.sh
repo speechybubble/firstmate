@@ -211,6 +211,66 @@ EOF
   pass "a failed receiver wake is loud and retries from an already-present handoff"
 }
 
+# A wake's text, note included, is recorded on its correlation: a rerun without
+# --note resends it, a later handoff resends an older correlation with that
+# correlation's own keys and note before its own wake, and a rerun whose new
+# note cannot ride the recorded wake says so.
+test_wake_text_rides_its_correlation_across_retries() {
+  local home="$TMP_ROOT/wake-text-main" sub="$TMP_ROOT/wake-text-sub" meta body rc=0 out
+  setup_homes "$home" "$sub"
+  meta=$(cat "$home/state/design.meta")
+  mkdir -p "$sub/data"
+  cat > "$home/data/backlog.md" <<'EOF'
+## Queued
+- [ ] text-k1 - first batch (repo: alpha)
+- [ ] text-k2 - second batch (repo: alpha)
+- [ ] text-k3 - third batch (repo: alpha)
+- [ ] text-k4 - fourth batch (repo: alpha)
+
+## Done
+EOF
+  printf '## Queued\n\n## Done\n' > "$sub/data/backlog.md"
+
+  rm -f "$home/state/design.meta"
+  FM_HOME="$home" "$ROOT/bin/fm-backlog-handoff.sh" design text-k1 --note 'Do X first.' >/dev/null 2>&1 || rc=$?
+  [ "$rc" -ne 0 ] || fail "a handoff without a receiver endpoint reported success"
+  printf '%s\n' "$meta" > "$home/state/design.meta"
+  FM_HOME="$home" "$ROOT/bin/fm-backlog-handoff.sh" design text-k1 > "$TMP_ROOT/wake-text-rerun.out" 2>&1 \
+    || fail "a rerun without --note did not retry the wake: $(cat "$TMP_ROOT/wake-text-rerun.out")"
+  assert_contains "$(inbox_body_stream "$home/state" design)" $'backlog: text-k1. Run bin/fm-session-start.sh now, then act on the routed task.\nDo X first.' \
+    "a rerun without --note dropped the recorded note"
+
+  rm -f "$home/state/design.meta"
+  rc=0
+  FM_HOME="$home" "$ROOT/bin/fm-backlog-handoff.sh" design text-k2 --note 'Do Y.' >/dev/null 2>&1 || rc=$?
+  [ "$rc" -ne 0 ] || fail "the second batch wake did not fail without an endpoint"
+  printf '%s\n' "$meta" > "$home/state/design.meta"
+  FM_HOME="$home" "$ROOT/bin/fm-backlog-handoff.sh" design text-k3 --note 'Do Z.' > "$TMP_ROOT/wake-text-later.out" 2>&1 \
+    || fail "a later handoff did not resend the older wake: $(cat "$TMP_ROOT/wake-text-later.out")"
+  body=$(inbox_body_stream "$home/state" design)
+  assert_contains "$body" $'backlog: text-k2. Run bin/fm-session-start.sh now, then act on the routed task.\nDo Y.' \
+    "the older correlation was not resent with its own keys and note"
+  assert_contains "$body" $'backlog: text-k3. Run bin/fm-session-start.sh now, then act on the routed task.\nDo Z.' \
+    "the later handoff did not wake with its own keys and note"
+  [ "$(printf '%s\n' "$body" | grep -c 'text-k3')" -eq 1 ] \
+    || fail "the later batch was announced under another correlation"
+  assert_not_contains "$(cat "$TMP_ROOT/wake-text-later.out")" 'was not delivered' \
+    "a note that rode its own wake was reported undelivered"
+
+  rm -f "$home/state/design.meta"
+  rc=0
+  FM_HOME="$home" "$ROOT/bin/fm-backlog-handoff.sh" design text-k4 --note 'Old note.' >/dev/null 2>&1 || rc=$?
+  [ "$rc" -ne 0 ] || fail "the fourth batch wake did not fail without an endpoint"
+  printf '%s\n' "$meta" > "$home/state/design.meta"
+  out=$(FM_HOME="$home" "$ROOT/bin/fm-backlog-handoff.sh" design text-k4 --note 'New note.' 2>&1) \
+    || fail "a rerun with a new note failed: $out"
+  assert_contains "$(inbox_body_stream "$home/state" design)" $'backlog: text-k4. Run bin/fm-session-start.sh now, then act on the routed task.\nOld note.' \
+    "the rerun did not resend the recorded wake text"
+  assert_contains "$out" 'the --note for secondmate design was not delivered' \
+    "a new note that could not ride the recorded wake was not reported"
+  pass "a wake's text and note ride its correlation across reruns and later handoffs"
+}
+
 test_known_receiver_failure_remains_retryable_after_grace() {
   local home="$TMP_ROOT/known-fail-main" sub="$TMP_ROOT/known-fail-sub"
   local basebin rejectbin="$TMP_ROOT/known-fail-reject" out corr rec_count rc=0
@@ -1433,6 +1493,7 @@ test_handoff_wakes_live_local_receiver
 test_handoff_note_rides_the_receiver_wake
 test_cwd_tasks_toml_does_not_redirect_handoff
 test_failed_wake_retries_when_the_item_is_already_present
+test_wake_text_rides_its_correlation_across_retries
 test_known_receiver_failure_remains_retryable_after_grace
 test_known_failure_restores_retry_after_reconciliation_race
 test_move_crash_keeps_wake_pending_for_recovery

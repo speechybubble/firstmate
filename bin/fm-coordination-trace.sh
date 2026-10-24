@@ -7,7 +7,7 @@
 # Nothing is written except an optional --json dump; the mate's home is read only.
 #
 # Usage:
-#   fm-coordination-trace.sh [<mate-id>] [--since YYYY-MM-DD] [--json <file>] [--markdown]
+#   fm-coordination-trace.sh [<mate-id>] [--since YYYY-MM-DD] [--json <file>]
 #                            [--state <dir>] [--mate-home <dir>] [--transcript-dir <dir>]
 #
 # Defaults: the mate is the only entry in data/secondmates.md (required when there
@@ -33,7 +33,6 @@ while [ $# -gt 0 ]; do
     --mate-home) MATE_HOME=$2; shift 2 ;;
     --transcript-dir) TRANSCRIPTS=$2; shift 2 ;;
     --since|--json) PASS+=("$1" "$2"); shift 2 ;;
-    --markdown) PASS+=("$1"); shift ;;
     -h|--help) usage ;;
     --*) echo "fm-coordination-trace: unknown option $1" >&2; usage ;;
     *) [ -z "$MATE" ] || { echo "fm-coordination-trace: one mate id only" >&2; usage; }; MATE=$1; shift ;;

@@ -116,10 +116,33 @@ test_trace_reports_fallbacks_and_refuses_unknown_mate() {
   out=$(FM_HOME="$MAIN" FM_STATE_OVERRIDE="$STATE" "$TRACE" nosuch 2>&1) || rc=$?
   expect_code 2 "$rc" "an unregistered mate must exit 2"
   assert_contains "$out" "mate home for nosuch not found" "an unregistered mate was not named"
-  out=$(FM_HOME="$MAIN" FM_STATE_OVERRIDE="$STATE" "$TRACE" trelume --markdown 2>&1) || fail "markdown mode failed: $out"
-  assert_contains "$out" "| edge | n | median | worst | worst task |" "markdown mode did not render the edge table"
   pass "trace lists every fallback it used, dumps JSON and refuses an unknown mate by name"
+}
+
+# A handoff wake that names a connected set counts for every task it names, yet
+# once in the steer totals; a wake row names a status file only by its exact
+# basename, so not-own-worker.status is not own-worker.status.
+test_trace_attributes_set_wakes_and_matches_exact_status_names() {
+  mkdir -p "$MATE/data/beta-task"
+  printf '# brief\n' > "$MATE/data/beta-task/brief.md"
+  printf 'schema=fm-task-inbox.v1\nat=%s\n--\n[fm-from-firstmate]corr=%s New routed work is in your backlog: alpha-task beta-task. Run bin/fm-session-start.sh now, then act on the routed task.\n' \
+    "$(date -u -d "@$((ROUTE + 200))" +%Y-%m-%dT%H:%M:%SZ)" 00112233445566ff > "$STATE/trelume.inbox/handled/003.msg"
+  printf '{"seq":5,"epoch":%s,"task":"own-worker","wake":"signal: %s/not-own-worker.status","verdict":"routine","summary":"other","silent":true,"statusEndpoint":10,"statusIdent":"w"}\n' \
+    "$((FACT_ROW + 6))" "$STATE" >> "$STATE/branch-outcomes.jsonl"
+  run_trace --json "$TMP_ROOT/set.json" >/dev/null 2>&1 || fail "trace with a set handoff wake failed"
+  python3 -I - "$TMP_ROOT/set.json" <<'PY' || fail "a set handoff wake or an exact status name was traced wrong"
+import json, sys
+d = json.load(open(sys.argv[1]))
+steers = {t["task"]: t["steers"] for t in d["tasks"]}
+assert steers == {"alpha-task": 3, "beta-task": 1}, steers
+assert d["summary"]["messages_total"] == 3 and d["summary"]["messages_attributed"] == 3, d["summary"]
+assert [s["tasks"] for s in d["steers"] if s["id"] == "003"] == [["alpha-task", "beta-task"]], d["steers"]
+own = [r for r in d["main_tasks"] if r["task"] == "own-worker"][0]
+assert own["rows"] == 2 and own["status_rows"] == 1, own
+PY
+  pass "a set handoff wake counts for each named task once per steer, and status names match exactly"
 }
 
 test_trace_reconstructs_hops_copies_and_steers
 test_trace_reports_fallbacks_and_refuses_unknown_mate
+test_trace_attributes_set_wakes_and_matches_exact_status_names

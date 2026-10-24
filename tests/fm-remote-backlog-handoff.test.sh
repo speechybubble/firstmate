@@ -102,6 +102,7 @@ command_name=$(perl -MMIME::Base64=decode_base64 -e '$d=decode_base64($ARGV[0]);
 case "${FM_FAKE_SSH_MODE:-normal}:$command_name" in
   *:fm-remote-secondmate-control.sh)
     printf '%s\n' "$command_name" >> "$FM_FAKE_REMOTE_WAKE_LOG"
+    perl -MMIME::Base64=decode_base64 -e 'print decode_base64($ARGV[0]), "\n"' "$argv_b64" >> "$FM_FAKE_REMOTE_WAKE_LOG.args"
     [ "${FM_FAKE_REMOTE_WAKE_RC:-0}" -eq 0 ] || printf 'remote receiver wake failed\n' >&2
     exit "${FM_FAKE_REMOTE_WAKE_RC:-0}"
     ;;
@@ -335,7 +336,8 @@ handoff_env "$ROOT/bin/fm-backlog-handoff.sh" --resume-pending >/dev/null \
 pass "bootstrap detects pending outbox handoffs without a journal"
 
 write_backlog '- [ ] remote-wake-fail - receiver failure stays recoverable (repo: alpha)'
-FM_FAKE_REMOTE_WAKE_RC=1 handoff_env "$ROOT/bin/fm-backlog-handoff.sh" ios remote-wake-fail \
+: > "$WAKE_LOG.args"
+FM_FAKE_REMOTE_WAKE_RC=1 handoff_env "$ROOT/bin/fm-backlog-handoff.sh" ios remote-wake-fail --note 'Ship the iOS build first.' \
   > "$TMP_ROOT/remote-wake-fail.out" 2>&1 \
   || fail "durably received remote handoff failed only because its best-effort wake failed"
 assert_contains "$(cat "$TMP_ROOT/remote-wake-fail.out")" 'receiver wake failed' \
@@ -344,8 +346,13 @@ assert_absent "$PARENT/data/handoff/ios.outbox.md" \
   "remote receiver wake failure retained the durably received outbox"
 assert_present "$PARENT/state/.backlog-handoff-ios.wake-pending" \
   "remote receiver wake failure was not tracked separately"
+: > "$WAKE_LOG.args"
 handoff_env "$ROOT/bin/fm-backlog-handoff.sh" --resume-pending >/dev/null \
   || fail "remote receiver wake failure did not recover through resume-pending"
+assert_contains "$(tr '\0' ' ' < "$WAKE_LOG.args")" 'backlog: remote-wake-fail.' \
+  "resume-pending did not resend the wake text recorded for the routed item"
+assert_contains "$(tr '\0' ' ' < "$WAKE_LOG.args")" 'Ship the iOS build first.' \
+  "resume-pending dropped the handoff note"
 assert_absent "$PARENT/state/.backlog-handoff-ios.wake-pending" \
   "remote receiver wake recovery left separate wake state pending"
 pass "remote handoff releases durable work and separately retries its receiver wake"

@@ -61,14 +61,18 @@
 # route_burst counts the steers about the task sent within ten minutes of its
 # first steer, which is where a second message about the same handoff shows.
 #
-# Attribution of a steer to a task: the mate's parent-channel line carrying the
-# steer's corr= id names the task in [key=<task>]; failing that the steer body
-# names a task that has a brief or status file in the mate home. Unattributed
-# steers are counted separately.
+# Attribution of a steer to tasks: every task named in [key=<task>] by a mate
+# parent-channel line carrying the steer's corr= id, and every task with a brief
+# or status file in the mate home that the steer body names. A handoff wake that
+# routes a connected set therefore counts for each task in it, while steer-level
+# totals count the steer once. Unattributed steers are counted separately.
 #
-# Output: text (default), --json <file> dumps everything, --markdown prints the
-# per-task and per-edge tables as Markdown. Fallbacks actually used are listed
-# at the end of every run so a reader knows which numbers rest on mtimes.
+# A wake row names a status file only when one of its whitespace-separated wake
+# paths has exactly that basename.
+#
+# Output: text (default), and --json <file> dumps everything. Fallbacks actually
+# used are listed at the end of every run so a reader knows which numbers rest
+# on mtimes.
 """Read-only coordination trace between main firstmate, one second mate and workers."""
 
 from __future__ import annotations
@@ -155,6 +159,10 @@ def load_outcome_rows(path):
     return rows
 
 
+def wake_names(row, status_name):
+    return any(os.path.basename(p) == status_name for p in str(row.get("wake", "")).split())
+
+
 def load_status_lines(path, rows, status_name):
     """Return list of dicts {end, text, at, row_epoch, row_seq} for one status
     file, dating untimestamped lines by the first wake row whose statusEndpoint
@@ -164,7 +172,7 @@ def load_status_lines(path, rows, status_name):
         return out
     data = path.read_bytes()
     wake_rows = [r for r in rows
-                 if status_name in str(r.get("wake", "")) and isinstance(r.get("statusEndpoint"), int)]
+                 if wake_names(r, status_name) and isinstance(r.get("statusEndpoint"), int)]
     wake_rows.sort(key=lambda r: (r["statusEndpoint"], r.get("seq", 0)))
     endpoints = [r["statusEndpoint"] for r in wake_rows]
     offset = 0
@@ -351,37 +359,30 @@ def trace(args):
     known = set(named)
     for r in mate_rows:
         t = r.get("task")
-        if t and f"{t}.status" in str(r.get("wake", "")):
+        if t and wake_names(r, f"{t}.status"):
             known.add(t)
 
     # corr -> task via the mate's keyed parent-channel lines.
-    corr_task = {}
+    corr_tasks = defaultdict(set)
     for ln in channel:
         km = KEY_RE.match(ln["text"])
         if not km:
             continue
         for c in CORR_RE.findall(ln["text"]):
-            corr_task.setdefault(c, km.group(2))
+            corr_tasks[c].add(km.group(2))
 
     # Attribute steers.
     steers_by_task = defaultdict(list)
     unattributed = []
     for rec in inbox:
-        task = None
+        tasks = set()
         for c in rec["corrs"]:
-            if c in corr_task:
-                task = corr_task[c]
-                break
-        if task is None:
-            names = [t for t in named if re.search(r"(?<![a-z0-9-])" + re.escape(t) + r"(?![a-z0-9-])", rec["body"])]
-            if len(names) == 1:
-                task = names[0]
-            elif names:
-                task = max(names, key=len)
-        rec["task"] = task
-        if task:
+            tasks |= corr_tasks.get(c, set())
+        tasks |= {t for t in named if re.search(r"(?<![a-z0-9-])" + re.escape(t) + r"(?![a-z0-9-])", rec["body"])}
+        rec["tasks"] = sorted(tasks)
+        for task in rec["tasks"]:
             steers_by_task[task].append(rec)
-        else:
+        if not tasks:
             unattributed.append(rec)
 
     # Captain inputs: each disposition gives a handling window from the captain
@@ -468,7 +469,7 @@ def trace(args):
         if spawn is None and task_rows:
             spawn, spawn_src = task_rows[0].get("epoch"), "mate's first wake row for the task"
         if end is None:
-            status_rows = [r for r in task_rows if f"{task}.status" in str(r.get("wake", ""))]
+            status_rows = [r for r in task_rows if wake_names(r, f"{task}.status")]
             if status_rows:
                 end, end_src = status_rows[-1].get("epoch"), "mate's last wake row for the worker's status (file gone)"
         if spawn_src and spawn_src != "worker first status line":
@@ -573,7 +574,7 @@ def trace(args):
         resolved = [int(p["resolved_epoch"]) for p in rr if p and p.get("resolved_epoch", "").isdigit()]
         w = window_for(rec["written"])
         steer_rows.append({
-            "id": rec["id"], "task": rec["task"], "kind": rec["kind"],
+            "id": rec["id"], "tasks": rec["tasks"], "kind": rec["kind"],
             "captain_input": w["id"] if w else None,
             "from_ask": (rec["written"] - w["start"]) if w else None,
             "written": rec["written"], "acked": rec["acked"], "pending": rec["pending"],
@@ -592,7 +593,7 @@ def trace(args):
         rec = main_tasks.setdefault(t, {"task": t, "rows": 0, "status_rows": 0, "stale_rows": 0, "terminal_lines": None})
         rec["rows"] += 1
         wake = str(r.get("wake", ""))
-        if f"{t}.status" in wake:
+        if wake_names(r, f"{t}.status"):
             rec["status_rows"] += 1
         if wake.startswith("stale"):
             rec["stale_rows"] += 1
@@ -627,7 +628,7 @@ def trace(args):
         "route_burst_mean": (sum(t["route_burst"] for t in per_task if t["steers"]) / len([t for t in per_task if t["steers"]])) if any(t["steers"] for t in per_task) else None,
         "handoff_wake_burst_mean": (sum(t["route_burst"] for t in per_task if t["route_kind"] == "handoff-wake") / len([t for t in per_task if t["route_kind"] == "handoff-wake"])) if any(t["route_kind"] == "handoff-wake" for t in per_task) else None,
         "messages_total": len(steer_rows),
-        "messages_attributed": sum(1 for s in steer_rows if s["task"]),
+        "messages_attributed": sum(1 for s in steer_rows if s["tasks"]),
         "messages_repost": sum(1 for s in steer_rows if s["kind"] == "repost"),
         "messages_handoff_wake": sum(1 for s in steer_rows if s["kind"] == "handoff-wake"),
         "messages_fire_and_forget": sum(1 for s in steer_rows if s["kind"] == "fire-and-forget"),
@@ -674,10 +675,9 @@ def fmt_num(v, unit="s"):
     return f"{v:.2f}"
 
 
-def render_text(res, markdown=False):
+def render_text(res):
     s, e = res["summary"], res["edges"]
     out = []
-    sep = "|" if markdown else "  "
     out.append(f"fm-coordination-trace: {s['mate']} since {s['since']} "
                f"(routed tasks {s['routed_tasks']}, with results {s['tasks_with_results']})")
     out.append("")
@@ -699,39 +699,21 @@ def render_text(res, markdown=False):
                f"{s['main_status_rows_with_file_total']} status wake rows")
     out.append("")
     out.append("EDGES (median / worst / n)")
-    if markdown:
-        out.append("| edge | n | median | worst | worst task |")
-        out.append("| --- | --- | --- | --- | --- |")
     for name, v in e.items():
-        if markdown:
-            out.append(f"| {name} | {v['n']} | {hms(v['median'])} | {hms(v['worst'])} | {v['worst_task'] or '-'} |")
-        else:
-            out.append(f"  {name:24} {hms(v['median']):>9} {hms(v['worst']):>9}  n={v['n']:<3} worst={v['worst_task'] or '-'}")
+        out.append(f"  {name:24} {hms(v['median']):>9} {hms(v['worst']):>9}  n={v['n']:<3} worst={v['worst_task'] or '-'}")
     out.append("")
     out.append("TASKS")
-    cols = ["task", "ask", "route", "mate_ack", "spawn", "worker_end", "fact_line", "fact_row", "fact_ack", "mate_line",
-            "steers", "changes", "reposts", "results", "copies(lines/turns)"]
-    if markdown:
-        out.append("| " + " | ".join(cols) + " |")
-        out.append("|" + " --- |" * len(cols))
     for t in res["tasks"]:
-        vals = [t["task"], iso(t["ask"]), iso(t["route"]), iso(t["mate_ack"]), iso(t["spawn"]), iso(t["worker_end"]),
-                iso(t["fact_line"]), iso(t["fact_row"]), iso(t["fact_ack"]), iso(t["mate_line"]),
-                str(t["steers"]), str(t["changes"]), str(t["reposts"]), str(t["result_events"]),
-                f"{t['result_lines']}/{t['result_rows']}"]
-        if markdown:
-            out.append("| " + " | ".join(vals) + " |")
-        else:
-            out.append("  " + t["task"])
-            for k in ("ask", "main_reply", "route", "mate_ack", "spawn", "worker_end", "fact_line", "fact_row", "fact_ack", "mate_line"):
-                out.append(f"    {k:12} {iso(t[k])}" + (f"  ({t['spawn_source']})" if k == "spawn" and t["spawn_source"] else ""))
-            ed = "  ".join(f"{k}={hms(v)}" for k, v in t["edges"].items() if v is not None)
-            out.append(f"    edges        {ed}")
-            if t["fact_line"] and t["fact_row"] and t["main_rows_between"] == 0 and t["edges"]["fact_line->fact_row"] and t["edges"]["fact_line->fact_row"] > 900:
-                out.append("    note         main handled no wake at all between the result line and its row (main was idle or off)")
-            out.append(f"    steers={t['steers']} (first ten minutes {t['route_burst']}) reposts={t['reposts']} changes={t['changes']} "
-                       f"results={t['result_events']} copies={t['result_lines']} lines in {t['result_rows']} supervision turns, "
-                       f"mate wakes={t['mate_wakes']}")
+        out.append("  " + t["task"])
+        for k in ("ask", "main_reply", "route", "mate_ack", "spawn", "worker_end", "fact_line", "fact_row", "fact_ack", "mate_line"):
+            out.append(f"    {k:12} {iso(t[k])}" + (f"  ({t['spawn_source']})" if k == "spawn" and t["spawn_source"] else ""))
+        ed = "  ".join(f"{k}={hms(v)}" for k, v in t["edges"].items() if v is not None)
+        out.append(f"    edges        {ed}")
+        if t["fact_line"] and t["fact_row"] and t["main_rows_between"] == 0 and t["edges"]["fact_line->fact_row"] and t["edges"]["fact_line->fact_row"] > 900:
+            out.append("    note         main handled no wake at all between the result line and its row (main was idle or off)")
+        out.append(f"    steers={t['steers']} (first ten minutes {t['route_burst']}) reposts={t['reposts']} changes={t['changes']} "
+                   f"results={t['result_events']} copies={t['result_lines']} lines in {t['result_rows']} supervision turns, "
+                   f"mate wakes={t['mate_wakes']}")
     out.append("")
     out.append("MAIN-HOME TASKS (wake rows / rows naming the status file / stale rows / terminal lines in a surviving status file)")
     for r in res["main_tasks"]:
@@ -741,7 +723,7 @@ def render_text(res, markdown=False):
     out.append(f"STEERS ({len(res['steers'])} main->mate records, {res['unattributed_steers']} unattributed)")
     for st in res["steers"]:
         out.append(f"  {st['id']} {iso(st['written'])} ask+{hms(st['from_ask'])} ack+{hms(st['ack_delay']) if st['ack_delay'] is not None else 'PENDING'} "
-                   f"reply+{hms(st['reply_delay'])} {st['kind']:16} {st['task'] or '-':36} {st['summary']}")
+                   f"reply+{hms(st['reply_delay'])} {st['kind']:16} {','.join(st['tasks']) or '-':36} {st['summary']}")
     out.append("")
     out.append("FALLBACKS USED")
     for n in res["fallbacks"] or ["none"]:
@@ -762,12 +744,11 @@ def main(argv=None):
     ap.add_argument("--since", default="2026-10-09", help="earliest date YYYY-MM-DD (UTC)")
     ap.add_argument("--transcript-dir", default=None, help="primary harness transcript dir for captain ask times")
     ap.add_argument("--json", default=None, help="write the full result as JSON to this file")
-    ap.add_argument("--markdown", action="store_true", help="render tables as Markdown")
     args = ap.parse_args(argv)
     res = trace(args)
     if args.json:
         Path(args.json).write_text(json.dumps(res, indent=1, default=float), "utf-8")
-    print(render_text(res, markdown=args.markdown))
+    print(render_text(res))
     return 0
 
 
