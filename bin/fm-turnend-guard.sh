@@ -189,8 +189,6 @@ trap record_parent_stop_state EXIT
 . "$SCRIPT_DIR/fm-primary-scope-lib.sh"
 # shellcheck source=bin/fm-hook-host-lib.sh
 . "$SCRIPT_DIR/fm-hook-host-lib.sh"
-# shellcheck source=bin/fm-stow-cadence-lib.sh
-. "$SCRIPT_DIR/fm-stow-cadence-lib.sh"
 
 # --- block messages ----------------------------------------------------------
 # The one table of block texts. block_text sets BLOCK_HEADLINE and BLOCK_LINES
@@ -354,6 +352,8 @@ explain_block() {  # <key>
 if [ -n "$EXPLAIN_KEY" ]; then
   # shellcheck source=bin/fm-wake-lib.sh
   . "$SCRIPT_DIR/fm-wake-lib.sh"
+  # shellcheck source=bin/fm-stow-cadence-lib.sh
+  . "$SCRIPT_DIR/fm-stow-cadence-lib.sh"
   explain_block "$EXPLAIN_KEY"
   exit 0
 fi
@@ -413,6 +413,8 @@ if [ "$CLAUDE_MODE" -eq 1 ]; then
 fi
 # shellcheck source=bin/fm-drain-filter-lib.sh
 . "$SCRIPT_DIR/fm-drain-filter-lib.sh"
+# shellcheck source=bin/fm-stow-cadence-lib.sh
+. "$SCRIPT_DIR/fm-stow-cadence-lib.sh"
 
 BUDGET_FILE="$STATE/.turnend-claude-blocks"
 BUDGET_LOCK="$STATE/.turnend-claude-blocks.lock"
