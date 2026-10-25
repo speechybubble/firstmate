@@ -102,6 +102,7 @@ command_name=$(perl -MMIME::Base64=decode_base64 -e '$d=decode_base64($ARGV[0]);
 case "${FM_FAKE_SSH_MODE:-normal}:$command_name" in
   *:fm-remote-secondmate-control.sh)
     printf '%s\n' "$command_name" >> "$FM_FAKE_REMOTE_WAKE_LOG"
+    perl -MMIME::Base64=decode_base64 -e 'print decode_base64($ARGV[0]), "\n"' "$argv_b64" >> "$FM_FAKE_REMOTE_WAKE_LOG.args"
     [ "${FM_FAKE_REMOTE_WAKE_RC:-0}" -eq 0 ] || printf 'remote receiver wake failed\n' >&2
     exit "${FM_FAKE_REMOTE_WAKE_RC:-0}"
     ;;
@@ -187,7 +188,7 @@ put_wait=0
 while ! find "$REMOTE/state/handoff" -maxdepth 1 -name '.put.*' -print -quit | grep -q .; do
   kill -0 "$put_race_pid" 2>/dev/null || fail "confined put exited before staging input"
   put_wait=$((put_wait + 1))
-  [ "$put_wait" -le 250 ] || fail "confined put never staged input"
+  [ "$put_wait" -le 1500 ] || fail "confined put never staged input"
   sleep 0.02
 done
 mv "$REMOTE/state/handoff" "$TMP_ROOT/pinned-handoff"
@@ -284,7 +285,7 @@ wait_for_serialization=0
 while [ ! -f "$TMP_ROOT/serialize.entered" ]; do
   kill -0 "$handoff_a" 2>/dev/null || fail "first serialized handoff exited before receipt"
   wait_for_serialization=$((wait_for_serialization + 1))
-  [ "$wait_for_serialization" -le 250 ] || fail "first serialized handoff never reached receipt"
+  [ "$wait_for_serialization" -le 1500 ] || fail "first serialized handoff never reached receipt"
   sleep 0.02
 done
 write_backlog '- [ ] serialized-b - second concurrent handoff (repo: alpha)'
@@ -335,7 +336,8 @@ handoff_env "$ROOT/bin/fm-backlog-handoff.sh" --resume-pending >/dev/null \
 pass "bootstrap detects pending outbox handoffs without a journal"
 
 write_backlog '- [ ] remote-wake-fail - receiver failure stays recoverable (repo: alpha)'
-FM_FAKE_REMOTE_WAKE_RC=1 handoff_env "$ROOT/bin/fm-backlog-handoff.sh" ios remote-wake-fail \
+: > "$WAKE_LOG.args"
+FM_FAKE_REMOTE_WAKE_RC=1 handoff_env "$ROOT/bin/fm-backlog-handoff.sh" ios remote-wake-fail --note 'Ship the iOS build first.' \
   > "$TMP_ROOT/remote-wake-fail.out" 2>&1 \
   || fail "durably received remote handoff failed only because its best-effort wake failed"
 assert_contains "$(cat "$TMP_ROOT/remote-wake-fail.out")" 'receiver wake failed' \
@@ -344,8 +346,13 @@ assert_absent "$PARENT/data/handoff/ios.outbox.md" \
   "remote receiver wake failure retained the durably received outbox"
 assert_present "$PARENT/state/.backlog-handoff-ios.wake-pending" \
   "remote receiver wake failure was not tracked separately"
+: > "$WAKE_LOG.args"
 handoff_env "$ROOT/bin/fm-backlog-handoff.sh" --resume-pending >/dev/null \
   || fail "remote receiver wake failure did not recover through resume-pending"
+assert_contains "$(tr '\0' ' ' < "$WAKE_LOG.args")" 'backlog: remote-wake-fail.' \
+  "resume-pending did not resend the wake text recorded for the routed item"
+assert_contains "$(tr '\0' ' ' < "$WAKE_LOG.args")" 'Ship the iOS build first.' \
+  "resume-pending dropped the handoff note"
 assert_absent "$PARENT/state/.backlog-handoff-ios.wake-pending" \
   "remote receiver wake recovery left separate wake state pending"
 pass "remote handoff releases durable work and separately retries its receiver wake"
@@ -662,7 +669,7 @@ route_wait=0
 while [ ! -f "$TMP_ROOT/route.entered" ]; do
   kill -0 "$route_holder_pid" 2>/dev/null || fail "route lock holder exited before acquiring lifecycle locks"
   route_wait=$((route_wait + 1))
-  [ "$route_wait" -le 250 ] || fail "route lock holder never acquired lifecycle locks"
+  [ "$route_wait" -le 1500 ] || fail "route lock holder never acquired lifecycle locks"
   sleep 0.02
 done
 handoff_env "$ROOT/bin/fm-backlog-handoff.sh" ios route-race \

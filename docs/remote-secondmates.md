@@ -612,7 +612,7 @@ An unavailable remote home is projected as unknown and is never replaced by a lo
 Move already-judged queued work with the normal command:
 
 ```sh
-bin/fm-backlog-handoff.sh <id> <item-key>...
+bin/fm-backlog-handoff.sh <id> <item-key>... [--note <text>]
 ```
 
 For a remote route, the handoff takes these steps:

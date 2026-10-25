@@ -35,6 +35,13 @@
 #   parent_status=          absolute path of parent state/<task_id>.status
 #   parent_status_scan_signature=
 #   request_summary=        short sanitized summary (no secrets by design)
+#   wake_text=              optional hex-encoded full request text an owner
+#                           resends under this correlation; written by
+#                           bin/fm-backlog-handoff.sh for its receiver wake
+#                           through fm_pending_reply_set, absent otherwise
+#   wake_batch=             optional 16-hex id of the routed batch whose wake
+#                           this correlation carries, written beside wake_text
+#                           so a rerun of that batch can replace the text
 #   created_epoch=          when the expectation was created
 #   delivered_epoch=        when the marked request was confirmed delivered
 #                           (empty until delivery; delivery never resolves)
