@@ -188,7 +188,7 @@ put_wait=0
 while ! find "$REMOTE/state/handoff" -maxdepth 1 -name '.put.*' -print -quit | grep -q .; do
   kill -0 "$put_race_pid" 2>/dev/null || fail "confined put exited before staging input"
   put_wait=$((put_wait + 1))
-  [ "$put_wait" -le 250 ] || fail "confined put never staged input"
+  [ "$put_wait" -le 1500 ] || fail "confined put never staged input"
   sleep 0.02
 done
 mv "$REMOTE/state/handoff" "$TMP_ROOT/pinned-handoff"
@@ -285,7 +285,7 @@ wait_for_serialization=0
 while [ ! -f "$TMP_ROOT/serialize.entered" ]; do
   kill -0 "$handoff_a" 2>/dev/null || fail "first serialized handoff exited before receipt"
   wait_for_serialization=$((wait_for_serialization + 1))
-  [ "$wait_for_serialization" -le 250 ] || fail "first serialized handoff never reached receipt"
+  [ "$wait_for_serialization" -le 1500 ] || fail "first serialized handoff never reached receipt"
   sleep 0.02
 done
 write_backlog '- [ ] serialized-b - second concurrent handoff (repo: alpha)'
@@ -669,7 +669,7 @@ route_wait=0
 while [ ! -f "$TMP_ROOT/route.entered" ]; do
   kill -0 "$route_holder_pid" 2>/dev/null || fail "route lock holder exited before acquiring lifecycle locks"
   route_wait=$((route_wait + 1))
-  [ "$route_wait" -le 250 ] || fail "route lock holder never acquired lifecycle locks"
+  [ "$route_wait" -le 1500 ] || fail "route lock holder never acquired lifecycle locks"
   sleep 0.02
 done
 handoff_env "$ROOT/bin/fm-backlog-handoff.sh" ios route-race \

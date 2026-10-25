@@ -85,9 +85,11 @@
 # correlation's pending-reply record, and every resend under the correlation -
 # --resume-pending, bootstrap, a rerun, or a later handoff - sends the recorded
 # text, never the current call's keys or note; a correlation with no recorded
-# text resends the generic instruction. A rerun of the same local batch reuses
-# the recorded text unless it passes a new --note. When this call's note does not
-# reach a recorded wake, the helper says so and the note must be resent.
+# text resends the generic instruction. An explicit --note on a rerun always
+# wins: it replaces the recorded text for that correlation and is what the retry
+# delivers, in both the prepared and the pending state; with no --note the
+# recorded text is reused. The warning about an undelivered note applies only
+# when nothing recorded can carry it.
 # Usage: fm-backlog-handoff.sh <secondmate-id> <item-key>... [--note <text>]
 #        fm-backlog-handoff.sh --resume-pending
 set -eu
@@ -483,9 +485,16 @@ receiver_wake_mark() { # <secondmate-id> <prepared|pending> <wake-text> [batch-i
     fm_pending_reply_discard_undelivered "$STATE" "$corr" || true
     return 1
   fi
+  if [ -n "$batch" ]; then
+    if ! printf '%s' "$batch" | grep -Eq '^[a-f0-9]{16}$' ||
+      ! fm_pending_reply_set "$(fm_pending_reply_path "$STATE" "$corr")" wake_batch "$batch"; then
+      fm_pending_reply_discard_undelivered "$STATE" "$corr" || true
+      return 1
+    fi
+  fi
   wake_state="$wake_phase:$corr"
   if [ "$wake_phase" = prepared ]; then
-    printf '%s' "$batch" | grep -Eq '^[a-f0-9]{16}$' || return 1
+    [ -n "$batch" ] || return 1
     wake_state="$wake_state:$batch"
   fi
   if ! receiver_wake_state_write "$id" "$wake_state"; then
@@ -494,8 +503,27 @@ receiver_wake_mark() { # <secondmate-id> <prepared|pending> <wake-text> [batch-i
   fi
 }
 
-receiver_wake_mark_pending() { # <secondmate-id> <wake-text>
-  receiver_wake_mark "$1" pending "$2"
+receiver_wake_mark_pending() { # <secondmate-id> <wake-text> [batch-id]
+  receiver_wake_mark "$1" pending "$2" "${3:-}"
+}
+
+# An explicit --note on a rerun always wins: when the pending wake belongs to
+# this same routed batch and is still undelivered, the rerun's composed text
+# replaces the recorded text, so the retry delivers the new note. Any other
+# pending wake is left alone, and warn_handoff_note_undelivered then says so.
+receiver_wake_pending_adopt_note() { # <secondmate-id> <batch-id>
+  local id=$1 batch=$2 marker="$STATE/.backlog-handoff-$1.wake-pending" value corr rec
+  [ -n "$HANDOFF_NOTE" ] && [ -n "$batch" ] || return 0
+  [ -f "$marker" ] && [ ! -L "$marker" ] || return 0
+  value=$(cat "$marker" 2>/dev/null || true)
+  case "$value" in pending:*) corr=${value#pending:} ;; *) return 0 ;; esac
+  printf '%s' "$corr" | grep -Eq '^[a-f0-9]{16}$' || return 0
+  rec=$(fm_pending_reply_path "$STATE" "$corr")
+  [ -f "$rec" ] && [ ! -L "$rec" ] &&
+    [ "$(fm_pending_reply_get "$rec" task_id)" = "$id" ] &&
+    [ "$(fm_pending_reply_get "$rec" wake_batch)" = "$batch" ] &&
+    [ -z "$(fm_pending_reply_get "$rec" delivered_epoch)" ] || return 0
+  receiver_wake_text_set "$corr" "$HANDOFF_WAKE_MESSAGE"
 }
 
 receiver_wake_mark_prepared() { # <secondmate-id> <batch-id> <wake-text>
@@ -713,8 +741,8 @@ outbox_item_count() { # <path>
   awk '/^- \[[ x]\] / { count++ } END { print count + 0 }' "$1"
 }
 
-remote_deliver_outbox() { # <secondmate-id> <outbox-path> [wake-text]
-  local id=$1 outbox=$2 wake_text=${3:-$RECEIVER_WAKE_MESSAGE} remote_rel receive_out snapshot bytes hash generation counter counter_tmp current marker wake_rc=0 wake_state=pending
+remote_deliver_outbox() { # <secondmate-id> <outbox-path> [wake-text] [batch-id]
+  local id=$1 outbox=$2 wake_text=${3:-$RECEIVER_WAKE_MESSAGE} wake_batch=${4:-} remote_rel receive_out snapshot bytes hash generation counter counter_tmp current marker wake_rc=0 wake_state=pending
   [ -f "$outbox" ] && [ ! -L "$outbox" ] || {
     echo "error: pending outbox is unavailable or unsafe: $outbox" >&2
     return 1
@@ -796,10 +824,13 @@ remote_deliver_outbox() { # <secondmate-id> <outbox-path> [wake-text]
     wake_state=dropped
     wake_rc=1
   elif ! receiver_wake_pending_valid "$id" && ! receiver_wake_confirmed_valid "$id"; then
-    receiver_wake_mark_pending "$id" "$wake_text" || {
+    receiver_wake_mark_pending "$id" "$wake_text" "$wake_batch" || {
       wake_state=dropped
       wake_rc=1
     }
+  fi
+  if [ "$wake_rc" -eq 0 ]; then
+    receiver_wake_pending_adopt_note "$id" "$wake_batch" || wake_rc=$?
   fi
   if [ "$wake_rc" -eq 0 ]; then
     wake_pending_secondmate_receiver "$id" 1 || wake_rc=$?
@@ -927,7 +958,7 @@ remote_handoff() { # <secondmate-id> <keys...>
   # deleting only duplicates that tasks-axi itself confirms are dependency-safe.
   remove_interrupted_source_duplicates "$outbox" "${requested[@]}" || return 1
   LAST_WAKE_TEXT=
-  remote_deliver_outbox "$id" "$outbox" "$HANDOFF_WAKE_MESSAGE" || {
+  remote_deliver_outbox "$id" "$outbox" "$HANDOFF_WAKE_MESSAGE" "$(receiver_wake_batch_id "${requested[@]}" || true)" || {
     warn_handoff_note_undelivered "$id"
     return 1
   }
@@ -1111,6 +1142,10 @@ if [ "${#TO_MOVE[@]}" -eq 0 ]; then
     exit 1
     ;;
   esac
+  receiver_wake_pending_adopt_note "$ID" "$REQUESTED_BATCH" || {
+    echo "error: the --note for secondmate $ID could not replace the recorded receiver wake text; nothing was resent" >&2
+    exit 1
+  }
   echo "nothing to move: ${ALREADY[*]:-no keys} already present in $SUB_BACKLOG"
   wake_pending_secondmate_receiver "$ID" || {
     warn_handoff_note_undelivered "$ID"

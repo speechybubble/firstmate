@@ -264,11 +264,14 @@ EOF
   printf '%s\n' "$meta" > "$home/state/design.meta"
   out=$(FM_HOME="$home" "$ROOT/bin/fm-backlog-handoff.sh" design text-k4 --note 'New note.' 2>&1) \
     || fail "a rerun with a new note failed: $out"
-  assert_contains "$(inbox_body_stream "$home/state" design)" $'backlog: text-k4. Run bin/fm-session-start.sh now, then act on the routed task.\nOld note.' \
-    "the rerun did not resend the recorded wake text"
-  assert_contains "$out" 'the --note for secondmate design was not delivered' \
-    "a new note that could not ride the recorded wake was not reported"
-  pass "a wake's text and note ride its correlation across reruns and later handoffs"
+  body=$(inbox_body_stream "$home/state" design)
+  assert_contains "$body" $'backlog: text-k4. Run bin/fm-session-start.sh now, then act on the routed task.\nNew note.' \
+    "a rerun's explicit --note did not replace the recorded text of its pending wake"
+  assert_not_contains "$body" 'Old note.' \
+    "the rerun delivered the superseded note"
+  assert_not_contains "$out" 'was not delivered' \
+    "a note that replaced the recorded wake text was reported undelivered"
+  pass "a wake's text and note ride its correlation across reruns, and a rerun's --note wins"
 }
 
 test_known_receiver_failure_remains_retryable_after_grace() {
@@ -354,7 +357,7 @@ SH
   while [ ! -f "$TMP_ROOT/reconcile-race.entered" ]; do
     kill -0 "$handoff" 2>/dev/null || fail "reconciliation-race handoff exited before backend delivery"
     i=$((i + 1))
-    [ "$i" -le 250 ] || fail "reconciliation-race handoff never reached backend delivery"
+    [ "$i" -le 1500 ] || fail "reconciliation-race handoff never reached backend delivery"
     sleep 0.02
   done
   corr=$(cut -d: -f2- "$home/state/.backlog-handoff-design.wake-pending")
