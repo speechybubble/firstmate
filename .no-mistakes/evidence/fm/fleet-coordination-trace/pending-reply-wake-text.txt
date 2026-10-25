@@ -1,0 +1,48 @@
+##### 1026ced415a3d73e
+task_id=design
+request_summary=New routed work is in your backlog: swimlane-rev. Run bin/fm-session-start.sh now, then act on the routed task. Use t...
+wake_batch=ea4b94292578533b
+delivered_epoch=1792912129
+wake_text(decoded)=
+New routed work is in your backlog: swimlane-rev. Run bin/fm-session-start.sh now, then act on the routed task.
+Use the captain swimlane revision: lanes left-to-right, add the SVG export.
+##### 12505e4d6414f4a3
+task_id=design
+request_summary=New routed work is in your backlog: k-att. Run bin/fm-session-start.sh now, then act on the routed task. Old att note.
+wake_batch=921228e05474cbe9
+delivered_epoch=1792912390
+wake_text(decoded)=
+New routed work is in your backlog: k-att. Run bin/fm-session-start.sh now, then act on the routed task.
+Old att note.
+##### 6c71fb3550dbefbf
+task_id=design
+request_summary=New routed work is in your backlog: swim-svg. Run bin/fm-session-start.sh now, then act on the routed task. Captain c...
+wake_batch=f148fbf9252820ca
+delivered_epoch=1792912208
+wake_text(decoded)=
+New routed work is in your backlog: swim-svg. Run bin/fm-session-start.sh now, then act on the routed task.
+Captain change: lanes left-to-right, keep the legend; dispatch as one worker.
+##### b8c3e485e890022b
+task_id=design
+request_summary=New routed work is in your backlog: k-conf. Run bin/fm-session-start.sh now, then act on the routed task. Old five: k...
+wake_batch=76e94fa73177f100
+delivered_epoch=1792912341
+wake_text(decoded)=
+New routed work is in your backlog: k-conf. Run bin/fm-session-start.sh now, then act on the routed task.
+Old five: keep the current palette.
+##### c59c6d88a2c99fd7
+task_id=design
+request_summary=New routed work is in your backlog: multi-a multi-b. Run bin/fm-session-start.sh now, then act on the routed task. Sh...
+wake_batch=5e22dc612ec0bfbc
+delivered_epoch=1792912394
+wake_text(decoded)=
+New routed work is in your backlog: multi-a multi-b. Run bin/fm-session-start.sh now, then act on the routed task.
+Ship multi-a first, multi-b after it merges.
+##### cfbfe8c386fb1354
+task_id=design
+request_summary=New routed work is in your backlog: k-pend. Run bin/fm-session-start.sh now, then act on the routed task. Old note: b...
+wake_batch=d2e24477d8bd2e64
+delivered_epoch=1792912328
+wake_text(decoded)=
+New routed work is in your backlog: k-pend. Run bin/fm-session-start.sh now, then act on the routed task.
+New note: build it on the right rail instead.

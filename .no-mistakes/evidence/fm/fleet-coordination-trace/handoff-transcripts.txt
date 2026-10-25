@@ -1,0 +1,92 @@
+##### s1
+$ FM_HOME=$LAB bin/fm-backlog-handoff.sh design swimlane-rev --note Use the captain swimlane revision: lanes left-to-right, add the SVG export.
+handed off 1 item(s) to design: swimlane-rev
+  into /tmp/fm-lab.HYvejg/design-home/data/backlog.md
+error: refusing fleet lifecycle from inside a no-mistakes gate worktree (/home/denni/.no-mistakes/repos/d567722de3ac.git)
+error: backlog delivery to secondmate design succeeded, but its receiver wake failed; retry a tracked remote wake with --resume-pending or a later new handoff, and retry a local wake by rerunning its handoff
+exit=1
+
+##### s2
+$ FM_HOME=$LAB bin/fm-backlog-handoff.sh design swimlane-rev
+nothing to move: swimlane-rev already present in /tmp/fm-lab.HYvejg/design-home/data/backlog.md
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the requested message WILL still be sent.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+fm-send: doorbell not typed because the agent in firstmate:fm-design has exited; the steer is durably recorded at /tmp/fm-lab.HYvejg/main/state/design.inbox/001.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+  receiver reply returns on /tmp/fm-lab.HYvejg/main/state/design.status as corr=1026ced415a3d73e; no inline wait is needed
+exit=0
+
+##### s1live
+$ FM_HOME=$LAB bin/fm-backlog-handoff.sh design swim-svg --note Captain change: lanes left-to-right, keep the legend; dispatch as one worker.
+handed off 1 item(s) to design: swim-svg
+  into /tmp/fm-lab.HYvejg/design-home/data/backlog.md
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+  receiver reply returns on /tmp/fm-lab.HYvejg/main/state/design.status as corr=6c71fb3550dbefbf; no inline wait is needed
+exit=0
+
+##### s3a
+$ FM_HOME=$LAB bin/fm-backlog-handoff.sh design k-pend --note Old note: build it on the left rail.
+handed off 1 item(s) to design: k-pend
+  into /tmp/fm-lab.HYvejg/design-home/data/backlog.md
+error: handed off work to secondmate design, but no live receiver endpoint is recorded; the destination backlog is durable and the receiver was not woken
+exit=1
+
+##### s3b
+$ FM_HOME=$LAB bin/fm-backlog-handoff.sh design k-pend --note New note: build it on the right rail instead.
+nothing to move: k-pend already present in /tmp/fm-lab.HYvejg/design-home/data/backlog.md
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+  receiver reply returns on /tmp/fm-lab.HYvejg/main/state/design.status as corr=cfbfe8c386fb1354; no inline wait is needed
+exit=0
+
+##### s4a
+$ FM_HOME=$LAB bin/fm-backlog-handoff.sh design k-conf --note Old five: keep the current palette.
+handed off 1 item(s) to design: k-conf
+  into /tmp/fm-lab.HYvejg/design-home/data/backlog.md
+error: handed off work to secondmate design, but no live receiver endpoint is recorded; the destination backlog is durable and the receiver was not woken
+exit=1
+
+##### s4b
+$ FM_HOME=$LAB bin/fm-backlog-handoff.sh design k-conf --note New five: switch to the dark palette.
+nothing to move: k-conf already present in /tmp/fm-lab.HYvejg/design-home/data/backlog.md
+  receiver reply returns on /tmp/fm-lab.HYvejg/main/state/design.status as corr=b8c3e485e890022b; no inline wait is needed
+warning: the --note for secondmate design was not delivered and is not recorded for a later wake retry; send it to the mate again
+exit=0
+
+##### s4c
+$ FM_HOME=$LAB bin/fm-backlog-handoff.sh design k-att --note Old att note.
+handed off 1 item(s) to design: k-att
+  into /tmp/fm-lab.HYvejg/design-home/data/backlog.md
+error: handed off work to secondmate design, but no live receiver endpoint is recorded; the destination backlog is durable and the receiver was not woken
+exit=1
+
+##### s4d
+$ FM_HOME=$LAB bin/fm-backlog-handoff.sh design k-att --note New att note.
+nothing to move: k-att already present in /tmp/fm-lab.HYvejg/design-home/data/backlog.md
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: pending-reply delivery for design is unresolved; refusing to resend correlation 12505e4d6414f4a3
+error: backlog delivery to secondmate design succeeded, but its receiver wake failed; retry a tracked remote wake with --resume-pending or a later new handoff, and retry a local wake by rerunning its handoff
+warning: the --note for secondmate design was not delivered and is not recorded for a later wake retry; send it to the mate again
+exit=1
+
+##### s5
+$ FM_HOME=$LAB bin/fm-backlog-handoff.sh design k-alias --note=Alias text
+error: no backlog item matched these keys in /tmp/fm-lab.HYvejg/main/data/backlog.md: --note=Alias text
+       nothing was moved.
+exit=1
+
+##### s6
+$ FM_HOME=$LAB bin/fm-backlog-handoff.sh design multi-a multi-b --note Ship multi-a first, multi-b after it merges.
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+fm-send: doorbell skipped (composer visibly holds pending text); the steer is durably recorded at /tmp/fm-lab.HYvejg/main/state/design.inbox/004.msg and the watcher will re-ring
+  receiver reply returns on /tmp/fm-lab.HYvejg/main/state/design.status as corr=12505e4d6414f4a3; no inline wait is needed
+handed off 2 item(s) to design: multi-a multi-b
+  into /tmp/fm-lab.HYvejg/design-home/data/backlog.md
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+fm-send: doorbell skipped (composer visibly holds pending text); the steer is durably recorded at /tmp/fm-lab.HYvejg/main/state/design.inbox/005.msg and the watcher will re-ring
+  receiver reply returns on /tmp/fm-lab.HYvejg/main/state/design.status as corr=c59c6d88a2c99fd7; no inline wait is needed
+exit=0
+

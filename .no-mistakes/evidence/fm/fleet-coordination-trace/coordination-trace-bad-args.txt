@@ -1,0 +1,11 @@
+$ fm-coordination-trace.sh --since 2026-10-2x
+fm-coordination-trace: invalid --since 2026-10-2x
+exit=2
+$ fm-coordination-trace.sh --since 10/20
+fm-coordination-trace: invalid --since 10/20
+exit=2
+$ fm-coordination-trace.sh --markdown
+2026-10-09 (the Claude fleet migration).
+
+Exit codes: 0 traced; 2 usage or an unresolvable input (named on stderr).
+exit=2

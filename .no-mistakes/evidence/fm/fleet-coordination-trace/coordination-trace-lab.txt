@@ -1,0 +1,76 @@
+fm-coordination-trace: design since 2026-10-09 (routed tasks 3, with results 2)
+
+SUMMARY
+  ask -> worker start: median -, worst - (n=0)
+  messages per captain change: - (n=0 tasks; 5 steers, 2 attributed, 5 handoff wakes, 0 reposts, 0 fire-and-forget; steers in the first ten minutes per task 1.00, after a handoff wake 1.00)
+  copies per result at main: 1.50 lines, 0.00 supervision turns (2 results)
+  repost steers: 0, mate reply after the repost median -, worst -
+  steer ack: median 1m28s, worst 4m47s; fire-and-forget ack: median -, worst -
+  main-home tasks: 0, status wake rows per task -; with a surviving status file: 0 tasks, 0 terminal lines, 0 status wake rows
+
+EDGES (median / worst / n)
+  ask->route                       -         -  n=0   worst=-
+  ask->main_reply                  -         -  n=0   worst=-
+  route->mate_ack                23s     3m28s  n=3   worst=swim-svg
+  route->spawn                 1m13s     3m58s  n=3   worst=swim-svg
+  ask->spawn                       -         -  n=0   worst=-
+  spawn->worker_end           11m55s    14m20s  n=2   worst=multi-a
+  worker_end->fact_line          10s       10s  n=2   worst=multi-a
+  fact_line->fact_row              -         -  n=0   worst=-
+  fact_row->main_ack               -         -  n=0   worst=-
+  fact_line->mate_line             -         -  n=0   worst=-
+
+TASKS
+  multi-a
+    ask          -
+    main_reply   -
+    route        2026-10-25 07:13:13
+    mate_ack     2026-10-25 07:13:36
+    spawn        2026-10-25 07:14:16  (worker first status line)
+    worker_end   2026-10-25 07:28:36
+    fact_line    2026-10-25 07:28:46
+    fact_row     -
+    fact_ack     -
+    mate_line    -
+    edges        route->mate_ack=23s  route->spawn=1m03s  spawn->worker_end=14m20s  worker_end->fact_line=10s
+    steers=1 (first ten minutes 1) reposts=0 changes=0 results=1 copies=1 lines in 0 supervision turns, mate wakes=0
+  multi-b
+    ask          -
+    main_reply   -
+    route        2026-10-25 07:13:13
+    mate_ack     2026-10-25 07:13:36
+    spawn        2026-10-25 07:14:26  (worker first status line)
+    worker_end   -
+    fact_line    -
+    fact_row     -
+    fact_ack     -
+    mate_line    -
+    edges        route->mate_ack=23s  route->spawn=1m13s
+    steers=1 (first ten minutes 1) reposts=0 changes=0 results=0 copies=0 lines in 0 supervision turns, mate wakes=0
+  swim-svg
+    ask          -
+    main_reply   -
+    route        2026-10-25 07:10:08
+    mate_ack     2026-10-25 07:13:36
+    spawn        2026-10-25 07:14:06  (worker first status line)
+    worker_end   2026-10-25 07:23:36
+    fact_line    2026-10-25 07:23:46
+    fact_row     -
+    fact_ack     -
+    mate_line    -
+    edges        route->mate_ack=3m28s  route->spawn=3m58s  spawn->worker_end=9m30s  worker_end->fact_line=10s
+    steers=1 (first ten minutes 1) reposts=0 changes=0 results=1 copies=2 lines in 0 supervision turns, mate wakes=0
+
+MAIN-HOME TASKS (wake rows / rows naming the status file / stale rows / terminal lines in a surviving status file)
+
+STEERS (5 main->mate records, 3 unattributed)
+  001 2026-10-25 07:08:49 ask+- ack+4m47s reply+- handoff-wake     -                                    [fm-from-firstmate]⁣corr=1026ced415a3d73e New routed work is in your backlog: swimlane-rev
+  002 2026-10-25 07:10:08 ask+- ack+3m28s reply+- handoff-wake     swim-svg                             [fm-from-firstmate]⁣corr=6c71fb3550dbefbf New routed work is in your backlog: swim-svg. Ru
+  003 2026-10-25 07:12:08 ask+- ack+1m28s reply+- handoff-wake     -                                    [fm-from-firstmate]⁣corr=cfbfe8c386fb1354 New routed work is in your backlog: k-pend. Run 
+  004 2026-10-25 07:13:10 ask+- ack+26s reply+- handoff-wake     -                                    [fm-from-firstmate]⁣corr=12505e4d6414f4a3 New routed work is in your backlog: k-att. Run b
+  005 2026-10-25 07:13:13 ask+- ack+23s reply+- handoff-wake     multi-a,multi-b                      [fm-from-firstmate]⁣corr=c59c6d88a2c99fd7 New routed work is in your backlog: multi-a mult
+
+FALLBACKS USED
+  - no transcript directory: captain ask times and main ack times unavailable
+
+INPUTS main rows 0, mate rows 0, channel lines 5, steers 5, pending replies 6, dispositions 0, transcripts 0

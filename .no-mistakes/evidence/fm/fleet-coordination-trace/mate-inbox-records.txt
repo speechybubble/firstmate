@@ -1,0 +1,30 @@
+##### 001.msg
+schema=fm-task-inbox.v1
+at=2026-10-25T07:08:49Z
+--
+[fm-from-firstmate]corr=1026ced415a3d73e New routed work is in your backlog: swimlane-rev. Run bin/fm-session-start.sh now, then act on the routed task.
+Use the captain swimlane revision: lanes left-to-right, add the SVG export.
+##### 002.msg
+schema=fm-task-inbox.v1
+at=2026-10-25T07:10:08Z
+--
+[fm-from-firstmate]corr=6c71fb3550dbefbf New routed work is in your backlog: swim-svg. Run bin/fm-session-start.sh now, then act on the routed task.
+Captain change: lanes left-to-right, keep the legend; dispatch as one worker.
+##### 003.msg
+schema=fm-task-inbox.v1
+at=2026-10-25T07:12:08Z
+--
+[fm-from-firstmate]corr=cfbfe8c386fb1354 New routed work is in your backlog: k-pend. Run bin/fm-session-start.sh now, then act on the routed task.
+New note: build it on the right rail instead.
+##### 004.msg
+schema=fm-task-inbox.v1
+at=2026-10-25T07:13:10Z
+--
+[fm-from-firstmate]corr=12505e4d6414f4a3 New routed work is in your backlog: k-att. Run bin/fm-session-start.sh now, then act on the routed task.
+Old att note.
+##### 005.msg
+schema=fm-task-inbox.v1
+at=2026-10-25T07:13:13Z
+--
+[fm-from-firstmate]corr=c59c6d88a2c99fd7 New routed work is in your backlog: multi-a multi-b. Run bin/fm-session-start.sh now, then act on the routed task.
+Ship multi-a first, multi-b after it merges.

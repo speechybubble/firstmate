@@ -1,0 +1,17 @@
+❯ : Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your 'design.inbox' steering inbox, read and act on each in numeric order, then mv each into
+  its handled/.
+● I'll list and read the steering inbox messages first.
+  Ran 1 shell command
+● The FM_TASK_INBOX variable is empty in this shell. I'll search for the design.inbox directory directly.
+  Ran 2 shell commands
+● Two messages, both about a swimlane revision. Next I need the session-start script contents and the backlog records for swimlane-rev and swim-svg, read-only.
+  Checking whether session-start mutates state and finding the secondmate reporting protocol
+  ⎿  $ cd /tmp/fm-lab.HYvejg && echo "=== session-start: does it mutate state?"; grep -nE 'fm-lock|wake-drain|mv |touch |>>|> "|rm ' fm/bin/fm-session-start.sh
+     | head -40; echo; echo "=== secondmate inbox/report protocol in fm docs"; grep -rn -iE 'design.inbox|handled/|fm-report|pending-repl|secondmate.…
+✽ Manifesting… (1m 39s · ↓ 2.3k tokens)
+  ⎿  Tip: Use /btw to ask a quick side question without interrupting Claude's current work
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 4% used
+  ⏸ plan mode on (shift+tab to cycle)

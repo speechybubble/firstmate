@@ -1,0 +1,324 @@
+{
+ "summary": {
+  "since": "2026-10-09",
+  "mate": "design",
+  "routed_tasks": 3,
+  "tasks_with_results": 2,
+  "ask_to_worker_start_median": null,
+  "ask_to_worker_start_worst": null,
+  "ask_to_worker_start_n": 0,
+  "messages_per_change_mean": null,
+  "messages_per_change_n": 0,
+  "route_burst_mean": 1.0,
+  "handoff_wake_burst_mean": 1.0,
+  "messages_total": 5,
+  "messages_attributed": 2,
+  "messages_repost": 0,
+  "messages_handoff_wake": 5,
+  "messages_fire_and_forget": 0,
+  "repost_reply_median": null,
+  "repost_reply_worst": null,
+  "steer_ack_median": 88.73570942878723,
+  "steer_ack_worst": 287.73570942878723,
+  "fire_and_forget_ack_median": null,
+  "fire_and_forget_ack_worst": null,
+  "result_events": 2,
+  "copies_per_result_lines_mean": 1.5,
+  "copies_per_result_rows_mean": 0.0,
+  "main_tasks": 0,
+  "main_status_rows_mean": null,
+  "main_tasks_with_status_file": 0,
+  "main_terminal_lines_total": 0,
+  "main_status_rows_with_file_total": 0
+ },
+ "edges": {
+  "ask->route": {
+   "n": 0,
+   "median": null,
+   "worst": null,
+   "worst_task": null
+  },
+  "ask->main_reply": {
+   "n": 0,
+   "median": null,
+   "worst": null,
+   "worst_task": null
+  },
+  "route->mate_ack": {
+   "n": 3,
+   "median": 23.73570942878723,
+   "worst": 208.73570942878723,
+   "worst_task": "swim-svg"
+  },
+  "route->spawn": {
+   "n": 3,
+   "median": 73.0,
+   "worst": 238.0,
+   "worst_task": "swim-svg"
+  },
+  "ask->spawn": {
+   "n": 0,
+   "median": null,
+   "worst": null,
+   "worst_task": null
+  },
+  "spawn->worker_end": {
+   "n": 2,
+   "median": 715.0,
+   "worst": 860,
+   "worst_task": "multi-a"
+  },
+  "worker_end->fact_line": {
+   "n": 2,
+   "median": 10.0,
+   "worst": 10,
+   "worst_task": "multi-a"
+  },
+  "fact_line->fact_row": {
+   "n": 0,
+   "median": null,
+   "worst": null,
+   "worst_task": null
+  },
+  "fact_row->main_ack": {
+   "n": 0,
+   "median": null,
+   "worst": null,
+   "worst_task": null
+  },
+  "fact_line->mate_line": {
+   "n": 0,
+   "median": null,
+   "worst": null,
+   "worst_task": null
+  }
+ },
+ "tasks": [
+  {
+   "task": "multi-a",
+   "ask": null,
+   "changes": 0,
+   "route": 1792912393.0,
+   "route_kind": "handoff-wake",
+   "route_burst": 1,
+   "mate_ack": 1792912416.7357094,
+   "spawn": 1792912456,
+   "spawn_source": "worker first status line",
+   "worker_end": 1792913316,
+   "worker_end_source": "worker terminal line",
+   "mate_wakes": 0,
+   "main_reply": null,
+   "fact_line": 1792913326,
+   "fact_row": null,
+   "fact_verdict": null,
+   "main_rows_between": 0,
+   "fact_ack": null,
+   "mate_line": null,
+   "steers": 1,
+   "reposts": 0,
+   "messages_per_change": null,
+   "result_events": 1,
+   "result_lines": 1,
+   "result_rows": 0,
+   "copies_per_result": 1.0,
+   "turns_per_result": 0.0,
+   "edges": {
+    "ask->route": null,
+    "ask->main_reply": null,
+    "route->mate_ack": 23.73570942878723,
+    "route->spawn": 63.0,
+    "ask->spawn": null,
+    "spawn->worker_end": 860,
+    "worker_end->fact_line": 10,
+    "fact_line->fact_row": null,
+    "fact_row->main_ack": null,
+    "fact_line->mate_line": null
+   }
+  },
+  {
+   "task": "multi-b",
+   "ask": null,
+   "changes": 0,
+   "route": 1792912393.0,
+   "route_kind": "handoff-wake",
+   "route_burst": 1,
+   "mate_ack": 1792912416.7357094,
+   "spawn": 1792912466,
+   "spawn_source": "worker first status line",
+   "worker_end": null,
+   "worker_end_source": null,
+   "mate_wakes": 0,
+   "main_reply": null,
+   "fact_line": null,
+   "fact_row": null,
+   "fact_verdict": null,
+   "main_rows_between": 0,
+   "fact_ack": null,
+   "mate_line": null,
+   "steers": 1,
+   "reposts": 0,
+   "messages_per_change": null,
+   "result_events": 0,
+   "result_lines": 0,
+   "result_rows": 0,
+   "copies_per_result": null,
+   "turns_per_result": null,
+   "edges": {
+    "ask->route": null,
+    "ask->main_reply": null,
+    "route->mate_ack": 23.73570942878723,
+    "route->spawn": 73.0,
+    "ask->spawn": null,
+    "spawn->worker_end": null,
+    "worker_end->fact_line": null,
+    "fact_line->fact_row": null,
+    "fact_row->main_ack": null,
+    "fact_line->mate_line": null
+   }
+  },
+  {
+   "task": "swim-svg",
+   "ask": null,
+   "changes": 0,
+   "route": 1792912208.0,
+   "route_kind": "handoff-wake",
+   "route_burst": 1,
+   "mate_ack": 1792912416.7357094,
+   "spawn": 1792912446,
+   "spawn_source": "worker first status line",
+   "worker_end": 1792913016,
+   "worker_end_source": "worker terminal line",
+   "mate_wakes": 0,
+   "main_reply": null,
+   "fact_line": 1792913026,
+   "fact_row": null,
+   "fact_verdict": null,
+   "main_rows_between": 0,
+   "fact_ack": null,
+   "mate_line": null,
+   "steers": 1,
+   "reposts": 0,
+   "messages_per_change": null,
+   "result_events": 1,
+   "result_lines": 2,
+   "result_rows": 0,
+   "copies_per_result": 2.0,
+   "turns_per_result": 0.0,
+   "edges": {
+    "ask->route": null,
+    "ask->main_reply": null,
+    "route->mate_ack": 208.73570942878723,
+    "route->spawn": 238.0,
+    "ask->spawn": null,
+    "spawn->worker_end": 570,
+    "worker_end->fact_line": 10,
+    "fact_line->fact_row": null,
+    "fact_row->main_ack": null,
+    "fact_line->mate_line": null
+   }
+  }
+ ],
+ "steers": [
+  {
+   "id": "001",
+   "tasks": [],
+   "kind": "handoff-wake",
+   "captain_input": null,
+   "from_ask": null,
+   "written": 1792912129.0,
+   "acked": 1792912416.7357094,
+   "pending": false,
+   "ack_delay": 287.73570942878723,
+   "reply_delay": null,
+   "corrs": [
+    "1026ced415a3d73e"
+   ],
+   "summary": "[fm-from-firstmate]\u2063corr=1026ced415a3d73e New routed work is in your backlog: swimlane-rev"
+  },
+  {
+   "id": "002",
+   "tasks": [
+    "swim-svg"
+   ],
+   "kind": "handoff-wake",
+   "captain_input": null,
+   "from_ask": null,
+   "written": 1792912208.0,
+   "acked": 1792912416.7357094,
+   "pending": false,
+   "ack_delay": 208.73570942878723,
+   "reply_delay": null,
+   "corrs": [
+    "6c71fb3550dbefbf"
+   ],
+   "summary": "[fm-from-firstmate]\u2063corr=6c71fb3550dbefbf New routed work is in your backlog: swim-svg. Ru"
+  },
+  {
+   "id": "003",
+   "tasks": [],
+   "kind": "handoff-wake",
+   "captain_input": null,
+   "from_ask": null,
+   "written": 1792912328.0,
+   "acked": 1792912416.7357094,
+   "pending": false,
+   "ack_delay": 88.73570942878723,
+   "reply_delay": null,
+   "corrs": [
+    "cfbfe8c386fb1354"
+   ],
+   "summary": "[fm-from-firstmate]\u2063corr=cfbfe8c386fb1354 New routed work is in your backlog: k-pend. Run "
+  },
+  {
+   "id": "004",
+   "tasks": [],
+   "kind": "handoff-wake",
+   "captain_input": null,
+   "from_ask": null,
+   "written": 1792912390.0,
+   "acked": 1792912416.7357094,
+   "pending": false,
+   "ack_delay": 26.73570942878723,
+   "reply_delay": null,
+   "corrs": [
+    "12505e4d6414f4a3"
+   ],
+   "summary": "[fm-from-firstmate]\u2063corr=12505e4d6414f4a3 New routed work is in your backlog: k-att. Run b"
+  },
+  {
+   "id": "005",
+   "tasks": [
+    "multi-a",
+    "multi-b"
+   ],
+   "kind": "handoff-wake",
+   "captain_input": null,
+   "from_ask": null,
+   "written": 1792912393.0,
+   "acked": 1792912416.7357094,
+   "pending": false,
+   "ack_delay": 23.73570942878723,
+   "reply_delay": null,
+   "corrs": [
+    "c59c6d88a2c99fd7"
+   ],
+   "summary": "[fm-from-firstmate]\u2063corr=c59c6d88a2c99fd7 New routed work is in your backlog: multi-a mult"
+  }
+ ],
+ "unattributed_steers": 3,
+ "main_tasks": [],
+ "fallbacks": [
+  "no transcript directory: captain ask times and main ack times unavailable"
+ ],
+ "inputs": {
+  "state": "/tmp/fm-lab.HYvejg/main/state",
+  "mate_home": "/tmp/fm-lab.HYvejg/design-home",
+  "main_rows": 0,
+  "mate_rows": 0,
+  "channel_lines": 5,
+  "inbox_records": 5,
+  "pending_replies": 6,
+  "dispositions": 0,
+  "transcripts": []
+ }
+}
