@@ -508,11 +508,12 @@ receiver_wake_mark_pending() { # <secondmate-id> <wake-text> [batch-id]
 }
 
 # An explicit --note on a rerun always wins: when the pending wake belongs to
-# this same routed batch and is still undelivered, the rerun's composed text
-# replaces the recorded text, so the retry delivers the new note. Any other
-# pending wake is left alone, and warn_handoff_note_undelivered then says so.
+# this same routed batch and no send of it has been made or may have landed,
+# the rerun's composed text replaces the recorded text, so the retry delivers
+# the new note. Any other pending wake is left alone, and
+# warn_handoff_note_undelivered then says so.
 receiver_wake_pending_adopt_note() { # <secondmate-id> <batch-id>
-  local id=$1 batch=$2 marker="$STATE/.backlog-handoff-$1.wake-pending" value corr rec
+  local id=$1 batch=$2 marker="$STATE/.backlog-handoff-$1.wake-pending" value corr rec sidecar
   [ -n "$HANDOFF_NOTE" ] && [ -n "$batch" ] || return 0
   [ -f "$marker" ] && [ ! -L "$marker" ] || return 0
   value=$(cat "$marker" 2>/dev/null || true)
@@ -521,8 +522,12 @@ receiver_wake_pending_adopt_note() { # <secondmate-id> <batch-id>
   rec=$(fm_pending_reply_path "$STATE" "$corr")
   [ -f "$rec" ] && [ ! -L "$rec" ] &&
     [ "$(fm_pending_reply_get "$rec" task_id)" = "$id" ] &&
-    [ "$(fm_pending_reply_get "$rec" wake_batch)" = "$batch" ] &&
-    [ -z "$(fm_pending_reply_get "$rec" delivered_epoch)" ] || return 0
+    [ "$(fm_pending_reply_get "$rec" wake_batch)" = "$batch" ] || return 0
+  fm_pending_reply_reconcile_delivery "$STATE" "$corr" >/dev/null 2>&1 || true
+  sidecar=$(fm_pending_reply_delivery_confirmation_path "$STATE" "$corr")
+  [ -z "$(fm_pending_reply_get "$rec" delivered_epoch)" ] &&
+    fm_pending_reply_corr_reusable "$STATE" "$corr" "$id" &&
+    [ ! -e "$sidecar" ] && [ ! -L "$sidecar" ] || return 0
   receiver_wake_text_set "$corr" "$HANDOFF_WAKE_MESSAGE"
 }
 

@@ -745,6 +745,9 @@ def main(argv=None):
     ap.add_argument("--transcript-dir", default=None, help="primary harness transcript dir for captain ask times")
     ap.add_argument("--json", default=None, help="write the full result as JSON to this file")
     args = ap.parse_args(argv)
+    if parse_ts(args.since + "T00:00:00Z") is None:
+        print(f"fm-coordination-trace: invalid --since {args.since}", file=sys.stderr)
+        return 2
     res = trace(args)
     if args.json:
         Path(args.json).write_text(json.dumps(res, indent=1, default=float), "utf-8")

@@ -116,6 +116,11 @@ test_trace_reports_fallbacks_and_refuses_unknown_mate() {
   out=$(FM_HOME="$MAIN" FM_STATE_OVERRIDE="$STATE" "$TRACE" nosuch 2>&1) || rc=$?
   expect_code 2 "$rc" "an unregistered mate must exit 2"
   assert_contains "$out" "mate home for nosuch not found" "an unregistered mate was not named"
+  rc=0
+  out=$(run_trace --since 2026-10-2x 2>&1) || rc=$?
+  expect_code 2 "$rc" "a malformed --since must exit 2"
+  assert_contains "$out" "fm-coordination-trace: invalid --since 2026-10-2x" "a malformed --since was not named"
+  assert_not_contains "$out" "Traceback" "a malformed --since raised a traceback"
   pass "trace lists every fallback it used, dumps JSON and refuses an unknown mate by name"
 }
 

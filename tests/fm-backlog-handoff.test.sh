@@ -216,7 +216,7 @@ EOF
 # correlation's own keys and note before its own wake, and a rerun whose new
 # note cannot ride the recorded wake says so.
 test_wake_text_rides_its_correlation_across_retries() {
-  local home="$TMP_ROOT/wake-text-main" sub="$TMP_ROOT/wake-text-sub" meta body rc=0 out
+  local home="$TMP_ROOT/wake-text-main" sub="$TMP_ROOT/wake-text-sub" meta body rc=0 out corr hex
   setup_homes "$home" "$sub"
   meta=$(cat "$home/state/design.meta")
   mkdir -p "$sub/data"
@@ -226,6 +226,7 @@ test_wake_text_rides_its_correlation_across_retries() {
 - [ ] text-k2 - second batch (repo: alpha)
 - [ ] text-k3 - third batch (repo: alpha)
 - [ ] text-k4 - fourth batch (repo: alpha)
+- [ ] text-k5 - fifth batch (repo: alpha)
 
 ## Done
 EOF
@@ -271,6 +272,24 @@ EOF
     "the rerun delivered the superseded note"
   assert_not_contains "$out" 'was not delivered' \
     "a note that replaced the recorded wake text was reported undelivered"
+
+  rm -f "$home/state/design.meta"
+  rc=0
+  FM_HOME="$home" "$ROOT/bin/fm-backlog-handoff.sh" design text-k5 --note 'Old five.' >/dev/null 2>&1 || rc=$?
+  [ "$rc" -ne 0 ] || fail "the fifth batch wake did not fail without an endpoint"
+  printf '%s\n' "$meta" > "$home/state/design.meta"
+  corr=$(cat "$home/state/.backlog-handoff-design.wake-pending")
+  corr=${corr#pending:}
+  printf 'confirmed=%s\n' "$(date +%s)" > "$home/state/pending-replies/.delivery-confirmed-$corr"
+  out=$(FM_HOME="$home" "$ROOT/bin/fm-backlog-handoff.sh" design text-k5 --note 'New five.' 2>&1) \
+    || fail "a rerun after a confirmed delivery failed: $out"
+  assert_contains "$out" 'was not delivered' \
+    "a rerun's note that no retry could carry was not reported undelivered"
+  hex=$(sed -n 's/^wake_text=//p' "$home/state/pending-replies/$corr")
+  assert_contains "$(printf '%b' "$(printf '%s' "$hex" | sed 's/../\\x&/g')")" 'Old five.' \
+    "a confirmed delivery's recorded wake text was overwritten by the rerun's note"
+  assert_not_contains "$(inbox_body_stream "$home/state" design)" 'New five.' \
+    "a rerun resent a wake whose delivery was already confirmed"
   pass "a wake's text and note ride its correlation across reruns, and a rerun's --note wins"
 }
 
