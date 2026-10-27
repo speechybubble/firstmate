@@ -432,10 +432,11 @@ fm_test_alive_pids() {
 # fm_test_reap_fake_browser_bridges <dir> kills every stand-in recorded under
 # <dir> whose environment still names <dir>/home, so a reused pid is spared.
 fm_test_reap_fake_browser_bridges() {
-  local f pid
+  local f pid pids
   for f in "$1"/*.pids; do
     [ -f "$f" ] || continue
-    for pid in $(cat "$f"); do
+    read -r -a pids < "$f" || [ "${#pids[@]}" -gt 0 ] || continue
+    for pid in "${pids[@]}"; do
       grep -qsaxzF "HOME=$1/home" "/proc/$pid/environ" || continue
       kill -KILL "$pid" 2>/dev/null || true
     done
