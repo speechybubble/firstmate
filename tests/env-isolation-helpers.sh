@@ -35,6 +35,9 @@
 # in the primary of a git-init repository; TASKS_AXI_FILE and TASKS_AXI_BACKEND
 # resolve ahead of the .tasks.toml a fixture copies, which once sent
 # tests/fm-public-followup.test.sh's writes into the operator's live backlog.
+# REX_SESSION and REX_BLOCK are a Rex block's identity, which bin/fm-backend.sh's
+# fm_backend_detect would otherwise auto-detect into the operator's live Rex
+# session; REX_BIN_DIR stays so the real-server smoke test can find the CLI.
 fm_test_env_routing_names() {
   local name
   for name in \
@@ -46,7 +49,7 @@ fm_test_env_routing_names() {
     FM_PUBLIC_FOLLOWUP_PRIMARY_HOME FM_REMOTE_JOB_STATE_ROOT FM_LOCK_OWNER_DIR \
     FM_PROCEVENT_CLAIM_ROOT FM_PROCEVENT_CLAIM_STATE_ROOT FM_PROCEVENT_IN_RUNNER \
     FM_TIMING_LOG FM_SESSION_START_STAGE_FILE \
-    TASKS_AXI_FILE TASKS_AXI_BACKEND \
+    TASKS_AXI_FILE TASKS_AXI_BACKEND REX_SESSION REX_BLOCK \
     TMUX TMUX_PANE TMUX_TMPDIR TREEHOUSE_DIR TREEHOUSE_ROOT __CFBundleIdentifier; do
     [ -z "${!name+x}" ] || printf '%s\n' "$name"
   done
