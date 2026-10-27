@@ -327,7 +327,9 @@
 #     prints one line per session it stopped. Bridges of other tasks, of other
 #     homes, or with no FM_TASK_ID are never touched. It runs before Fix 2,
 #     so a bridge started inside the worktree is stopped as a session rather
-#     than signalled process by process. Best effort: a survivor warns and names
+#     than signalled process by process, and again once the worker's endpoint
+#     is closed, so a bridge the still-live worker started after the first
+#     pass cannot outlive the task. Best effort: a survivor warns and names
 #     bin/fm-browser-sessions.sh stop for a retry, and never blocks this
 #     teardown; on a platform without /proc it is skipped silently.
 # After Fix 1 and Fix 2, when config/pipeline-spend opts this home in, a ship
@@ -3651,10 +3653,12 @@ fi
 # kind=secondmate: a secondmate home's own runtime lifecycle is owned by the
 # dedicated process-event and firstmate-home removal machinery further below,
 # not by task-worktree cleanup.
-if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
+teardown_stop_browser_sessions() {
+  [ "$KIND" = ship ] || [ "$KIND" = scout ] || return 0
   fm_browser_stop_task "$FM_HOME" "$ID" teardown || [ "$?" -eq 2 ] \
     || echo "warning: a browser session of $ID survived TERM and KILL; once cleanup finishes, retry with bin/fm-browser-sessions.sh stop $ID" >&2
-fi
+}
+teardown_stop_browser_sessions
 if [ "$KIND" != secondmate ] && teardown_owns_worktree; then
   conclude_task_no_mistakes_run "$WT"
   reap_task_worktree_processes worktree "$WT" "$TASK_TMP"
@@ -3794,6 +3798,7 @@ elif [ "$BACKEND" != orca ] && [ "$TEARDOWN_WINDOWLESS" != 1 ]; then
   fm_backend_kill "$BACKEND" "$T" "$(meta_value "$META" zellij_tab_id)" "fm-$ID" \
     || endpoint_close_refusal "$ID" "$BACKEND" "$T" 1 || exit 1
 fi
+teardown_stop_browser_sessions
 if [ "$HERDR_PRESENTATION_RETIRE_CANDIDATE" = 1 ]; then
   if [ "$(fm_backend_herdr_pane_agent_state "$HERDR_PRESENTATION_SESSION" "$HERDR_PRESENTATION_PANE")" = dead ]; then
     rm -f "$HERDR_PRESENTATION_JOURNAL"

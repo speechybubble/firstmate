@@ -67,6 +67,7 @@
 # Browser sessions (bin/fm-browser-sessions-lib.sh) end with the task:
 #   (b1) landed ship with its own bridge tree and another home's -> its tree ends, reported
 #   (b2) refused teardown                                     -> its bridge keeps running
+#   (b3) worker starts a bridge while its window closes       -> that bridge ends too
 set -u
 
 # shellcheck source=tests/lib.sh disable=SC1091
@@ -4561,6 +4562,48 @@ test_refused_teardown_leaves_the_browser_running() {
   pass "a refused teardown leaves the task's browser running"
 }
 
+test_bridge_started_during_the_endpoint_close_is_stopped() {
+  local case_dir rc late alive
+  fm_test_browser_supported || { pass "late browser case skipped: /proc or setsid unavailable"; return 0; }
+  case_dir=$(make_case browser-late)
+  write_meta "$case_dir" no-mistakes ship
+  land_shippable_commit "$case_dir"
+  mkdir -p "$case_dir/bridges/home"
+  # The worker is still live until its window closes, so this tmux stand-in
+  # starts a detached bridge for the task from inside kill-window, after the
+  # first browser pass has already run.
+  cat > "$case_dir/fakebin/tmux" <<SH
+#!/usr/bin/env bash
+[ "\${1:-}" = kill-window ] || exit 0
+setsid -f env -i PATH="\$PATH" HOME="$case_dir/bridges/home" \\
+  CHROME_DEVTOOLS_AXI_SESSION=late-sess CHROME_DEVTOOLS_AXI_PORT=9999 \\
+  FM_TASK_ID=task-x1 FM_HOME="$case_dir" bash -c '
+    sleep 300 & mcp=\$!
+    setsid sleep 300 & chrome=\$!
+    printf "%s %s %s\\n" "\$\$" "\$mcp" "\$chrome" > "\$1.tmp" && mv "\$1.tmp" "\$1"
+    wait' _ "$case_dir/bridges/late-sess.pids" </dev/null >/dev/null 2>&1
+for _ in \$(seq 100); do
+  [ -s "$case_dir/bridges/late-sess.pids" ] && exit 0
+  sleep 0.05
+done
+exit 0
+SH
+  chmod +x "$case_dir/fakebin/tmux"
+
+  rc=0
+  FM_HOME="$case_dir" run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  late=$(cat "$case_dir/bridges/late-sess.pids" 2>/dev/null) \
+    || fail "browser-late: the window close did not start a bridge: $(cat "$case_dir/stderr")"
+  # shellcheck disable=SC2086 # pid list splits on purpose
+  alive=$(fm_test_alive_pids $late)
+  fm_test_reap_fake_browser_bridges "$case_dir/bridges"
+  expect_code 0 "$rc" "browser-late: teardown should succeed: $(cat "$case_dir/stderr")"
+  [ -z "$alive" ] || fail "browser-late: a bridge started during the window close survived teardown: $alive"
+  assert_grep "teardown: stopped browser session late-sess for task-x1 (bridge pid ${late%% *}" \
+    "$case_dir/stderr" "browser-late: teardown did not report the late session it stopped"
+  pass "a bridge the worker starts while its window closes is stopped by teardown"
+}
+
 test_leaked_tasktmp_process_is_reaped() {
   local case_dir rc pid
   case_dir=$(make_case leaked-tasktmp-reap)
@@ -5207,6 +5250,7 @@ test_own_autonomous_run_is_left_alone
 test_leaked_worktree_process_is_reaped
 test_teardown_stops_the_tasks_browser_sessions
 test_refused_teardown_leaves_the_browser_running
+test_bridge_started_during_the_endpoint_close_is_stopped
 test_leaked_tasktmp_process_is_reaped
 test_lsof_absent_reaps_tmux_process_group
 test_lsof_error_refuses_before_removal
