@@ -1,0 +1,30 @@
+$ FM_HOME=$LAB/home bin/fm-fleet-view.sh  (task closed; Browser helpers section)
+## Browser helpers
+0 in use by live tasks; these belong to no live task of this home:
+
+| Task | Scope | Session | Age | Memory | PID | Cleanup |
+| --- | --- | --- | --- | --- | --- | --- |
+| lab93fe54b7c32e-worker | orphan | orph-own | 0m | 1347 MB | 281714 | bin/fm-browser-sessions.sh stop lab93fe54b7c32e-worker |
+| lab93fe54b7c32e-worker | other_home | orph-foreign | 0m | 1368 MB | 284823 | owned by /tmp/fmlab.JMLrZB/elsewhere; left alone |
+| - | unattributed | orph-unattr | 0m | 1368 MB | 286520 | no task id; left alone |
+| taste-reference-candidates | other_home | taste-r2b | 2d 5h | 137 MB | 1420105 | owned by /mnt/c/Trelume/Kun/fleet; left alone |
+| captain-decisions-board | other_home | internal-page-design | 12h | 124 MB | 1522727 | owned by /mnt/c/Trelume/Kun/fleet; left alone |
+| - | unattributed | default | 10h | 286 MB | 3695090 | no task id; left alone |
+
+## Secondmates
+$ bin/fm-browser-sessions.sh stop lab93fe54b7c32e-worker
+fm-browser-sessions: stopped browser session orph-own for lab93fe54b7c32e-worker (bridge pid 281714, port 9622, 15 process(es)): chrome-devtools-axi stop skipped: its session pid file names another bridge; terminated 15 remaining process(es)
+exit=0
+
+Trees after stop:
+bridge 281714: 0 of 15 alive
+bridge 284823: 15 of 15 alive
+bridge 286520: 15 of 15 alive
+bridge 1420105: 14 of 14 alive
+bridge 1522727: 15 of 15 alive
+bridge 3695090: 15 of 15 alive
+
+$ bin/fm-browser-sessions.sh list --json | jq (lab bridges)
+true
+{"pid":284823,"session":"orph-foreign","task_id":"lab93fe54b7c32e-worker","scope":"other_home"}
+{"pid":286520,"session":"orph-unattr","task_id":null,"scope":"unattributed"}

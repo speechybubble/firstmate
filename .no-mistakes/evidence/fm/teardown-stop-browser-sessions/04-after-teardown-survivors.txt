@@ -1,0 +1,11 @@
+Process trees captured before teardown, checked after:
+bridge 229926: 0 of 15 processes alive
+bridge 239375: 0 of 15 processes alive
+bridge 241253: 0 of 15 processes alive
+bridge 243862: 0 of 15 processes alive
+bridge 1420105: 14 of 14 processes alive
+bridge 1522727: 15 of 15 processes alive
+bridge 3695090: 15 of 15 processes alive
+
+Processes still carrying FM_TASK_ID=lab93fe54b7c32e-worker:
+0

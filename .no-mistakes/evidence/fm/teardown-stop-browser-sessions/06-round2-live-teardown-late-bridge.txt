@@ -1,0 +1,41 @@
+== lab home: /tmp/fm-lab.KPu04G
+== operator's pre-existing bridges (must be untouched):
+== fleet browser listing BEFORE teardown (FM_HOME=/tmp/fm-lab.KPu04G):
+PID      SCOPE         TASK                         SESSION                       AGE    RSS_MB  HOME
+1420105  other_home    taste-reference-candidates   taste-r2b                     53h       157  /mnt/c/Trelume/Kun/fleet
+1486275  other_home    task-x1                      foreign-sess                   0h      1400  /tmp/fm-lab.KPu04G/other-home
+1486329  live_task     task-x1                      own-sess                       0h      1402  /tmp/fm-lab.KPu04G
+1495784  unattributed  -                            plain-sess                     0h      1392  /tmp/fm-lab.KPu04G
+1522727  other_home    captain-decisions-board      internal-page-design          13h        83  /mnt/c/Trelume/Kun/fleet
+3695090  unattributed  -                            default                       11h       273  /mnt/c/Trelume/Kun/fleet
+== fm-teardown.sh task-x1 (real, tmux backend on lab socket)
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.KPu04G
+teardown: stopped browser session own-sess for task-x1 (bridge pid 1486329, port 9431, 15 process(es)): stopped through chrome-devtools-axi
+[lab] worker starts late-sess while teardown is mid-flight
+teardown: stopped browser session late-sess for task-x1 (bridge pid 1509331, port 9433, 15 process(es)): stopped through chrome-devtools-axi
+/tmp/fm-lab.KPu04G/project: already current
+teardown task-x1 complete (window firstmate:fm-task-x1, worktree /tmp/fm-lab.KPu04G/wt)
+Backlog: task-x1 just finished (this home keeps no markdown backlog at /tmp/fm-lab.KPu04G/data/backlog.md). Update /tmp/fm-lab.KPu04G/data/backlog.md - move task-x1 to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+teardown exit=0
+== tmux windows after teardown:
+no server running on /tmp/fm-lab.KPu04G/tmux/tmux-1000/default
+== fleet browser listing AFTER teardown:
+PID      SCOPE         TASK                         SESSION                       AGE    RSS_MB  HOME
+1420105  other_home    taste-reference-candidates   taste-r2b                     53h       157  /mnt/c/Trelume/Kun/fleet
+1486275  other_home    task-x1                      foreign-sess                   0h      1371  /tmp/fm-lab.KPu04G/other-home
+1495784  unattributed  -                            plain-sess                     0h      1343  /tmp/fm-lab.KPu04G
+1522727  other_home    captain-decisions-board      internal-page-design          13h        83  /mnt/c/Trelume/Kun/fleet
+3695090  unattributed  -                            default                       11h       273  /mnt/c/Trelume/Kun/fleet
+== any process still carrying FM_TASK_ID=task-x1 and FM_HOME=/tmp/fm-lab.KPu04G:
+  (end)
+== operator bridges still alive:
+  1420105 (not lab)
+/home/denni/.no-mistakes/evidence/01M5Y8R7P0QZBST14F2P0Q8VA1/lab-teardown-drive.sh: line 68: /proc/1522097/environ: No such file or directory
+  1522097 (not lab)
+  1522727 (not lab)
+  3695090 (not lab)
+== stop the surviving lab bridges via operator path
+fm-browser-sessions: stopped browser session foreign-sess for task-x1 (bridge pid 1486275, port 9434, 15 process(es)): stopped through chrome-devtools-axi
+stop other-home exit=0
+  reaped leftover lab pid 1499259
+== lab removed

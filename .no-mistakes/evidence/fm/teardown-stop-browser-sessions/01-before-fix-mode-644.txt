@@ -1,0 +1,9 @@
+$ FM_HOME=$LAB/home bin/fm-browser-sessions.sh list
+env: 'bin/fm-browser-sessions.sh': Permission denied
+exit=126
+
+$ FM_HOME=$LAB/home bin/fm-fleet-view.sh | sed -n "/## Browser helpers/,/## Secondmates/p"
+## Browser helpers
+Browser helper listing unavailable.
+
+## Secondmates
