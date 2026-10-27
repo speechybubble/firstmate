@@ -716,6 +716,7 @@ tests/fm-bearings-board.test.sh 40817
 tests/fm-bearings-snapshot.test.sh 186219
 tests/fm-bootstrap-network-parallel.test.sh 30424
 tests/fm-bootstrap.test.sh 50965
+tests/fm-browser-sessions.test.sh 9000
 tests/fm-branch-supervision.test.sh 22979
 tests/fm-busy-adapter-wiring.test.sh 31642
 tests/fm-busy-state.test.sh 3185

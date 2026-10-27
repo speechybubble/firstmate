@@ -68,6 +68,9 @@ SH
   ln -s "$ROOT/bin/fm-lock-lib.sh" "$fake/bin/fm-lock-lib.sh"
   # fm-lease-lib.sh: teardown sources it for the supervision lease guard.
   ln -s "$ROOT/bin/fm-lease-lib.sh" "$fake/bin/fm-lease-lib.sh"
+  # fm-browser-sessions-lib.sh: teardown sources it to stop the task's
+  # browser sessions; this fixture has no bridges, so it stops nothing.
+  ln -s "$ROOT/bin/fm-browser-sessions-lib.sh" "$fake/bin/fm-browser-sessions-lib.sh"
   ln -s "$ROOT/bin/fm-treehouse-slot-lib.sh" "$fake/bin/fm-treehouse-slot-lib.sh"
   # Lifecycle serialization, status presentation retirement, and shared adapter
   # ownership are sourced by teardown.
@@ -176,6 +179,9 @@ SH
   ln -s "$ROOT/bin/fm-lock-lib.sh" "$fake/bin/fm-lock-lib.sh"
   # fm-lease-lib.sh: teardown sources it for the supervision lease guard.
   ln -s "$ROOT/bin/fm-lease-lib.sh" "$fake/bin/fm-lease-lib.sh"
+  # fm-browser-sessions-lib.sh: teardown sources it to stop the task's
+  # browser sessions; this fixture has no bridges, so it stops nothing.
+  ln -s "$ROOT/bin/fm-browser-sessions-lib.sh" "$fake/bin/fm-browser-sessions-lib.sh"
   ln -s "$ROOT/bin/fm-treehouse-slot-lib.sh" "$fake/bin/fm-treehouse-slot-lib.sh"
   ln -s "$ROOT/bin/fm-control-lib.sh" "$fake/bin/fm-control-lib.sh"
   ln -s "$ROOT/bin/fm-classify-lib.sh" "$fake/bin/fm-classify-lib.sh"

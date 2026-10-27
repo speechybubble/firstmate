@@ -119,6 +119,10 @@
 #     Which closed rows a home contributes is bin/fm-landed-lib.sh's rule, shared
 #     with the bearings projection so one Recently Landed section has one owner.
 #   contributions: cached owned-contribution coverage; fm-contributions.sh owns it.
+#   browser_helpers: {supported,helpers[]} from bin/fm-browser-sessions.sh
+#     list --json, which owns each helper's fields and its scope (live_task,
+#     orphan, other_home, unattributed). A listing that fails reads as
+#     supported:null with no helpers rather than failing the snapshot.
 #   secondmate_guidance: return-channel action note for renderers and bearings.
 #
 # --secondmate-home-summary keeps completed_retained observations separately,
@@ -2247,6 +2251,13 @@ secondmate_current_json "$TASKS_JSON_FILE" "$SECONDMATE_CURRENT_JSON_FILE" \
 secondmate_landed_from_current_json "$SECONDMATE_CURRENT_JSON_FILE" "$SECONDMATE_LANDED_JSON_FILE" \
   || { echo "fm-fleet-snapshot: secondmate landed projection failed" >&2; exit 1; }
 
+BROWSER_HELPERS_JSON_FILE="$JSON_TRANSPORT_DIR/browser-helpers.json"
+FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" "$SCRIPT_DIR/fm-browser-sessions.sh" list --json \
+  > "$BROWSER_HELPERS_JSON_FILE" 2>/dev/null \
+  && jq -e '.helpers | type == "array"' "$BROWSER_HELPERS_JSON_FILE" >/dev/null 2>&1 \
+  || printf '{"supported":null,"helpers":[]}\n' > "$BROWSER_HELPERS_JSON_FILE" \
+  || { echo "fm-fleet-snapshot: temporary browser helper file write failed" >&2; exit 1; }
+
 jq -n \
   --arg generated "$SNAPSHOT_NOW" \
   --arg fm_home "$FM_HOME" \
@@ -2262,6 +2273,7 @@ jq -n \
   --slurpfile scout_reports "$SCOUT_REPORTS_JSON_FILE" \
   --slurpfile secondmate_current "$SECONDMATE_CURRENT_JSON_FILE" \
   --slurpfile secondmate_landed "$SECONDMATE_LANDED_JSON_FILE" \
+  --slurpfile browser_helpers "$BROWSER_HELPERS_JSON_FILE" \
   '($backlog[0]) as $backlog
    | ($tasks[0]) as $tasks
    | ($main_inventory[0]) as $main_inventory
@@ -2283,6 +2295,7 @@ jq -n \
      scout_reports:($scout_reports | map(. + {kind:report_kind(.id)})),
      secondmate_current:$secondmate_current,
      secondmate_landed:$secondmate_landed,
+     browser_helpers:$browser_helpers[0],
      secondmate_guidance:{
        note:"For kind=secondmate, bearings selects validated structured state from that registered home; parent events and bounded terminal evidence are fallback-only supplements and never current-state authority."
      }
