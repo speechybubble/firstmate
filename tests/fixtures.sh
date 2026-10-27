@@ -350,3 +350,94 @@ make_stubs() {
   fm_test_fake_sleep_noop "$fakebin"
   printf '%s\n' "$fakebin"
 }
+
+# --- fake chrome-devtools-axi bridge ----------------------------------------
+
+# fm_test_browser_supported succeeds where the bridge stand-ins below can run:
+# Linux /proc and util-linux setsid.
+fm_test_browser_supported() {
+  [ -r /proc/self/environ ] && command -v setsid >/dev/null 2>&1
+}
+
+# fm_test_fake_browser_bridge <dir> <session> <task-id|-> <fm-home|-> [ignore-term]
+# Starts a detached stand-in for a chrome-devtools-axi bridge, shaped like the
+# real one: a session leader whose environment carries CHROME_DEVTOOLS_AXI_SESSION,
+# CHROME_DEVTOOLS_AXI_PORT, HOME=<dir>/home and, unless "-", FM_TASK_ID and
+# FM_HOME, with one child in its session (chrome-devtools-mcp's place) and one
+# in a session of its own (Chrome's place). Any fifth argument makes the whole
+# tree ignore TERM. Echoes "<bridge> <mcp> <chrome>" pids and records them in
+# <dir>/<session>.pids for fm_test_reap_fake_browser_bridges.
+fm_test_fake_browser_bridge() {
+  local dir=$1 session=$2 task=$3 home=$4 ignore=${5:-}
+  local -a envs=(PATH="$PATH" HOME="$dir/home" CHROME_DEVTOOLS_AXI_SESSION="$session"
+    CHROME_DEVTOOLS_AXI_PORT=9999 FM_FAKE_IGNORE_TERM="$ignore")
+  [ "$task" = - ] || envs+=(FM_TASK_ID="$task")
+  [ "$home" = - ] || envs+=(FM_HOME="$home")
+  mkdir -p "$dir/home"
+  rm -f "$dir/$session.pids"
+  # shellcheck disable=SC2016 # expanded by the stand-in's own shell
+  setsid -f env -i "${envs[@]}" bash -c '
+    [ -z "$FM_FAKE_IGNORE_TERM" ] || trap "" TERM
+    sleep 300 & mcp=$!
+    setsid sleep 300 & chrome=$!
+    printf "%s %s %s\n" "$$" "$mcp" "$chrome" > "$1.tmp" && mv "$1.tmp" "$1"
+    wait' _ "$dir/$session.pids" </dev/null >/dev/null 2>&1
+  fm_test_wait_until 10 test -s "$dir/$session.pids" || return 1
+  cat "$dir/$session.pids"
+}
+
+# fm_test_fake_browser_pidfile <dir> <session> <pid>
+# Writes the session's bridge.pid under <dir>/home as chrome-devtools-axi does.
+fm_test_fake_browser_pidfile() {
+  local file
+  if [ "$2" = default ]; then
+    file=$1/home/.chrome-devtools-axi/bridge.pid
+  else
+    file=$1/home/.chrome-devtools-axi/sessions/$2/bridge.pid
+  fi
+  mkdir -p "${file%/*}"
+  printf '{"pid":%s,"port":9999}' "$3" > "$file"
+}
+
+# fm_test_fake_chrome_devtools_axi <fakebin>
+# Drops a chrome-devtools-axi stub whose `stop` appends "stop <HOME> <session>"
+# to FM_FAKE_CDA_LOG and, like the real stop, kills only the process group of
+# the bridge its session pid file names, so the Chrome stand-in survives it.
+fm_test_fake_chrome_devtools_axi() {
+  cat > "$1/chrome-devtools-axi" <<'SH'
+#!/usr/bin/env bash
+[ "${1:-}" = stop ] || exit 0
+session=${CHROME_DEVTOOLS_AXI_SESSION:-default}
+printf 'stop %s %s\n' "$HOME" "$session" >> "${FM_FAKE_CDA_LOG:-/dev/null}"
+if [ "$session" = default ]; then
+  file=$HOME/.chrome-devtools-axi/bridge.pid
+else
+  file=$HOME/.chrome-devtools-axi/sessions/$session/bridge.pid
+fi
+pid=$(sed -n 's/.*"pid":\([0-9]*\).*/\1/p' "$file" 2>/dev/null)
+[ -n "$pid" ] && kill -KILL -- "-$pid" 2>/dev/null
+echo "status: stopped"
+SH
+  chmod +x "$1/chrome-devtools-axi"
+}
+
+# fm_test_alive_pids <pid>... prints the given pids that are still running.
+fm_test_alive_pids() {
+  local pid
+  for pid in "$@"; do
+    fm_test_process_exited "$pid" || printf '%s\n' "$pid"
+  done
+}
+
+# fm_test_reap_fake_browser_bridges <dir> kills every stand-in recorded under
+# <dir> whose environment still names <dir>/home, so a reused pid is spared.
+fm_test_reap_fake_browser_bridges() {
+  local f pid
+  for f in "$1"/*.pids; do
+    [ -f "$f" ] || continue
+    for pid in $(cat "$f"); do
+      grep -qsaxzF "HOME=$1/home" "/proc/$pid/environ" || continue
+      kill -KILL "$pid" 2>/dev/null || true
+    done
+  done
+}

@@ -63,10 +63,16 @@
 #   (z3d) forced secondmate + child return leaves residue    -> warning, retirement completes, exit 4
 #   (z3e) return removes the copy                            -> cannot-verify warning, exit 4
 #   (z4) scout + ignored file                                -> ignored file survives
+#
+# Browser sessions (bin/fm-browser-sessions-lib.sh) end with the task:
+#   (b1) landed ship with its own bridge tree and another home's -> its tree ends, reported
+#   (b2) refused teardown                                     -> its bridge keeps running
 set -u
 
 # shellcheck source=tests/lib.sh disable=SC1091
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=tests/fixtures.sh disable=SC1091
+. "$(dirname "${BASH_SOURCE[0]}")/fixtures.sh"
 fm_git_identity fmtest fmtest@example.invalid
 
 TEARDOWN="$ROOT/bin/fm-teardown.sh"
@@ -4495,6 +4501,66 @@ test_leaked_worktree_process_is_reaped() {
   pass "a leaked descendant process rooted under the task's worktree is reaped by teardown, not left surviving"
 }
 
+# Starts a chrome-devtools-axi bridge stand-in for task-x1 whose working
+# directory is outside the worktree, as a worker's data/<id> directory is, so
+# only the browser-session stop can reach it.
+start_task_browser() {  # <case-dir> <session> <fm-home>
+  local case_dir=$1 session=$2 home=$3
+  mkdir -p "$case_dir/browser-cwd"
+  fm_test_fake_chrome_devtools_axi "$case_dir/fakebin"
+  ( cd "$case_dir/browser-cwd" && fm_test_fake_browser_bridge "$case_dir/bridges" "$session" task-x1 "$home" )
+}
+
+test_teardown_stops_the_tasks_browser_sessions() {
+  local case_dir rc own foreign alive
+  fm_test_browser_supported || { pass "browser-session teardown case skipped: /proc or setsid unavailable"; return 0; }
+  case_dir=$(make_case browser-stop)
+  write_meta "$case_dir" no-mistakes ship
+  land_shippable_commit "$case_dir"
+  own=$(start_task_browser "$case_dir" own-sess "$case_dir") || fail "browser-stop: bridge did not start"
+  fm_test_fake_browser_pidfile "$case_dir/bridges" own-sess "${own%% *}"
+  mkdir -p "$case_dir/elsewhere"
+  foreign=$(start_task_browser "$case_dir" other-home-sess "$case_dir/elsewhere") \
+    || fail "browser-stop: other home's bridge did not start"
+
+  rc=0
+  FM_HOME="$case_dir" FM_FAKE_CDA_LOG="$case_dir/cda.log" \
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  # shellcheck disable=SC2086 # pid lists split on purpose
+  alive=$(fm_test_alive_pids $own)
+  # shellcheck disable=SC2086
+  [ "$(fm_test_alive_pids $foreign | wc -l | tr -d ' ')" = 3 ] \
+    || { fm_test_reap_fake_browser_bridges "$case_dir/bridges"; fail "browser-stop: another home's bridge with the same task id was touched"; }
+  fm_test_reap_fake_browser_bridges "$case_dir/bridges"
+  expect_code 0 "$rc" "browser-stop: teardown should succeed: $(cat "$case_dir/stderr")"
+  [ -z "$alive" ] || fail "browser-stop: the task's browser tree survived teardown: $alive"
+  assert_grep "teardown: stopped browser session own-sess for task-x1 (bridge pid ${own%% *}, port 9999, 3 process(es)): stopped through chrome-devtools-axi; terminated 1 remaining process(es)" \
+    "$case_dir/stderr" "browser-stop: teardown did not report the session it stopped"
+  assert_no_grep "other-home-sess" "$case_dir/stderr" "browser-stop: teardown reported another home's session"
+  assert_equals "stop $case_dir/bridges/home own-sess" "$(cat "$case_dir/cda.log")" \
+    "browser-stop: chrome-devtools-axi stop was not asked exactly once for the task's session"
+  pass "teardown stops the task's own browser sessions, reports them, and leaves another home's alone"
+}
+
+test_refused_teardown_leaves_the_browser_running() {
+  local case_dir rc own
+  fm_test_browser_supported || { pass "refused browser case skipped: /proc or setsid unavailable"; return 0; }
+  case_dir=$(make_case browser-refused)
+  write_meta "$case_dir" no-mistakes ship
+  wt_commit_file "$case_dir" feature.txt hello "unpushed work"
+  own=$(start_task_browser "$case_dir" refused-sess "$case_dir") || fail "browser-refused: bridge did not start"
+
+  rc=0
+  FM_HOME="$case_dir" run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  # shellcheck disable=SC2086
+  [ "$(fm_test_alive_pids $own | wc -l | tr -d ' ')" = 3 ] \
+    || { fm_test_reap_fake_browser_bridges "$case_dir/bridges"; fail "browser-refused: a refused teardown stopped the task's browser"; }
+  fm_test_reap_fake_browser_bridges "$case_dir/bridges"
+  expect_code 1 "$rc" "browser-refused: unlanded work must still refuse"
+  assert_no_grep "browser session" "$case_dir/stderr" "browser-refused: a refused teardown reported a browser stop"
+  pass "a refused teardown leaves the task's browser running"
+}
+
 test_leaked_tasktmp_process_is_reaped() {
   local case_dir rc pid
   case_dir=$(make_case leaked-tasktmp-reap)
@@ -5139,6 +5205,8 @@ test_not_found_status_after_abort_confirms_completion
 test_another_branchs_parked_run_is_never_touched
 test_own_autonomous_run_is_left_alone
 test_leaked_worktree_process_is_reaped
+test_teardown_stops_the_tasks_browser_sessions
+test_refused_teardown_leaves_the_browser_running
 test_leaked_tasktmp_process_is_reaped
 test_lsof_absent_reaps_tmux_process_group
 test_lsof_error_refuses_before_removal
