@@ -28,6 +28,8 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-remote-job-lib.sh`   | Shared bounded remote job queue, worker readiness, LaunchAgent contract, and filesystem-composed PATH |
 | `fm-remote-job-worker.sh` | Long-lived remote queue worker for tracked `fm-*.sh` commands in the account runtime |
 | `fm-remote-job-reap-orphans.sh` | Stop remote job workers left running by a pruned code root, never one whose checkout still exists |
+| `fm-browser-sessions.sh` | List chrome-devtools-axi browser helpers with their task and home, and stop the ones a closed task of this home left running |
+| `fm-browser-sessions-lib.sh` | Shared environment-based discovery and stop of a task's browser helper trees, used by teardown |
 | `fm-remote-doctor.sh`    | Check, and with `--fix` repair, one remote account's second-mate readiness (remote job worker, Herdr, Aqua launch agents, PATH, and required tools) |
 | [`fm-backlog-handoff.sh`](../bin/fm-backlog-handoff.sh) | Move queued backlog items into a secondmate home; its header owns route-specific wake outcomes and retries |
 | `fm-backlog-receive.sh`  | Idempotently ingest one confined remote handoff outbox through tasks-axi             |

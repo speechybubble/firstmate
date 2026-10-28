@@ -314,6 +314,24 @@
 #     root still exists, so the account's healthy LaunchAgent worker and every
 #     live remote secondmate worker are out of scope. Best effort: a sweep
 #     failure never blocks this teardown.
+#   Fix 4 - stop the task's browser sessions. A chrome-devtools-axi bridge
+#     and its headless Chrome run detached until `chrome-devtools-axi stop`
+#     names them, so a task that ends without that stop leaves about 150 MB
+#     per session behind (observed 2026-10-26: eight such trees from tasks
+#     closed days earlier held all of swap, and library loads across the
+#     fleet failed with "Cannot allocate memory"). For a ship or scout,
+#     bin/fm-browser-sessions-lib.sh's fm_browser_stop_task finds every bridge
+#     whose own environment carries this task's FM_TASK_ID and this home's
+#     FM_HOME, asks chrome-devtools-axi to stop it when that session's pid file
+#     names exactly that bridge, then terminates what remains of its tree, and
+#     prints one line per session it stopped. Bridges of other tasks, of other
+#     homes, or with no FM_TASK_ID are never touched. It runs before Fix 2,
+#     so a bridge started inside the worktree is stopped as a session rather
+#     than signalled process by process, and again once the worker's endpoint
+#     is closed, so a bridge the still-live worker started after the first
+#     pass cannot outlive the task. Best effort: a survivor warns and names
+#     bin/fm-browser-sessions.sh stop for a retry, and never blocks this
+#     teardown; on a platform without /proc it is skipped silently.
 # After Fix 1 and Fix 2, when config/pipeline-spend opts this home in, a ship
 # task whose local copy this teardown owns has its no-mistakes pipeline spend
 # recorded by bin/fm-pipeline-spend.sh, which owns the attribution and the
@@ -395,7 +413,8 @@ for _teardown_source in \
   fm-nm-run-lib.sh \
   fm-wake-lib.sh \
   fm-path-lib.sh \
-  fm-lease-lib.sh
+  fm-lease-lib.sh \
+  fm-browser-sessions-lib.sh
 do
   teardown_require_source "$SCRIPT_DIR/$_teardown_source"
 done
@@ -424,6 +443,8 @@ unset _teardown_source
 . "$SCRIPT_DIR/fm-secondmate-parent-lib.sh"
 # shellcheck source=bin/fm-nm-run-lib.sh
 . "$SCRIPT_DIR/fm-nm-run-lib.sh"
+# shellcheck source=bin/fm-browser-sessions-lib.sh
+. "$SCRIPT_DIR/fm-browser-sessions-lib.sh"
 # Archive paths live only in teardown; presentation/wake readers stay unaware.
 teardown_archive_directory() {  # <directory>
   if [ -L "$1" ] || { [ -e "$1" ] && [ ! -d "$1" ]; }; then
@@ -3795,12 +3816,18 @@ else
 fi
 
 # Every landed/discard-work refusal above has now passed (or --force skipped
-# them). Fix 1 and Fix 2 (see script header) run here, unconditionally on
-# --force, and before ANY destructive step below - a still-parked run or a
+# them). Fix 4, Fix 1 and Fix 2 (see script header) run here, unconditionally
+# on --force, and before ANY destructive step below - a still-parked run or a
 # leaked process can own live work in this exact worktree. Not for
 # kind=secondmate: a secondmate home's own runtime lifecycle is owned by the
 # dedicated process-event and firstmate-home removal machinery further below,
 # not by task-worktree cleanup.
+teardown_stop_browser_sessions() {
+  [ "$KIND" = ship ] || [ "$KIND" = scout ] || return 0
+  fm_browser_stop_task "$FM_HOME" "$ID" teardown || [ "$?" -eq 2 ] \
+    || echo "warning: a browser session of $ID survived TERM and KILL; once cleanup finishes, retry with bin/fm-browser-sessions.sh stop $ID" >&2
+}
+teardown_stop_browser_sessions
 if [ "$KIND" != secondmate ] && teardown_owns_worktree; then
   conclude_task_no_mistakes_run "$WT"
   reap_task_worktree_processes worktree "$WT" "$TASK_TMP"
@@ -3974,6 +4001,7 @@ elif [ "$BACKEND" != orca ] && [ "$BACKEND" != t3code ] && [ "$TEARDOWN_WINDOWLE
   fm_backend_kill "$BACKEND" "$T" "$(meta_value "$META" zellij_tab_id)" "fm-$ID" \
     || endpoint_close_refusal "$ID" "$BACKEND" "$T" 1 || exit 1
 fi
+teardown_stop_browser_sessions
 if [ "$HERDR_PRESENTATION_RETIRE_CANDIDATE" = 1 ]; then
   if [ "$(fm_backend_herdr_pane_agent_state "$HERDR_PRESENTATION_SESSION" "$HERDR_PRESENTATION_PANE")" = dead ]; then
     rm -f "$HERDR_PRESENTATION_JOURNAL"
