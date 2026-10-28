@@ -37,6 +37,9 @@
 #      inputs are unresolved, and the `list` command it names prints every
 #      input with the reconciliation instructions the reason leaves out, which
 #      the context hook still carries in full.
+#   8. A long session whose events after the activation boundary exceed a
+#      single argument's size still lists its input and commits a staged
+#      outcome acknowledgement after the reply.
 # shellcheck disable=SC2016 # the fake harness's child shell expands FM_HOME.
 set -u
 
@@ -493,6 +496,33 @@ test_outcome_ack_commits_only_after_reply() {
   pass "a staged outcome acknowledgement commits only after a turn-ending reply, a topic switch, interruption or Firstmate input invalidates it, and replay is idempotent"
 }
 
+# One jq argument is capped near 128 KB, so a long primary session once made
+# every read of its own transcript fail and the staged acknowledgement never
+# commit. The synthetic history here carries well over 200 KB of events.
+test_long_session_exceeds_argument_size() {
+  local home="$TMP_ROOT/long" seq out bytes
+  make_home "$home"
+  : > "$home/transcript.jsonl"
+  stop_hook "$home" >/dev/null
+  jq -n -c '(("x" * 1200) | tostring) as $pad | range(220) as $i
+    | {type: "user", uuid: "u-long-\($i)", origin: {kind: "human"}, promptSource: "typed", message: {role: "user", content: "Request \($i). \($pad)"}},
+      {type: "assistant", message: {role: "assistant", stop_reason: "end_turn", content: [{type: "text", text: "Answer \($i)."}]}}' \
+    >> "$home/transcript.jsonl"
+  bytes=$(wc -c < "$home/transcript.jsonl" | tr -d ' ')
+  [ "$bytes" -gt 300000 ] || fail "the synthetic transcript is only $bytes bytes"
+  out=$(as_owner "$home" list 2>&1) || fail "list failed on a long session: $out"
+  assert_contains "$out" "[u-long-0] ALREADY ANSWERED: a reply reached the captain after this message. Request 0." "the first long-session input must be listed"
+  assert_contains "$out" "[u-long-219] ALREADY ANSWERED" "the last long-session input must be listed"
+  seq=$(FM_HOME="$home" "$home/bin/fm-branch-outcome.sh" append --task task-long --verdict captain --summary "PR https://example.com/pr/7 ready for review")
+  FM_HOME="$home" "$home/bin/fm-branch-outcome.sh" mark-read --through "$seq" >/dev/null
+  FM_HOME="$home" "$home/bin/fm-branch-outcome.sh" processed-init >/dev/null 2>&1 || true
+  out=$(as_owner "$home" outcome-ack --through "$seq" 2>&1) || fail "outcome-ack failed on a long session: $out"
+  reply "$home" "The PR https://example.com/pr/7 is ready; shall I merge it?"
+  stop_hook "$home" >/dev/null
+  [ -z "$(unprocessed_seqs "$home")" ] || fail "the staged acknowledgement did not commit on a long session"
+  pass "a session whose events exceed one argument's size still lists its input and commits a staged acknowledgement"
+}
+
 test_non_owner_is_inert
 test_activation_is_not_retroactive
 test_omission_recovers_once_and_stays_visible
@@ -503,4 +533,5 @@ test_ignored_mid_turn_question_keeps_answer_path
 test_stop_reason_is_one_bounded_line_and_list_prints_the_rest
 test_compaction_keeps_input_restorable
 test_outcome_ack_commits_only_after_reply
+test_long_session_exceeds_argument_size
 printf 'all fm-request-continuity tests passed\n'

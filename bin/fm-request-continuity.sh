@@ -206,13 +206,12 @@ is_operational() {  # <text> <inbox> <steering>
 PENDING=""
 COMMIT_THROUGH=0
 pending_requests() {  # <session> <transcript>
-  local session=$1 transcript=$2 log events receipts after
+  local session=$1 transcript=$2 log events after
   PENDING=""
   COMMIT_THROUGH=0
   log=$(log_path "$session")
   [ -f "$log" ] || return 0
-  receipts=$(cat "$log")
-  after=$(printf '%s\n' "$receipts" | jq -r 'select(.type == "start") | .after' 2>/dev/null | head -n 1)
+  after=$(jq -r 'select(.type == "start") | .after' "$log" 2>/dev/null | head -n 1)
   case "$after" in ''|*[!0-9]*) return 0 ;; esac
   events=$(numbered_events "$transcript" "$after")
   # Classify candidate captain entries with the operational-input owner, then
@@ -231,10 +230,19 @@ pending_requests() {  # <session> <transcript>
     fi
     i=$((i + 1))
   done
-  local result
-  result=$(jq -n -c --arg events "$events" --argjson retag "{${retag#,}}" --arg receipts "$receipts" --argjson limit "$TEXT_LIMIT" '
+  # The event stream, the retag object and the receipt log all grow with the
+  # session, so they reach jq as files, never as arguments: one argument is
+  # capped near 128 KB, and a long primary session passes that.
+  local result tmp
+  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-request-continuity.XXXXXX") || return 1
+  if ! { printf '%s' "$events" > "$tmp/events" && printf '{%s}' "${retag#,}" > "$tmp/retag"; }; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  result=$(jq -n -c --rawfile events "$tmp/events" --slurpfile retag "$tmp/retag" --rawfile receipts "$log" --argjson limit "$TEXT_LIMIT" '
     def lines($s): $s | split("\n") | map(select(length > 0) | (try fromjson catch empty));
-    lines($receipts) as $r
+    $retag[0] as $retag
+    | lines($receipts) as $r
     | ([$r[] | select(.type == "start")][0].after // null) as $after
     | if $after == null then {requests: [], commit: 0} else
       (lines($events) | map(select(.line > $after)
@@ -278,7 +286,8 @@ pending_requests() {  # <session> <transcript>
                    | unique_by(.id),
          commit: (if $s.delivered > $committed then $s.delivered else 0 end)}
       end
-  ' 2>/dev/null) || return 1
+  ' 2>/dev/null) || { rm -rf "$tmp"; return 1; }
+  rm -rf "$tmp"
   COMMIT_THROUGH=$(printf '%s' "$result" | jq -r '.commit')
   PENDING=$(printf '%s' "$result" | jq -c '.requests[]')
 }
