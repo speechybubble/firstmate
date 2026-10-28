@@ -262,6 +262,65 @@ case "${1:-}" in
   *) echo "usage: fm-wake-drain.sh [--decisions | --ack-through SEQUENCE --recovery-generation GENERATION]" >&2; exit 2 ;;
 esac
 
+# A drain read piped into grep, head, tail, cut, or any other same-pipeline
+# reader loses once-only sections, so a read refuses before it takes a lock,
+# consumes a row, or stages a receipt. "stdout is not a terminal" is the normal
+# case (harness tool calls, $(...) captures, the supervision host), so the
+# verdict comes from the kernel instead: some process other than this drain
+# holds the read end of the stdout pipe and is either not an ancestor (a
+# sibling pipeline stage) or is an ancestor reading it as its own stdin (a
+# shell running the pipeline's last stage in-process, such as zsh's
+# `| while read`). A capturing ancestor reads on another descriptor and passes.
+# Without /proc (macOS) the check cannot run and the read proceeds as before.
+# --ack-through and --decisions are not reads and are never refused.
+DRAIN_FILTER_PID=
+stdout_filtered() {
+  local link ino ancestors=' ' p stat holder pid fd key value flags
+  link=$(readlink "/proc/$$/fd/1" 2>/dev/null) || return 1
+  case "$link" in 'pipe:['*']') ;; *) return 1 ;; esac
+  ino=${link#pipe:[}
+  ino=${ino%]}
+  p=$$
+  while [ "$p" -gt 1 ] 2>/dev/null; do
+    ancestors="$ancestors$p "
+    read -r stat < "/proc/$p/stat" 2>/dev/null || break
+    stat=${stat##*) }
+    p=${stat#* }
+    p=${p%% *}
+  done
+  while IFS= read -r holder; do
+    pid=${holder#/proc/}
+    pid=${pid%%/*}
+    fd=${holder##*/}
+    [ "$pid" != "$$" ] || continue
+    flags=
+    while IFS=$' \t' read -r key value; do
+      [ "$key" != flags: ] || { flags=$value; break; }
+    done < "/proc/$pid/fdinfo/$fd" 2>/dev/null
+    case "$flags" in ''|*[!0-7]*) continue ;; esac
+    [ $((8#$flags & 3)) -ne 1 ] || continue
+    case "$ancestors" in
+      *" $pid "*)
+        # Keep looking for a sibling stage to name; the shell is a weaker label.
+        [ "$fd" = 0 ] && [ -z "$DRAIN_FILTER_PID" ] && DRAIN_FILTER_PID=$pid
+        ;;
+      *) DRAIN_FILTER_PID=$pid; return 0 ;;
+    esac
+  done < <(find /proc/[0-9]*/fd -maxdepth 1 -lname "pipe:\\[$ino\\]" 2>/dev/null)
+  [ -n "$DRAIN_FILTER_PID" ]
+}
+
+if [ -z "$ACK_THROUGH" ] && [ "$LIST_DECISIONS" = false ] && stdout_filtered; then
+  filter_name=$(cat "/proc/$DRAIN_FILTER_PID/comm" 2>/dev/null) || filter_name=unknown
+  refusal="wake drain: refused - stdout is piped into $filter_name (pid $DRAIN_FILTER_PID), which would hide once-only sections; nothing was consumed or acknowledged; run bin/fm-wake-drain.sh unfiltered and read its whole output"
+  printf '%s\n' "$refusal" >&2
+  # 2>&1 sends the refusal into the same filter; reach a terminal if there is one.
+  if [ "$(readlink "/proc/$$/fd/2" 2>/dev/null)" = "$(readlink "/proc/$$/fd/1" 2>/dev/null)" ]; then
+    { printf '%s\n' "$refusal" > /dev/tty; } 2>/dev/null || true
+  fi
+  exit 3
+fi
+
 [ "$ACTOR" != branch ] || [ "$LIST_DECISIONS" = true ] || require_branch_eligible_rows || exit 1
 
 # Defense in depth for the supervision chain: this script runs at the top of

@@ -241,10 +241,12 @@ test_truncated_read_re_presents_unread_status_until_acknowledged() {
   printf 'note: captain said ship the REST version\n' >> "$state/task1.status"
   printf 'needs-decision [key=host]: pick the hosting region\n' > "$state/task2.status"
   append_wake "$state" heartbeat hb-truncated "heartbeat: truncated" || fail "queueing the wake failed"
-  # The reader consumes every byte but keeps only the first line, as a
-  # `| grep -v ...` filter does: the drain's own write succeeds, so only an
+  # The reader keeps only the first line of the drain's whole output, as a
+  # filter over a file the read was redirected to does (a piped filter is
+  # refused outright): the drain's own write succeeds, so only an
   # acknowledgement can prove the hidden lines were read.
-  FM_STATE_OVERRIDE="$state" "$DRAIN" 2> "$err" | sed -n 1p > "$out"
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out.full" 2> "$err"
+  sed -n 1p "$out.full" > "$out"
   if grep -F 'captain said ship the REST version' "$out" >/dev/null; then
     fail "setup error: the truncated read still showed the note"
   fi

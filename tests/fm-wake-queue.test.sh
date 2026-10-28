@@ -243,7 +243,8 @@ test_atomic_double_drain() {
   FM_STATE_OVERRIDE="$state" "$DRAIN" --ack-through "$sequence" --recovery-generation "$generation" \
     || fail "concurrent replay acknowledgement failed"
   [ ! -s "$state/.wake-queue" ] || fail "acknowledgement did not consume replayed records"
-  leftover=$(FM_STATE_OVERRIDE="$state" "$DRAIN" | awk -F '\t' 'NF == 5 { count++ } END { print count + 0 }')
+  leftover=$(FM_STATE_OVERRIDE="$state" "$DRAIN") || fail "the drain after the acknowledgement failed"
+  leftover=$(printf '%s\n' "$leftover" | awk -F '\t' 'NF == 5 { count++ } END { print count + 0 }')
   [ "$leftover" -eq 0 ] || fail "acknowledged records replayed again"
   pass "concurrent drains replay until one post-handling acknowledgement consumes records"
 }
