@@ -38,7 +38,7 @@ make_failing_assembly_jq_fakebin() {  # <dir>
 #!/usr/bin/env bash
 for a in "\$@"; do
   case "\$a" in
-    *'backlog:\$backlog[0],tasks:\$tasks[0]'*)
+    *'{backlog:.[0],tasks:.[1]}'*)
       echo "jq: simulated contribution-input assembly failure" >&2
       exit 5
       ;;
@@ -59,7 +59,7 @@ test_contribution_input_propagates_jq_failure() {
   out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --contribution-input 2>&1)
   status=$?
   [ "$status" -ne 0 ] || fail "contribution-input must not exit 0 when jq assembly fails: $out"
-  assert_contains "$out" "fm-fleet-snapshot: contribution input assembly failed" "jq assembly failure must surface an fm-fleet-snapshot error"
+  assert_contains "$out" "fm-fleet-snapshot: contribution projection failed" "jq assembly failure must surface an fm-fleet-snapshot error"
   pass "contribution-input propagates a failing jq assembly as a non-zero exit"
 }
 

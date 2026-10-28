@@ -5288,6 +5288,9 @@ import { pathToFileURL } from "node:url";
 
 const { scopeForUnreadWake, branchOfferForWake } = await import(pathToFileURL(`${process.env.ROOT}/.pi/extensions/lib/fm-branch-dispatch.ts`).href);
 const originalReaddir = fs.readdirSync;
+// The CLI consults captain holds in the home's backlog, so give it a home.
+const home = `${process.env.CASE_ROOT}/home`;
+fs.mkdirSync(`${home}/data`, { recursive: true });
 let fixture = 0;
 for (const reverse of [false, true]) {
   const preload = `import fs from "node:fs"; import { syncBuiltinESMExports } from "node:module";
@@ -5320,7 +5323,7 @@ for (const reverse of [false, true]) {
             assert.equal(branchOfferForWake(state, `stale: ${key}`, afk).eligible, eligible);
             const cli = spawnSync(process.execPath, ["--import", `data:text/javascript,${encodeURIComponent(preload)}`,
               `${process.env.ROOT}/bin/fm-branch-dispatch.mjs`, "offer", ...(afk ? ["--afk"] : [])], {
-              env: { ...process.env, FM_STATE_OVERRIDE: state }, input: `stale: ${key}\n`, encoding: "utf8",
+              env: { ...process.env, FM_HOME: home, FM_STATE_OVERRIDE: state }, input: `stale: ${key}\n`, encoding: "utf8",
             });
             assert.equal(cli.status, 0, cli.stderr);
             const result = Object.fromEntries(cli.stdout.trim().split("\n").map((line) => line.split("=")));

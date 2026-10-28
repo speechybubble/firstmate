@@ -621,7 +621,7 @@ test_invalid_entrypoints_have_zero_side_effects() {
   # The refusal is the fixed diagnostic plus the script's own usage line, so
   # it never echoes the rejected input.
   merge_refusal='error: invalid PR merge request
-Usage: fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--allow-red <check-name>] [--allow-missing <check-name>] [-- <extra forge merge args>]'
+Usage: fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--allow-red <check-name>] [--allow-missing <check-name>] [--allow-no-pipeline] [-- <extra forge merge args>]'
   for value in "${INVALID_URLS[@]}"; do
     before=$(state_snapshot "$dir/home/state")
     set +e

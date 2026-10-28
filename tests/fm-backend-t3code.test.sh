@@ -2387,7 +2387,7 @@ test_push_wait_escalates_pending_question_once() {
   fm_write_meta "$state/t3push1.meta" "window=fm-t3push1" "backend=t3code" "t3_thread_id=$thread" "kind=ship" "harness=claude"
   t3_watch_cycles "$state" 2 || fail "the watcher's event wait failed"
   [ "$(wc -l < "$CASE_DIR/wakes")" -eq 1 ] || fail "one pending request set must wake exactly once, got: $(cat "$CASE_DIR/wakes")"
-  assert_grep "$thread (t3code: agent blocked - waiting on human" "$CASE_DIR/wakes" "the wake names the T3 worker and the blocked cause"
+  assert_grep "$thread task=t3push1 (t3code: agent blocked - waiting on human" "$CASE_DIR/wakes" "the wake names the T3 worker and the blocked cause"
   assert_grep "T3 question req-q1 pending - read and answer with bin/fm-t3-answer.sh" "$CASE_DIR/wakes" "the wake names the question and how to answer it"
   assert_grep "1 T3 permission approval(s) pending - only T3 Code itself can approve" "$CASE_DIR/wakes" "the wake separates the approval the question tools cannot answer"
   assert_grep "$thread" "$state/.wake-queue" "the escalation is durably queued"
