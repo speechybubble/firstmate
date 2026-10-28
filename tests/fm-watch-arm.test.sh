@@ -1001,6 +1001,8 @@ fi
 SH
     chmod +x "$datebin/date"
   fi
+  mkdir -p "$state/inbox"
+  printf '%s\n' "$new_payload" > "$state/inbox/${new_key#inbox:}.note"
   PATH="${datebin:+$datebin:}$PATH" append_wake "$state" check "$new_key" "$new_payload"
   if [ "$repeat" = identical ]; then
     [ "$(head -n 1 "$state/.wake-queue")" = "$inherited_row" ] \
@@ -1010,8 +1012,10 @@ SH
     FM_STATE_OVERRIDE="$state" "$DRAIN" --ack-through "$sequence" --recovery-generation "$generation"
   fi
   wait_for_exit "$successor" 100 || fail "handling successor stranded the second inbox wake ($phase)"
-  grep -F 'check: rearm-resurface' "$dir/successor.out" >/dev/null \
-    || fail "successor did not notify about new work"
+  grep -F "captain inbox notes: $new_key" "$dir/successor.out" >/dev/null \
+    || fail "successor did not surface the new note: $(cat "$dir/successor.out")"
+  ! grep -F 'check: rearm-resurface' "$dir/successor.out" >/dev/null \
+    || fail "handling successor re-announced recovery"
   grep "$(printf '\tcheck\t%s\t' "$new_key")" "$state/.wake-queue" >/dev/null \
     || fail "notification or old acknowledgement consumed the second message"
   start_rearm_arm "$home" "$state" "$fakebin" "$dir/next.out" "$successor"
