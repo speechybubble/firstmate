@@ -1,0 +1,18 @@
+### fm-watch-triage
+ok - captain inbox: healthy handling successors deliver each new note once without acknowledging it
+ok - captain inbox: main claims and handled notes remain owned by their existing acknowledgements
+rc=0
+### fm-watch-arm
+wake drain: acknowledged wakes through 2 (2 row(s) consumed)
+wake drain: acknowledged wakes through 3 (1 row(s) consumed)
+ok - watch-arm: handling successor delivers fresh new inbox work after-ack (intact counter) without consuming or looping
+wake drain: acknowledged wakes through 2 (2 row(s) consumed)
+wake drain: acknowledged wakes through 3 (1 row(s) consumed)
+ok - watch-arm: handling successor delivers fresh new inbox work before-ack (missing counter) without consuming or looping
+wake drain: acknowledged wakes through 2 (2 row(s) consumed)
+wake drain: acknowledged wakes through 1 (1 row(s) consumed)
+ok - watch-arm: handling successor delivers identical new inbox work after-ack (missing counter) without consuming or looping
+wake drain: acknowledged wakes through 2 (2 row(s) consumed)
+wake drain: acknowledged wakes through 1 (1 row(s) consumed)
+ok - watch-arm: handling successor delivers identical new inbox work after-ack (malformed counter) without consuming or looping
+rc=0

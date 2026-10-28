@@ -1,0 +1,17 @@
+ ▐▛███▛█   Claude Code v2.1.312
+▝▜██████▀  Fable 5.1 with medium effort · Claude Max
+ ▝▝   ▝▝   ~/.no-mistakes/worktrees/d567722de3ac/01M61GMH18HYW6NK1YCBQVW2AK
+  Get to finished work sooner with Opus 5.5. Switch anytime with /model.
+❯ Run exactly this shell command and nothing else, then reply with its output: echo "home=$FM_HOME"; bin/fm-inbox.sh note "lab primary relaunch check"
+  Ran 1 shell command
+● Captain, the command ran. Output:
+  home=/tmp/fm-lab.5MU3oZ
+  queued 1793201245-g2gs7m
+    lab primary relaunch check
+    firstmate will pick this up at its next check.
+✻ Cooked for 7s · done 1:27 AM
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 6% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)

@@ -1,0 +1,19 @@
+# lab home /tmp/fm-lab.5MU3oZ (bin/fm-lab-home.sh create)
+== note1.out
+queued 1793200026-x4983H
+  First captain note
+  firstmate will pick this up at its next check.
+== w1.out
+check: captain inbox notes: inbox:1793200026-x4983H
+exit=0
+== w2.out
+exit=124
+== w3.out
+check: rearm-resurface
+exit=0
+== w4.out
+check: captain inbox notes: inbox:1793200083-5HCYfE
+exit=0
+== final wake-queue
+1793200026	1	check	inbox:1793200026-x4983H	check: captain inbox note 1793200026-x4983H - First captain note
+1793200083	2	check	inbox:1793200083-5HCYfE	check: captain inbox note 1793200083-5HCYfE - Second captain note
