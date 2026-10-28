@@ -9,8 +9,8 @@
 # zero of 139 consecutive reads once the captain's correction fell out of
 # context, so the turn-end guard enforces it from the transcript instead.
 # A whole-output reader (tee, cat, less, more) passes the read on whole, so it
-# is not a filter; bin/fm-wake-drain.sh draws the same line when it refuses a
-# filtered read at run time.
+# is not a filter; bin/fm-wake-drain.sh agrees that whole-output readers are
+# not filters, and its runtime check refuses every other reader.
 #
 # Public entry points:
 #   fm_drain_filter_scan <transcript-path> [tail-lines]

@@ -26,7 +26,7 @@ REFUSAL='wake drain: refused - stdout is piped into'
 # Snapshot every state file so a refusal can be shown to have touched nothing
 # beyond its own refusal marker.
 state_digest() {  # <state>
-  (cd "$1" && find . -type f ! -name .drain-refused -print | LC_ALL=C sort | while IFS= read -r f; do
+  (cd "$1" && find . -type f ! -name '.drain-refused.*' -print | LC_ALL=C sort | while IFS= read -r f; do
     printf '%s ' "$f"; cksum < "$f"
   done)
 }
@@ -88,7 +88,7 @@ test_next_whole_read_reports_the_refusal_once() {
   out=$(run_shape "$state" "$err" '"$1" 2>&1 | grep OPEN; exit "${PIPESTATUS[0]}"') \
     && fail "a drain piped into grep exited zero"
   [ -z "$out" ] || fail "the filtered read showed output: $out"
-  [ -s "$state/.drain-refused" ] || fail "the refusal left no marker"
+  [ -s "$state/.drain-refused.main" ] || fail "the refusal left no marker"
   out=$(FM_STATE_OVERRIDE="$state" "$DRAIN" 2> "$err") \
     || fail "the whole read after a refusal failed: $(cat "$err")"
   case "$(printf '%s\n' "$out" | sed -n 1p)" in
@@ -96,10 +96,34 @@ test_next_whole_read_reports_the_refusal_once() {
     *) fail "the whole read after a refusal did not lead with the refusal notice: $out" ;;
   esac
   assert_contains "$out" 'task1 note' "the whole read after a refusal printed its wake row"
-  [ ! -e "$state/.drain-refused" ] || fail "the whole read left the refusal marker in place"
+  [ ! -e "$state/.drain-refused.main" ] || fail "the whole read left the refusal marker in place"
   out=$(FM_STATE_OVERRIDE="$state" "$DRAIN" 2> "$err") || fail "the second whole read failed: $(cat "$err")"
   assert_not_contains "$out" 'a filtered drain read was refused' "the refusal notice repeated on a later read"
   pass "a refused read leaves a marker that the next whole read reports once as its first line"
+}
+
+test_branch_drain_leaves_main_refusal_marker_alone() {
+  local state err out
+  if ! [ -d "/proc/$$/fd" ]; then
+    pass "filtered drain refusal marker actor scope: skipped, this platform has no /proc pipe holders to inspect"
+    return
+  fi
+  state=$(queued_case actor-scope)
+  err="$state/../err"
+  mkdir -p "$state/../data"
+  # shellcheck disable=SC2016 # the shape runs in its own bash with the drain as $1
+  run_shape "$state" "$err" '"$1" | head -1; exit "${PIPESTATUS[0]}"' >/dev/null \
+    && fail "a main drain piped into head exited zero"
+  FM_STATE_OVERRIDE="$state" "$ROOT/bin/fm-wake-grant.sh" activate "$$" actor-scope \
+    || fail "branch owner activation failed"
+  FM_HOME="$state/.." FM_STATE_OVERRIDE="$state" "$ROOT/bin/fm-wake-grant.sh" publish actor-scope --tasks task1 --rows 1 \
+    || fail "branch grant publication failed"
+  out=$(FM_STATE_OVERRIDE="$state" FM_SUPERVISION_ACTOR=branch "$DRAIN" 2> "$err") \
+    || fail "the branch drain failed: $(cat "$err")"
+  assert_contains "$out" 'task1 note' "the branch drain printed its granted row"
+  assert_not_contains "$out" 'a filtered drain read was refused' "the branch drain reported main's refusal"
+  [ -s "$state/.drain-refused.main" ] || fail "the branch drain consumed main's refusal marker"
+  pass "a branch-actor drain neither reports nor clears main's refusal marker"
 }
 
 test_refusal_is_one_line() {
@@ -160,4 +184,5 @@ fm_test_run \
   test_pipeline_readers_are_refused_and_change_nothing \
   test_refusal_is_one_line \
   test_next_whole_read_reports_the_refusal_once \
+  test_branch_drain_leaves_main_refusal_marker_alone \
   test_whole_output_callers_still_drain_and_acknowledge

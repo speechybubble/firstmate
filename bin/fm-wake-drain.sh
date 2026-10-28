@@ -275,9 +275,9 @@ esac
 # it passes too, unless its own stdout feeds a filter.
 # Without /proc (macOS) the check cannot run and the read proceeds as before.
 # --ack-through and --decisions are not reads and are never refused. A refusal
-# leaves .drain-refused so the next whole read says the earlier one was blocked
+# leaves .drain-refused.<actor> so that actor's next whole read says the earlier one was blocked
 # even when the refusal itself went into the filter.
-DRAIN_REFUSED_FILE="$STATE/.drain-refused"
+DRAIN_REFUSED_FILE="$STATE/.drain-refused.$ACTOR"
 DRAIN_FILTER_PID=
 DRAIN_ANCESTORS=' '
 stdout_filtered() { # [pid]
@@ -334,7 +334,9 @@ if [ -z "$ACK_THROUGH" ] && [ "$LIST_DECISIONS" = false ]; then
       { printf '%s\n' "$refusal" > /dev/tty; } 2>/dev/null || true
     fi
     fm_epoch_seconds_to refused_at
-    { printf '%s\t%s\n' "$refused_at" "$filter_name" > "$DRAIN_REFUSED_FILE"; } 2>/dev/null || true
+    { printf '%s\t%s\n' "$refused_at" "$filter_name" > "$DRAIN_REFUSED_FILE.$$" \
+      && mv -f -- "$DRAIN_REFUSED_FILE.$$" "$DRAIN_REFUSED_FILE"; } 2>/dev/null \
+      || rm -f -- "$DRAIN_REFUSED_FILE.$$" 2>/dev/null || true
     exit 3
   fi
 fi
@@ -1144,8 +1146,8 @@ reclaim_stale_branch_grant_locked || exit 1
 [ "$ACTOR" != main ] || retire_unconsumable_rows_locked
 [ "$ACTOR" != branch ] || require_branch_eligible_rows || exit 1
 
-if [ -z "$ACK_THROUGH" ] && [ -f "$DRAIN_REFUSED_FILE" ]; then
-  IFS=$'\t' read -r refused_at refused_reader < "$DRAIN_REFUSED_FILE" || true
+if [ -z "$ACK_THROUGH" ] && mv -- "$DRAIN_REFUSED_FILE" "$DRAIN_REFUSED_FILE.read.$$" 2>/dev/null; then
+  IFS=$'\t' read -r refused_at refused_reader < "$DRAIN_REFUSED_FILE.read.$$" || true
   case "${refused_at:-}" in
     ''|*[!0-9]*) refused_when=unknown ;;
     *) refused_when=$(date -d "@$refused_at" '+%Y-%m-%d %H:%M:%S %Z' 2>/dev/null \
@@ -1153,7 +1155,7 @@ if [ -z "$ACK_THROUGH" ] && [ -f "$DRAIN_REFUSED_FILE" ]; then
   esac
   printf 'a filtered drain read was refused at %s (reader %s); this drain is the complete output\n' \
     "$refused_when" "${refused_reader:-unknown}"
-  rm -f -- "$DRAIN_REFUSED_FILE"
+  rm -f -- "$DRAIN_REFUSED_FILE.read.$$"
 fi
 
 if [ -n "$ACK_THROUGH" ]; then
