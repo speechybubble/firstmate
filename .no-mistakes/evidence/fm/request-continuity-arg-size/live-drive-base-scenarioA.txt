@@ -1,0 +1,21 @@
+=== Scenario A: main session with ~4 MB of events after the activation boundary
+transcript: 6775856 bytes, 3621 lines
+event stream after boundary: 3865857 bytes (single-arg limit 131072)
+context hook rc=0 (3.67s)
+FAIL - context hook output: 
+stop hook output: 
+FAIL - stop hook did not block: 
+FAIL - list failed: fm-request-continuity: cannot read native input
+list output: 1 lines; head:
+fm-request-continuity: cannot read native input
+FAIL - list misses u-main-0
+FAIL - list misses u-main-899
+FAIL - list misses u-open
+outcome-ack rc=0: acknowledgement staged through seq 1; give the substantive reply. Outcomes stay open until that reply is recorded.
+unprocessed before reply: [1 ]
+unprocessed after reply+stop: [1 ]
+FAIL - outcome acknowledgement did not commit
+receipt log:
+{"type":"start","after":20}
+{"type":"outcome-stage","through":1,"at":3621}
+FAILED=1

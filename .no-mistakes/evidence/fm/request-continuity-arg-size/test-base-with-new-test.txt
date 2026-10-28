@@ -1,0 +1,11 @@
+ok - a session that does not own the home records and blocks nothing
+ok - activation records a boundary, so earlier chat is never reinterpreted as new instructions
+ok - an omitted request blocks the stop once, stays visible afterwards, and Firstmate's doorbells are not captain input, even once pruned
+ok - a steering doorbell for this session's own inbox is not captain input, while other inboxes, quotes and unexported sessions still block
+ok - recorded links need a readable task; a reply stays provisional until a turn-ending reply, and interruption invalidates it
+ok - a reply already given makes the listing ask only for the disposition, which completes at once, while input no reply followed keeps the reply-then-answer prompt
+ok - an ignored mid-turn question keeps the answer-now path, and only an all-answered Stop reason and listing say to end the turn
+ok - the Stop reason is one bounded line naming the ids that fit and the list command, which prints every input with the full instructions
+ok - compaction keeps unresolved input restorable from the full transcript, independent of the summary, and only commands the model receives count as input
+ok - a staged outcome acknowledgement commits only after a turn-ending reply, a topic switch, interruption or Firstmate input invalidates it, and replay is idempotent
+not ok - list failed on a long session: fm-request-continuity: cannot read native input
