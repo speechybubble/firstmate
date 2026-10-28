@@ -268,7 +268,9 @@ test_worktree_wait_setting_bounds_the_poll() {
   assert_contains "$out" "within 5s" "the refusal did not name the configured wait"
   [ "$(cat "$COUNTFILE")" -eq 5 ] || fail "a 5-poll wait polled $(cat "$COUNTFILE") times"
 
-  rm -f "$COUNTFILE"
+  # The refused tmux spawn leaves its window up for inspection, and the fake
+  # tmux remembers it, so clear it before reusing the task id.
+  rm -f "$COUNTFILE" "$COUNTFILE.window"
   out=$(FM_SPAWN_WORKTREE_WAIT_SECS=0 run_settle_spawn "$id")
   status=$?
   [ "$status" -ne 0 ] || fail "spawn accepted a pane that never left the primary checkout"$'\n'"$out"

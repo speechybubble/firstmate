@@ -1196,7 +1196,7 @@ unknown_alive_stale_case() {  # <evidence: status|worktree|none>
   watch_bg "$state" "$fakebin" "$out"
   pid=$!
   wait_for_exit "$pid" 100 || fail "[$evidence] the first unknown-but-alive stale sight did not surface"
-  grep -Fx "stale: $window" "$out" >/dev/null || fail "[$evidence] the first unknown-but-alive alarm changed its wording"
+  grep -Fx "stale: $window task=codexunknown" "$out" >/dev/null || fail "[$evidence] the first unknown-but-alive alarm changed its wording"
   if [ "$evidence" = none ]; then
     [ ! -e "$state/.paused-resurfaced-$key" ] || fail "[none] an alarm without progress evidence recorded a repeat bound"
   else
@@ -1215,7 +1215,7 @@ unknown_alive_stale_case() {  # <evidence: status|worktree|none>
   pid=$!
   if [ "$evidence" = none ]; then
     wait_for_exit "$pid" 100 || fail "[none] an unknown-but-alive pane without progress evidence went quiet"
-    grep -Fx "stale: $window" "$out" >/dev/null \
+    grep -Fx "stale: $window task=codexunknown" "$out" >/dev/null \
       || fail "[none] an unknown-but-alive pane without progress evidence did not re-surface: $(cat "$out")"
     unset FM_FAKE_CREW_STATE FM_FAKE_TMUX_WINDOW FM_FAKE_TMUX_CURRENT_COMMAND FM_FAKE_TMUX_CAPTURE FM_PAUSE_RESURFACE_SECS
     return 0
@@ -1238,7 +1238,7 @@ unknown_alive_stale_case() {  # <evidence: status|worktree|none>
   watch_bg "$state" "$fakebin" "$out"
   pid=$!
   wait_for_exit "$pid" 100 || fail "[$evidence] an expired unknown-but-alive bound did not re-surface"
-  grep -Fx "stale: $window" "$out" >/dev/null || fail "[$evidence] the expired unknown-but-alive bound changed wake wording: $(cat "$out")"
+  grep -Fx "stale: $window task=codexunknown" "$out" >/dev/null || fail "[$evidence] the expired unknown-but-alive bound changed wake wording: $(cat "$out")"
   unset FM_FAKE_CREW_STATE FM_FAKE_TMUX_WINDOW FM_FAKE_TMUX_CAPTURE FM_FAKE_TMUX_CURRENT_COMMAND FM_PAUSE_RESURFACE_SECS
 }
 
@@ -4058,7 +4058,7 @@ test_wedge_threshold_worker_wait_is_off_until_armed() {
   wedge_threshold_round "$state" "$fakebin" "$out" "$capture" "$window" "$working" exit \
     || fail "an unarmed home stopped escalating a worker blocker: $(cat "$out")"
   ack_stopped_cycle "$state" || fail "could not acknowledge the unarmed worker-blocker escalation"
-  grep -Ex 'stale: test:fm-wedge \(idle [0-9]+s, possible wedge, escalation 1\)' "$out" >/dev/null \
+  grep -Ex 'stale: test:fm-wedge task=wedge \(idle [0-9]+s, possible wedge, escalation 1\)' "$out" >/dev/null \
     || fail "an unarmed home changed the wedge reason for a worker blocker: $(cat "$out")"
   grep -F 'declared blocker' "$out" >/dev/null \
     && fail "an unarmed home deferred a worker blocker: $(cat "$out")"
@@ -4452,7 +4452,7 @@ test_wedge_guards_absent_config_keeps_the_unchanged_ladder() {
       || fail "an unconfigured home stopped escalating at threshold $n: $(cat "$out")"
     ack_stopped_cycle "$state" || fail "could not acknowledge unconfigured escalation $n"
     [ "$n" -ge 3 ] \
-      || grep -E "^stale: $window \(idle [0-9]+s, possible wedge, escalation $n\)\$" "$out" >/dev/null \
+      || grep -E "^stale: $window task=wedge \(idle [0-9]+s, possible wedge, escalation $n\)\$" "$out" >/dev/null \
       || fail "an unconfigured home changed escalation $n's reason: $(cat "$out")"
     n=$((n + 1))
   done
@@ -4545,7 +4545,7 @@ test_wedge_guard_failures_fail_open() {
     FM_WEDGE_GUARD_TIMEOUT_SECS=1 wedge_threshold_round "$state" "$fakebin" "$out" "$capture" "$window" "$working" exit \
       || fail "a $label guard took the ladder away: $(cat "$out")"
     ack_stopped_cycle "$state" || fail "could not acknowledge the $label escalation"
-    grep -E "^stale: $window \(idle [0-9]+s, possible wedge, escalation 1\)$" "$out" >/dev/null \
+    grep -E "^stale: $window task=wedge \(idle [0-9]+s, possible wedge, escalation 1\)$" "$out" >/dev/null \
       || fail "a $label guard changed the escalation: $(cat "$out")"
     [ "$(wedge_guard_calls "$dir")" -ge 1 ] || fail "the $label guard was never asked, so this proves nothing"
     [ ! -e "$state/.guard-deferrals-$key" ] || fail "a $label guard recorded a deferral"
@@ -7736,7 +7736,7 @@ test_paused_bg_job_until_timeout_rechecks_after_the_job_ends() {
   parked_watch_round "$state" "$dir/fakebin" "$dir/watch.out" "$dir/pane.txt" test:fm-parked exit \
     || fail "the job's timeout passed without a recheck of the worker paused on it"
   [ "$(bg_job_stale_wakes "$state")" -eq 1 ] || fail "the passed timeout queued the wrong number of rechecks"
-  awk -F '\t' '$3 == "stale" && $5 == "stale: test:fm-parked" { found = 1 } END { exit !found }' \
+  awk -F '\t' '$3 == "stale" && $5 == "stale: test:fm-parked task=parked" { found = 1 } END { exit !found }' \
     "$state/.wake-queue" || fail "the recheck carried an unexpected reason: $(cat "$state/.wake-queue")"
   case "$(cat "$state/.paused-resurfaced-test_fm-parked" 2>/dev/null)" in
     *:due) ;;
@@ -8051,7 +8051,7 @@ test_quoted_exit_picker_stays_ordinary_stale() {
     FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
   pid=$!
   wait_for_exit "$pid" 100 || fail "a quoted picker did not take the ordinary stale path: $(cat "$out")"
-  grep -Fx "stale: $window" "$out" >/dev/null || fail "a quoted picker was not an ordinary stale: $(cat "$out")"
+  grep -Fx "stale: $window task=quoted" "$out" >/dev/null || fail "a quoted picker was not an ordinary stale: $(cat "$out")"
   grep -F 'blocked-on-prompt' "$out" >/dev/null && fail "a quoted picker was named as a dialog: $(cat "$out")"
   unset FM_FAKE_CREW_STATE
   pass "picker text quoted above a composer stays an ordinary stale"
@@ -8099,7 +8099,7 @@ test_closed_exit_picker_drops_saved_dialog_name() {
     FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
   pid=$!
   wait_for_exit "$pid" 100 || fail "a closed picker did not take the ordinary stale path: $(cat "$out")"
-  grep -Fx "stale: $window" "$out" >/dev/null || fail "a closed picker was not an ordinary stale: $(cat "$out")"
+  grep -Fx "stale: $window task=closer" "$out" >/dev/null || fail "a closed picker was not an ordinary stale: $(cat "$out")"
   grep -F 'blocked-on-prompt' "$out" >/dev/null && fail "a closed picker was still named as a dialog: $(cat "$out")"
   [ ! -e "$state/.subsuper-dialog-closer" ] || fail "a closed picker left the saved dialog name"
   unset FM_FAKE_CREW_STATE
