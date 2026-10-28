@@ -207,14 +207,14 @@ Status and registered-check discovery stay in `bin/fm-watch.sh`, which also obse
 No producer invokes native delivery under the queue lock.
 Grok retains its tracked background-task notification protocol.
 No adapter starts a replacement with shell `&`.
-An external durable append still republishes that episode as pending downtime, so the successor surfaces it whether the prior handling turn is still running or has acknowledged its rows.
+An external durable append still republishes that episode as pending downtime for main's next close or arm, whether the prior handling turn is still running or has acknowledged its rows; the successor surfaces only a new inbox or process-event row, through its queued-check surface.
 The append numbers past every queued row, so a lost or malformed sequence counter cannot let an outstanding acknowledgement consume it.
-Once those rows are acknowledged, a later append that repeats one byte for byte still opens a new recovery generation, which the successor recovers.
+Once those rows are acknowledged, a later append that repeats one byte for byte still opens a new recovery generation, which stays pending for main.
 Notification never consumes rows; sequence-bound, per-actor acknowledgement remains the owner of consumption.
 After the supervision host finishes a handled turn, it settles the successor handoff under the durable-queue and recovery-marker locks.
 Any row left for main then becomes a recoverable downtime episode, including one appended after the predecessor closed but before the successor initialized or the host confirmed its handoff.
 The successor still does not re-announce that episode; it stays queued for main's next close or arm, while a new captain inbox note reaches main through the successor's own queued-check surface.
-When the host instead hands the accepted close back to main and leaves that successor running, it republishes the episode as announced downtime, because the close it hands back is that episode's delivery; the successor therefore does not announce it again, while a later durable append still opens a pending episode it recovers.
+When the host instead hands the accepted close back to main and leaves that successor running, it republishes the episode as announced downtime, because the close it hands back is that episode's delivery; the successor therefore does not announce it again, while a later durable append still opens a pending episode that stays queued for main.
 
 ### Manual recovery and other harnesses
 
