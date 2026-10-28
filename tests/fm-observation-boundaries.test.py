@@ -46,6 +46,14 @@ case "${FM_TEST_ACTION:-}" in
   relocate) printf 'task=worker\\nhome=relocated\\n' > "$FM_TEST_MARKER" ;;
   corrupt) printf 'task=worker\\ntask=replacement\\n' > "$FM_TEST_MARKER" ;;
 esac
+# Exact endpoint membership reads the session inventory, so list every window
+# this home recorded; every other call answers with one live pane.
+if [ "${1:-}" = list-windows ]; then
+  for meta in "$FM_HOME"/state/*.meta; do
+    [ -f "$meta" ] && sed -n 's/^window=[^:]*://p' "$meta"
+  done
+  exit 0
+fi
 printf '%%1\\n'
 ''')
         self.tool("jq", '''

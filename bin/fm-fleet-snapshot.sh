@@ -236,15 +236,13 @@ esac
 . "$SCRIPT_DIR/fm-backend.sh"
 # shellcheck source=bin/fm-treehouse-slot-lib.sh
 . "$SCRIPT_DIR/fm-treehouse-slot-lib.sh"
+# The classifier also loads fm_run_timed; reuse that bounded-execution owner.
 # shellcheck source=bin/fm-classify-lib.sh
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/fm-classify-lib.sh"
 # shellcheck source=bin/fm-ff-lib.sh
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/fm-ff-lib.sh"  # validate_secondmate_home: shared seeded-home boundary checks
-# shellcheck source=bin/fm-timeout-lib.sh
-# shellcheck disable=SC1091
-. "$SCRIPT_DIR/fm-timeout-lib.sh"  # fm_run_timed: the shared hard bound
 # shellcheck source=bin/fm-landed-lib.sh
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/fm-landed-lib.sh"  # FM_LANDED_JQ_DEFS: the shared landed selector
@@ -423,6 +421,7 @@ first_pr_url_in_file() {  # <file>
   grep -Eo 'https?://[^[:space:])"]+/pull/[0-9]+' "$1" 2>/dev/null | head -1
 }
 
+# Isolate this read-only projection from the fleet collector's shell state.
 backlog_json() (  # [<backlog-path>] [<archive>] - defaults to this home's $BACKLOG
   local backlog=${1:-$BACKLOG} archive=${2:-false}
   if [ ! -f "$backlog" ]; then
