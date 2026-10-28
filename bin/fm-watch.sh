@@ -1661,7 +1661,7 @@ deliberate_wait_record() {  # <task> -> one wait_record on stdout
 # status line - a declared `paused:` external wait, or a verified `captain-held`
 # transfer - then, when that line explains nothing, the deliberate wait another
 # owner records for the lane (deliberate_wait_record above), and last the crew's
-# authoritative current state. Between the status line and the deliberate wait
+# authoritative current state. Between the deliberate wait and the crew's state
 # sits the backlog record of the same captain hold (task_captain_call_open),
 # which a worker's line never shows once firstmate hands the call to the
 # captain; it is read only here, at the threshold. That line predates the hold,
@@ -3488,13 +3488,6 @@ done
 if [ -n "$EVICTED_PID" ]; then
   echo "watcher: replaced stalled pid $EVICTED_PID (beacon ${EVICTED_BEAT_AGE}s past hard bound ${WATCHER_STALL_BOUND}s)"
 fi
-handling_successor_has_queued_row() {
-  local queued=1
-  fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK" || return 1
-  [ ! -s "$FM_WAKE_QUEUE" ] || queued=0
-  fm_lock_release "$FM_WAKE_QUEUE_LOCK"
-  return "$queued"
-}
 WATCHER_RECOVERY_PENDING=0
 if [ -n "${FM_LOCK_RECOVERED_PID:-}" ]; then
   WATCHER_RECOVERY_PENDING=1
@@ -3796,17 +3789,9 @@ watcher_scan_should_yield() {
 resurface_after_downtime() {
   # Handling successors already have a predecessor-delivered wake on the way.
   # Re-announcing from this cycle is what turned a lost handshake into an
-  # unbounded recovery loop. A handled host turn explicitly settles its
-  # handoff after consuming the predecessor's rows, making any row left for
-  # main a recoverable downtime episode.
+  # unbounded recovery loop; stay in the poll loop and supervise instead.
   if [ "${FM_WATCH_HANDLING_SUCCESSOR:-0}" = 1 ]; then
-    if ! fm_recovery_marker_arm_check "$WATCHER_DOWNTIME_MARKER"; then
-      echo "watcher: recovery state could not be consumed safely" >&2
-      exit 1
-    fi
-    [ "$FM_RECOVERY_MARKER_ACTION" = recover ] || return 0
-    handling_successor_has_queued_row || return 0
-    wake "check: rearm-resurface"
+    return 0
   fi
   if [ "$WATCHER_RECOVERY_PENDING" -ne 1 ]; then
     if ! fm_recovery_marker_arm_check "$WATCHER_DOWNTIME_MARKER"; then

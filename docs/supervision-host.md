@@ -131,7 +131,7 @@ A handled wake with only routine outcomes never reaches main.
 A handled wake that recorded a captain outcome while the captain is still attended exits with one `supervision-host: branch-outcome:` line naming its store rows, without the close it handled; see [Captain outcomes](#captain-outcomes).
 A turn that fails hands its close to main with one `supervision-host:` line, as away.
 Main-only rows that share the queue with the branch's rows stay queued for main.
-The [handling-successor recovery contract](watcher-continuity.md#durable-queue-and-turn-end-backstop) guarantees that a main-only row appended after the predecessor closes, including before the successor initializes or while the host is parked, reaches main as a pass-through.
+The [handling-successor recovery contract](watcher-continuity.md#durable-queue-and-turn-end-backstop) keeps a main-only row appended after the predecessor closes, including before the successor initializes or while the host is parked, queued as a recoverable downtime episode; a captain inbox note among them reaches main through the successor's queued-check surface.
 The engine turn runs beside a captain who is present, so its guarded actions take the task leases that keep it and main off the same task.
 
 ### Away

@@ -1124,7 +1124,7 @@ if [ "$KIND" = ship ] && [ -n "$CREW_BRANCH" ] && command -v no-mistakes >/dev/n
       [ -n "$run_overview" ] || emit unknown run-step "run inventory unavailable; run id: $(strip_quotes "$(nm_field id)")"
       run_choice=$(fm_nm_select_run "$CREW_BRANCH" "$run_overview" "$WT" "$NM_TIMEOUT")
       [ "$overview_ok" = 1 ] || emit unknown run-step "run inventory unreadable; run ids: $(strip_quotes "$(nm_field id)"), ${run_choice##*|}"
-      case "$status_absent:$run_choice" in 1:unknown\|*) run_choice="status-absent" ;; esac
+      case "$status_absent:$run_choice" in 1:unknown\|*"run ids: ") run_choice="status-absent" ;; esac
     fi
     case "$run_choice" in
       unknown\|*)

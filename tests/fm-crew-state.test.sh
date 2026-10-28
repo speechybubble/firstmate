@@ -2733,6 +2733,55 @@ EOF
   pass "runs_on_current_branch: 0 makes a capped overview fall through to crew-state sources"
 }
 
+# The no-run answer stands in only when the inventory names no same-branch run.
+# A worker that pushes between the `axi status` read and the overview read
+# leaves an overview whose undecidable selection names this branch's run ids;
+# crew-state must report that unknown with its ids, not a crew with no run.
+test_no_run_answer_keeps_unknown_naming_branch_runs() {
+  reset_fakes
+  local d status home short out
+  d=$(new_case explicit-no-run-raced)
+  make_repo_on_branch "$d/wt" fm/feat-no-run-raced
+  short=$(git -C "$d/wt" rev-parse --short=7 HEAD)
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/feat-no-run-raced.meta" "window=fm:fm-feat-no-run-raced" \
+    "worktree=$d/wt" "kind=ship" "harness=claude"
+  status=$(cat <<'EOF'
+current_branch: fm/feat-no-run-raced
+runs_on_current_branch: 0
+count: 1 of 47 total
+runs[1]{id,branch,status,head,pr}:
+  "01OTHER00",fm/other-0,running,0123456,""
+help[2]:
+  axi status
+  no-mistakes init
+EOF
+  )
+  home=$(cat <<EOF
+bin: no-mistakes
+repo: $d/wt
+current_branch: fm/feat-no-run-raced
+daemon: running (pid 4242)
+count: 2 of 2 total
+runs[2]{id,branch,status,head,pr}:
+  "01RACEDNEW",fm/feat-no-run-raced,running,$short,""
+  "01RACEDOLD",fm/feat-no-run-raced,running,$short,""
+EOF
+  )
+  FM_FAKE_AXI_STATUS="$status"
+  FM_FAKE_AXI_HOME="$home"
+  FM_FAKE_RUNS_LIST="  running    fm/feat-no-run-raced $short  2026-09-27 09:00"
+  printf 'working: implementation continues\n' > "$d/state/feat-no-run-raced.status"
+  FM_FAKE_BUSY=0
+  arm_idle_record "$d/state" feat-no-run-raced
+  out=$(run_crew_state "$d" feat-no-run-raced)
+  assert_contains "$out" "state: unknown" "an undecidable same-branch selection stays unknown"
+  assert_contains "$out" "competing live runs" "the unknown keeps its selection reason"
+  assert_contains "$out" "01RACEDNEW" "the unknown names the same-branch run ids"
+  assert_not_contains "$out" "source: status-log" "the no-run answer must not override named branch runs"
+  pass "runs_on_current_branch: 0 does not override an unknown selection naming this branch's runs"
+}
+
 # A launch pinned at the fm-spawn seed (no hook has posted yet) whose pane
 # renders a recognized interactive prompt must read unknown, never working -
 # this is the load-bearing link the launch-prompt backstop depends on:
@@ -6239,6 +6288,7 @@ test_moved_remote_branch_without_named_head_is_blocked
 test_external_review_done_reads_ready
 test_no_run_busy_pane
 test_no_run_overview_zero_branch_falls_through
+test_no_run_answer_keeps_unknown_naming_branch_runs
 test_no_run_launch_prompt_parked_is_not_working
 test_no_run_footer_text_alone_is_not_working
 test_no_run_grok_uses_isolated_fallback

@@ -223,8 +223,9 @@ test_handling_successor_does_not_go_blind() {
 }
 
 # T3: a row appended after the predecessor closes but before its handling
-# successor can inspect the queue must survive the handoff and reach main.
-test_handling_successor_resurfaces_a_row_appended_during_startup() {
+# successor can inspect the queue stays queued as a deliverable downtime
+# episode, while the successor keeps supervising instead of re-announcing it.
+test_handling_successor_keeps_a_row_appended_during_startup_queued() {
   local dir home state fakebin child blocker now out
   dir=$(make_case recovery-startup-append)
   home="$dir/home"
@@ -285,26 +286,22 @@ test_handling_successor_resurfaces_a_row_appended_during_startup() {
   ' _ "$ROOT/bin/fm-wake-lib.sh" "$state" \
     || { kill -TERM "$child" 2>/dev/null || true; fail "fixture: handled-turn settlement failed"; }
 
-  now=0
-  while [ "$now" -lt 40 ] && kill -0 "$child" 2>/dev/null; do
-    sleep 0.25
-    now=$((now + 1))
-  done
-  if kill -0 "$child" 2>/dev/null; then
-    kill -TERM "$child" 2>/dev/null || true
+  sleep 5
+  if ! kill -0 "$child" 2>/dev/null; then
     wait "$child" 2>/dev/null || true
-    fail "handling successor never resurfaced the startup-window row: $(cat "$out"; cat "$state/.watcher-down")"
+    fail "handling successor closed instead of supervising: $(cat "$out")"
   fi
-  wait "$child" 2>/dev/null || true
-  [ "$(grep -c '^check: rearm-resurface$' "$out")" -eq 1 ] \
-    || fail "handling successor did not close once with the recovery wake: $(cat "$out")"
+  ! grep -F 'check: rearm-resurface' "$out" >/dev/null \
+    || { kill -TERM "$child" 2>/dev/null || true; fail "handling successor re-announced recovery: $(cat "$out")"; }
   grep "$(printf '\tcheck\tinbox:n1\t')" "$state/.wake-queue" >/dev/null \
-    || fail "the resurfaced inbox row must stay queued for main"
+    || { kill -TERM "$child" 2>/dev/null || true; fail "the startup-window row must stay queued for main"; }
   grep -E '^(pending|announced):downtime:' "$state/.watcher-down" >/dev/null \
-    || fail "the resurfaced close must leave a deliverable downtime episode: $(cat "$state/.watcher-down")"
-  pass "a handling successor resurfaces a row appended during startup"
+    || { kill -TERM "$child" 2>/dev/null || true; fail "the settled handoff must leave a deliverable downtime episode: $(cat "$state/.watcher-down")"; }
+  kill -TERM "$child" 2>/dev/null || true
+  wait "$child" 2>/dev/null || true
+  pass "a handling successor keeps a row appended during startup queued without re-announcing it"
 }
 
 test_handling_successor_does_not_go_blind
-test_handling_successor_resurfaces_a_row_appended_during_startup
+test_handling_successor_keeps_a_row_appended_during_startup_queued
 test_unacknowledged_recovery_is_announced_once_per_generation

@@ -1557,7 +1557,7 @@ test_claude_stop_hook_rewakes_main_for_an_inbox_note_after_a_handled_wake() {
   wait_until 600 hook_exited "$home" \
     || fail "inbox after handled: the queued inbox note never woke main: $(cat "$home/state/.supervision-host.log"; cat "$home/state/.watcher-down")"
   assert_rewoke_main "$home" "inbox after handled"
-  assert_re '^check: rearm-resurface' "$home/hook.err" "the rewake must carry the recovery close for the queued note"
+  assert_re '^check: captain inbox notes: inbox:' "$home/hook.err" "the rewake must carry the queued note's own headline"
   [ "$(handled_count "$home")" -eq 1 ] || fail "inbox after handled: the engine took the main-only inbox close"
   drained=$(main_drain "$home")
   assert_contains "$drained" 'check: captain inbox note' "main's drain must present the queued inbox note"

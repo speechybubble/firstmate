@@ -7076,12 +7076,7 @@ test_captain_inbox_successors() {
   [ "$before" = "$(cat "$state/.wake-queue")" ] || fail "successor changed queued note"
   second=$(captain_note "$dir" 'Second captain note') || fail "second note failed"
   wait_for_exit "$pid" 100 || fail "successor missed a new captain note"
-  # The note's own headline, or the recovery close when the append lands after
-  # this cycle's note check; either wake leaves the note queued for main.
-  case "$(cat "$out")" in
-    *"inbox:$second"*|"check: rearm-resurface") ;;
-    *) fail "new note missing: $(cat "$out")" ;;
-  esac
+  assert_contains "$(cat "$out")" "inbox:$second" "new note missing"
   assert_not_contains "$(cat "$out")" "inbox:$first" "old note was repeated"
   [ "$(wc -l < "$state/.wake-queue" | tr -d ' ')" = 2 ] || fail "delivery duplicated or consumed queue rows"
   pass "captain inbox: healthy handling successors deliver each new note once without acknowledging it"
