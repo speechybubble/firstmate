@@ -21,7 +21,9 @@
 #   review tool adapter and an unusable personal backup remote, installs the
 #   per-task pre-push guard (bin/fm-git-push-guard.sh) even when the home keeps
 #   AI trailers, and records forge=external, backup_remote=, and backup_prefix=
-#   in the task metadata for bin/fm-dod-lib.sh's ready-report gate. A
+#   in the task metadata for bin/fm-dod-lib.sh's ready-report gate. A ship
+#   brief carrying bin/fm-brief.sh --deliverable page's marker is recorded as
+#   deliverable=page for that gate's page-evidence check. A
 #   registry entry the parser refuses stops the spawn rather than launching on a
 #   guessed posture. A
 #   ship or scout spawn also refuses leftover `{TASK}` / `{FIRSTMATE_SPEC}`
@@ -4121,6 +4123,11 @@ delivery_rigor_rank() { # <mode> -> 3 (most rigor) .. 1 (least); 0 = not a task 
   esac
 }
 
+# A ship brief's declared deliverable (bin/fm-brief.sh --deliverable), recorded
+# as deliverable= for bin/fm-dod-lib.sh's done-time page-evidence check.
+DELIVERABLE=
+[ "$KIND" != ship ] || DELIVERABLE=$(fm_brief_deliverable "$BRIEF")
+
 # Brief/spawn delivery agreement, checked before any endpoint exists.
 # fm-brief.sh records a ship brief's mode as a fixed "Delivery contract: mode=<mode>"
 # line, with " forge=<forge>" appended on a bound forge. A spawn that disagrees
@@ -6792,7 +6799,7 @@ SPAWN_META_PATH=$SPAWN_META_TMP
 preserve_relaunch_meta() {
   awk -F= '
     BEGIN {
-      split("window endpoint_task_id worktree project harness kind mode yolo branch tasktmp base_branch upstream_consent forge backup_remote backup_prefix model effort opencode_version account account_provider omp_profile busy_gen spawn_gen approval_mode traceparent backend herdr_session herdr_workspace_id herdr_tab_id herdr_pane_id zellij_session zellij_tab_id zellij_pane_id orca_worktree_id terminal cmux_workspace_id cmux_surface_id paseo_terminal_id paseo_workspace_id rex_server rex_session_id rex_window_id rex_block_id t3_thread_id t3_project_id tern_session_id tern_tab_id tern_block_id home projects control_relaunch_tx polytoken_session polytoken_port polytoken_credential", keys, " ")
+      split("window endpoint_task_id worktree project harness kind mode yolo branch tasktmp base_branch upstream_consent deliverable forge backup_remote backup_prefix model effort opencode_version account account_provider omp_profile busy_gen spawn_gen approval_mode traceparent backend herdr_session herdr_workspace_id herdr_tab_id herdr_pane_id zellij_session zellij_tab_id zellij_pane_id orca_worktree_id terminal cmux_workspace_id cmux_surface_id paseo_terminal_id paseo_workspace_id rex_server rex_session_id rex_window_id rex_block_id t3_thread_id t3_project_id tern_session_id tern_tab_id tern_block_id home projects control_relaunch_tx polytoken_session polytoken_port polytoken_credential", keys, " ")
       for (i in keys) owned[keys[i]] = 1
     }
     !($1 in owned)
@@ -6817,6 +6824,7 @@ preserve_relaunch_meta() {
   echo "tasktmp=$TASK_TMP"
   [ -z "$BASE_BRANCH" ] || echo "base_branch=$BASE_BRANCH"
   [ -z "$UPSTREAM_CONSENT" ] || echo "upstream_consent=$UPSTREAM_CONSENT"
+  [ -z "$DELIVERABLE" ] || echo "deliverable=$DELIVERABLE"
   # Read by bin/fm-dod-lib.sh's ready-report gate; absent on every other forge.
   [ "$EXTERNAL_REVIEW" = 0 ] || echo "forge=external"
   [ -z "$EXTERNAL_BACKUP_REMOTE" ] || echo "backup_remote=$EXTERNAL_BACKUP_REMOTE"

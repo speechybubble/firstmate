@@ -28,7 +28,7 @@
 # caller-first design for uncertain material interfaces, migrations, or reuse;
 # the scaffold does not classify task text or impose a method on routine edits.
 # Secondmate charters keep their supervisor contract instead.
-# Usage: fm-brief.sh <task-id> <repo-name> --mode <no-mistakes|direct-PR|local-only> [--branch-prefix <prefix>] [--base-branch <branch>] [--forge <none|gerrit|forgejo|external> [--shape squash]] [--herdr-lab]
+# Usage: fm-brief.sh <task-id> <repo-name> --mode <no-mistakes|direct-PR|local-only> [--branch-prefix <prefix>] [--base-branch <branch>] [--forge <none|gerrit|forgejo|external> [--shape squash]] [--deliverable page] [--herdr-lab]
 #        fm-brief.sh <task-id> <repo-name> --scout [--base-branch <branch>] [--herdr-lab]
 #        fm-brief.sh <task-id> --secondmate {<project>...|--no-projects}
 #   --scout writes the scout contract instead: the deliverable is a report at
@@ -104,6 +104,14 @@
 # authority and records it in the task record, and bin/fm-promote.sh honors it
 # the same way. Ship-only: a scout publishes nothing and a charter is not a
 # delivery contract.
+# --deliverable page declares, at intake, that the ship delivers a page, app, or
+# site; Firstmate classifies it the way it chooses --herdr-lab, and nothing here
+# reads task text. It writes bin/fm-dod-lib.sh's FM_BRIEF_DELIVERABLE_PAGE_MARKER
+# and a one-paragraph drive-evidence instruction after the Task slot marker,
+# which bin/fm-spawn.sh records as deliverable=page for the done-time
+# page-evidence check, and appends a `page` line to the home's skill-fire log
+# (bin/fm-dod-lib.sh owns that check's evidence rule and the log).
+# Ship-only: a scout's completion is not gated on it.
 # --project <dir> is the task's project directory, used to detect when a ship
 # brief would publish to firstmate's own repository: for such a task this
 # scaffold refuses a publishing mode that the home's role or recorded consent
@@ -248,6 +256,8 @@ UPSTREAM_CONSENT=
 UPSTREAM_CONSENT_SET=0
 PROJECT_DIR=
 PROJECT_DIR_SET=0
+DELIVERABLE=
+DELIVERABLE_SET=0
 POS=()
 want_value=
 for a in "$@"; do
@@ -263,6 +273,7 @@ for a in "$@"; do
       shape) SHAPE=$a; SHAPE_SET=1 ;;
       upstream-consent) UPSTREAM_CONSENT=$a; UPSTREAM_CONSENT_SET=1 ;;
       project) PROJECT_DIR=$a; PROJECT_DIR_SET=1 ;;
+      deliverable) DELIVERABLE=$a; DELIVERABLE_SET=1 ;;
       *) echo "error: internal parser state for --$want_value" >&2; exit 1 ;;
     esac
     want_value=
@@ -287,6 +298,8 @@ for a in "$@"; do
     --upstream-consent=*) UPSTREAM_CONSENT=${a#--upstream-consent=}; UPSTREAM_CONSENT_SET=1 ;;
     --project) want_value="project" ;;
     --project=*) PROJECT_DIR=${a#--project=}; PROJECT_DIR_SET=1 ;;
+    --deliverable) want_value=deliverable ;;
+    --deliverable=*) DELIVERABLE=${a#--deliverable=}; DELIVERABLE_SET=1 ;;
     # yolo never reaches the worker: it is firstmate's merge authority, not a
     # brief input. Refuse it loudly so it is never silently dropped here and then
     # believed to have been recorded.
@@ -372,6 +385,14 @@ if [ "$KIND" != ship ]; then
     echo "error: --project applies only to ship briefs" >&2
     exit 1
   }
+  [ "$DELIVERABLE_SET" -eq 0 ] || {
+    echo "error: --deliverable applies only to ship briefs; a scout's report and a secondmate charter carry no done-time page check" >&2
+    exit 1
+  }
+fi
+if [ "$DELIVERABLE_SET" -eq 1 ] && [ "$DELIVERABLE" != page ]; then
+  echo "error: --deliverable must be page (got '$DELIVERABLE')" >&2
+  exit 1
 fi
 if [ "$UPSTREAM_CONSENT_SET" -eq 1 ]; then
   [ -n "$UPSTREAM_CONSENT" ] || {
@@ -658,10 +679,18 @@ EOF
 HERDR_SECTION=${HERDR_SECTION%$'\n'}
 fi
 
+# A declared page deliverable's marker and instruction sit in `# Task` ahead of
+# the slots, outside every subsection the intent contract reads.
+DELIVERABLE_BLOCK=
+if [ "$DELIVERABLE" = page ]; then
+  # shellcheck disable=SC2016 # Backticks are literal Markdown, not expansions.
+  DELIVERABLE_BLOCK="$FM_BRIEF_DELIVERABLE_PAGE_MARKER"$'\n''This ship delivers a page. Before reporting it ready, drive it in a real browser with the project drive recipe, then put `drive=<absolute path to the recipe or the evidence the drive retained>` in the `done:` line that reports it ready, or `no-drive: <reason>` when it cannot be driven; the done-time check refuses that line without one of them.'$'\n\n'
+fi
+
 IFS= read -r -d '' TASK_SECTION <<EOF || true
 # Task
 $FM_BRIEF_TASK_SLOTS_MARKER
-## Captain's intent
+$DELIVERABLE_BLOCK## Captain's intent
 {TASK}
 
 ## Confirmed intent
@@ -896,6 +925,10 @@ For a candidate lesson, use the task-context learning disposition above to choos
 $DOD
 EOF
 append_brief_include
+if [ "$DELIVERABLE" = page ]; then
+  fm_skill_fire_append "$DATA" "$ID" page fm-brief.sh "$BRIEF" \
+    || echo "warning: could not record the page skill fire in $DATA/skill-fires.tsv" >&2
+fi
 if [ "$FORGE" = none ]; then
   echo "scaffolded: $BRIEF (ship, mode=$MODE; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
 elif [ "$FORGE" = gerrit ]; then

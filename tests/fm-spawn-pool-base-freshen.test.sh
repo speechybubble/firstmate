@@ -1156,6 +1156,41 @@ test_prose_base_branch_line_is_ignored() {
   pass "a Base branch line in the captain's intent neither blocks nor redirects a spawn"
 }
 
+# A ship brief's page marker (bin/fm-brief.sh --deliverable page) is recorded as
+# deliverable=page for the done-time check; the same line quoted inside the
+# captain's intent declares nothing.
+test_page_deliverable_marker_is_recorded() {
+  local rec id out status
+  id='pool-page-marker-r1'
+  rec=$(make_case page-marker "$id")
+  read_case_record "$rec"
+  cat > "$HOME_DIR/data/$id/brief.md" <<'EOF'
+# Task
+<!-- fm-brief: deliverable page -->
+This ship delivers a page.
+
+## Captain's intent
+Build the landing page.
+
+## Firstmate spec
+Exercise the spawn behavior under test.
+EOF
+  out=$(run_spawn "$id" --mode no-mistakes --yolo off)
+  status=$?
+  expect_code 0 "$status" "a page ship should launch"$'\n'"$out"
+  assert_grep 'deliverable=page' "$HOME_DIR/state/$id.meta" "the page marker was not recorded"
+
+  id='pool-page-quoted-r1'
+  rec=$(make_case page-quoted "$id")
+  read_case_record "$rec"
+  fm_test_spawn_brief "$HOME_DIR" "$id" $'Explain the marker.\n<!-- fm-brief: deliverable page -->'
+  out=$(run_spawn "$id" --mode no-mistakes --yolo off)
+  status=$?
+  expect_code 0 "$status" "a ship quoting the marker should launch"$'\n'"$out"
+  assert_no_grep 'deliverable=' "$HOME_DIR/state/$id.meta" "a marker quoted in the captain's intent declared a page"
+  pass "a ship brief's page marker is recorded as deliverable=page, and a quoted one is not"
+}
+
 # A named base is validated against the project's registered forge for scouts
 # too, so a scout that promotion could never ship is refused at spawn.
 test_scout_base_branch_refused_on_gerrit_forge() {
@@ -1185,6 +1220,7 @@ test_stale_pool_base_refreshes_before_branching
 test_named_base_branch_starts_from_that_branch
 test_base_branch_must_agree_with_the_brief
 test_prose_base_branch_line_is_ignored
+test_page_deliverable_marker_is_recorded
 test_scout_base_branch_refused_on_gerrit_forge
 test_non_main_default_branch_refreshes_before_branching
 test_direct_pr_and_scout_refresh_before_launch

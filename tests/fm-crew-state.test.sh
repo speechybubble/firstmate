@@ -2623,6 +2623,43 @@ test_moved_remote_branch_without_named_head_is_blocked() {
   pass "moved remote branch without the named head is current-state blocked"
 }
 
+# A page deliverable's done with no drive evidence reads blocked with the page
+# reason, and the read records one page-refused skill fire however often it
+# repeats; a done carrying a stated reason records none.
+test_page_deliverable_refusal_records_one_fire() {
+  reset_fakes
+  local d out log sha
+  d=$(new_case page-refused)
+  make_repo_on_branch "$d/wt" fm/page
+  git -C "$d/wt" commit -q --allow-empty -m 'the page'
+  sha=$(git -C "$d/wt" rev-parse HEAD)
+  git -C "$d/wt" update-ref refs/remotes/origin/fm/page "$sha"
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/page.meta" \
+    "window=fm:fm-page" "worktree=$d/wt" "project=$d/wt" \
+    "kind=ship" "mode=direct-PR" "deliverable=page" "harness=claude"
+  printf 'done [at=1]: PR https://example.test/o/r/pull/9\n' > "$d/state/page.status"
+  FM_FAKE_AXI_STATUS=""
+  FM_FAKE_RUNS_LIST=""
+  FM_FAKE_BUSY=0
+  arm_idle_record "$d/state" page
+  log="$d/data/skill-fires.tsv"
+  out=$(run_crew_state "$d" page)
+  assert_contains "$out" "state: blocked" "a page done without drive evidence must not read done"
+  assert_contains "$out" "without drive evidence" "the blocked detail did not carry the page reason"
+  run_crew_state "$d" page >/dev/null
+  [ "$(awk -F'\t' '$2 == "page" && $3 == "page-refused" && $4 == "fm-crew-state.sh"' "$log" | wc -l | tr -d ' ')" = 1 ] \
+    || fail "a repeated refusal did not leave exactly one page-refused fire: $(cat "$log" 2>/dev/null)"
+  assert_grep "without drive evidence" "$log" "the fire line did not record the refusal reason"
+
+  printf 'done [at=2]: PR https://example.test/o/r/pull/9 no-drive: static export only\n' >> "$d/state/page.status"
+  rm -f "$log"
+  out=$(run_crew_state "$d" page)
+  assert_contains "$out" "state: done" "a page done with a stated reason must read done"
+  assert_absent "$log" "an accepted page done recorded a refusal fire"
+  pass "page deliverable done: without drive evidence reads blocked and records one page-refused fire"
+}
+
 # forge=external: a review tool uploads its own snapshot, so the review ready
 # report is current-state done with HEAD only in the worker copy, and a PR
 # report on that project is blocked with the gate's reason.
@@ -6285,6 +6322,7 @@ test_merged_pr_reads_done_under_captured_meta
 test_no_mistakes_prevalidation_done_stays_done
 test_finished_ship_done_is_not_a_handoff
 test_moved_remote_branch_without_named_head_is_blocked
+test_page_deliverable_refusal_records_one_fire
 test_external_review_done_reads_ready
 test_no_run_busy_pane
 test_no_run_overview_zero_branch_falls_through
