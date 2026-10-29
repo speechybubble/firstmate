@@ -478,8 +478,10 @@ test_filtered_empty_queue_drain_re_presents_once_only_sections() {
 
   printf 'note: captain said ship the REST version\n' >> "$state/task1.status"
   printf 'done: shipped the landing page\n' > "$state/task2.status"
-  # The reader keeps only the first line, as a `| grep -v ...` filter does.
-  FM_STATE_OVERRIDE="$state" "$DRAIN" 2> "$err" | sed -n 1p > "$out"
+  # The reader keeps only the first line of the redirected output, as a later
+  # filter over that file does (a piped filter is refused outright).
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out.full" 2> "$err"
+  sed -n 1p "$out.full" > "$out"
   if grep -F 'shipped the landing page' "$out" >/dev/null; then
     fail "setup error: the filtered read still showed the backstop"
   fi
@@ -522,7 +524,8 @@ test_branch_held_drain_re_presents_once_only_sections() {
     fail "publishing the branch grant failed"
   fi
 
-  FM_STATE_OVERRIDE="$state" "$DRAIN" 2> "$err" | sed -n 1p > "$out"
+  FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out.full" 2> "$err"
+  sed -n 1p "$out.full" > "$out"
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$out" 2> "$err" \
     || { kill "$owner" 2>/dev/null || true; fail "the branch-held re-drain failed: $(cat "$err")"; }
   grep -F 'task1 note: captain said ship the REST version' "$out" >/dev/null \

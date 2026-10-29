@@ -262,6 +262,85 @@ case "${1:-}" in
   *) echo "usage: fm-wake-drain.sh [--decisions | --ack-through SEQUENCE --recovery-generation GENERATION]" >&2; exit 2 ;;
 esac
 
+# A drain read piped into grep, head, tail, cut, or any other same-pipeline
+# filter loses once-only sections, so a read refuses before it takes a lock,
+# consumes a row, or stages a receipt. "stdout is not a terminal" is the normal
+# case (harness tool calls, $(...) captures, the supervision host), so the
+# verdict comes from the kernel instead: some process other than this drain
+# holds the read end of the stdout pipe and is either not an ancestor (a
+# sibling pipeline stage) or is an ancestor reading it as its own stdin (a
+# shell running the pipeline's last stage in-process, such as zsh's
+# `| while read`). A capturing ancestor reads on another descriptor and passes.
+# A whole-output reader (tee, cat, less, more) passes the output on whole, so
+# it passes too, unless its own stdout feeds a filter.
+# Without /proc (macOS) the check cannot run and the read proceeds as before.
+# --ack-through and --decisions are not reads and are never refused. A refusal
+# leaves .drain-refused.<actor> so that actor's next whole read says the earlier one was blocked
+# even when the refusal itself went into the filter.
+DRAIN_REFUSED_FILE="$STATE/.drain-refused.$ACTOR"
+DRAIN_FILTER_PID=
+DRAIN_ANCESTORS=' '
+stdout_filtered() { # [pid]
+  local self=${1:-$$} link ino holder pid fd key value flags whole=
+  link=$(readlink "/proc/$self/fd/1" 2>/dev/null) || return 1
+  case "$link" in 'pipe:['*']') ;; *) return 1 ;; esac
+  ino=${link#pipe:[}
+  ino=${ino%]}
+  while IFS= read -r holder; do
+    pid=${holder#/proc/}
+    pid=${pid%%/*}
+    fd=${holder##*/}
+    [ "$pid" != "$self" ] || continue
+    flags=
+    while IFS=$' \t' read -r key value; do
+      [ "$key" != flags: ] || { flags=$value; break; }
+    done < "/proc/$pid/fdinfo/$fd" 2>/dev/null
+    case "$flags" in ''|*[!0-7]*) continue ;; esac
+    [ $((8#$flags & 3)) -ne 1 ] || continue
+    case "$DRAIN_ANCESTORS" in
+      *" $pid "*)
+        # Keep looking for a sibling stage to name; the shell is a weaker label.
+        [ "$fd" = 0 ] && [ -z "$DRAIN_FILTER_PID" ] && DRAIN_FILTER_PID=$pid
+        ;;
+      *)
+        case "$(cat "/proc/$pid/comm" 2>/dev/null)" in
+          tee|cat|less|more) whole="$whole $pid" ;;
+          *) DRAIN_FILTER_PID=$pid; return 0 ;;
+        esac
+        ;;
+    esac
+  done < <(find /proc/[0-9]*/fd -maxdepth 1 -lname "pipe:\\[$ino\\]" 2>/dev/null)
+  for pid in $whole; do
+    stdout_filtered "$pid" && return 0
+  done
+  [ -n "$DRAIN_FILTER_PID" ]
+}
+
+if [ -z "$ACK_THROUGH" ] && [ "$LIST_DECISIONS" = false ]; then
+  p=$$
+  while [ "$p" -gt 1 ] 2>/dev/null; do
+    DRAIN_ANCESTORS="$DRAIN_ANCESTORS$p "
+    read -r stat < "/proc/$p/stat" 2>/dev/null || break
+    stat=${stat##*) }
+    p=${stat#* }
+    p=${p%% *}
+  done
+  if stdout_filtered; then
+    filter_name=$(cat "/proc/$DRAIN_FILTER_PID/comm" 2>/dev/null) || filter_name=unknown
+    refusal="wake drain: refused - stdout is piped into $filter_name (pid $DRAIN_FILTER_PID), a filter that would hide once-only sections; nothing was consumed or acknowledged; run bin/fm-wake-drain.sh unfiltered or through a whole-output reader (tee, cat, less, more) and read its whole output"
+    printf '%s\n' "$refusal" >&2
+    # 2>&1 sends the refusal into the same filter; reach a terminal if there is one.
+    if [ "$(readlink "/proc/$$/fd/2" 2>/dev/null)" = "$(readlink "/proc/$$/fd/1" 2>/dev/null)" ]; then
+      { printf '%s\n' "$refusal" > /dev/tty; } 2>/dev/null || true
+    fi
+    fm_epoch_seconds_to refused_at
+    { printf '%s\t%s\n' "$refused_at" "$filter_name" > "$DRAIN_REFUSED_FILE.$$" \
+      && mv -f -- "$DRAIN_REFUSED_FILE.$$" "$DRAIN_REFUSED_FILE"; } 2>/dev/null \
+      || rm -f -- "$DRAIN_REFUSED_FILE.$$" 2>/dev/null || true
+    exit 3
+  fi
+fi
+
 [ "$ACTOR" != branch ] || [ "$LIST_DECISIONS" = true ] || require_branch_eligible_rows || exit 1
 
 # Defense in depth for the supervision chain: this script runs at the top of
@@ -1066,6 +1145,18 @@ rotate_scratch_locked
 reclaim_stale_branch_grant_locked || exit 1
 [ "$ACTOR" != main ] || retire_unconsumable_rows_locked
 [ "$ACTOR" != branch ] || require_branch_eligible_rows || exit 1
+
+if [ -z "$ACK_THROUGH" ] && mv -- "$DRAIN_REFUSED_FILE" "$DRAIN_REFUSED_FILE.read.$$" 2>/dev/null; then
+  IFS=$'\t' read -r refused_at refused_reader < "$DRAIN_REFUSED_FILE.read.$$" || true
+  case "${refused_at:-}" in
+    ''|*[!0-9]*) refused_when=unknown ;;
+    *) refused_when=$(date -d "@$refused_at" '+%Y-%m-%d %H:%M:%S %Z' 2>/dev/null \
+      || date -r "$refused_at" '+%Y-%m-%d %H:%M:%S %Z' 2>/dev/null) || refused_when="epoch $refused_at" ;;
+  esac
+  printf 'a filtered drain read was refused at %s (reader %s); this drain is the complete output\n' \
+    "$refused_when" "${refused_reader:-unknown}"
+  rm -f -- "$DRAIN_REFUSED_FILE.read.$$"
+fi
 
 if [ -n "$ACK_THROUGH" ]; then
   if [ "$ACTOR" = branch ]; then
