@@ -1,0 +1,53 @@
+== queue before: 1 row(s)
+$ bin/fm-wake-drain.sh | head -3; exit ${PIPESTATUS[0]}
+wake drain: refused - stdout is piped into head (pid 1216173), a filter that would hide once-only sections; nothing was consumed or acknowledged; run bin/fm-wake-drain.sh unfiltered or through a whole-output reader (tee, cat, less, more) and read its whole output
+[exit: 3]
+
+$ bin/fm-wake-drain.sh 2>&1 | grep OPEN; exit ${PIPESTATUS[0]}
+[exit: 3]
+
+$ bin/fm-wake-drain.sh | tail -2; exit ${PIPESTATUS[0]}
+wake drain: refused - stdout is piped into tail (pid 1216419), a filter that would hide once-only sections; nothing was consumed or acknowledged; run bin/fm-wake-drain.sh unfiltered or through a whole-output reader (tee, cat, less, more) and read its whole output
+[exit: 3]
+
+$ bin/fm-wake-drain.sh | cut -c1-10; exit ${PIPESTATUS[0]}
+wake drain: refused - stdout is piped into cut (pid 1216501), a filter that would hide once-only sections; nothing was consumed or acknowledged; run bin/fm-wake-drain.sh unfiltered or through a whole-output reader (tee, cat, less, more) and read its whole output
+[exit: 3]
+
+$ bin/fm-wake-drain.sh | sort; exit ${PIPESTATUS[0]}
+wake drain: refused - stdout is piped into sort (pid 1216581), a filter that would hide once-only sections; nothing was consumed or acknowledged; run bin/fm-wake-drain.sh unfiltered or through a whole-output reader (tee, cat, less, more) and read its whole output
+[exit: 3]
+
+$ bin/fm-wake-drain.sh | wc -l; exit ${PIPESTATUS[0]}
+wake drain: refused - stdout is piped into wc (pid 1216659), a filter that would hide once-only sections; nothing was consumed or acknowledged; run bin/fm-wake-drain.sh unfiltered or through a whole-output reader (tee, cat, less, more) and read its whole output
+0
+[exit: 3]
+
+$ bin/fm-wake-drain.sh | tee /dev/null | grep task; exit ${PIPESTATUS[0]}
+wake drain: refused - stdout is piped into grep (pid 1216741), a filter that would hide once-only sections; nothing was consumed or acknowledged; run bin/fm-wake-drain.sh unfiltered or through a whole-output reader (tee, cat, less, more) and read its whole output
+[exit: 3]
+
+== queue after refusals: 1 row(s); markers: .drain-refused.main
+marker content: 1793232435	grep
+
+$ bin/fm-wake-drain.sh --decisions | head -3; exit ${PIPESTATUS[0]}
+OPEN DECISIONS: none open
+[exit: 0]
+
+== whole read via tee:
+$ bin/fm-wake-drain.sh | tee /tmp/fm-lab.goX3kN/tee.out; exit ${PIPESTATUS[0]}
+a filtered drain read was refused at 2026-10-29 10:07:15 AEST (reader grep); this drain is the complete output
+1793232434	1	signal	task1	task1 note
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 1 --recovery-generation 1215905.1793232434.rElYk3
+[exit: 0]
+
+== second whole read (marker already consumed):
+$ out=$(bin/fm-wake-drain.sh 2>/dev/null); echo "$out" | grep -c 'filtered drain read was refused' || true
+0
+[exit: 0]
+
+$ bin/fm-wake-drain.sh --ack-through 1 --recovery-generation 1215905.1793232434.rElYk3 | tail -1; exit ${PIPESTATUS[0]}
+wake drain: acknowledged wakes through 1 (1 row(s) consumed)
+[exit: 0]
+
+== queue after ack: 0 row(s)

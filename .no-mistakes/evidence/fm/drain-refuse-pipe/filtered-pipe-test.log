@@ -1,0 +1,7 @@
+1..5
+ok - a drain piped into head, grep, cut, a process substitution, the shell's own last stage, or a filter behind tee refuses and changes nothing
+ok - the refusal is one line
+ok - a refused read leaves a marker that the next whole read reports once as its first line
+ok - a branch-actor drain neither reports nor clears main's refusal marker
+ok - captured, redirected, teed, piped --decisions, and piped acknowledgement callers behave as before
+FM_TEST_COMPLETE

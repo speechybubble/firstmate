@@ -1,0 +1,5 @@
+$ FM_SUPERVISION_ACTOR=branch bin/fm-wake-drain.sh | grep task; exit ${PIPESTATUS[0]}
+wake drain: refused - stdout is piped into grep (pid 1291073), a filter that would hide once-only sections; nothing was consumed or acknowledged; run bin/fm-wake-drain.sh unfiltered or through a whole-output reader (tee, cat, less, more) and read its whole output
+[exit: 3]
+markers: .drain-refused.branch
+queue rows: 1

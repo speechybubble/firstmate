@@ -1,0 +1,28 @@
+ ▐▛███▛█   Claude Code v2.1.312
+▝▜██████▀  Fable 5.1 with medium effort · Claude Max
+ ▝▝   ▝▝   ~/.no-mistakes/worktrees/d567722de3ac/01M62FHBD8NG1B55B45S3ZY1QZ
+▎ Your Max plan includes $200 a month in API credits to power your apps and agents. Claim them at https://clau.de/api-credits
+❯ Lab test only. Run exactly this one Bash command and nothing else, then report its exit code and output verbatim: bash /tmp/fm-lab.goX3kN/peek.sh ; echo EXIT=$?
+● Captain, running the one lab command now.
+  Ran 1 shell command
+● Captain, the lab command ran. Exit code and output verbatim:
+  wake drain: refused - stdout is piped into head (pid 1249299), a filter that would hide once-only sections; nothing was consumed or acknowledged; run bin/fm-wake-drain.sh unfiltered or through a
+  whole-output reader (tee, cat, less, more) and read its whole output
+  EXIT=3
+  Per your instruction I ran nothing else, including the usual session-start digest.
+✻ Churned for 9s · done 10:09 AM
+❯ Lab test only. Now run exactly: bin/fm-wake-drain.sh ; echo EXIT=$?  and report the full stdout verbatim. Do not acknowledge or run anything else.
+  Ran 1 shell command
+● Captain, the drain ran. Full stdout verbatim:
+  a filtered drain read was refused at 2026-10-29 10:09:18 AEST (reader head); this drain is the complete output
+  1793232457      2       signal  task2   task2 harness note
+  WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 1225347.1793232457.13Q7Eq
+  EXIT=0
+  Per your instruction I did not acknowledge, drain again, or run anything else. The refusal marker from the earlier filtered read was consumed by this drain, and one notification for task2 remains
+  unacknowledged.
+✻ Churned for 16s · done 10:10 AM
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Fable 5.1 | ctx: 6% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)
