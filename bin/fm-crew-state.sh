@@ -12,6 +12,9 @@
 # the pane busy-signature) and reconciles the possibly-stale log against it.
 # A ship `done:` is current-state done only when bin/fm-dod-lib.sh accepts the
 # named head as reachable outside the worker's disposable copy; otherwise blocked.
+# Its one write: a page deliverable's done refused for missing drive evidence
+# appends a page-refused line, once, to the home's skill-fire log
+# (fm_skill_fire_append in bin/fm-dod-lib.sh owns that log).
 # A no-mistakes ship's pre-validation `done:` is the pipeline handoff and reads
 # done with the detail "handoff ready: instruct /no-mistakes", except in the
 # history-only read below.
@@ -316,6 +319,13 @@ emit_ship_status_done() {  # [extra-detail] [reads]
     0) emit "done" status-log "$(status_line_note "$LOG_LINE")${extra:+${SEP}$extra}" ;;
     2) emit unknown status-log "$(status_line_note "$LOG_LINE")${SEP}$reason" ;;
   esac
+  # This read is the one writer of the page-refused skill fire; a history-only
+  # read records nothing, and a refusal re-read on a later observation is
+  # written once.
+  if [ "$reads" != local ] && [ "$(meta_value deliverable)" = page ] \
+    && [ -n "$(fm_dod_page_evidence_reason "$(status_line_note "$LOG_LINE")")" ]; then
+    fm_skill_fire_append "${FM_DATA_OVERRIDE:-$FM_HOME/data}" "$ID" page-refused fm-crew-state.sh "$reason" once || true
+  fi
   emit blocked status-log "$reason"
 }
 

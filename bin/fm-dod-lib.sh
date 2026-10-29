@@ -47,6 +47,14 @@
 # also hold the result of a passed run. These live reads are the one check at the ready
 # decision; a later rebase or patch set on the server does not revoke an armed
 # task's done. Teardown's landed-work test remains the complete discard gate.
+# A ship Firstmate declared a page deliverable at intake (bin/fm-brief.sh
+# --deliverable page writes FM_BRIEF_DELIVERABLE_PAGE_MARKER into `# Task`, and
+# bin/fm-spawn.sh records it as deliverable=page in the task meta) must also
+# carry drive evidence on every done: this gate tests:
+# fm_dod_page_evidence_reason owns what counts. fm_skill_fire_append owns the
+# home's append-only skill-fire log, data/skill-fires.tsv, whose writers are
+# bin/fm-brief.sh (rule page, at scaffold) and bin/fm-crew-state.sh (rule
+# page-refused, when this gate refuses for missing drive evidence).
 # The block opens with the fixed machine-readable "Delivery contract: mode=<mode>"
 # line that bin/fm-spawn.sh checks a ship brief against; a forge=gerrit block
 # appends " forge=gerrit shape=squash" to that line, and a forge=forgejo or
@@ -300,6 +308,20 @@ fm_brief_task_placeholders_present() {  # <file>
 # added it; an older brief launches without it and warns.
 # shellcheck disable=SC2034 # Read by bin/fm-brief.sh, which sources this library.
 FM_BRIEF_TASK_SLOTS_MARKER='<!-- fm-brief: task-slots v3 -->'
+
+# The `# Task` line bin/fm-brief.sh --deliverable page writes after the slot
+# marker; bin/fm-spawn.sh reads it through fm_brief_deliverable.
+FM_BRIEF_DELIVERABLE_PAGE_MARKER='<!-- fm-brief: deliverable page -->'
+
+# Print the deliverable a brief's `# Task` declares (`page`), or nothing. Only
+# the lines before its first subsection count, so a marker quoted in a filled
+# slot declares nothing.
+fm_brief_deliverable() {  # <file>
+  if fm_brief_heading_body "$1" "# Task" | awk '/^## / { exit } { print }' \
+    | grep -qxF -- "$FM_BRIEF_DELIVERABLE_PAGE_MARKER"; then
+    printf '%s\n' page
+  fi
+}
 
 # Print the highest Task slot version a brief's `# Task` marker names, or 0.
 fm_brief_task_slots_version() {  # <file>
@@ -1130,12 +1152,61 @@ fm_dod_named_head_reachable_outside_worktree() {  # <worktree> <project> <mode> 
   [ "$mode" = local-only ] && fm_dod_ref_contains "$project" refs/heads "$sha"
 }
 
+# The refusal reason for a page deliverable's done: <note> that carries no drive
+# evidence, or nothing when it does. Accepted: a drive=<absolute path> token
+# naming an existing file or directory (a drive recipe, or the evidence a drive
+# retained), or a no-drive: token followed by a reason. The path ends at the
+# first whitespace. Only existence is checked here, so a narrower evidence class
+# can layer on this one test.
+fm_dod_page_evidence_reason() {  # <note>
+  local note=$1 path
+  if printf '%s\n' "$note" | grep -Eq '(^|[[:space:]])no-drive:[[:space:]]*[^[:space:]]'; then
+    return 0
+  fi
+  if printf '%s\n' "$note" | grep -Eq '(^|[[:space:]])drive='; then
+    path=$(printf '%s\n' "$note" | awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^drive=/) { print substr($i, 7); exit } }')
+    case "$path" in
+      /*) [ -e "$path" ] && return 0 ;;
+    esac
+    printf '%s\n' "page deliverable reported done with drive=$path, which is not an existing absolute path; name the drive recipe or its retained evidence by its absolute path"
+    return 0
+  fi
+  if printf '%s\n' "$note" | grep -Eq '(^|[[:space:]])no-drive:'; then
+    printf '%s\n' "page deliverable reported done with no-drive: but no reason; write no-drive: <reason>"
+    return 0
+  fi
+  printf '%s\n' "page deliverable reported done without drive evidence: drive it in a real browser and add drive=<absolute path to the drive recipe or its retained evidence>, or no-drive: <reason>; a project with no drive recipe needs one first"
+}
+
+# Append one line to <data-dir>/skill-fires.tsv, the home's skill-fire log:
+# tab-separated ts (UTC), task, rule, source (the writing script), and ref.
+# The log is created on first write and only ever appended; tabs and newlines
+# inside a field become spaces. With <once> set, a line repeating the same task,
+# rule, source, and ref is not written again, for a writer that re-reads the
+# same refusal on every observation.
+fm_skill_fire_append() {  # <data-dir> <task> <rule> <source> <ref> [<once>]
+  local data=$1 once=${6:-} log field fields=()
+  shift
+  for field in "$1" "$2" "$3" "$4"; do
+    fields+=("$(printf '%s' "$field" | tr '\t\n\r' '   ')")
+  done
+  log="$data/skill-fires.tsv"
+  if [ -n "$once" ] && [ -f "$log" ] && awk -F'\t' -v t="${fields[0]}" -v r="${fields[1]}" -v s="${fields[2]}" -v f="${fields[3]}" \
+    '$2 == t && $3 == r && $4 == s && $5 == f { found = 1; exit } END { exit !found }' "$log"; then
+    return 0
+  fi
+  mkdir -p "$data" 2>/dev/null || return 1
+  printf '%s\t%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${fields[@]}" >> "$log"
+}
+
 # 0 when <line> is not a ship done: to gate, when the task's meta records
 # forge=external and fm_dod_accept_external_review_done accepts it, when it
 # names the task's recorded PR whose head the forge holds, when it names a
 # Gerrit change whose current patch set carries the worker copy's HEAD tree, or otherwise when its named
 # head - the worker copy's HEAD - is reachable outside that disposable copy. A
-# published-for-review report that names no Gerrit change is refused.
+# published-for-review report that names no Gerrit change is refused, and so
+# is any gated done of a task whose meta records deliverable=page while
+# fm_dod_page_evidence_reason has a reason, before any head is read.
 # There is no free-text SHA scan: a SHA that happens to appear in the note is
 # not the named head. 1 when
 # the claim is refused; stdout then holds a one-line reason and no other
@@ -1145,8 +1216,15 @@ fm_dod_named_head_reachable_outside_worktree() {  # <worktree> <project> <mode> 
 # set to local, a claim the gate could settle only through a live forge or
 # no-mistakes read is neither accepted nor refused: 2, with the reason on stdout.
 fm_dod_accept_ship_done() {  # <kind> <mode> <worktree> <project> <line> [<state> <id> <meta> [<reads>]]
-  local kind=$1 mode=$2 wt=$3 project=$4 line=$5 state=${6:-} id=${7:-} meta=${8:-} reads=${9:-} url sha gerrit
+  local kind=$1 mode=$2 wt=$3 project=$4 line=$5 state=${6:-} id=${7:-} meta=${8:-} reads=${9:-} url sha gerrit page_reason
   fm_dod_should_gate_ship_done "$kind" "$mode" "$line" || return 0
+  if [ -n "$meta" ] && [ "$(fm_dod_meta_value "$meta" deliverable)" = page ]; then
+    page_reason=$(fm_dod_page_evidence_reason "$(status_line_note "$line")")
+    if [ -n "$page_reason" ]; then
+      printf '%s\n' "$page_reason"
+      return 1
+    fi
+  fi
   if [ -n "$meta" ] && [ "$(fm_dod_meta_value "$meta" forge)" = external ]; then
     fm_dod_accept_external_review_done "$wt" "$project" "$line" "$meta"
     return

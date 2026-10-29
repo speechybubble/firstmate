@@ -697,6 +697,10 @@
       "audience": "agent-runtime"
     },
     {
+      "path": ".agents/skills/verify-firstmate-brief/features/page-deliverable.md",
+      "audience": "agent-runtime"
+    },
+    {
       "path": ".agents/skills/verify-firstmate-brief/features/scout.md",
       "audience": "agent-runtime"
     },

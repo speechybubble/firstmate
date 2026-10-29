@@ -649,6 +649,77 @@ test_external_review_done_with_backup_needs_the_copy() {
   pass "external review done with a backup: refused until HEAD is under refs/remotes/backup/backup/, then accepted"
 }
 
+# A ship whose meta records deliverable=page needs drive evidence on every gated
+# done:, ahead of the head checks; every other ship's done is unchanged. The
+# copy's head is pushed, so the page rule is the only thing that can refuse.
+test_page_deliverable_done_needs_drive_evidence() {
+  local repo wt meta plain evidence reason rc pr='PR https://example.test/o/r/pull/7'
+  repo="$TMP_ROOT/page-repo"
+  wt="$TMP_ROOT/page-wt"
+  fm_git_worktree "$repo" "$wt" fm/page
+  git -C "$wt" commit -q --allow-empty -m 'the page'
+  git -C "$wt" update-ref refs/remotes/origin/fm/page "$(git -C "$wt" rev-parse HEAD)"
+  meta="$TMP_ROOT/page.meta"
+  plain="$TMP_ROOT/page-plain.meta"
+  evidence="$TMP_ROOT/page-drive-evidence"
+  mkdir -p "$evidence"
+  printf '%s\n' kind=ship mode=direct-PR deliverable=page > "$meta"
+  printf '%s\n' kind=ship mode=direct-PR > "$plain"
+
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr" "$TMP_ROOT" page "$meta"); rc=$?
+  expect_code 1 "$rc" "a page done with neither marker was accepted"
+  assert_contains "$reason" "without drive evidence" "the no-evidence refusal did not explain itself"
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$TMP_ROOT/no-such-recipe" "$TMP_ROOT" page "$meta"); rc=$?
+  expect_code 1 "$rc" "a page done naming a missing drive path was accepted"
+  assert_contains "$reason" "drive=$TMP_ROOT/no-such-recipe, which is not an existing absolute path" "the missing-path refusal did not name the path"
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=recipe.md" "$TMP_ROOT" page "$meta"); rc=$?
+  expect_code 1 "$rc" "a page done naming a relative drive path was accepted"
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr no-drive:" "$TMP_ROOT" page "$meta"); rc=$?
+  expect_code 1 "$rc" "a page done with a bare no-drive: was accepted"
+  assert_contains "$reason" "no-drive: but no reason" "the bare no-drive refusal did not explain itself"
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr no-drive:   " "$TMP_ROOT" page "$meta"); rc=$?
+  expect_code 1 "$rc" "a page done with a whitespace-only no-drive: reason was accepted"
+
+  accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$TMP_ROOT/page.meta" "$TMP_ROOT" page "$meta" \
+    || fail "a page done naming an existing drive file was refused"
+  accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$evidence and screenshots" "$TMP_ROOT" page "$meta" \
+    || fail "a page done naming an existing drive directory was refused"
+  accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr no-drive: the page is a static email template" "$TMP_ROOT" page "$meta" \
+    || fail "a page done with a stated no-drive reason was refused"
+  accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr" "$TMP_ROOT" page "$plain" \
+    || fail "a ship that is not a page deliverable now needs drive evidence"
+  accept_done ship no-mistakes "$wt" "$repo" "done [at=1]: implementation ready" "$TMP_ROOT" page "$meta" \
+    || fail "a page ship's no-mistakes handoff done is now gated"
+
+  wt="$TMP_ROOT/page-unpushed-wt"
+  fm_git_worktree "$repo" "$wt" fm/page-unpushed
+  git -C "$wt" commit -q --allow-empty -m 'not pushed'
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr no-drive: nothing to drive" "$TMP_ROOT" page "$meta"); rc=$?
+  expect_code 1 "$rc" "drive evidence let an unpushed head through"
+  assert_contains "$reason" "is unreachable outside the worker copy" "drive evidence replaced the named-head gate"
+  pass "page deliverable done: refused without drive evidence, a missing or relative path, or a bare no-drive:; accepted with an existing path or a reason; other ships unchanged"
+}
+
+# The skill-fire log is created on first write, appends tab-separated lines with
+# their own fields kept whole, and a once write never repeats an identical fire.
+test_skill_fire_append_writes_the_log() {
+  local data="$TMP_ROOT/fires/data" log
+  log="$data/skill-fires.tsv"
+  fm_skill_fire_append "$data" t1 page fm-brief.sh "/x/brief.md" || fail "first fire was not written"
+  assert_present "$log" "the fire log was not created on first write"
+  fm_skill_fire_append "$data" t1 page-refused fm-crew-state.sh $'a\treason\nsplit' once || fail "once fire was not written"
+  fm_skill_fire_append "$data" t1 page-refused fm-crew-state.sh $'a\treason\nsplit' once || fail "repeated once fire failed"
+  fm_skill_fire_append "$data" t2 page-refused fm-crew-state.sh $'a\treason\nsplit' once || fail "other task's once fire failed"
+  [ "$(wc -l < "$log" | tr -d ' ')" = 3 ] || fail "the fire log does not hold exactly three lines: $(cat "$log")"
+  [ "$(awk -F'\t' 'NF != 5' "$log")" = '' ] || fail "a fire line does not have five fields: $(cat "$log")"
+  [ "$(awk -F'\t' '$2 == "t1" && $3 == "page-refused" { print $5 }' "$log")" = 'a reason split' ] \
+    || fail "tabs and newlines in a field were not flattened"
+  pass "skill-fire log: created on first write, five tab-separated fields, once writes deduplicated per task"
+}
+
+test_page_deliverable_done_needs_drive_evidence
+test_skill_fire_append_writes_the_log
+
 test_external_forge_is_direct_pr_only
 test_external_rule_one_forbids_every_task_push
 test_external_dod_renders_the_adapter

@@ -94,7 +94,7 @@ Each effective `FM_HOME` contains private operational directories.
 
 - Project and secondmate registries.
 - Captain preferences and optional shared captain preferences.
-- Learnings, backlog, briefs, scout reports, optional task status archives, and the optional per-task no-mistakes pipeline-spend ledger.
+- Learnings, backlog, briefs, scout reports, optional task status archives, the optional per-task no-mistakes pipeline-spend ledger, and the [skill-fire log](#page-deliverables-and-the-skill-fire-log-dataskill-firestsv).
 - Explicitly installed content-addressed extension packages under `data/extensions/packages/`.
 
 `state/` holds runtime records:
@@ -1478,6 +1478,18 @@ An absent or blank file changes nothing, while a present path that is not a read
 The text is static and never executed or expanded; secondmate charters never take it, and the file is local to each home rather than part of secondmate inherited configuration.
 
 `bin/fm-brief.sh`'s header owns the placement rule and its safety argument.
+
+## Page deliverables and the skill-fire log (data/skill-fires.tsv)
+
+Firstmate declares a ship a page deliverable at intake with `bin/fm-brief.sh --deliverable page`, and `bin/fm-spawn.sh` records it as `deliverable=page` in the task metadata.
+Every `done:` line the ship-done gate tests for that task must then carry `drive=<existing absolute path>`, naming the drive recipe or the evidence its drive retained, or `no-drive: <reason>`; otherwise the gate refuses it and the task reads blocked.
+Tasks without the key are unchanged.
+
+The skill-fire log records when those conditions fire, so a later review can compare each rule's fires with the work that actually needed its evidence.
+The log is append-only and tab-separated, one line per fire with the columns `ts` (UTC), `task`, `rule`, `source` (the writing script), and `ref`, and its first write creates it under the active home's `data/`.
+The scaffold writes a `page` line whose `ref` is the brief path, and `bin/fm-crew-state.sh` writes one `page-refused` line per distinct refusal, whose `ref` is the refusal reason.
+
+`bin/fm-dod-lib.sh` owns the evidence rule (`fm_dod_page_evidence_reason`) and the log format (`fm_skill_fire_append`).
 
 ## Herdr lifecycle spawn guard (config/herdr-lifecycle-spawn-guard)
 

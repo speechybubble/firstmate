@@ -1417,6 +1417,47 @@ test_home_brief_include_is_appended_last() {
   pass "fm-brief.sh: the home brief include lands last on ship and scout, verbatim, and fails closed"
 }
 
+# --deliverable page declares a page ship at intake: the marker and its drive
+# instruction land in # Task outside every slot, the scaffold records one `page`
+# skill fire, and the flag is refused off a ship or with another value.
+test_deliverable_page_marks_the_brief_and_records_a_fire() {
+  local home brief log out rc mode fields
+  home="$TMP_ROOT/deliverable-home"
+  log="$home/data/skill-fires.tsv"
+  mkdir -p "$home/data"
+  for mode in no-mistakes direct-PR local-only; do
+    FM_HOME="$home" "$ROOT/bin/fm-brief.sh" "page-$mode" some-proj --mode "$mode" --deliverable page >/dev/null \
+      || fail "$mode page scaffold failed"
+    brief="$home/data/page-$mode/brief.md"
+    [ "$(fm_brief_deliverable "$brief")" = page ] || fail "$mode page brief does not declare a page deliverable"
+    [ "$(fm_brief_task_slots_version "$brief")" = 3 ] || fail "$mode page marker changed the Task slot version"
+    [ "$(fm_brief_task_heading_body "$brief" "## Captain's intent")" = '{TASK}' ] \
+      || fail "$mode page instruction leaked into the captain's intent slot"
+    assert_grep 'drive=<absolute path to the recipe or the evidence the drive retained>' "$brief" \
+      "$mode page brief does not tell the worker what the done line carries"
+    assert_grep 'no-drive: <reason>' "$brief" "$mode page brief does not offer the stated-reason path"
+    fields=$(awk -F'\t' -v id="page-$mode" '$2 == id { print NF "|" $3 "|" $4 "|" $5 }' "$log")
+    [ "$fields" = "5|page|fm-brief.sh|$brief" ] || fail "$mode page scaffold fire line is wrong (got: $fields)"
+    [[ "$(awk -F'\t' -v id="page-$mode" '$2 == id { print $1 }' "$log")" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$ ]] \
+      || fail "$mode page fire line has no UTC timestamp"
+  done
+
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" page-plain some-proj --mode no-mistakes >/dev/null || fail "plain ship scaffold failed"
+  [ -z "$(fm_brief_deliverable "$home/data/page-plain/brief.md")" ] || fail "a ship without --deliverable declared a page"
+  assert_no_grep 'page-plain' "$log" "a ship without --deliverable recorded a skill fire"
+
+  out=$(FM_HOME="$home" "$ROOT/bin/fm-brief.sh" page-scout some-proj --scout --deliverable page 2>&1); rc=$?
+  expect_code 1 "$rc" "a scout must refuse --deliverable"
+  assert_contains "$out" "--deliverable applies only to ship briefs" "scout refusal did not explain itself"
+  assert_absent "$home/data/page-scout" "a refused scout left a scaffold behind"
+  out=$(FM_HOME="$home" "$ROOT/bin/fm-brief.sh" page-site some-proj --mode direct-PR --deliverable site 2>&1); rc=$?
+  expect_code 1 "$rc" "an unknown deliverable must be refused"
+  assert_contains "$out" "--deliverable must be page" "unknown deliverable refusal did not explain itself"
+  assert_absent "$home/data/page-site" "a refused deliverable left a scaffold behind"
+  assert_no_grep $'\tpage-scout\t' "$log" "a refused scaffold recorded a skill fire"
+  pass "fm-brief.sh: --deliverable page marks # Task outside the slots, records one fire, and is ship-only"
+}
+
 # --base-branch names the branch a task starts from and a ship's PR targets. It is
 # recorded as a Base branch line under # Setup, which fm-spawn reads back, and is
 # refused where no pull request carries the work.
@@ -1901,6 +1942,7 @@ test_workers_wait_without_spending_turns
 test_wait_no_turns_absent_keeps_the_previous_brief
 test_inbox_guidance_explains_marked_body_terminator
 test_home_brief_include_is_appended_last
+test_deliverable_page_marks_the_brief_and_records_a_fire
 test_base_branch_is_rendered_and_bounded
 test_ship_branch_prefix_defaults_to_legacy_fm
 test_ship_branch_prefix_override_is_consistent_across_modes
