@@ -698,7 +698,7 @@ test_page_deliverable_done_needs_drive_evidence() {
     || fail "a history read re-refused a finished page done whose drive evidence cleanup removed"
 
   wt="$TMP_ROOT/page-unpushed-wt"
-  fm_git_worktree "$repo" "$wt" fm/page-unpushed
+  git -C "$repo" worktree add --quiet -b fm/page-unpushed "$wt"
   git -C "$wt" commit -q --allow-empty -m 'not pushed'
   reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr no-drive: nothing to drive" "$TMP_ROOT" page "$meta"); rc=$?
   expect_code 1 "$rc" "drive evidence let an unpushed head through"

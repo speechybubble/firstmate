@@ -1483,6 +1483,7 @@ The text is static and never executed or expanded; secondmate charters never tak
 
 Firstmate declares a ship a page deliverable at intake with `bin/fm-brief.sh --deliverable page`, and `bin/fm-spawn.sh` records it as `deliverable=page` in the task metadata.
 Every `done:` line the ship-done gate tests for that task must then carry `drive=<existing absolute path>`, naming the drive recipe or the evidence its drive retained, or `no-drive: <reason>`; otherwise the gate refuses it and the task reads blocked.
+The history-only read of an already recorded completion skips this check, so drive evidence removed by cleanup never re-refuses a finished task.
 Tasks without the key are unchanged.
 
 The skill-fire log records when those conditions fire, so a later review can compare each rule's fires with the work that actually needed its evidence.
