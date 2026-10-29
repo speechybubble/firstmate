@@ -1206,7 +1206,9 @@ fm_skill_fire_append() {  # <data-dir> <task> <rule> <source> <ref> [<once>]
 # head - the worker copy's HEAD - is reachable outside that disposable copy. A
 # published-for-review report that names no Gerrit change is refused, and so
 # is any gated done of a task whose meta records deliverable=page while
-# fm_dod_page_evidence_reason has a reason, before any head is read.
+# fm_dod_page_evidence_reason has a reason, before any head is read. A
+# <reads> local history read skips that page check, so drive evidence removed
+# by cleanup after an accepted done never re-refuses the finished task.
 # There is no free-text SHA scan: a SHA that happens to appear in the note is
 # not the named head. 1 when
 # the claim is refused; stdout then holds a one-line reason and no other
@@ -1218,7 +1220,7 @@ fm_skill_fire_append() {  # <data-dir> <task> <rule> <source> <ref> [<once>]
 fm_dod_accept_ship_done() {  # <kind> <mode> <worktree> <project> <line> [<state> <id> <meta> [<reads>]]
   local kind=$1 mode=$2 wt=$3 project=$4 line=$5 state=${6:-} id=${7:-} meta=${8:-} reads=${9:-} url sha gerrit page_reason
   fm_dod_should_gate_ship_done "$kind" "$mode" "$line" || return 0
-  if [ -n "$meta" ] && [ "$(fm_dod_meta_value "$meta" deliverable)" = page ]; then
+  if [ "$reads" != local ] && [ -n "$meta" ] && [ "$(fm_dod_meta_value "$meta" deliverable)" = page ]; then
     page_reason=$(fm_dod_page_evidence_reason "$(status_line_note "$line")")
     if [ -n "$page_reason" ]; then
       printf '%s\n' "$page_reason"

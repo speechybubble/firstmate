@@ -183,7 +183,8 @@
 # read could settle reads unknown as an ungated history claim. The fleet snapshot uses it
 # only for tasks whose structured history records completion.
 #
-# Read-only and side-effect free. Always exits 0 on a successful read regardless
+# Read-only and side-effect free except for its one write: the page-refused
+# skill-fire append described at the top. Always exits 0 on a successful read regardless
 # of state; exit 2 only on a usage error (no id).
 set -u
 

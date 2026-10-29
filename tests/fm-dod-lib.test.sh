@@ -12,7 +12,7 @@ set -u
 TMP_ROOT=$(fm_test_tmproot fm-dod-lib)
 fm_git_identity fmtest fmtest@example.invalid
 
-accept_done() {  # <kind> <mode> <worktree> <project> <line> [<state> <id> <meta>]
+accept_done() {  # <kind> <mode> <worktree> <project> <line> [<state> <id> <meta> [<reads>]]
   fm_dod_accept_ship_done "$@"
 }
 
@@ -691,13 +691,19 @@ test_page_deliverable_done_needs_drive_evidence() {
   accept_done ship no-mistakes "$wt" "$repo" "done [at=1]: implementation ready" "$TMP_ROOT" page "$meta" \
     || fail "a page ship's no-mistakes handoff done is now gated"
 
+  rm -rf "$evidence"
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$evidence" "$TMP_ROOT" page "$meta"); rc=$?
+  expect_code 1 "$rc" "a live read accepted a page done whose drive evidence is gone"
+  accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$evidence" "$TMP_ROOT" page "$meta" local \
+    || fail "a history read re-refused a finished page done whose drive evidence cleanup removed"
+
   wt="$TMP_ROOT/page-unpushed-wt"
   fm_git_worktree "$repo" "$wt" fm/page-unpushed
   git -C "$wt" commit -q --allow-empty -m 'not pushed'
   reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr no-drive: nothing to drive" "$TMP_ROOT" page "$meta"); rc=$?
   expect_code 1 "$rc" "drive evidence let an unpushed head through"
   assert_contains "$reason" "is unreachable outside the worker copy" "drive evidence replaced the named-head gate"
-  pass "page deliverable done: refused without drive evidence, a missing or relative path, or a bare no-drive:; accepted with an existing path or a reason; other ships unchanged"
+  pass "page deliverable done: refused without drive evidence, a missing or relative path, or a bare no-drive:; accepted with an existing path or a reason; history reads keep a cleaned-up drive path; other ships unchanged"
 }
 
 # The skill-fire log is created on first write, appends tab-separated lines with
