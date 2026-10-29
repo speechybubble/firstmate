@@ -1,0 +1,7 @@
+2026-10-29T01:30:57Z	pageship	page	fm-brief.sh	/tmp/fm-lab.8jeY22/data/pageship/brief.md
+2026-10-29T01:30:58Z	pageeq	page	fm-brief.sh	/tmp/fm-lab.8jeY22/data/pageeq/brief.md
+2026-10-29T01:33:16Z	pageship	page-refused	fm-crew-state.sh	page deliverable reported done without drive evidence: drive it in a real browser and add drive=<absolute path to the drive recipe or its retained evidence>, or no-drive: <reason>; a project with no drive recipe needs one first
+2026-10-29T01:33:17Z	pageship	page-refused	fm-crew-state.sh	page deliverable reported done with drive=/tmp/fm-lab.8jeY22/data/pageship/no-such-recipe.md, which is not an existing absolute path; name the drive recipe or its retained evidence by its absolute path
+2026-10-29T01:33:18Z	pageship	page-refused	fm-crew-state.sh	page deliverable reported done with drive=drive.txt, which is not an existing absolute path; name the drive recipe or its retained evidence by its absolute path
+2026-10-29T01:33:19Z	pageship	page-refused	fm-crew-state.sh	page deliverable reported done with no-drive: but no reason; write no-drive: <reason>
+2026-10-29T01:33:21Z	pageship	page-refused	fm-crew-state.sh	page deliverable reported done with drive=/tmp/fm-lab.8jeY22/data/pageship/drive.txt, which is not an existing absolute path; name the drive recipe or its retained evidence by its absolute path

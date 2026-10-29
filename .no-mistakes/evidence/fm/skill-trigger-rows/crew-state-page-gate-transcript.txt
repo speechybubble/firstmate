@@ -1,0 +1,51 @@
+### worker's own done line: done [at=1793237539]: ready in branch fm/pageship drive=/tmp/fm-lab.8jeY22/data/pageship/drive.txt
+state: done · source: status-log · ready in branch fm/pageship drive=/tmp/fm-lab.8jeY22/data/pageship/drive.txt
+  skill-fires.tsv page-refused lines: 0
+
+### plainship (non-page ship, no drive evidence): done [at=1793237530]: ready in branch fm/plainship
+state: done · source: status-log · ready in branch fm/plainship
+  skill-fires.tsv page-refused lines: 0
+
+### status line appended: done: ready in branch fm/pageship
+state: blocked · source: status-log · page deliverable reported done without drive evidence: drive it in a real browser and add drive=<absolute path to the drive recipe or its retained evidence>, or no-drive: <reason>; a project with no drive recipe needs one first
+  skill-fires.tsv page-refused lines: 1
+### same refused line read again
+state: blocked · source: status-log · page deliverable reported done without drive evidence: drive it in a real browser and add drive=<absolute path to the drive recipe or its retained evidence>, or no-drive: <reason>; a project with no drive recipe needs one first
+  skill-fires.tsv page-refused lines: 1
+
+### status line appended: done: ready in branch fm/pageship drive=/tmp/fm-lab.8jeY22/data/pageship/no-such-recipe.md
+state: blocked · source: status-log · page deliverable reported done with drive=/tmp/fm-lab.8jeY22/data/pageship/no-such-recipe.md, which is not an existing absolute path; name the drive recipe or its retained evidence by its absolute path
+  skill-fires.tsv page-refused lines: 2
+
+### status line appended: done: ready in branch fm/pageship drive=drive.txt
+state: blocked · source: status-log · page deliverable reported done with drive=drive.txt, which is not an existing absolute path; name the drive recipe or its retained evidence by its absolute path
+  skill-fires.tsv page-refused lines: 3
+
+### status line appended: done: ready in branch fm/pageship no-drive:
+state: blocked · source: status-log · page deliverable reported done with no-drive: but no reason; write no-drive: <reason>
+  skill-fires.tsv page-refused lines: 4
+
+### status line appended: done: ready in branch fm/pageship no-drive: static page, lab has no browser recipe
+state: done · source: status-log · ready in branch fm/pageship no-drive: static page, lab has no browser recipe
+  skill-fires.tsv page-refused lines: 4
+
+### status line appended: done: ready in branch fm/pageship drive=/tmp/fm-lab.8jeY22/data/pageship/drive.txt
+state: done · source: status-log · ready in branch fm/pageship drive=/tmp/fm-lab.8jeY22/data/pageship/drive.txt
+  skill-fires.tsv page-refused lines: 4
+
+### evidence removed by cleanup; live read vs history-only read (FM_CREW_STATE_HISTORY_ONLY=1)
+-- live:
+state: blocked · source: status-log · page deliverable reported done with drive=/tmp/fm-lab.8jeY22/data/pageship/drive.txt, which is not an existing absolute path; name the drive recipe or its retained evidence by its absolute path
+  skill-fires.tsv page-refused lines: 5
+-- history-only:
+state: done · source: status-log · ready in branch fm/pageship drive=/tmp/fm-lab.8jeY22/data/pageship/drive.txt
+  skill-fires.tsv page-refused lines: 5
+
+### final data/skill-fires.tsv (cat -A)
+2026-10-29T01:30:57Z^Ipageship^Ipage^Ifm-brief.sh^I/tmp/fm-lab.8jeY22/data/pageship/brief.md$
+2026-10-29T01:30:58Z^Ipageeq^Ipage^Ifm-brief.sh^I/tmp/fm-lab.8jeY22/data/pageeq/brief.md$
+2026-10-29T01:33:16Z^Ipageship^Ipage-refused^Ifm-crew-state.sh^Ipage deliverable reported done without drive evidence: drive it in a real browser and add drive=<absolute path to the drive recipe or its retained evidence>, or no-drive: <reason>; a project with no drive recipe needs one first$
+2026-10-29T01:33:17Z^Ipageship^Ipage-refused^Ifm-crew-state.sh^Ipage deliverable reported done with drive=/tmp/fm-lab.8jeY22/data/pageship/no-such-recipe.md, which is not an existing absolute path; name the drive recipe or its retained evidence by its absolute path$
+2026-10-29T01:33:18Z^Ipageship^Ipage-refused^Ifm-crew-state.sh^Ipage deliverable reported done with drive=drive.txt, which is not an existing absolute path; name the drive recipe or its retained evidence by its absolute path$
+2026-10-29T01:33:19Z^Ipageship^Ipage-refused^Ifm-crew-state.sh^Ipage deliverable reported done with no-drive: but no reason; write no-drive: <reason>$
+2026-10-29T01:33:21Z^Ipageship^Ipage-refused^Ifm-crew-state.sh^Ipage deliverable reported done with drive=/tmp/fm-lab.8jeY22/data/pageship/drive.txt, which is not an existing absolute path; name the drive recipe or its retained evidence by its absolute path$

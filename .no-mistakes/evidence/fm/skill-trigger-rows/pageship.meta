@@ -1,0 +1,16 @@
+window=primary:fm-pageship
+endpoint_task_id=pageship
+worktree=/tmp/fm-lab.8jeY22/treehouse/.treehouse/site-2f77b9/1/site
+project=/tmp/fm-lab.8jeY22/projects/site
+harness=claude
+approval_mode=auto
+kind=ship
+mode=local-only
+yolo=on
+branch=fm/pageship
+tasktmp=/tmp/fm-pageship
+deliverable=page
+model=sonnet
+effort=low
+busy_gen=g1793237486.3425073.30081
+spawn_gen=s1793237487.3418756.6781

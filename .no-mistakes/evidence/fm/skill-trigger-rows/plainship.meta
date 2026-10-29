@@ -1,0 +1,15 @@
+window=primary:fm-plainship
+endpoint_task_id=plainship
+worktree=/tmp/fm-lab.8jeY22/treehouse/.treehouse/site-2f77b9/2/site
+project=/tmp/fm-lab.8jeY22/projects/site
+harness=claude
+approval_mode=auto
+kind=ship
+mode=local-only
+yolo=on
+branch=fm/plainship
+tasktmp=/tmp/fm-plainship
+model=sonnet
+effort=low
+busy_gen=g1793237509.3441914.7017
+spawn_gen=s1793237510.3430768.28256
