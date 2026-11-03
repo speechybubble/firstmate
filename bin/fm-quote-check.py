@@ -62,12 +62,15 @@ Match. A quote matches when its words, in order and with nothing between them,
 appear inside one source message. Words are compared after Unicode NFKC
 folding, lower-casing and straightening curly apostrophes, and punctuation and
 spacing are ignored, so a changed, added, dropped or reordered word fails while
-a capital letter or a comma does not. An ellipsis or a [bracketed insertion]
-splits a quote into parts that must each match, in order, in the same message.
-A quote with no words is skipped and reported. There is no fuzzy matching: a
-paraphrase is a misquote.
+a capital letter or a comma does not. Words inside [brackets] are ordinary
+words and must match the source at their position. An ellipsis splits a quote
+into parts that must each match, in order, in the same message; such a quote is
+"verbatim with omissions", flagged for review rather than passed, and the
+source words left out between its parts are reported. A quote with no words is
+skipped and reported. There is no fuzzy matching: a paraphrase is a misquote.
 
-Nothing here prints source text; a check prints only the page's own quotes.
+Nothing here prints source text beyond the words an ellipsis left out of one
+quote; a check otherwise prints only the page's own quotes.
 """
 
 import argparse
@@ -287,7 +290,7 @@ def cmd_refresh(args):
 # ---------------------------------------------------------------- matching
 
 WORD = re.compile(r"[^\W_]+(?:'[^\W_]+)*")
-SPLITTERS = re.compile(r"\.\.\.|…|\[[^\]]*\]")
+ELLIPSIS = re.compile(r"\.\.\.|…")
 
 
 def words(text):
@@ -310,20 +313,31 @@ def load_source(path):
 
 
 def matches(quote, haystacks):
-    parts = [words(p) for p in SPLITTERS.split(quote)]
-    parts = [" " + " ".join(p) + " " for p in parts if p]
+    """Return (verdict, omitted source words) for one quote."""
+    pieces = ELLIPSIS.split(quote)
+    parts = [" " + " ".join(p) + " " for p in map(words, pieces) if p]
     if not parts:
-        return None
+        return "skipped", None
+    best = None
     for hay in haystacks:
-        pos = 0
-        for p in parts:
+        pos, omitted = 0, []
+        for i, p in enumerate(parts):
             found = hay.find(p, pos)
             if found < 0:
                 break
+            if i:
+                omitted += hay[pos:found].split()
             pos = found + len(p) - 1
         else:
-            return True
-    return False
+            if best is None or len(omitted) < len(best):
+                best = omitted
+            if not best:
+                break
+    if best is None:
+        return "misquote", None
+    if len(pieces) > 1:
+        return "verbatim with omissions", best
+    return "verbatim", None
 
 
 # ---------------------------------------------------------------- page reading
@@ -418,13 +432,13 @@ CUE = re.compile(
     r"|\bthe captain's (?:words|note|message|reply|answer)\b"
     r"|\bin your (?:own )?words\b",
     re.I)
-# A quoted span: double or curly quotes, or single quotes that open after a
-# non-letter and close before a non-letter, so apostrophes inside words are not
-# quote marks.
+# A quoted span: double or curly quotes, or single quotes (straight or curly)
+# that close before a non-letter, the straight ones also opening after a
+# non-letter, so apostrophes inside words are not quote marks.
 QUOTED = re.compile(
     r"“(?P<a>[^”]{1,2000})”"
     r"|\"(?P<b>[^\"]{1,2000})\""
-    r"|‘(?P<c>[^’]{1,2000})’(?![^\W_])"
+    r"|‘(?P<c>[^\n]{1,2000}?)’(?![^\W_])"
     r"|(?<![^\W_])'(?P<d>[^'\n]{1,2000}?)'(?![^\W_])")
 SENTENCE_END = re.compile(r"[.!?]\s|\n")
 
@@ -457,7 +471,11 @@ def page_quotes(path, marker):
     if marker == "attributed":
         return [re.sub(r"\s+", " ", q).strip() for q in attributed_quotes(text)]
     if marker.startswith("regex:"):
-        rx = re.compile(marker[6:], re.S)
+        try:
+            rx = re.compile(marker[6:], re.S)
+        except re.error as exc:
+            sys.stderr.write("fm-quote-check: invalid regex marker %r: %s\n" % (marker, exc))
+            sys.exit(2)
         out = []
         for m in rx.finditer(text):
             if "q" in rx.groupindex:
@@ -482,12 +500,16 @@ def cmd_check(args):
             return 2
         for marker in args.marker:
             for q in page_quotes(page, marker):
-                verdict = matches(q, haystacks)
-                results.append({"page": page, "marker": marker, "quote": q,
-                                "verdict": "skipped" if verdict is None else "verbatim" if verdict else "misquote"})
-    flagged = [r for r in results if r["verdict"] == "misquote"]
-    summary = {"quotes": len(results), "verbatim": sum(r["verdict"] == "verbatim" for r in results),
-               "misquote": len(flagged), "skipped": sum(r["verdict"] == "skipped" for r in results),
+                verdict, omitted = matches(q, haystacks)
+                r = {"page": page, "marker": marker, "quote": q, "verdict": verdict}
+                if omitted is not None:
+                    r["omitted"] = omitted
+                results.append(r)
+    count = {v: sum(r["verdict"] == v for r in results)
+             for v in ("verbatim", "verbatim with omissions", "misquote", "skipped")}
+    summary = {"quotes": len(results), "verbatim": count["verbatim"],
+               "misquote": count["misquote"], "omissions": count["verbatim with omissions"],
+               "skipped": count["skipped"],
                "source_built_at": doc.get("built_at"), "source_messages": len(haystacks)}
     if args.json:
         json.dump({"summary": summary, "results": results}, sys.stdout, ensure_ascii=False, indent=1)
@@ -495,11 +517,14 @@ def cmd_check(args):
     else:
         for r in results:
             if r["verdict"] != "verbatim" or args.verbose:
-                print('%s: "%s" (%s, %s)' % (r["verdict"], r["quote"], r["marker"], r["page"]))
-        print("quotes: %d checked, %d verbatim, %d misquoted, %d skipped; source %s, %d messages"
-              % (summary["quotes"], summary["verbatim"], summary["misquote"], summary["skipped"],
-                 summary["source_built_at"], summary["source_messages"]))
-    return 1 if flagged else 0
+                line = '%s: "%s" (%s, %s)' % (r["verdict"], r["quote"], r["marker"], r["page"])
+                if args.verbose and "omitted" in r:
+                    line += '; omitted: "%s"' % " ".join(r["omitted"])
+                print(line)
+        print("quotes: %d checked, %d verbatim, %d misquoted, %d with omissions, %d skipped; source %s, %d messages"
+              % (summary["quotes"], summary["verbatim"], summary["misquote"], summary["omissions"],
+                 summary["skipped"], summary["source_built_at"], summary["source_messages"]))
+    return 1 if summary["misquote"] or summary["omissions"] else 0
 
 
 def main(argv):

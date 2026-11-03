@@ -14,13 +14,14 @@
 #
 # check    Find each page's quotes of the captain by every --marker given
 #          (default class:verbatim; also attributed and regex:<re>) and look each
-#          one up in the source. Prints every quote that is not verbatim and a
-#          one-line count; --verbose prints the verbatim ones too, --json prints
-#          the full result. Before checking, the home's source is rebuilt when
+#          one up in the source. Prints every quote that is not verbatim
+#          (misquoted, verbatim with omissions, or skipped) and a one-line
+#          count; --verbose prints the verbatim ones too and the source words
+#          each ellipsis left out, --json prints the full result. Before checking, the home's source is rebuilt when
 #          it is missing or older than --max-age hours (default 24), so it is
 #          never more than a day behind; --source names a fixed source instead
 #          and is never rebuilt.
-# refresh  Rebuild the source now. A nightly job runs this.
+# refresh  Rebuild the source now, on demand.
 # status   Print the source's build time, message counts per channel and home,
 #          and whether it is older than the default --max-age.
 #
@@ -38,7 +39,8 @@
 # never committed, and no command prints its text.
 #
 # Exit codes: 0 every quote verbatim (check) or done; 1 at least one quote is
-# not in the captain's typed words; 2 usage error or an unreadable input.
+# not in the captain's typed words or is verbatim with omissions; 2 usage
+# error (including an unknown or invalid marker) or an unreadable input.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

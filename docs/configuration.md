@@ -1497,9 +1497,11 @@ The scaffold writes a `page` line whose `ref` is the brief path, and `bin/fm-cre
 
 `bin/fm-quote-check.sh check <page> [--marker <marker>]` flags any text a captain-facing page presents as the captain's words that doesn't appear word for word in what the captain typed, and exits 1 when it finds one, so a check entry can run it as a command that must exit zero.
 The marker names how that page marks the captain's words: `class:verbatim` (the default, the internal kit's verbatim box), `attributed` (a quoted span after a cue such as "you said" or "your words"), or `regex:<re>`.
+A quote matches when its words appear in order and unbroken inside one message, ignoring case and punctuation, and words inside [brackets] must match the source at their position like any other word.
+A quote with an ellipsis is reported as verbatim with omissions when its parts appear in order in one message; it's flagged for review, so `check` exits 1, and `--verbose` and `--json` list the source words the ellipsis left out.
 The source it reads is `data/captain-words/source.json` in the active home, built from the Claude Code transcripts of the root home and every local secondmate home in its `data/secondmates.md`, plus the notes typed into Lavish review pages inside those homes.
 A secondmate home resolves its local parent as the root, so a check run there covers the same homes.
-`check` rebuilds the source first when it's missing or more than a day old, and `bin/fm-quote-check.sh refresh` rebuilds it on demand for a nightly job.
+`check` rebuilds the source first when it's missing or more than a day old, and `bin/fm-quote-check.sh refresh` rebuilds it on demand.
 The source holds private conversation text, so it's written with owner-only permissions, never committed, and never printed; `status` reports only its build time and counts.
 `bin/fm-quote-check.py`'s header owns what counts as the captain's typed words, each marker, and the match rule; the wrapper's header owns the homes, the location, and freshness.
 

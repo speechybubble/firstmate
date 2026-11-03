@@ -71,6 +71,9 @@ rows = [
                     "origin": {"kind": "task-notification"}, "prompt": "task notification words"}},
     user("and how about design as well? I'm still not satisfied with it", "u11", origin=human, promptSource="typed"),
     user("pick the recommended direction", "u12", origin=human, promptSource="queued"),
+    user("i do not want to ship it", "u14", origin=human, promptSource="typed"),
+    user("i want to ship it", "u15", origin=human, promptSource="typed"),
+    user("it’s far too loud on the header", "u16", origin=human, promptSource="typed"),
 ]
 with open(main, "w") as fh:
     for r in rows:
@@ -164,6 +167,13 @@ test_invented_and_altered_quotes_are_flagged_and_real_ones_pass() {
   expect_code 1 "$RC" "one changed word is a misquote"
   check_page reordered class:verbatim '<blockquote class="verbatim">I probably have a short sentence, then a long one</blockquote>'
   expect_code 1 "$RC" "reordered words are a misquote"
+  # Typeset quotes: a curly apostrophe inside a curly single-quoted span.
+  check_page curly attributed '<p>You said &lsquo;it&rsquo;s far too quiet&rsquo;. ok</p>'
+  expect_code 1 "$RC" "a curly-quoted misquote holding a curly apostrophe is found and flagged"
+  assert_contains "$OUT" "misquote: \"it$(printf '\342\200\231')s far too quiet\"" "the whole curly span is the quote"
+  check_page curlyreal attributed '<p>You said &lsquo;it&rsquo;s far too loud&rsquo;. ok</p>'
+  expect_code 0 "$RC" "a real curly-quoted quote holding a curly apostrophe passes"
+  assert_contains "$OUT" "1 checked, 1 verbatim" "the real curly quote was found and matched"
   pass "an invented or altered quote is flagged while real quotes from both homes and board notes pass"
 }
 
@@ -180,14 +190,34 @@ test_words_the_captain_did_not_type_are_flagged() {
 
 test_ellipsis_parts_must_come_from_one_message() {
   check_page within class:verbatim '<blockquote class="verbatim">I probably have a long sentence &hellip; then I go back to long sentences</blockquote>'
-  expect_code 0 "$RC" "an ellipsis inside one message passes"
-  check_page bracket class:verbatim '<blockquote class="verbatim">for maintenance i [want] to add sentry and posthog</blockquote>'
-  expect_code 0 "$RC" "a bracketed insertion is an editorial gap, not a word"
+  expect_code 1 "$RC" "an ellipsis inside one message is flagged for review"
+  assert_contains "$OUT" 'verbatim with omissions: "I probably have a long sentence' "an ellipsis quote has its own status"
+  assert_contains "$OUT" "0 misquoted, 1 with omissions" "the count names the omission separately"
+  assert_not_contains "$OUT" "short one" "without --verbose the omitted words are not printed"
+  local out rc
+  printf '<!doctype html><html><body><blockquote class="verbatim">i do ... want to ship it</blockquote></body></html>\n' > "$PAGES/omit.html"
+  out=$(qc check "$PAGES/omit.html" --verbose 2>&1) && rc=0 || rc=$?
+  expect_code 1 "$rc" "an ellipsis that drops a word is flagged"
+  assert_contains "$out" 'verbatim with omissions: "i do ... want to ship it"' "the quote is verbatim with omissions"
+  assert_contains "$out" 'omitted: "not"' "--verbose names the omitted word"
+  out=$(qc check "$PAGES/omit.html" --json 2>&1) && rc=0 || rc=$?
+  expect_code 1 "$rc" "--json exits the same way"
+  python3 -I -c '
+import json, sys
+d = json.loads(sys.argv[1])
+assert [(r["verdict"], r["omitted"]) for r in d["results"]] == [("verbatim with omissions", ["not"])], d["results"]
+assert d["summary"]["omissions"] == 1 and d["summary"]["verbatim"] == 0, d["summary"]
+' "$out" || fail "the JSON result lists the omitted words: $out"
+  check_page bracketed class:verbatim '<blockquote class="verbatim">i [don t] want to ship it</blockquote>'
+  expect_code 1 "$RC" "bracketed words that are not in the source are a misquote"
+  assert_contains "$OUT" 'misquote: "i [don t] want to ship it"' "the bracketed edit is flagged as a misquote"
+  check_page bracket class:verbatim '<blockquote class="verbatim">for maintenance i [wan] to add sentry and posthog</blockquote>'
+  expect_code 0 "$RC" "bracketed words that match the source are ordinary words"
   check_page spliced class:verbatim '<blockquote class="verbatim">and how about design as well? &hellip; pick the recommended direction</blockquote>'
   expect_code 1 "$RC" "parts spliced from two messages are flagged"
   check_page backwards class:verbatim '<blockquote class="verbatim">then I go back to long sentences ... I probably have a long sentence</blockquote>'
   expect_code 1 "$RC" "parts out of order are flagged"
-  pass "an ellipsis joins parts of one message in order, never separate messages"
+  pass "an ellipsis joins parts of one message in order and is flagged with its omitted words, and bracketed words must match"
 }
 
 test_regex_marker_json_and_markdown_pages() {
@@ -226,6 +256,10 @@ test_check_refreshes_a_stale_source_and_keeps_a_fresh_one() {
   expect_code 2 "$rc" "a missing page is a usage error"
   out=$(qc check "$PAGES/fresh.html" --marker shout 2>&1) && rc=0 || rc=$?
   expect_code 2 "$rc" "an unknown marker is a usage error"
+  out=$(qc check "$PAGES/fresh.html" --marker 'regex:(unclosed' 2>&1) && rc=0 || rc=$?
+  expect_code 2 "$rc" "an invalid regex marker is a usage error"
+  assert_contains "$out" "invalid regex marker" "the invalid regex is named"
+  assert_not_contains "$out" "Traceback" "an invalid regex is reported without a traceback"
   pass "a check rebuilds a missing or day-old source, reuses a fresh one, and refuses bad input"
 }
 
