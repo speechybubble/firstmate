@@ -61,7 +61,8 @@
 #                 is marked stopped and the command exits 3.
 # An allowance quota-axi cannot read (absent, stale, unknown headroom) is
 # disclosed in the plan and leaves only the time and plateau rules in force
-# until a later check can read it. start writes the report's first checkpoint:
+# until a later check can read it; the first check that reads it records that
+# reading as the spend baseline. start writes the report's first checkpoint:
 # it creates report.md with the run-status line and a `## Run log` section
 # when the report is absent, or marks an existing one in progress when it has
 # no status line or a launcher's not-started status. A
@@ -104,8 +105,9 @@
 #   Run status: <plain sentence>
 # The worker owns the rest of the report. The ledger is tab-separated
 # `<epoch><TAB><event><TAB><detail>`, append-only, with the events start,
-# restart, finding, wait, resume, stop, finish, and salvage; a start detail is
-# space-separated key=value fields.
+# restart, baseline, finding, wait, resume, stop, finish, and salvage; a start
+# detail is space-separated key=value fields, and a baseline detail is the
+# allowance percent the spend line counts from when start could not read it.
 #
 # FM_RUN_BUDGET_NOW=<epoch> replaces the clock, for tests.
 # Exit: 0 success (continue and wrap-up included), 3 stop, 2 usage or invalid
@@ -252,6 +254,11 @@ detail_value() {  # <detail> <key>
     return 0
   fi
   printf '%s\n' "${1%% note=*}" | tr ' ' '\n' | awk -F= -v k="$2" '$1 == k { print substr($0, length(k) + 2); exit }'
+}
+
+# The baseline record's allowance percent, or nothing.
+baseline_pct() {  # <task-dir>
+  awk -F'\t' '$2 == "baseline" { print $3; exit }' "$(ledger "$1")"
 }
 
 last_activity_epoch() {  # <task-dir>
@@ -473,7 +480,7 @@ cmd_start() {
   if [ -n "$S_ALLOWANCE" ]; then
     read_allowance "$S_ALLOWANCE"
     if [ -z "$Q_PCT" ]; then
-      note="$S_ALLOWANCE allowance headroom unknown ($Q_WHY); time and plateau rules apply until a check can read it"
+      note="$S_ALLOWANCE allowance headroom unknown ($Q_WHY); time and plateau rules apply until a check can read it, and the spend line counts from that reading"
     else
       headroom=$((Q_PCT - S_RESERVE))
       if [ "$headroom" -le 0 ]; then
@@ -563,16 +570,19 @@ cmd_check() {
   reserve=$(detail_value "$detail" reserve)
   plateau=$(detail_value "$detail" plateau)
   start_pct=$(detail_value "$detail" start_pct)
+  [ -n "$start_pct" ] || start_pct=$(baseline_pct "$dir")
   elapsed=$((now - start))
   if [ -n "$allowance" ]; then
     read_allowance "$allowance"
     if [ -z "$Q_PCT" ]; then
       parts="$allowance allowance unknown ($Q_WHY)"
     else
-      if [ -n "$start_pct" ]; then
-        spent=$((start_pct - Q_PCT))
-        [ "$spent" -ge 0 ] || spent=0
+      if [ -z "$start_pct" ]; then
+        start_pct=$Q_PCT
+        ledger_append "$dir" "$now" baseline "$start_pct"
       fi
+      spent=$((start_pct - Q_PCT))
+      [ "$spent" -ge 0 ] || spent=0
       if [ "$Q_PCT" -le "$reserve" ]; then
         reason=reserve stop_detail="$allowance allowance at $Q_PCT percent, at or under its $reserve percent reserve"
       elif [ -n "$eff_spend" ] && [ -n "$spent" ] && [ "$spent" -ge "$eff_spend" ]; then

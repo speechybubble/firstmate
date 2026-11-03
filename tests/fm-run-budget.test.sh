@@ -176,6 +176,34 @@ test_low_headroom_plans_a_short_pass_or_stops_at_start() {
   pass "run budget: low headroom plans a short pass, no headroom stops at once, unknown headroom is disclosed"
 }
 
+test_first_readable_check_sets_the_spend_baseline() {
+  local dir out rc
+  export QUOTA_FIXTURE="$TMP_ROOT/late-baseline.json"
+  dir=$(scaffold late-baseline allowance=claude,spend=20)
+  reading 90 9999999 true
+  out=$(at 0 start "$dir"); rc=$?
+  expect_code 0 "$rc" "start with a stale reading"
+  assert_contains "$out" "headroom unknown (the reading is stale)" "a stale start reading must be disclosed"
+  reading 60
+  out=$(at 600 check "$dir"); rc=$?
+  expect_code 0 "$rc" "the first readable check"
+  assert_contains "$out" "continue: 0 of 20 allowance points used" "the first readable check must set the spend baseline"
+  reading 75
+  out=$(at 900 check "$dir"); rc=$?
+  expect_code 0 "$rc" "a later check keeps the first baseline"
+  assert_contains "$out" "0 of 20 allowance points used" "a later reading must not move the baseline"
+  reading 43
+  out=$(at 1200 check "$dir"); rc=$?
+  expect_code 0 "$rc" "a check near the spend line"
+  assert_contains "$out" "wrap-up: 17 of 20 allowance points used" "spend counted from the baseline must trigger the wrap-up"
+  reading 30
+  out=$(at 1800 check "$dir"); rc=$?
+  expect_code 3 "$rc" "a check over the spend line"
+  assert_contains "$out" "stop: spend: 30 of 20 allowance points used" "spend counted from the baseline must stop the run"
+  assert_grep 'run-status=stopped-spend' "$dir/report.md" "the spend stop must mark the report"
+  pass "run budget: the first readable check sets the spend baseline when start could not read the allowance"
+}
+
 test_relaunch_keeps_the_clock_and_salvage_marks_a_dead_run() {
   local dir out rc
   export QUOTA_FIXTURE="$TMP_ROOT/salvage.json"
@@ -221,4 +249,5 @@ fm_test_run \
   test_time_budget_and_finish_note \
   test_plateau_skips_declared_waits_and_resets_on_findings \
   test_low_headroom_plans_a_short_pass_or_stops_at_start \
+  test_first_readable_check_sets_the_spend_baseline \
   test_relaunch_keeps_the_clock_and_salvage_marks_a_dead_run
