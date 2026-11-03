@@ -17,10 +17,10 @@
 #          one up in the source. Prints every quote that is not verbatim
 #          (misquoted, verbatim with omissions, or skipped) and a one-line
 #          count; --verbose prints the verbatim ones too and the source words
-#          each ellipsis left out, --json prints the full result. Before checking, the home's source is rebuilt when
-#          it is missing or older than --max-age hours (default 24), so it is
-#          never more than a day behind; --source names a fixed source instead
-#          and is never rebuilt.
+#          each ellipsis left out, --json prints the full result. Before
+#          checking, the home's source is rebuilt when it is missing or older than --max-age hours (default 24), so it is
+#          never more than a day behind; --source names a fixed source
+#          instead and is never rebuilt.
 # refresh  Rebuild the source now, on demand.
 # status   Print the source's build time, message counts per channel and home,
 #          and whether it is older than the default --max-age.

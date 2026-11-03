@@ -64,10 +64,13 @@ folding, lower-casing and straightening curly apostrophes, and punctuation and
 spacing are ignored, so a changed, added, dropped or reordered word fails while
 a capital letter or a comma does not. Words inside [brackets] are ordinary
 words and must match the source at their position. An ellipsis splits a quote
-into parts that must each match, in order, in the same message; such a quote is
-"verbatim with omissions", flagged for review rather than passed, and the
-source words left out between its parts are reported. A quote with no words is
-skipped and reported. There is no fuzzy matching: a paraphrase is a misquote.
+into parts that must each match, in order, in the same message. When the
+closest such match leaves source words out between two parts, the quote is
+"verbatim with omissions", flagged for review rather than passed, and those
+words are reported; an ellipsis that leaves nothing out between parts (one the
+captain typed, or one marking a cut at either end) is plain verbatim. A quote
+with no words is skipped and reported. There is no fuzzy matching: a
+paraphrase is a misquote.
 
 Nothing here prints source text beyond the words an ellipsis left out of one
 quote; a check otherwise prints only the page's own quotes.
@@ -314,8 +317,7 @@ def load_source(path):
 
 def matches(quote, haystacks):
     """Return (verdict, omitted source words) for one quote."""
-    pieces = ELLIPSIS.split(quote)
-    parts = [" " + " ".join(p) + " " for p in map(words, pieces) if p]
+    parts = [" " + " ".join(p) + " " for p in map(words, ELLIPSIS.split(quote)) if p]
     if not parts:
         return "skipped", None
     best = None
@@ -335,7 +337,7 @@ def matches(quote, haystacks):
                 break
     if best is None:
         return "misquote", None
-    if len(pieces) > 1:
+    if best:
         return "verbatim with omissions", best
     return "verbatim", None
 
