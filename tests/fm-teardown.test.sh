@@ -1538,6 +1538,30 @@ move_case_to_pool_slot() {
   printf '%s\n' "$dest"
 }
 
+# A budgeted scout whose worker died mid-run leaves its report marked in
+# progress; cleanup must mark it ended without finishing, and must leave a run
+# that recorded its finish alone.
+test_scout_teardown_marks_an_unfinished_budgeted_run() {
+  local case_dir rc report
+  case_dir=$(make_case scout-run-budget)
+  write_meta "$case_dir" no-mistakes scout
+  prepare_scout_teardown "$case_dir"
+  report="$case_dir/data/task-x1/report.md"
+  printf '%s\n' '<!-- fm-run-budget: run-status=in-progress -->' 'Run status: in progress since 2026-11-03T12:00Z.' '' 'Scout report.' > "$report"
+  printf '1793700000\tstart\tplan=full minutes=60 eff_minutes=60 plateau=60 note=fits\n' > "$case_dir/data/task-x1/run-budget.tsv"
+  add_treehouse_clean_fd "$case_dir"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 0 "$rc" "scout-run-budget: teardown should proceed"
+  assert_grep 'run-status=ended-unfinished' "$report" "scout-run-budget: cleanup must mark the unfinished run"
+  assert_grep 'Scout report.' "$report" "scout-run-budget: cleanup must keep the report body"
+  pass "scout teardown marks an unfinished budgeted run's report ended without finishing"
+}
+
 test_scout_nested_clone_returns_with_no_untracked_entries() {
   local case_dir wt rc
   case_dir=$(make_case scout-nested-clean)
@@ -5946,6 +5970,7 @@ test_untracked_only_refusal_diagnostic
 test_tracked_edit_refusal_diagnostic
 test_mixed_refusal_diagnostic
 test_scout_nested_clone_returns_with_no_untracked_entries
+test_scout_teardown_marks_an_unfinished_budgeted_run
 test_ship_nested_clone_is_refused_and_bytes_stay
 test_dirty_return_warns_which_slot_was_lost
 test_dirty_return_warns_even_when_a_later_step_refuses

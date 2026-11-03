@@ -29,7 +29,7 @@
 # the scaffold does not classify task text or impose a method on routine edits.
 # Secondmate charters keep their supervisor contract instead.
 # Usage: fm-brief.sh <task-id> <repo-name> --mode <no-mistakes|direct-PR|local-only> [--branch-prefix <prefix>] [--base-branch <branch>] [--forge <none|gerrit|forgejo|external> [--shape squash]] [--deliverable page] [--herdr-lab]
-#        fm-brief.sh <task-id> <repo-name> --scout [--base-branch <branch>] [--herdr-lab]
+#        fm-brief.sh <task-id> <repo-name> --scout [--base-branch <branch>] [--run-budget <spec>] [--herdr-lab]
 #        fm-brief.sh <task-id> --secondmate {<project>...|--no-projects}
 #   --scout writes the scout contract instead: the deliverable is a report at
 #   data/<task-id>/report.md (no branch, no push, no PR) and the worktree is scratch.
@@ -112,6 +112,14 @@
 # page-evidence check, and appends a `page` line to the home's skill-fire log
 # (bin/fm-dod-lib.sh owns that check's evidence rule and the log).
 # Ship-only: a scout's completion is not gated on it.
+# --run-budget <spec> gives a long scout a spend line and a stop rule: a
+# `# Run budget` section, rendered by bin/fm-run-budget.sh (the single owner of
+# the spec, the section, the run ledger, and the stop verdicts), whose commands
+# make the run checkpoint its report from the first minute and stop with that
+# report marked when its time, allowance spend, allowance reserve, or plateau
+# rule fires. An invalid spec stops the scaffold before anything is written,
+# and rule 2 then also lets the worker write the run ledger.
+# Scout-only: a ship's deliverable is a PR, which has no partial report.
 # --project <dir> is the task's project directory, used to detect when a ship
 # brief would publish to firstmate's own repository: for such a task this
 # scaffold refuses a publishing mode that the home's role or recorded consent
@@ -258,6 +266,8 @@ PROJECT_DIR=
 PROJECT_DIR_SET=0
 DELIVERABLE=
 DELIVERABLE_SET=0
+RUN_BUDGET=
+RUN_BUDGET_SET=0
 POS=()
 want_value=
 for a in "$@"; do
@@ -274,6 +284,7 @@ for a in "$@"; do
       upstream-consent) UPSTREAM_CONSENT=$a; UPSTREAM_CONSENT_SET=1 ;;
       project) PROJECT_DIR=$a; PROJECT_DIR_SET=1 ;;
       deliverable) DELIVERABLE=$a; DELIVERABLE_SET=1 ;;
+      run-budget) RUN_BUDGET=$a; RUN_BUDGET_SET=1 ;;
       *) echo "error: internal parser state for --$want_value" >&2; exit 1 ;;
     esac
     want_value=
@@ -300,6 +311,8 @@ for a in "$@"; do
     --project=*) PROJECT_DIR=${a#--project=}; PROJECT_DIR_SET=1 ;;
     --deliverable) want_value=deliverable ;;
     --deliverable=*) DELIVERABLE=${a#--deliverable=}; DELIVERABLE_SET=1 ;;
+    --run-budget) want_value="run-budget" ;;
+    --run-budget=*) RUN_BUDGET=${a#--run-budget=}; RUN_BUDGET_SET=1 ;;
     # yolo never reaches the worker: it is firstmate's merge authority, not a
     # brief input. Refuse it loudly so it is never silently dropped here and then
     # believed to have been recorded.
@@ -387,6 +400,16 @@ if [ "$KIND" != ship ]; then
   }
   [ "$DELIVERABLE_SET" -eq 0 ] || {
     echo "error: --deliverable applies only to ship briefs; a scout's report and a secondmate charter carry no done-time page check" >&2
+    exit 1
+  }
+fi
+if [ "$RUN_BUDGET_SET" -eq 1 ]; then
+  [ "$KIND" = scout ] || {
+    echo "error: --run-budget applies only to scout briefs; a ship delivers a PR rather than a report a stopped run could leave partial" >&2
+    exit 1
+  }
+  "$SCRIPT_DIR/fm-run-budget.sh" render "$RUN_BUDGET" /run-budget-validation >/dev/null || {
+    echo "error: --run-budget is invalid; bin/fm-run-budget.sh's header owns the spec" >&2
     exit 1
   }
 fi
@@ -778,6 +801,16 @@ if "$SCRIPT_DIR/fm-bootstrap.sh" lavish-compatible >/dev/null 2>&1; then
 else
   LAVISH_LINE='Lavish is unavailable (lavish-axi is missing or below its supported version floor), so deliver your findings as a text report without Lavish, even for a visual deliverable.'
 fi
+RUN_BUDGET_BLOCK=
+SCOUT_WRITES="the report and the status file below"
+if [ "$RUN_BUDGET_SET" -eq 1 ]; then
+  RUN_BUDGET_BLOCK=$("$SCRIPT_DIR/fm-run-budget.sh" render "$RUN_BUDGET" "$DATA/$ID") || {
+    echo "error: --run-budget could not be rendered" >&2
+    exit 1
+  }
+  RUN_BUDGET_BLOCK="$RUN_BUDGET_BLOCK"$'\n\n'
+  SCOUT_WRITES="the report, the run ledger your run budget names, and the status file below"
+fi
 cat > "$BRIEF" <<EOF
 You are a crewmate: an autonomous worker agent managed by firstmate. Work on your own; do not wait for a human.
 
@@ -793,7 +826,7 @@ $EXECUTION_SECTION
 
 $HERDR_SECTION
 
-# Setup
+$RUN_BUDGET_BLOCK# Setup
 $SETUP_BASE
 This is a SCOUT task: the deliverable is a written report, not a PR.
 The worktree is your laboratory - install, run, edit, and make scratch commits freely; all of it is discarded at teardown.
@@ -801,7 +834,7 @@ The report is the only thing that survives, so anything worth keeping must be in
 
 # Rules
 1. Never push to any remote and never open a PR.
-2. Stay inside this worktree; the only files you may write outside it are the report and the status file below.
+2. Stay inside this worktree; the only files you may write outside it are $SCOUT_WRITES.
 3. Use gh-axi for GitHub operations and chrome-devtools-axi for browser operations.
 4. Report status by appending one line:
    \`$STATUS_APPEND\`

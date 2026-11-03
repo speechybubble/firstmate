@@ -1506,6 +1506,18 @@ A secondmate home resolves its local parent as the root, so a check run there co
 The source holds private conversation text, so it's written with owner-only permissions, never committed, and never printed; `status` reports only its build time and counts.
 `bin/fm-quote-check.py`'s header owns what counts as the captain's typed words, each marker, and the match rule; the wrapper's header owns the homes, the location, and freshness.
 
+## Run budgets for long scouts (data/<task-id>/run-budget.tsv)
+
+Firstmate gives a long scout a spend line and a stop rule at intake with `bin/fm-brief.sh --scout --run-budget <spec>`, for example `minutes=480,allowance=claude,spend=25` for a nightly run.
+The brief then carries a `# Run budget` section whose commands make the worker start a checkpointed report in its first minute, record each finding in it as the run goes, and check its budget as it works.
+The run stops with its report marked when its time budget, its share of the named allowance, the allowance's reserve floor, or the plateau rule (by default, an hour of work with no new finding) fires, so a run that reaches its budget leaves a partial report rather than nothing.
+At start it reads the allowance's headroom read-only through `quota-axi` and plans a short pass, or stops at once with a marked report, when the allowance is too low for the budget.
+The report's first lines carry its run status, which `bin/fm-run-budget.sh status <task-dir>...` prints, so counting runs that left a report is one command over their task folders.
+Cleanup of a budgeted scout marks a report its worker left in progress as ended without finishing.
+Scouts without the flag are unchanged.
+
+`bin/fm-run-budget.sh` owns the spec, the brief section, the ledger, the stop verdicts, and the run-status line.
+
 ## Herdr lifecycle spawn guard (config/herdr-lifecycle-spawn-guard)
 
 The optional local, gitignored `config/herdr-lifecycle-spawn-guard` presence flag opts this home into refusing, at spawn, a ship or scout brief that drives Herdr lifecycle without the Herdr isolation contract.

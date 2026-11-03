@@ -701,6 +701,10 @@
       "audience": "agent-runtime"
     },
     {
+      "path": ".agents/skills/verify-firstmate-brief/features/run-budget.md",
+      "audience": "agent-runtime"
+    },
+    {
       "path": ".agents/skills/verify-firstmate-brief/features/scout.md",
       "audience": "agent-runtime"
     },
