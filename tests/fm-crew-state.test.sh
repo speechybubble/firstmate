@@ -2660,6 +2660,68 @@ test_page_deliverable_refusal_records_one_fire() {
   pass "page deliverable done: without drive evidence reads blocked and records one page-refused fire"
 }
 
+# A ship done whose committed work fails an admitted intake check reads blocked
+# with the failing check, records one checks-refused skill fire however often
+# the read repeats, and reads done once the committed work passes.
+test_intake_checks_refusal_records_one_fire() {
+  reset_fakes
+  local d out log sha digest
+  d=$(new_case checks-refused)
+  make_repo_on_branch "$d/wt" fm/ck
+  printf 'Full refund, no questions asked.\n' > "$d/wt/ad.txt"
+  git -C "$d/wt" add ad.txt
+  git -C "$d/wt" commit -q -m 'the ad'
+  sha=$(git -C "$d/wt" rev-parse HEAD)
+  git -C "$d/wt" update-ref refs/remotes/origin/fm/ck "$sha"
+  make_fakebin "$d" >/dev/null
+  # shellcheck disable=SC2016 # literal markdown code fences, not expansions.
+  printf '# Task\n## Checks\n```json\n[{"id":"guarantee-conditional","source":"higher price guarantees should always be conditional","type":"not-contains","target":"ad.txt","pattern":"no questions asked","good":"If you run it 30 days, next month is free.","bad":"Refund, no questions asked."}]\n```\n' > "$d/brief.md"
+  "$ROOT/bin/fm-checks.sh" validate "$d/brief.md" --kind ship --admit "$d/state/ck.checks.json" >/dev/null \
+    || fail "the crew-state fixture check was not admitted"
+  digest=$(sha256sum "$d/state/ck.checks.json" | awk '{print $1}')
+  fm_write_meta "$d/state/ck.meta" \
+    "window=fm:fm-ck" "worktree=$d/wt" "project=$d/wt" \
+    "kind=ship" "mode=direct-PR" "checks=1" "checks_sha=$digest" "harness=claude"
+  printf 'done [at=1]: PR https://example.test/o/r/pull/9\n' > "$d/state/ck.status"
+  FM_FAKE_AXI_STATUS=""
+  FM_FAKE_RUNS_LIST=""
+  FM_FAKE_BUSY=0
+  arm_idle_record "$d/state" ck
+  log="$d/data/skill-fires.tsv"
+  out=$(run_crew_state "$d" ck)
+  assert_contains "$out" "state: blocked" "a done whose work fails its intake check must not read done"
+  assert_contains "$out" "intake checks refuse this done: guarantee-conditional" "the blocked detail did not name the failing check"
+  run_crew_state "$d" ck >/dev/null
+  [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-refused" && $4 == "fm-crew-state.sh"' "$log" | wc -l | tr -d ' ')" = 1 ] \
+    || fail "a repeated refusal did not leave exactly one checks-refused fire: $(cat "$log" 2>/dev/null)"
+
+  printf 'If you run it 30 days, next month is free.\n' > "$d/wt/ad.txt"
+  git -C "$d/wt" commit -q -am 'conditional guarantee'
+  git -C "$d/wt" update-ref refs/remotes/origin/fm/ck "$(git -C "$d/wt" rev-parse HEAD)"
+  rm -f "$log"
+  out=$(run_crew_state "$d" ck)
+  assert_contains "$out" "state: done" "a done whose committed work passes its checks must read done"
+  assert_absent "$log" "an accepted done recorded a refusal fire"
+
+  # A no-mistakes page ship's implementation handoff carries no drive= and the
+  # page gate does not apply to it, so a checks refusal there records only the
+  # checks-refused fire, never page-refused.
+  printf 'Full refund, no questions asked.\n' > "$d/wt/ad.txt"
+  git -C "$d/wt" commit -q -am 'unconditional guarantee again'
+  fm_write_meta "$d/state/ck.meta" \
+    "window=fm:fm-ck" "worktree=$d/wt" "project=$d/wt" \
+    "kind=ship" "mode=no-mistakes" "deliverable=page" "checks=1" "checks_sha=$digest" "harness=claude"
+  printf 'done [at=2]: implementation ready\n' > "$d/state/ck.status"
+  rm -f "$log"
+  out=$(run_crew_state "$d" ck)
+  assert_contains "$out" "intake checks refuse this done: guarantee-conditional" "the handoff was not refused by its failing check"
+  [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-refused"' "$log" | wc -l | tr -d ' ')" = 1 ] \
+    || fail "the handoff refusal did not record one checks-refused fire: $(cat "$log" 2>/dev/null)"
+  [ "$(awk -F'\t' '$2 == "ck" && $3 == "page-refused"' "$log" | wc -l | tr -d ' ')" = 0 ] \
+    || fail "a checks refusal of a handoff the page gate never gates recorded a page-refused fire: $(cat "$log" 2>/dev/null)"
+  pass "intake checks: a failing check reads blocked with the check named and records one checks-refused fire"
+}
+
 # forge=external: a review tool uploads its own snapshot, so the review ready
 # report is current-state done with HEAD only in the worker copy, and a PR
 # report on that project is blocked with the gate's reason.
@@ -6323,6 +6385,7 @@ test_no_mistakes_prevalidation_done_stays_done
 test_finished_ship_done_is_not_a_handoff
 test_moved_remote_branch_without_named_head_is_blocked
 test_page_deliverable_refusal_records_one_fire
+test_intake_checks_refusal_records_one_fire
 test_external_review_done_reads_ready
 test_no_run_busy_pane
 test_no_run_overview_zero_branch_falls_through

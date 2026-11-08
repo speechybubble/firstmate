@@ -439,6 +439,7 @@ path = sys.argv[1]
 text = open(path, encoding="utf-8").read()
 text = text.replace("{TASK}", os.environ["TASK_TEXT"], 1).replace("{FIRSTMATE_SPEC}", os.environ["SPEC_TEXT"], 1)
 text = text.replace("{EXPERT_PROMPT}", "routine: skipped - synthetic live-lab fixture task", 1)
+text = text.replace("{CHECKS}", "routine: no checks - synthetic live-lab fixture task", 1)
 text = text.replace("{CONFIRMED_INTENT}", "not captain-originated - synthetic live-lab fixture task\nend state: the lab exercises one synthetic task\ndelegation: built with defaults", 1)
 open(path, "w", encoding="utf-8").write(text)
 PY

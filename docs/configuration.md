@@ -108,6 +108,7 @@ Each effective `FM_HOME` contains private operational directories.
 - One-shot Bearings reconcile requests under `state/reconcile-notify/`.
 - Private secondmate config-reread generations with their retry and quarantine state.
 - Per-task steering-inbox records under `state/<id>.inbox/` (`bin/fm-task-inbox-lib.sh`).
+- Per-task admitted intake checks and their cached result, `state/<id>.checks.json` and `state/<id>.checks-result` ([intake checks](#intake-checks)).
 - Parent-owned secondmate pending-reply records under `state/pending-replies/` (`bin/fm-pending-reply-lib.sh`).
 
 `config/` holds local gitignored operating choices, including explicit extension bindings under `config/extensions.d/`.
@@ -1483,13 +1484,15 @@ The text is static and never executed or expanded; secondmate charters never tak
 ## Page deliverables and the skill-fire log (data/skill-fires.tsv)
 
 Firstmate declares a ship a page deliverable at intake with `bin/fm-brief.sh --deliverable page`, and `bin/fm-spawn.sh` records it as `deliverable=page` in the task metadata.
-Every `done:` line the ship-done gate tests for that task must then carry `drive=<existing absolute path>`, naming the drive recipe or the evidence its drive retained, or `no-drive: <reason>`; otherwise the gate refuses it and the task reads blocked.
+Every `done:` line the ship-done gate tests for that task must then carry `drive=<absolute path>`, naming the assertion results the drive run wrote with every assertion passing, or `no-drive: <reason>`; otherwise the gate refuses it and the task reads blocked.
+A path that merely exists, such as the recipe, a directory, or any other file, is refused, and [`bin/fm-checks.sh --help`](../bin/fm-checks.sh) owns the results format.
 The history-only read of an already recorded completion skips this check, so drive evidence removed by cleanup never re-refuses a finished task.
 Tasks without the key are unchanged.
 
 The skill-fire log records when those conditions fire, so a later review can compare each rule's fires with the work that actually needed its evidence.
 The log is append-only and tab-separated, one line per fire with the columns `ts` (UTC), `task`, `rule`, `source` (the writing script), and `ref`, and its first write creates it under the active home's `data/`.
 The scaffold writes a `page` line whose `ref` is the brief path, and `bin/fm-crew-state.sh` writes one `page-refused` line per distinct refusal, whose `ref` is the refusal reason.
+The intake checks below add `checks-admitted`, `checks-invalid`, and `checks-exempt` lines from `bin/fm-spawn.sh`, one per check verdict or exemption, and `checks-refused` lines from `bin/fm-crew-state.sh`, one per distinct refusal; their shares measure how often written checks fail validation and how often a task is exempted.
 
 `bin/fm-dod-lib.sh` owns the evidence rule (`fm_dod_page_evidence_reason`) and the log format (`fm_skill_fire_append`).
 
@@ -1517,6 +1520,16 @@ Cleanup of a budgeted scout marks a report its worker left in progress as ended 
 Scouts without the flag are unchanged.
 
 `bin/fm-run-budget.sh` owns the spec, the brief section, the ledger, the stop verdicts, and the run-status line.
+
+## Intake checks
+
+A ship or scout brief's `## Checks` slot holds the checks Firstmate wrote from the captain's words at intake, each with a known-good and a known-bad example, or one `routine: no checks - <reason>` line.
+`bin/fm-spawn.sh` refuses to launch while any check fails its good example or passes its bad one, and otherwise records the admitted checks in `state/<id>.checks.json` and their count as `checks=<count>` in the task metadata.
+It also records `checks_sha=<sha256>` of the admitted record, and a done is refused when the record is missing or no longer matches it.
+Every `done:` of that task is then refused while a check fails on the deliverable, including a no-mistakes implementation handoff: a ship's checks read its committed HEAD and a scout's its `data/<id>/` directory.
+`state/<id>.checks-result` caches the last result for an unchanged deliverable, a relaunch keeps the admission recorded at spawn, a promotion drops it, and cleanup removes both files.
+Briefs scaffolded before the slot existed, and exempt briefs, launch without `checks=` and are unchanged.
+[`bin/fm-checks.sh --help`](../bin/fm-checks.sh) owns the check format, the closed set of check types, and validation, and `bin/fm-dod-lib.sh`'s `fm_dod_task_checks_reason` owns the done-time gate.
 
 ## Herdr lifecycle spawn guard (config/herdr-lifecycle-spawn-guard)
 

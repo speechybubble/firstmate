@@ -21,6 +21,9 @@
 # brief contributes only Task lines explicitly marked as captain words to intent,
 # read outside fenced blocks and indented examples so a quoted `Captain:` sample
 # never passes the provenance gate as the ask (bin/fm-dod-lib.sh).
+# The scout's intake checks judged its report, so promotion drops checks=,
+# checks_sha=, and the admitted record (bin/fm-checks.sh): the promoted ship's
+# done is not gated by checks written for a report.
 # A scout records no delivery posture, so promotion is where this task's delivery
 # contract is decided: --mode, --yolo, and the ship branch resolved from
 # --branch-prefix are written into the meta alongside the kind= flip. Firstmate resolves all three at promotion time, having just
@@ -309,6 +312,7 @@ This section supersedes every earlier brief instruction about delivery mode.
 These current ship instructions supersede the scout delivery rules and report-based Definition of done.
 Any earlier "Never push" or scout-only delivery language in this file is superseded.
 This replaces the scout rule limiting outside-worktree writes to the report and status file.
+The scout's intake checks no longer apply to this ship: do not run or recreate the checks command or checks record from the earlier scout brief.
 Keep project edits inside this worktree; keep proof and scratch output outside it, under \`$DATA/$ID/\` or a temporary directory.
 Outside the worktree, write only that task material and the status and steering-inbox records authorized below.
 Leave the worktree clean before reporting done.
@@ -375,7 +379,7 @@ fi
 BRIEF_REPLACEMENT=
 
 TMP="$STATE/.$ID.meta.promote.${BASHPID:-$$}"
-grep -v -e '^kind=' -e '^mode=' -e '^yolo=' -e '^branch=' -e '^upstream_consent=' "$META" > "$TMP"
+grep -v -e '^kind=' -e '^mode=' -e '^yolo=' -e '^branch=' -e '^upstream_consent=' -e '^checks=' -e '^checks_sha=' "$META" > "$TMP"
 {
   echo "kind=ship"
   echo "mode=$MODE"
@@ -390,6 +394,7 @@ if ! fm_backlog_atomic_transition publish "$TMP" "$META" "task record" "$STATE";
   exit 1
 fi
 TMP=
+rm -f -- "$STATE/$ID.checks.json" "$STATE/$ID.checks-result"
 rm -f -- "$BRIEF_ORIGINAL" 2>/dev/null || true
 BRIEF_ORIGINAL=
 fm_lock_release "$META_LOCK"

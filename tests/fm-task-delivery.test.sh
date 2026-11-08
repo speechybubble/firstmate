@@ -62,6 +62,7 @@ fill_brief_subsections() {  # <file> <intent> <spec> [<expert-prompt> [<confirme
   content=${content//'{CONFIRMED_INTENT}'/$confirmed}
   content=${content//'{FIRSTMATE_SPEC}'/$spec}
   content=${content//'{EXPERT_PROMPT}'/$expert}
+  content=${content//'{CHECKS}'/routine: no checks - delivery fixture}
   printf '%s\n' "$content" > "$file"
 }
 
@@ -84,14 +85,14 @@ delete_confirmed_intent() {  # <file>
 # before `## Confirmed intent` existed, and drop that subsection.
 downgrade_to_expert_prompt_v1() {  # <file>
   delete_confirmed_intent "$1"
-  sed 's/^<!-- fm-brief: task-slots v3 -->$/<!-- fm-brief: expert-prompt v1 -->/' "$1" > "$1.v1"
+  sed 's/^<!-- fm-brief: task-slots v[0-9]* -->$/<!-- fm-brief: expert-prompt v1 -->/' "$1" > "$1.v1"
   mv "$1.v1" "$1"
 }
 
 # Rewrite a scaffolded brief's Task slot marker to the version 2 form written
 # before `## Confirmed intent` carried `end state:` and `delegation:` lines.
 downgrade_to_task_slots_v2() {  # <file>
-  sed 's/^<!-- fm-brief: task-slots v3 -->$/<!-- fm-brief: task-slots v2 -->/' "$1" > "$1.v2"
+  sed 's/^<!-- fm-brief: task-slots v[0-9]* -->$/<!-- fm-brief: task-slots v2 -->/' "$1" > "$1.v2"
   mv "$1.v2" "$1"
 }
 
@@ -452,7 +453,7 @@ test_promotion_persists_the_selected_ship_branch() {
   id=promote-branch-e1
   meta="$home/state/$id.meta"
   mkdir -p "$home/state"
-  printf 'window=fm-%s\nkind=scout\nworktree=/tmp/wt\n' "$id" > "$meta"
+  printf 'window=fm-%s\nkind=scout\nworktree=/tmp/wt\nchecks=1\nchecks_sha=0123abcd\n' "$id" > "$meta"
   FM_HOME="$home" "$BRIEF" "$id" fixture-project --scout >/dev/null 2>&1 \
     || fail "branch-prefix promotion scout brief should scaffold"
   fill_brief_subsections "$home/data/$id/brief.md" \
@@ -463,6 +464,12 @@ test_promotion_persists_the_selected_ship_branch() {
   instructions="$home/data/$id/ship-instructions.md"
   assert_grep "branch=fix/$id" "$meta" \
     "promotion did not persist the selected full ship branch"
+  assert_no_grep "checks" "$meta" \
+    "promotion kept the scout's intake checks count or digest on the promoted ship"
+  assert_grep "The scout's intake checks no longer apply to this ship: do not run or recreate the checks command" "$instructions" \
+    "promotion did not tell the worker the scout's intake checks no longer apply"
+  assert_grep "The scout's intake checks no longer apply to this ship: do not run or recreate the checks command" "$home/data/$id/brief.md" \
+    "the promoted brief did not tell a relaunched worker the scout's intake checks no longer apply"
   assert_grep "git checkout -b fix/$id --" "$instructions" \
     "promotion did not deliver the selected branch-creation command"
   assert_grep "Ship branch: fix/$id" "$instructions" \
@@ -600,6 +607,99 @@ EOF
   err=$(FM_HOME="$home" "$PROJECT_MODE" typoproj 2>&1 >/dev/null)
   assert_contains "$err" "unknown mode" "a typo'd registry mode stopped warning"
   pass "fm-project-mode: the conditional policy is accepted, mapped for mechanical callers, and readable raw"
+}
+
+# Replace the default checks exemption fill_brief_subsections writes with <body>.
+set_checks_body() {  # <file> <body>
+  local body=$2
+  awk -v body="$body" '$0 == "routine: no checks - delivery fixture" { print body; next } { print }' "$1" > "$1.checks"
+  mv "$1.checks" "$1"
+}
+
+# Spawn admits a brief's intake checks before any endpoint exists: an unfilled
+# slot or a check that fails its good example or passes its bad one refuses the
+# launch with every verdict named and no admitted record left behind, while
+# admitted checks and an exemption reach launch. Each verdict is one skill fire,
+# the measure of written checks failing validation and of exempted tasks.
+test_spawn_admits_intake_checks_before_launch() {
+  local rec home proj fakebin out status id log good_check bad_check
+  rec=$(make_home checks)
+  IFS='|' read -r home proj fakebin <<EOF
+$rec
+EOF
+  log="$home/data/skill-fires.tsv"
+  good_check='{"id":"guarantee-conditional","source":"higher price guarantees should always be conditional","type":"not-contains","target":"ad.txt","pattern":"no questions asked","good":"If you run it 30 days, next month is free.","bad":"Refund, no questions asked."}'
+  bad_check='{"id":"has-cta","source":"the ad has a call to action","type":"contains","target":"ad.txt","pattern":"(Book|Get)","good":"Book a call","bad":"Get a refund, no questions asked"}'
+
+  id="checks-placeholder"
+  FM_HOME="$home" "$BRIEF" "$id" proj --mode direct-PR >/dev/null 2>&1 || fail "checks brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Make the ad." "Write the ad."
+  set_checks_body "$home/data/$id/brief.md" '{CHECKS}'
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode direct-PR --yolo off); status=$?
+  [ "$status" -ne 0 ] || fail "spawn launched a brief whose checks slot is unfilled"
+  assert_contains "$out" "## Checks still contains {CHECKS}" "the placeholder refusal did not name the slot"
+  assert_contains "$out" "routine: no checks - <reason>" "the placeholder refusal did not name the exemption form"
+
+  id="checks-invalid"
+  FM_HOME="$home" "$BRIEF" "$id" proj --mode direct-PR >/dev/null 2>&1 || fail "checks brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Make the ad." "Write the ad."
+  # shellcheck disable=SC2016 # literal markdown code fences, not expansions.
+  set_checks_body "$home/data/$id/brief.md" "$(printf '```json\n[%s,\n%s]\n```' "$good_check" "$bad_check")"
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode direct-PR --yolo off); status=$?
+  [ "$status" -ne 0 ] || fail "spawn launched a brief carrying a check that passes its bad example"
+  assert_contains "$out" "## Checks cannot be admitted" "the refusal did not name the slot"
+  assert_contains "$out" "invalid has-cta: passes its bad example" "the refusal did not name the invalid check"
+  assert_contains "$out" "admitted guarantee-conditional" "the refusal hid the sound check's verdict"
+  assert_absent "$home/state/$id.meta" "a refused checks spawn wrote task metadata"
+  assert_absent "$home/state/$id.checks.json" "a refused checks spawn left an admitted record"
+  assert_absent "$home/data/$id/launch-brief.md" "a refused checks spawn reached launch"
+  [ "$(awk -F'\t' -v id="$id" '$2 == id && $3 == "checks-invalid" && $4 == "fm-spawn.sh" && $5 ~ /^has-cta: passes its bad example/' "$log" | wc -l | tr -d ' ')" = 1 ] \
+    || fail "the invalid check was not recorded as one checks-invalid fire: $(cat "$log" 2>/dev/null)"
+
+  # A check with several schema problems is one invalid check, and a malformed
+  # slot is one invalid verdict, so the fire count matches the validator's.
+  id="checks-schema"
+  FM_HOME="$home" "$BRIEF" "$id" proj --mode direct-PR >/dev/null 2>&1 || fail "checks brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Make the ad." "Write the ad."
+  # shellcheck disable=SC2016 # literal markdown code fences, not expansions.
+  set_checks_body "$home/data/$id/brief.md" "$(printf '```json\n[{"id":"two-problems","type":"contains","target":"ad.txt","good":"a","bad":"b"}]\n```')"
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode direct-PR --yolo off); status=$?
+  [ "$status" -ne 0 ] || fail "spawn launched a brief carrying a check with schema problems"
+  assert_contains "$out" "checks: 0 admitted, 1 invalid" "the validator did not count the check once"
+  [ "$(awk -F'\t' -v id="$id" '$2 == id && $3 == "checks-invalid"' "$log" | wc -l | tr -d ' ')" = 1 ] \
+    || fail "a check with two schema problems was not recorded as exactly one checks-invalid fire: $(cat "$log" 2>/dev/null)"
+  id="checks-malformed"
+  FM_HOME="$home" "$BRIEF" "$id" proj --mode direct-PR >/dev/null 2>&1 || fail "checks brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Make the ad." "Write the ad."
+  set_checks_body "$home/data/$id/brief.md" 'the ad must be good'
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode direct-PR --yolo off); status=$?
+  [ "$status" -ne 0 ] || fail "spawn launched a brief whose checks slot is malformed"
+  assert_contains "$out" "invalid: ## Checks holds text outside one fenced json block" "the malformed-slot refusal did not name the problem"
+  [ "$(awk -F'\t' -v id="$id" '$2 == id && $3 == "checks-invalid" && $5 ~ /^## Checks holds text outside/' "$log" | wc -l | tr -d ' ')" = 1 ] \
+    || fail "a malformed checks slot was not recorded as one checks-invalid fire: $(cat "$log" 2>/dev/null)"
+
+  id="checks-admitted"
+  FM_HOME="$home" "$BRIEF" "$id" proj --mode direct-PR >/dev/null 2>&1 || fail "checks brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Make the ad." "Write the ad."
+  # shellcheck disable=SC2016 # literal markdown code fences, not expansions.
+  set_checks_body "$home/data/$id/brief.md" "$(printf '```json\n[%s]\n```' "$good_check")"
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode direct-PR --yolo off)
+  assert_not_contains "$out" "## Checks" "admitted checks were refused or warned"
+  assert_present "$home/data/$id/launch-brief.md" "an admitted checks brief did not reach launch"
+  [ "$(jq -r '.kind, (.checks | length), .checks[0].id' "$home/state/$id.checks.json" | paste -s -d ' ' -)" = "ship 1 guarantee-conditional" ] \
+    || fail "spawn did not admit the check into the task's record: $(cat "$home/state/$id.checks.json" 2>/dev/null)"
+  [ "$(awk -F'\t' -v id="$id" '$2 == id && $3 == "checks-admitted" && $5 == "guarantee-conditional"' "$log" | wc -l | tr -d ' ')" = 1 ] \
+    || fail "the admitted check was not recorded as one checks-admitted fire"
+
+  id="checks-exempt"
+  FM_HOME="$home" "$BRIEF" "$id" proj --scout >/dev/null 2>&1 || fail "exempt scout brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Investigate the ad." "Report only."
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --scout)
+  assert_present "$home/data/$id/launch-brief.md" "an exempt brief did not reach launch"
+  assert_absent "$home/state/$id.checks.json" "an exempt brief left an admitted record"
+  [ "$(awk -F'\t' -v id="$id" '$2 == id && $3 == "checks-exempt" && $5 == "delivery fixture"' "$log" | wc -l | tr -d ' ')" = 1 ] \
+    || fail "the exemption was not recorded as one checks-exempt fire: $(cat "$log" 2>/dev/null)"
+  pass "spawn: intake checks are admitted before launch, an invalid check refuses with every verdict named, and each verdict is one skill fire"
 }
 
 # Every scaffolded ship or scout brief carries `### Expert prompt` under
@@ -2230,6 +2330,7 @@ test_promotion_carries_the_forge_binding
 test_forge_forgejo_rides_the_same_binding
 test_spawn_and_promote_require_filled_task_subsections
 test_spawn_requires_an_expert_prompt_or_reasoned_skip
+test_spawn_admits_intake_checks_before_launch
 test_spawn_requires_a_confirmed_intent_or_reasoned_exemption
 test_project_mode_resolves_branch_prefix
 echo "# all fm-task-delivery tests passed"

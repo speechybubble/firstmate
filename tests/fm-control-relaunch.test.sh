@@ -1691,7 +1691,7 @@ test_promoted_scout_relaunch_receives_the_current_delivery_contract() {
     FM_HOME="$home" "$BRIEF" "$id" firstmate --scout >/dev/null \
       || fail "$mode: could not scaffold the scout brief"
     brief="$home/data/$id/brief.md"
-    sed 's/{TASK}/Fix the promotion relaunch contract./; s/{FIRSTMATE_SPEC}/Preserve the current delivery mode./; s/{EXPERT_PROMPT}/routine: skipped - relaunch fixture/; s/{CONFIRMED_INTENT}/not captain-originated - relaunch fixture\
+    sed 's/{TASK}/Fix the promotion relaunch contract./; s/{FIRSTMATE_SPEC}/Preserve the current delivery mode./; s/{EXPERT_PROMPT}/routine: skipped - relaunch fixture/; s/{CHECKS}/routine: no checks - relaunch fixture/; s/{CONFIRMED_INTENT}/not captain-originated - relaunch fixture\
 end state: relaunch fixture\
 delegation: built with defaults/' \
       "$brief" > "$brief.filled"

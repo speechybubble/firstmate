@@ -14,8 +14,13 @@
 # reading of the ask the captain confirmed plus one `captain confirmed: <words>`
 # line, or one `not captain-originated - <reason>` line, then one
 # `end state: <what is true when done and why>` line and one
-# `delegation: built with defaults | asked first | always asked` line. `# Task` opens with the
-# Task slot version marker. bin/fm-dod-lib.sh owns that marker, the no-mistakes
+# `delegation: built with defaults | asked first | always asked` line. Last,
+# `## Checks` holds `{CHECKS}`: the checks Firstmate wrote from the captain's
+# words at intake, each with a known-good and a known-bad example, or one
+# `routine: no checks - <reason>` line; bin/fm-checks.sh owns that format and
+# the validation bin/fm-spawn.sh runs before launch, and `# Task` tells the
+# worker the one command that runs them on its deliverable before `done:`.
+# `# Task` opens with the Task slot version marker. bin/fm-dod-lib.sh owns that marker, the no-mistakes
 # `--intent` contract those subsections feed, and the accepted slot fillings;
 # bin/fm-spawn.sh refuses leftover placeholders, an unaccepted slot, and a
 # `## Captain's intent` line opening with a Captain label or address. Secondmate
@@ -48,7 +53,7 @@
 #   Set FM_SECONDMATE_SCOPE='<scope>' to write a routing scope distinct from the charter text.
 #   --herdr-lab is mandatory when the task will issue Herdr lifecycle commands.
 #   It adds the hard isolation contract backed by bin/fm-herdr-lab.sh.
-#   The flag must be explicit because {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT} are filled
+#   The flag must be explicit because {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, {EXPERT_PROMPT}, and {CHECKS} are filled
 #   after scaffolding and the caller-supplied repo string cannot reliably
 #   identify this repo. Briefs made without it carry a loud declaration so an
 #   omitted contract cannot be silent.
@@ -707,13 +712,21 @@ fi
 DELIVERABLE_BLOCK=
 if [ "$DELIVERABLE" = page ]; then
   # shellcheck disable=SC2016 # Backticks are literal Markdown, not expansions.
-  DELIVERABLE_BLOCK="$FM_BRIEF_DELIVERABLE_PAGE_MARKER"$'\n''This ship delivers a page. Before reporting it ready, drive it in a real browser with the project drive recipe, then put `drive=<absolute path to the recipe or the evidence the drive retained>` in the `done:` line that reports it ready, or `no-drive: <reason>` when it cannot be driven; the done-time check refuses that line without one of them.'$'\n\n'
+  DELIVERABLE_BLOCK="$FM_BRIEF_DELIVERABLE_PAGE_MARKER"$'\n''This ship delivers a page. Before reporting it ready, drive it in a real browser with the project drive recipe, have the drive write its assertion results (one `<assertion>\t<pass|fail>` line per assertion), then put `drive=<absolute path to those results>` in the `done:` line that reports it ready, or `no-drive: <reason>` when it cannot be driven; the done-time check refuses that line without one of them, and refuses results that show a failed assertion or are not a drive run'"'"'s results at all.'$'\n\n'
 fi
+
+# How the worker runs its own intake checks before reporting done; the done
+# gate runs the same command on the same deliverable (bin/fm-checks.sh owns
+# the format and the run, bin/fm-dod-lib.sh the gate).
+CHECKS_RUN_TARGET="--head <absolute path of your worktree>"
+[ "$KIND" != scout ] || CHECKS_RUN_TARGET="--dir $(shell_quote "$DATA/$ID")"
+# shellcheck disable=SC2016 # Backticks are literal Markdown, not expansions.
+CHECKS_BLOCK='When `## Checks` below holds checks, they were written from the captain'"'"'s words before the work began, and the done-time check refuses your `done:` while any of them fails on your committed work. Before reporting done, run `'"$(shell_quote "$FM_ROOT/bin/fm-checks.sh") run $(shell_quote "$STATE/$ID.checks.json") $CHECKS_RUN_TARGET"'` (add `--drive <results file>` for a drive assertions check) and fix the work until every check passes; never edit the checks, which were fixed at launch.'$'\n\n'
 
 IFS= read -r -d '' TASK_SECTION <<EOF || true
 # Task
 $FM_BRIEF_TASK_SLOTS_MARKER
-$DELIVERABLE_BLOCK## Captain's intent
+$DELIVERABLE_BLOCK$CHECKS_BLOCK## Captain's intent
 {TASK}
 
 ## Confirmed intent
@@ -724,12 +737,17 @@ $DELIVERABLE_BLOCK## Captain's intent
 
 ### Expert prompt
 {EXPERT_PROMPT}
+
+## Checks
+{CHECKS}
 EOF
 TASK_SECTION=${TASK_SECTION%$'\n'}
 # Printed after every ship and scout scaffold so the slot's required lines are
 # in view when Firstmate fills it; bin/fm-dod-lib.sh owns their acceptance.
 # shellcheck disable=SC2016 # Backticks are literal Markdown, not expansions.
 CONFIRMED_INTENT_GUIDE='fill {CONFIRMED_INTENT} with the confirmed reading plus one `captain confirmed: <words>` line, or one `not captain-originated - <reason>` line, then one `end state: <what is true when done and why>` line and one `delegation: built with defaults | asked first | always asked` line'
+# shellcheck disable=SC2016 # Backticks are literal Markdown, not expansions.
+CHECKS_GUIDE='fill {CHECKS} with one fenced json block of checks written from the captain'"'"'s words, each with a known-good and a known-bad example, or one `routine: no checks - <reason>` line; bin/fm-checks.sh --help owns the format, and fm-checks.sh validate <brief> --kind <ship|scout> shows what spawn will admit'
 
 # One shared string keeps the ship and scout infrastructure rule identical.
 # Rule 2 governs file edits, so it does not prohibit pool administration.
@@ -869,8 +887,9 @@ When the report is complete, append \`done [at=<epoch>]: {one-line conclusion}\`
 If your findings reveal work that should ship (e.g. you reproduced a bug and the fix is clear), say so in the report; firstmate may promote this task in place, and you would then receive mode-specific ship instructions as a follow-up message.
 EOF
 append_brief_include
-echo "scaffolded: $BRIEF (scout; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
+echo "scaffolded: $BRIEF (scout; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, {EXPERT_PROMPT}, and {CHECKS})"
 echo "$CONFIRMED_INTENT_GUIDE"
+echo "$CHECKS_GUIDE"
 exit 0
 fi
 
@@ -963,10 +982,11 @@ if [ "$DELIVERABLE" = page ]; then
     || echo "warning: could not record the page skill fire in $DATA/skill-fires.tsv" >&2
 fi
 if [ "$FORGE" = none ]; then
-  echo "scaffolded: $BRIEF (ship, mode=$MODE; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
+  echo "scaffolded: $BRIEF (ship, mode=$MODE; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, {EXPERT_PROMPT}, and {CHECKS})"
 elif [ "$FORGE" = gerrit ]; then
-  echo "scaffolded: $BRIEF (ship, mode=$MODE forge=$FORGE shape=$SHAPE; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
+  echo "scaffolded: $BRIEF (ship, mode=$MODE forge=$FORGE shape=$SHAPE; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, {EXPERT_PROMPT}, and {CHECKS})"
 else
-  echo "scaffolded: $BRIEF (ship, mode=$MODE forge=$FORGE; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})"
+  echo "scaffolded: $BRIEF (ship, mode=$MODE forge=$FORGE; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, {EXPERT_PROMPT}, and {CHECKS})"
 fi
 echo "$CONFIRMED_INTENT_GUIDE"
+echo "$CHECKS_GUIDE"
