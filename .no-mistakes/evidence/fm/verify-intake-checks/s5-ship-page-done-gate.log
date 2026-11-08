@@ -1,0 +1,29 @@
+--- A. done with no-drive reason (cta-driven assertions check has no results)
+status line: done [at=1794140838]: ready in branch fm/ad-ship no-drive: lab fixture has no page
+state: blocked · source: status-log · intake checks refuse this done: cta-driven: the done line names no drive= results for assertions cta-visible
+--- B. done claiming drive=/etc/hostname
+status line: done [at=1794140839]: ready in branch fm/ad-ship drive=/etc/hostname
+state: blocked · source: status-log · intake checks refuse this done: cta-driven: /etc/hostname line 1 is not an <assertion><TAB><pass|fail> result, so it is not a drive run's assertion results
+--- C. done with drive results where cta-visible failed
+status line: done [at=1794140840]: ready in branch fm/ad-ship drive=/tmp/fm-lab.tprp2o/drive/fail.tsv
+state: blocked · source: status-log · intake checks refuse this done: cta-driven: the drive results show assertion cta-visible failing
+--- D. done with passing drive results
+status line: done [at=1794140841]: ready in branch fm/ad-ship drive=/tmp/fm-lab.tprp2o/drive/pass.tsv
+state: done · source: status-log · ready in branch fm/ad-ship drive=/tmp/fm-lab.tprp2o/drive/pass.tsv
+--- E. ad.txt edited but NOT committed (gate reads committed HEAD)
+status line: done [at=1794140842]: ready in branch fm/ad-ship drive=/tmp/fm-lab.tprp2o/drive/pass.tsv
+state: done · source: status-log · ready in branch fm/ad-ship drive=/tmp/fm-lab.tprp2o/drive/pass.tsv
+--- F. CTA removal committed
+status line: done [at=1794140842]: ready in branch fm/ad-ship drive=/tmp/fm-lab.tprp2o/drive/pass.tsv
+state: blocked · source: status-log · intake checks refuse this done: has-book: no line matches /Book/
+--- G. CTA restored (reset)
+status line: done [at=1794140843]: ready in branch fm/ad-ship drive=/tmp/fm-lab.tprp2o/drive/pass.tsv
+state: done · source: status-log · ready in branch fm/ad-ship drive=/tmp/fm-lab.tprp2o/drive/pass.tsv
+--- skill fires
+2026-11-08T12:25:15Z	ad-ship	page	fm-brief.sh	/tmp/fm-lab.tprp2o/data/ad-ship/brief.md
+2026-11-08T12:25:17Z	ad-ship	checks-admitted	fm-spawn.sh	has-book
+2026-11-08T12:25:17Z	ad-ship	checks-admitted	fm-spawn.sh	cta-driven
+2026-11-08T12:27:19Z	ad-ship	checks-refused	fm-crew-state.sh	intake checks refuse this done: cta-driven: the done line names no drive= results for assertions cta-visible
+2026-11-08T12:27:20Z	ad-ship	checks-refused	fm-crew-state.sh	intake checks refuse this done: cta-driven: /etc/hostname line 1 is not an <assertion><TAB><pass|fail> result, so it is not a drive run's assertion results
+2026-11-08T12:27:21Z	ad-ship	checks-refused	fm-crew-state.sh	intake checks refuse this done: cta-driven: the drive results show assertion cta-visible failing
+2026-11-08T12:27:23Z	ad-ship	checks-refused	fm-crew-state.sh	intake checks refuse this done: has-book: no line matches /Book/

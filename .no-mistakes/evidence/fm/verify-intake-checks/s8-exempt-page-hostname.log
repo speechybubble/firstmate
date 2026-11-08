@@ -1,0 +1,18 @@
+--- promoted ad-scout (now ship, checks dropped):
+state: done · source: status-log · ready in branch fm/ad-scout
+--- A. worker's own no-drive done (exempt page ship)
+status line: done [at=1794140926]: ready in branch fm/ad-page2 no-drive: lab fixture has no page
+state: done · source: status-log · ready in branch fm/ad-page2 no-drive: lab fixture has no page
+--- B. done claiming drive=/etc/hostname
+status line: done [at=1794141004]: ready in branch fm/ad-page2 drive=/etc/hostname
+state: blocked · source: status-log · page deliverable reported done with drive=/etc/hostname, which does not show a passing drive run: /etc/hostname line 1 is not an <assertion><TAB><pass|fail> result, so it is not a drive run's assertion results; name the assertion results file the drive run wrote (one <assertion><TAB><pass|fail> line per assertion, bin/fm-checks.sh --help)
+--- B2. re-read
+status line: done [at=1794141005]: ready in branch fm/ad-page2 drive=/etc/hostname
+state: blocked · source: status-log · page deliverable reported done with drive=/etc/hostname, which does not show a passing drive run: /etc/hostname line 1 is not an <assertion><TAB><pass|fail> result, so it is not a drive run's assertion results; name the assertion results file the drive run wrote (one <assertion><TAB><pass|fail> line per assertion, bin/fm-checks.sh --help)
+--- C. drive=<passing results>
+status line: done [at=1794141007]: ready in branch fm/ad-page2 drive=/tmp/fm-lab.tprp2o/drive/pass.tsv
+state: done · source: status-log · ready in branch fm/ad-page2 drive=/tmp/fm-lab.tprp2o/drive/pass.tsv
+--- skill fires
+2026-11-08T12:28:10Z	ad-page2	page	fm-brief.sh	/tmp/fm-lab.tprp2o/data/ad-page2/brief.md
+2026-11-08T12:28:13Z	ad-page2	checks-exempt	fm-spawn.sh	lab fixture for the page evidence gate alone
+2026-11-08T12:30:05Z	ad-page2	page-refused	fm-crew-state.sh	page deliverable reported done with drive=/etc/hostname, which does not show a passing drive run: /etc/hostname line 1 is not an <assertion><TAB><pass|fail> result, so it is not a drive run's assertion results; name the assertion results file the drive run wrote (one <assertion><TAB><pass|fail> line per assertion, bin/fm-checks.sh --help)

@@ -1,0 +1,44 @@
++ cd /home/denni/.no-mistakes/worktrees/d567722de3ac/01M6XH0HN9YRGNX5TGAMA05C9D
++ bin/fm-brief.sh ad-ship /tmp/fm-lab.tprp2o/projects/adproj --mode local-only --deliverable page
+scaffolded: /tmp/fm-lab.tprp2o/data/ad-ship/brief.md (ship, mode=local-only; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, {EXPERT_PROMPT}, and {CHECKS})
+fill {CONFIRMED_INTENT} with the confirmed reading plus one `captain confirmed: <words>` line, or one `not captain-originated - <reason>` line, then one `end state: <what is true when done and why>` line and one `delegation: built with defaults | asked first | always asked` line
+fill {CHECKS} with one fenced json block of checks written from the captain's words, each with a known-good and a known-bad example, or one `routine: no checks - <reason>` line; bin/fm-checks.sh --help owns the format, and fm-checks.sh validate <brief> --kind <ship|scout> shows what spawn will admit
++ python3 /tmp/fm-lab.tprp2o/fillship.py /tmp/fm-lab.tprp2o/data/ad-ship/brief.md /tmp/fm-lab.tprp2o/ship-checks.txt
++ bin/fm-checks.sh validate /tmp/fm-lab.tprp2o/data/ad-ship/brief.md --kind ship
+admitted has-book
+admitted cta-driven
+checks: 2 admitted, 0 invalid
++ echo 'validate exit=0'
+validate exit=0
++ bin/fm-spawn.sh ad-ship /tmp/fm-lab.tprp2o/projects/adproj claude --mode local-only --yolo off
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.tprp2o
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+notice: ad-ship ships mode=local-only while the standing posture for adproj is no-mistakes - less rigor than the captain's standing posture; proceed only on a current explicit captain instruction or an intake judgment you can state
+spawned ad-ship harness=claude kind=ship mode=local-only yolo=off window=primary:fm-ad-ship worktree=/home/denni/.treehouse/adproj-1642ec/2/adproj
++ echo 'spawn exit=0'
+spawn exit=0
++ cat /tmp/fm-lab.tprp2o/state/ad-ship.meta
+window=primary:fm-ad-ship
+endpoint_task_id=ad-ship
+worktree=/home/denni/.treehouse/adproj-1642ec/2/adproj
+project=/tmp/fm-lab.tprp2o/projects/adproj
+harness=claude
+approval_mode=bypass
+kind=ship
+mode=local-only
+yolo=off
+branch=fm/ad-ship
+tasktmp=/tmp/fm-ad-ship
+deliverable=page
+checks=2
+checks_sha=661a2e0c9f12bff4f3adb8df7724f82a18250455cab75c7efb48c6e99c63c205
+model=default
+effort=default
+busy_gen=g1794140720.4073410.29945
+spawn_gen=s1794140721.4071502.26055

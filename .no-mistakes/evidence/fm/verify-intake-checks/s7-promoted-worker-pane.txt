@@ -1,0 +1,30 @@
+     750f20e Add lawn mowing ad with conditional guarantee
+     81b4e39 init
+     … +3 lines
+  ⎿  Created report.md (+1 -0)
+      1 +Tired of weekends lost to the lawn? GreenEdge Mowing cuts, edges and blows clean every visit,
+        +on a schedule that suits you, at one flat price per mow quoted before we start. If you're not
+        +happy with the cut and you tell us within 48 hours, then we come back and redo it free. Book a
+        + mow today and get your Saturday back.
+  ⎿  (files that changed while this command ran, by the command or by another process; a convenience                                           No changes this session
+     view, not a review or audit of the command)
+  Ran 1 shell command
+● The ad is committed on branch fm/ad-scout (commit 750f20e) and ready for firstmate to merge. Nothing was
+  pushed and no PR was opened.
+  - What's committed: one new file, report.md, at the repo root. It holds only the one-paragraph ad, with the
+    "if ... then" guarantee and the "Book a mow today" call to action. The longer write-up stays at
+    /tmp/fm-lab.tprp2o/data/ad-scout/report.md.
+  - Checks on the committed file: "no questions asked" appears 0 times and "Book" is there. The scout's checks
+    command wasn't re-run, since the promotion message said not to.
+  - Worktree and branch: I'm working in the disposable task worktree, not the primary checkout. It was already
+    clean at main (81b4e39) with no scratch commits, and it's clean again after the commit. The branch sits
+    directly on top of main, so the merge can be a fast-forward, and the primary repo sees it at the same
+    commit.
+  - Wrap-up: I moved 001.msg into handled/ and added done [at=1794140976]: ready in branch fm/ad-scout to the
+    status file.
+✻ Cogitated for 32s · done 10:29 PM
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Opus 5.5 | ctx: 6% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)

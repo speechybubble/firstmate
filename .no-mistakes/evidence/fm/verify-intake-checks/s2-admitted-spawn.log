@@ -1,0 +1,66 @@
++ cd /home/denni/.no-mistakes/worktrees/d567722de3ac/01M6XH0HN9YRGNX5TGAMA05C9D
++ bin/fm-brief.sh ad-scout /tmp/fm-lab.tprp2o/projects/adproj --scout
+scaffolded: /tmp/fm-lab.tprp2o/data/ad-scout/brief.md (scout; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, {EXPERT_PROMPT}, and {CHECKS})
+fill {CONFIRMED_INTENT} with the confirmed reading plus one `captain confirmed: <words>` line, or one `not captain-originated - <reason>` line, then one `end state: <what is true when done and why>` line and one `delegation: built with defaults | asked first | always asked` line
+fill {CHECKS} with one fenced json block of checks written from the captain's words, each with a known-good and a known-bad example, or one `routine: no checks - <reason>` line; bin/fm-checks.sh --help owns the format, and fm-checks.sh validate <brief> --kind <ship|scout> shows what spawn will admit
++ python3 /tmp/fm-lab.tprp2o/fill.py /tmp/fm-lab.tprp2o/data/ad-scout/brief.md /tmp/fm-lab.tprp2o/good-checks.txt
++ bin/fm-checks.sh validate /tmp/fm-lab.tprp2o/data/ad-scout/brief.md --kind scout
+admitted guarantee-conditional
+admitted has-book
+checks: 2 admitted, 0 invalid
++ echo 'validate exit=0'
+validate exit=0
++ grep -n fm-checks.sh /tmp/fm-lab.tprp2o/data/ad-scout/brief.md
+5:When `## Checks` below holds checks, they were written from the captain's words before the work began, and the done-time check refuses your `done:` while any of them fails on your committed work. Before reporting done, run `'/home/denni/.no-mistakes/worktrees/d567722de3ac/01M6XH0HN9YRGNX5TGAMA05C9D/bin/fm-checks.sh' run '/tmp/fm-lab.tprp2o/state/ad-scout.checks.json' --dir '/tmp/fm-lab.tprp2o/data/ad-scout'` (add `--drive <results file>` for a drive assertions check) and fix the work until every check passes; never edit the checks, which were fixed at launch.
++ bin/fm-spawn.sh ad-scout /tmp/fm-lab.tprp2o/projects/adproj claude --scout
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.tprp2o
+spawned ad-scout harness=claude kind=scout window=primary:fm-ad-scout worktree=/home/denni/.treehouse/adproj-1642ec/1/adproj
++ echo 'spawn exit=0'
+spawn exit=0
++ cat /tmp/fm-lab.tprp2o/state/ad-scout.meta
+window=primary:fm-ad-scout
+endpoint_task_id=ad-scout
+worktree=/home/denni/.treehouse/adproj-1642ec/1/adproj
+project=/tmp/fm-lab.tprp2o/projects/adproj
+harness=claude
+approval_mode=bypass
+kind=scout
+tasktmp=/tmp/fm-ad-scout
+checks=2
+checks_sha=ac049c6388d6bb169d281a56b0a55521fd7a08474074500062c8f79cd5383f76
+model=default
+effort=default
+busy_gen=g1794140538.4024873.3911
+spawn_gen=s1794140539.4023687.25175
++ jq . /tmp/fm-lab.tprp2o/state/ad-scout.checks.json
+{
+  "version": 1,
+  "kind": "scout",
+  "checks": [
+    {
+      "id": "guarantee-conditional",
+      "source": "the guarantee must be conditional",
+      "type": "not-contains",
+      "pattern": "no questions asked",
+      "good": "If you are not happy, then the next mow is free.",
+      "bad": "Full refund, no questions asked.",
+      "target": "report.md"
+    },
+    {
+      "id": "has-book",
+      "source": "the ad has a call to action",
+      "type": "contains",
+      "pattern": "Book",
+      "good": "Book a mow today",
+      "bad": "Call us sometime",
+      "target": "report.md"
+    }
+  ],
+  "root": "/tmp/fm-lab.tprp2o/data/ad-scout"
+}
++ sha256sum /tmp/fm-lab.tprp2o/state/ad-scout.checks.json
+ac049c6388d6bb169d281a56b0a55521fd7a08474074500062c8f79cd5383f76  /tmp/fm-lab.tprp2o/state/ad-scout.checks.json
++ tail -3 /tmp/fm-lab.tprp2o/data/skill-fires.tsv
+2026-11-08T12:21:45Z	ad-invalid	checks-invalid	fm-spawn.sh	has-cta: passes its bad example, so it cannot tell bad work from good
+2026-11-08T12:22:16Z	ad-scout	checks-admitted	fm-spawn.sh	guarantee-conditional
+2026-11-08T12:22:16Z	ad-scout	checks-admitted	fm-spawn.sh	has-book

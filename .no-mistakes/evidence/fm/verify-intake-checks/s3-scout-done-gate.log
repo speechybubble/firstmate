@@ -1,0 +1,45 @@
+--- A. worker's real report, untouched record
+state: done · source: status-log · report.md holds a lawn mowing ad with a conditional if/then guarantee and a Book CTA; 2/2 checks pass
+rc=0
+--- B. deliverable now fails guarantee-conditional
+state: blocked · source: status-log · intake checks refuse this done: guarantee-conditional: a line matches /no questions asked/: Full refund, no questions asked.
+rc=0
+--- B2. same refusal re-read (fire must stay once)
+state: blocked · source: status-log · intake checks refuse this done: guarantee-conditional: a line matches /no questions asked/: Full refund, no questions asked.
+rc=0
+--- C. report restored
+state: done · source: status-log · report.md holds a lawn mowing ad with a conditional if/then guarantee and a Book CTA; 2/2 checks pass
+rc=0
+--- D. worker empties the admitted checks list
+state: blocked · source: status-log · intake checks refuse this done: the admitted checks record /tmp/fm-lab.tprp2o/state/ad-scout.checks.json has digest deaf5432c648fe4109f2551d16c921edc63e4408f1278210f5f96c9d64dead1f, not the checks_sha=ac049c6388d6bb169d281a56b0a55521fd7a08474074500062c8f79cd5383f76 spawn admitted; the checks were changed after launch
+rc=0
+--- E. worker swaps checks for ones that pass anything, with a failing report
+state: blocked · source: status-log · intake checks refuse this done: the admitted checks record /tmp/fm-lab.tprp2o/state/ad-scout.checks.json has digest f82c0bc260da73d9a68631c24ceb4e0ea2604377de4d5fb8d288d84d9c036520, not the checks_sha=ac049c6388d6bb169d281a56b0a55521fd7a08474074500062c8f79cd5383f76 spawn admitted; the checks were changed after launch
+rc=0
+fail guarantee-conditional: a line matches /no questions asked/: Full refund, no questions asked.
+pass has-book
+checks: 1 passed, 1 failed
+direct run rc=1
+forged cache:
+fingerprint 3149feb0be7f9b128e168a53dd09cd377cc4c80d
+exit 1
+pass guarantee-conditional: a line matches /no questions asked/: Full refund, no questions asked.
+pass has-book
+checks: 2 passed, 0 failed
+--- F. forged checks-result cache with failing report
+state: blocked · source: status-log · intake checks refuse this done: 
+rc=0
+--- G. admitted record missing
+state: blocked · source: status-log · intake checks refuse this done: the admitted checks record /tmp/fm-lab.tprp2o/state/ad-scout.checks.json is missing or unreadable
+rc=0
+--- H. everything restored
+state: done · source: status-log · report.md holds a lawn mowing ad with a conditional if/then guarantee and a Book CTA; 2/2 checks pass
+rc=0
+--- skill fires
+2026-11-08T12:22:16Z	ad-scout	checks-admitted	fm-spawn.sh	guarantee-conditional
+2026-11-08T12:22:16Z	ad-scout	checks-admitted	fm-spawn.sh	has-book
+2026-11-08T12:24:12Z	ad-scout	checks-refused	fm-crew-state.sh	intake checks refuse this done: guarantee-conditional: a line matches /no questions asked/: Full refund, no questions asked.
+2026-11-08T12:24:13Z	ad-scout	checks-refused	fm-crew-state.sh	intake checks refuse this done: the admitted checks record /tmp/fm-lab.tprp2o/state/ad-scout.checks.json has digest deaf5432c648fe4109f2551d16c921edc63e4408f1278210f5f96c9d64dead1f, not the checks_sha=ac049c6388d6bb169d281a56b0a55521fd7a08474074500062c8f79cd5383f76 spawn admitted; the checks were changed after launch
+2026-11-08T12:24:13Z	ad-scout	checks-refused	fm-crew-state.sh	intake checks refuse this done: the admitted checks record /tmp/fm-lab.tprp2o/state/ad-scout.checks.json has digest f82c0bc260da73d9a68631c24ceb4e0ea2604377de4d5fb8d288d84d9c036520, not the checks_sha=ac049c6388d6bb169d281a56b0a55521fd7a08474074500062c8f79cd5383f76 spawn admitted; the checks were changed after launch
+2026-11-08T12:24:14Z	ad-scout	checks-refused	fm-crew-state.sh	intake checks refuse this done: 
+2026-11-08T12:24:15Z	ad-scout	checks-refused	fm-crew-state.sh	intake checks refuse this done: the admitted checks record /tmp/fm-lab.tprp2o/state/ad-scout.checks.json is missing or unreadable

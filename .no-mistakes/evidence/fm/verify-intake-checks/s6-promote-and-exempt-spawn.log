@@ -1,0 +1,94 @@
++ cd /home/denni/.no-mistakes/worktrees/d567722de3ac/01M6XH0HN9YRGNX5TGAMA05C9D
++ S=/tmp/fm-lab.tprp2o/state
++ : === promotion of ad-scout ===
++ ls /tmp/fm-lab.tprp2o/state/ad-scout.busy-gen /tmp/fm-lab.tprp2o/state/ad-scout.busy-state /tmp/fm-lab.tprp2o/state/ad-scout.checks-result /tmp/fm-lab.tprp2o/state/ad-scout.checks.json /tmp/fm-lab.tprp2o/state/ad-scout.git-hooks /tmp/fm-lab.tprp2o/state/ad-scout.inbox /tmp/fm-lab.tprp2o/state/ad-scout.meta /tmp/fm-lab.tprp2o/state/ad-scout.status /tmp/fm-lab.tprp2o/state/ad-scout.turn-ended
+/tmp/fm-lab.tprp2o/state/ad-scout.busy-gen
+/tmp/fm-lab.tprp2o/state/ad-scout.busy-state
+/tmp/fm-lab.tprp2o/state/ad-scout.checks-result
+/tmp/fm-lab.tprp2o/state/ad-scout.checks.json
+/tmp/fm-lab.tprp2o/state/ad-scout.meta
+/tmp/fm-lab.tprp2o/state/ad-scout.status
+/tmp/fm-lab.tprp2o/state/ad-scout.turn-ended
+
+/tmp/fm-lab.tprp2o/state/ad-scout.git-hooks:
+applypatch-msg
+commit-msg
+post-applypatch
+post-checkout
+post-commit
+post-merge
+post-rewrite
+pre-applypatch
+pre-auto-gc
+pre-commit
+pre-merge-commit
+pre-push
+pre-rebase
+prepare-commit-msg
+sendemail-validate
+
+/tmp/fm-lab.tprp2o/state/ad-scout.inbox:
+handled
++ grep checks /tmp/fm-lab.tprp2o/state/ad-scout.meta
+checks=2
+checks_sha=ac049c6388d6bb169d281a56b0a55521fd7a08474074500062c8f79cd5383f76
++ bin/fm-promote.sh ad-scout --mode local-only --yolo off
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+warn: no registry at /tmp/fm-lab.tprp2o/data/projects.md; defaulting adproj to no-mistakes off
+promoted ad-scout to ship mode=local-only yolo=off (teardown protection restored)
+wrote ship instructions for mode=local-only: /tmp/fm-lab.tprp2o/data/ad-scout/ship-instructions.md
+next: FM_HOME=/tmp/fm-lab.tprp2o bin/fm-send.sh fm-ad-scout "$(cat /tmp/fm-lab.tprp2o/data/ad-scout/ship-instructions.md)"
++ echo 'promote exit=0'
+promote exit=0
++ grep -c checks /tmp/fm-lab.tprp2o/state/ad-scout.meta
+0
++ ls /tmp/fm-lab.tprp2o/state/ad-scout.busy-gen /tmp/fm-lab.tprp2o/state/ad-scout.busy-state /tmp/fm-lab.tprp2o/state/ad-scout.git-hooks /tmp/fm-lab.tprp2o/state/ad-scout.inbox /tmp/fm-lab.tprp2o/state/ad-scout.meta /tmp/fm-lab.tprp2o/state/ad-scout.status /tmp/fm-lab.tprp2o/state/ad-scout.turn-ended
+/tmp/fm-lab.tprp2o/state/ad-scout.busy-gen
+/tmp/fm-lab.tprp2o/state/ad-scout.busy-state
+/tmp/fm-lab.tprp2o/state/ad-scout.meta
+/tmp/fm-lab.tprp2o/state/ad-scout.status
+/tmp/fm-lab.tprp2o/state/ad-scout.turn-ended
+
+/tmp/fm-lab.tprp2o/state/ad-scout.git-hooks:
+applypatch-msg
+commit-msg
+post-applypatch
+post-checkout
+post-commit
+post-merge
+post-rewrite
+pre-applypatch
+pre-auto-gc
+pre-commit
+pre-merge-commit
+pre-push
+pre-rebase
+prepare-commit-msg
+sendemail-validate
+
+/tmp/fm-lab.tprp2o/state/ad-scout.inbox:
+handled
++ grep -n 'intake checks' /tmp/fm-lab.tprp2o/data/ad-scout/ship-instructions.md /tmp/fm-lab.tprp2o/data/ad-scout/brief.md
+/tmp/fm-lab.tprp2o/data/ad-scout/ship-instructions.md:24:The scout's intake checks no longer apply to this ship: do not run or recreate the checks command or checks record from the earlier scout brief.
+/tmp/fm-lab.tprp2o/data/ad-scout/brief.md:141:The scout's intake checks no longer apply to this ship: do not run or recreate the checks command or checks record from the earlier scout brief.
++ : === exempt page ship ===
++ bin/fm-brief.sh ad-page2 /tmp/fm-lab.tprp2o/projects/adproj --mode local-only --deliverable page
+scaffolded: /tmp/fm-lab.tprp2o/data/ad-page2/brief.md (ship, mode=local-only; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, {EXPERT_PROMPT}, and {CHECKS})
+fill {CONFIRMED_INTENT} with the confirmed reading plus one `captain confirmed: <words>` line, or one `not captain-originated - <reason>` line, then one `end state: <what is true when done and why>` line and one `delegation: built with defaults | asked first | always asked` line
+fill {CHECKS} with one fenced json block of checks written from the captain's words, each with a known-good and a known-bad example, or one `routine: no checks - <reason>` line; bin/fm-checks.sh --help owns the format, and fm-checks.sh validate <brief> --kind <ship|scout> shows what spawn will admit
++ sed 's#^```json$##' /tmp/fm-lab.tprp2o/ship-checks.txt
++ printf 'routine: no checks - lab fixture for the page evidence gate alone\n'
++ python3 /tmp/fm-lab.tprp2o/fillship.py /tmp/fm-lab.tprp2o/data/ad-page2/brief.md /tmp/fm-lab.tprp2o/exempt.txt
++ bin/fm-spawn.sh ad-page2 /tmp/fm-lab.tprp2o/projects/adproj claude --mode local-only --yolo off
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.tprp2o
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+notice: ad-page2 ships mode=local-only while the standing posture for adproj is no-mistakes - less rigor than the captain's standing posture; proceed only on a current explicit captain instruction or an intake judgment you can state
+spawned ad-page2 harness=claude kind=ship mode=local-only yolo=off window=primary:fm-ad-page2 worktree=/home/denni/.treehouse/adproj-1642ec/3/adproj
++ echo 'spawn exit=0'
+spawn exit=0
++ grep checks /tmp/fm-lab.tprp2o/state/ad-page2.meta
++ ls /tmp/fm-lab.tprp2o/state/ad-page2.checks.json
+ls: cannot access '/tmp/fm-lab.tprp2o/state/ad-page2.checks.json': No such file or directory
++ grep ad-page2 /tmp/fm-lab.tprp2o/data/skill-fires.tsv
+2026-11-08T12:28:10Z	ad-page2	page	fm-brief.sh	/tmp/fm-lab.tprp2o/data/ad-page2/brief.md
+2026-11-08T12:28:13Z	ad-page2	checks-exempt	fm-spawn.sh	lab fixture for the page evidence gate alone
