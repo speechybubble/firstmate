@@ -466,6 +466,10 @@ test_promotion_persists_the_selected_ship_branch() {
     "promotion did not persist the selected full ship branch"
   assert_no_grep "checks" "$meta" \
     "promotion kept the scout's intake checks count or digest on the promoted ship"
+  assert_grep "The scout's intake checks no longer apply to this ship: do not run or recreate the checks command" "$instructions" \
+    "promotion did not tell the worker the scout's intake checks no longer apply"
+  assert_grep "The scout's intake checks no longer apply to this ship: do not run or recreate the checks command" "$home/data/$id/brief.md" \
+    "the promoted brief did not tell a relaunched worker the scout's intake checks no longer apply"
   assert_grep "git checkout -b fix/$id --" "$instructions" \
     "promotion did not deliver the selected branch-creation command"
   assert_grep "Ship branch: fix/$id" "$instructions" \
