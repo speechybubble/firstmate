@@ -65,9 +65,9 @@ spacing are ignored, so a changed, added, dropped or reordered word fails while
 a capital letter or a comma does not. Words inside [brackets] are ordinary
 words and must match the source at their position. An ellipsis splits a quote
 into parts that must each match, in order, in the same message. When the
-closest such match leaves source words out between two parts, the quote is
-"verbatim with omissions", flagged for review rather than passed, and those
-words are reported; an ellipsis that leaves nothing out between parts (one the
+closest such match, the one leaving out the fewest source words, still leaves
+source words out between two parts, the quote is "verbatim with omissions",
+flagged for review rather than passed, and those words are reported; an ellipsis that leaves nothing out between parts (one the
 captain typed, or one marking a cut at either end) is plain verbatim. A quote
 with no words is skipped and reported. There is no fuzzy matching: a
 paraphrase is a misquote.
@@ -322,19 +322,21 @@ def matches(quote, haystacks):
         return "skipped", None
     best = None
     for hay in haystacks:
-        pos, omitted = 0, []
-        for i, p in enumerate(parts):
-            found = hay.find(p, pos)
-            if found < 0:
-                break
-            if i:
+        start = hay.find(parts[0])
+        while start >= 0 and best != []:
+            pos, omitted = start + len(parts[0]) - 1, []
+            for p in parts[1:]:
+                found = hay.find(p, pos)
+                if found < 0:
+                    break
                 omitted += hay[pos:found].split()
-            pos = found + len(p) - 1
-        else:
-            if best is None or len(omitted) < len(best):
-                best = omitted
-            if not best:
-                break
+                pos = found + len(p) - 1
+            else:
+                if best is None or len(omitted) < len(best):
+                    best = omitted
+            start = hay.find(parts[0], start + 1)
+        if best == []:
+            break
     if best is None:
         return "misquote", None
     if best:

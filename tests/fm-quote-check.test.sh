@@ -74,6 +74,7 @@ rows = [
     user("i do not want to ship it", "u14", origin=human, promptSource="typed"),
     user("i want to ship it", "u15", origin=human, promptSource="typed"),
     user("hmm... let's do it then", "u17", origin=human, promptSource="typed"),
+    user("no i think so, i think we ship it today", "u18", origin=human, promptSource="typed"),
     user("it’s far too loud on the header", "u16", origin=human, promptSource="typed"),
 ]
 with open(main, "w") as fh:
@@ -212,6 +213,8 @@ assert d["summary"]["omissions"] == 1 and d["summary"]["verbatim"] == 0, d["summ
   check_page owndots class:verbatim '<blockquote class="verbatim">hmm... let&#39;s do it</blockquote>'
   expect_code 0 "$RC" "a word-for-word quote of a message with the captain's own ellipsis passes"
   assert_contains "$OUT" "1 checked, 1 verbatim, 0 misquoted, 0 with omissions" "the captain's own ellipsis omits nothing"
+  check_page repeat class:verbatim '<blockquote class="verbatim">i think &hellip; we ship it</blockquote>'
+  expect_code 0 "$RC" "an ellipsis over words that sit together later in the message omits nothing"
   check_page cut class:verbatim '<blockquote class="verbatim">&hellip; want to ship it &hellip;</blockquote>'
   expect_code 0 "$RC" "an ellipsis marking a cut at either end passes"
   check_page bracketed class:verbatim '<blockquote class="verbatim">i [don t] want to ship it</blockquote>'
