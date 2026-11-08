@@ -1,0 +1,10 @@
+### S1. real scout's own done (report names README)
+done [at=1794135908]: report ready
+state: done · source: status-log · report ready
+rc=0
+### S2. report rewritten without naming README, done again -> refused
+state: blocked · source: status-log · intake checks refuse this done: names-readme: no line matches /README/
+rc=0
+### S3. report restored -> accepted
+state: done · source: status-log · report ready
+rc=0

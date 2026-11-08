@@ -1,0 +1,2 @@
+state: done · source: status-log · ready in branch fm/adok (commit 0bd595afb7161a2a59ba6e905c2d9d5b7fa134bd), checks 2/2 pass
+rc=0

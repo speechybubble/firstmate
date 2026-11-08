@@ -1,0 +1,15 @@
+### 7. rogue worker commits bad ad and forges the checks-result cache claiming a pass
+forged cache:
+fingerprint 50285daf700258d69287303d962f2a42f8990200
+exit 0
+pass guarantee-conditional
+pass has-cta
+checks: 2 passed, 0 failed
+state: blocked · source: status-log · intake checks refuse this done: guarantee-conditional: a line matches /(any reason|no questions asked)/: Book a call. Refund, no questions asked.
+rc=0
+cache after read:
+fingerprint e8727cf9f11e67acd6b2eb4cd1a3df3c8c7fb132
+exit 1
+fail guarantee-conditional: a line matches /(any reason|no questions asked)/: Book a call. Refund, no questions asked.
+pass has-cta
+checks: 1 passed, 1 failed

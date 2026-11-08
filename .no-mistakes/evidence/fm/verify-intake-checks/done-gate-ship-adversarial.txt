@@ -1,0 +1,21 @@
+### 1. deliverable fails a check (refund 'no questions asked')
+done [at=1794135774]: ready in branch fm/adok (commit 310de1b1c46592f207c80ae8627379487304461b)
+state: blocked · source: status-log · intake checks refuse this done: guarantee-conditional: a line matches /(any reason|no questions asked)/: Book a call. Full refund for any reason, no questions asked.
+rc=0
+--- skill fires:
+2026-11-08T11:02:55Z	adok	checks-refused	fm-crew-state.sh	intake checks refuse this done: guarantee-conditional: a line matches /(any reason|no questions asked)/: Book a call. Full refund for any reason, no questions asked.
+### 2. fix deliverable again -> done accepted
+state: done · source: status-log · ready in branch fm/adok (commit a05d34824ae4da037c66658cfc051a59d41d8288)
+rc=0
+### 3. rogue worker empties the admitted checks list
+state: blocked · source: status-log · intake checks refuse this done: the admitted checks record /tmp/fm-lab.d7WyE2/state/adok.checks.json has digest 2093c3727154920bbee2221f0b4033fda9eba77d3d80a7ebd8f83d5bb049c848, not the checks_sha=fcc35330523dcc8c648a92d01a44a4667d296fc9dc72355be0417a5319b45396 spawn admitted; the checks were changed after launch
+rc=0
+### 4. rogue worker swaps a check for one that matches anything
+state: blocked · source: status-log · intake checks refuse this done: the admitted checks record /tmp/fm-lab.d7WyE2/state/adok.checks.json has digest d541795a9da84d409f50eee57eeeab42dd80ab8ac0f41191f7a75a704a0dd3b8, not the checks_sha=fcc35330523dcc8c648a92d01a44a4667d296fc9dc72355be0417a5319b45396 spawn admitted; the checks were changed after launch
+rc=0
+### 5. record deleted
+state: blocked · source: status-log · intake checks refuse this done: the admitted checks record /tmp/fm-lab.d7WyE2/state/adok.checks.json is missing or unreadable
+rc=0
+### 6. untouched record restored -> accepted
+state: done · source: status-log · ready in branch fm/adok (commit a05d34824ae4da037c66658cfc051a59d41d8288)
+rc=0

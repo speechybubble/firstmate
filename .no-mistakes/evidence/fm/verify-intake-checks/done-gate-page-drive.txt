@@ -1,0 +1,22 @@
+deliverable at HEAD: Book a call today. If you run it for 30 days and none wins, next month is free.
+### P1. done with drive=/etc/hostname (the study's named hole)
+state: blocked · source: status-log · page deliverable reported done with drive=/etc/hostname, which does not show a passing drive run: /etc/hostname line 1 is not an <assertion><TAB><pass|fail> result, so it is not a drive run's assertion results; name the assertion results file the drive run wrote (one <assertion><TAB><pass|fail> line per assertion, bin/fm-checks.sh --help)
+rc=0
+page-refused fires so far:
+2026-11-08T11:04:02Z	pg	page-refused	fm-crew-state.sh	page deliverable reported done with drive=/etc/hostname, which does not show a passing drive run: /etc/hostname line 1 is not an <assertion><TAB><pass|fail> result, so it is not a drive run's assertion results; name the assertion results file the drive run wrote (one <assertion><TAB><pass|fail> line per assertion, bin/fm-checks.sh --help)
+### P2. drive results with a failed assertion
+state: blocked · source: status-log · page deliverable reported done with drive=/tmp/fmlab-drive-fail.tsv, which does not show a passing drive run: the drive results show assertion book-call-click failing; name the assertion results file the drive run wrote (one <assertion><TAB><pass|fail> line per assertion, bin/fm-checks.sh --help)
+rc=0
+### P3. drive results where every assertion passes
+state: done · source: status-log · ready in branch fm/pg (commit af58c6174d46479ed1d60a7f65c35ed962436257) drive=/tmp/fmlab-drive-ok.tsv
+rc=0
+### P4. deliverable fails an intake check while note lacks drive evidence -> refused by checks gate; page-refused must NOT be recorded
+state: blocked · source: status-log · intake checks refuse this done: guarantee-conditional: a line matches /(any reason|no questions asked)/: Get a refund, no questions asked.; has-cta: no line matches /[Bb]ook a call/
+rc=0
+page-refused fires before=2 after=2
+2026-11-08T11:03:18Z	pg	page	fm-brief.sh	/tmp/fm-lab.d7WyE2/data/pg/brief.md
+2026-11-08T11:03:22Z	pg	checks-admitted	fm-spawn.sh	guarantee-conditional
+2026-11-08T11:03:22Z	pg	checks-admitted	fm-spawn.sh	has-cta
+2026-11-08T11:04:02Z	pg	page-refused	fm-crew-state.sh	page deliverable reported done with drive=/etc/hostname, which does not show a passing drive run: /etc/hostname line 1 is not an <assertion><TAB><pass|fail> result, so it is not a drive run's assertion results; name the assertion results file the drive run wrote (one <assertion><TAB><pass|fail> line per assertion, bin/fm-checks.sh --help)
+2026-11-08T11:04:03Z	pg	page-refused	fm-crew-state.sh	page deliverable reported done with drive=/tmp/fmlab-drive-fail.tsv, which does not show a passing drive run: the drive results show assertion book-call-click failing; name the assertion results file the drive run wrote (one <assertion><TAB><pass|fail> line per assertion, bin/fm-checks.sh --help)
+2026-11-08T11:04:06Z	pg	checks-refused	fm-crew-state.sh	intake checks refuse this done: guarantee-conditional: a line matches /(any reason|no questions asked)/: Get a refund, no questions asked.; has-cta: no line matches /[Bb]ook a call/

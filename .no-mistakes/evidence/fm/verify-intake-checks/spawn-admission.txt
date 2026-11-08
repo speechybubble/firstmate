@@ -1,0 +1,31 @@
+### unfilled slot
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.d7WyE2
+error: /tmp/fm-lab.d7WyE2/data/adbad/brief.md ## Checks still contains {CHECKS}; the checks-at-intake rule requires that subsection to carry either one fenced json block of checks written from the captain's words, each with a known-good and a known-bad example (bin/fm-checks.sh --help owns the format), or exactly one line `routine: no checks - <reason>`, before spawn
+rc=1
+### check that passes its bad example
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.d7WyE2
+error: /tmp/fm-lab.d7WyE2/data/adbad/brief.md ## Checks cannot be admitted; every check must pass its good example and fail its bad one before spawn (bin/fm-checks.sh --help):
+admitted guarantee-conditional
+invalid has-cta: passes its bad example, so it cannot tell bad work from good
+checks: 1 admitted, 1 invalid
+rc=1
+### malformed slot
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.d7WyE2
+error: /tmp/fm-lab.d7WyE2/data/admal/brief.md ## Checks cannot be admitted; every check must pass its good example and fail its bad one before spawn (bin/fm-checks.sh --help):
+invalid: ## Checks holds text outside one fenced json block; write one fenced json block holding the checks, or one line `routine: no checks - <reason>`
+rc=1
+### valid checks -> spawned
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.d7WyE2
+spawned adok harness=claude kind=ship mode=local-only yolo=on window=firstmate:fm-adok worktree=/home/denni/.treehouse/ads-19a5bf/1/ads
+--- meta checks lines
+checks=2
+checks_sha=fcc35330523dcc8c648a92d01a44a4667d296fc9dc72355be0417a5319b45396
+--- skill-fires (spawn)
+2026-11-08T11:00:58Z	adbad	checks-admitted	fm-spawn.sh	guarantee-conditional
+2026-11-08T11:00:58Z	adbad	checks-invalid	fm-spawn.sh	has-cta: passes its bad example, so it cannot tell bad work from good
+2026-11-08T11:01:00Z	admal	checks-invalid	fm-spawn.sh	## Checks holds text outside one fenced json block; write one fenced json block holding the checks, or one line `routine: no checks - <reason>`
+2026-11-08T11:01:17Z	adok	checks-admitted	fm-spawn.sh	guarantee-conditional
+2026-11-08T11:01:17Z	adok	checks-admitted	fm-spawn.sh	has-cta
+2026-11-08T11:03:22Z	pg	checks-admitted	fm-spawn.sh	guarantee-conditional
+2026-11-08T11:03:22Z	pg	checks-admitted	fm-spawn.sh	has-cta
+2026-11-08T11:04:17Z	sc	checks-admitted	fm-spawn.sh	names-readme
