@@ -736,12 +736,14 @@ admit_checks() {  # <state> <id> <kind> <root> <json>
   printf '# Task\n## Checks\n```json\n%s\n```\n' "$5" > "$brief"
   "$ROOT/bin/fm-checks.sh" validate "$brief" --kind "$3" --root "$4" --admit "$1/$2.checks.json" >/dev/null \
     || fail "the $2 fixture checks were not admitted"
+  printf 'checks_sha=%s\n' "$(sha256sum "$1/$2.checks.json" | awk '{print $1}')" >> "$1/$2.meta"
 }
 
 # A task whose meta records admitted intake checks has every done: refused
 # while one fails on the deliverable: a ship's committed HEAD (the no-mistakes
 # handoff included), a scout's data directory. A history read and a task
-# without checks= are not gated, and a missing admitted record refuses.
+# without checks= are not gated, and a missing admitted record, one changed
+# after launch, or a forged result refuses.
 test_task_checks_gate_every_done() {
   local repo wt state meta plain data reason rc pr='PR https://example.test/o/r/pull/8'
   repo="$TMP_ROOT/checks-repo"
@@ -763,7 +765,7 @@ test_task_checks_gate_every_done() {
   reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr" "$state" ck "$meta"); rc=$?
   expect_code 1 "$rc" "a ship done whose deliverable fails its intake check was accepted"
   assert_contains "$reason" "$FM_DOD_CHECKS_REFUSAL_PREFIX guarantee-conditional: a line matches" "the refusal did not name the failing check"
-  printf '%s\n' kind=ship mode=no-mistakes checks=1 > "$state/ck-nm.meta"
+  { printf '%s\n' kind=ship mode=no-mistakes checks=1; grep '^checks_sha=' "$meta"; } > "$state/ck-nm.meta"
   cp "$state/ck.checks.json" "$state/ck-nm.checks.json"
   reason=$(accept_done ship no-mistakes "$wt" "$repo" "done [at=1]: implementation ready" "$state" ck-nm "$state/ck-nm.meta"); rc=$?
   expect_code 1 "$rc" "a no-mistakes handoff whose deliverable fails its intake check was accepted"
@@ -773,6 +775,23 @@ test_task_checks_gate_every_done() {
     || fail "a history read re-ran the intake checks"
   accept_done ship direct-PR "$wt" "$repo" "working [at=1]: still going" "$state" ck "$meta" \
     || fail "a non-done line was gated by the checks"
+
+  cp "$state/ck.checks.json" "$state/ck.admitted.json"
+  jq '.checks = []' "$state/ck.admitted.json" > "$state/ck.checks.json"
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr" "$state" ck "$meta"); rc=$?
+  expect_code 1 "$rc" "a done whose admitted checks were emptied after launch was accepted"
+  assert_contains "$reason" "$FM_DOD_CHECKS_REFUSAL_PREFIX the admitted checks record $state/ck.checks.json has digest" "the emptied-record refusal did not name the digest mismatch"
+  jq '.checks[0].pattern = "never-in-any-ad"' "$state/ck.admitted.json" > "$state/ck.checks.json"
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr" "$state" ck "$meta"); rc=$?
+  expect_code 1 "$rc" "a done whose admitted check was swapped after launch was accepted"
+  assert_contains "$reason" "the checks were changed after launch" "the swapped-check refusal did not name the digest mismatch"
+  "$ROOT/bin/fm-checks.sh" run "$state/ck.checks.json" --head "$wt" --drive "" \
+    --digest "$(sed -n 's/^checks_sha=//p' "$meta")" --cache "$state/ck.checks-result" >/dev/null \
+    || fail "the swapped check did not pass the ad it was swapped to pass"
+  cp "$state/ck.admitted.json" "$state/ck.checks.json"
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr" "$state" ck "$meta"); rc=$?
+  expect_code 1 "$rc" "a forged checks result let a failing done through"
+  assert_contains "$reason" "guarantee-conditional: a line matches" "the forged-result run did not re-check the deliverable"
 
   printf 'If you run it 30 days and none wins, next month is free.\n' > "$wt/ad.txt"
   git -C "$wt" commit -q -am 'conditional guarantee'

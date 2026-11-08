@@ -453,7 +453,7 @@ test_promotion_persists_the_selected_ship_branch() {
   id=promote-branch-e1
   meta="$home/state/$id.meta"
   mkdir -p "$home/state"
-  printf 'window=fm-%s\nkind=scout\nworktree=/tmp/wt\n' "$id" > "$meta"
+  printf 'window=fm-%s\nkind=scout\nworktree=/tmp/wt\nchecks=1\nchecks_sha=0123abcd\n' "$id" > "$meta"
   FM_HOME="$home" "$BRIEF" "$id" fixture-project --scout >/dev/null 2>&1 \
     || fail "branch-prefix promotion scout brief should scaffold"
   fill_brief_subsections "$home/data/$id/brief.md" \
@@ -464,6 +464,8 @@ test_promotion_persists_the_selected_ship_branch() {
   instructions="$home/data/$id/ship-instructions.md"
   assert_grep "branch=fix/$id" "$meta" \
     "promotion did not persist the selected full ship branch"
+  assert_no_grep "checks" "$meta" \
+    "promotion kept the scout's intake checks count or digest on the promoted ship"
   assert_grep "git checkout -b fix/$id --" "$instructions" \
     "promotion did not deliver the selected branch-creation command"
   assert_grep "Ship branch: fix/$id" "$instructions" \

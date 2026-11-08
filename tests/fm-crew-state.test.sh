@@ -2665,7 +2665,7 @@ test_page_deliverable_refusal_records_one_fire() {
 # the read repeats, and reads done once the committed work passes.
 test_intake_checks_refusal_records_one_fire() {
   reset_fakes
-  local d out log sha
+  local d out log sha digest
   d=$(new_case checks-refused)
   make_repo_on_branch "$d/wt" fm/ck
   printf 'Full refund, no questions asked.\n' > "$d/wt/ad.txt"
@@ -2674,13 +2674,14 @@ test_intake_checks_refusal_records_one_fire() {
   sha=$(git -C "$d/wt" rev-parse HEAD)
   git -C "$d/wt" update-ref refs/remotes/origin/fm/ck "$sha"
   make_fakebin "$d" >/dev/null
-  fm_write_meta "$d/state/ck.meta" \
-    "window=fm:fm-ck" "worktree=$d/wt" "project=$d/wt" \
-    "kind=ship" "mode=direct-PR" "checks=1" "harness=claude"
   # shellcheck disable=SC2016 # literal markdown code fences, not expansions.
   printf '# Task\n## Checks\n```json\n[{"id":"guarantee-conditional","source":"higher price guarantees should always be conditional","type":"not-contains","target":"ad.txt","pattern":"no questions asked","good":"If you run it 30 days, next month is free.","bad":"Refund, no questions asked."}]\n```\n' > "$d/brief.md"
   "$ROOT/bin/fm-checks.sh" validate "$d/brief.md" --kind ship --admit "$d/state/ck.checks.json" >/dev/null \
     || fail "the crew-state fixture check was not admitted"
+  digest=$(sha256sum "$d/state/ck.checks.json" | awk '{print $1}')
+  fm_write_meta "$d/state/ck.meta" \
+    "window=fm:fm-ck" "worktree=$d/wt" "project=$d/wt" \
+    "kind=ship" "mode=direct-PR" "checks=1" "checks_sha=$digest" "harness=claude"
   printf 'done [at=1]: PR https://example.test/o/r/pull/9\n' > "$d/state/ck.status"
   FM_FAKE_AXI_STATUS=""
   FM_FAKE_RUNS_LIST=""
@@ -2709,7 +2710,7 @@ test_intake_checks_refusal_records_one_fire() {
   git -C "$d/wt" commit -q -am 'unconditional guarantee again'
   fm_write_meta "$d/state/ck.meta" \
     "window=fm:fm-ck" "worktree=$d/wt" "project=$d/wt" \
-    "kind=ship" "mode=no-mistakes" "deliverable=page" "checks=1" "harness=claude"
+    "kind=ship" "mode=no-mistakes" "deliverable=page" "checks=1" "checks_sha=$digest" "harness=claude"
   printf 'done [at=2]: implementation ready\n' > "$d/state/ck.status"
   rm -f "$log"
   out=$(run_crew_state "$d" ck)

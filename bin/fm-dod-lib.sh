@@ -1210,35 +1210,57 @@ fm_dod_page_evidence_reason() {  # <note>
 # bin/fm-crew-state.sh matches to record a checks-refused skill fire.
 FM_DOD_CHECKS_REFUSAL_PREFIX='intake checks refuse this done:'
 
+# The sha256 of <file>, or nothing when it cannot be read. bin/fm-spawn.sh
+# records the admitted checks record's digest as checks_sha= with it.
+fm_dod_file_sha256() {  # <file>
+  [ -f "$1" ] && [ -r "$1" ] || return 0
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -- "$1" 2>/dev/null | awk '{print $1}'
+  else
+    shasum -a 256 -- "$1" 2>/dev/null | awk '{print $1}'
+  fi
+}
+
 # The refusal reason for a ship or scout done: <line> while the task's admitted
 # intake checks fail on the deliverable, or nothing. bin/fm-spawn.sh records
-# checks=<count> in <meta> and the admitted record at <state>/<id>.checks.json
-# (bin/fm-checks.sh owns its format and the run); a task without checks= is
-# never gated here. Every done of such a task is gated, the no-mistakes
+# checks=<count> and checks_sha=<sha256 of the record> in <meta> and the
+# admitted record at <state>/<id>.checks.json (bin/fm-checks.sh owns its format
+# and the run); a task without checks= is never gated here. The worker can
+# write to <state>, so the record is trusted only while its digest matches
+# checks_sha=: a missing record, a missing checks_sha=, or any other digest
+# refuses before a check runs, and the run's result cache is keyed on that
+# digest, so an emptied, swapped, or forged record or result never passes. Every done of such a task is gated, the no-mistakes
 # implementation handoff included, so failing work is stopped before validation
 # starts and again on the final head: a ship's checks read the committed HEAD of
 # <worktree>, a scout's read its task data directory, and an assertions check
-# reads the done line's drive= results. A missing or unreadable admitted record
-# refuses. A <reads> local history read gates nothing, because cleanup removes
+# reads the done line's drive= results. A <reads> local history read gates nothing, because cleanup removes
 # the deliverable a finished task's checks read.
 fm_dod_task_checks_reason() {  # <kind> <line> <state> <id> <meta> <reads> <worktree>
-  local kind=$1 line=$2 state=$3 id=$4 meta=$5 reads=$6 wt=$7 out rc=0 root where=()
+  local kind=$1 line=$2 state=$3 id=$4 meta=$5 reads=$6 wt=$7 out rc=0 where=()
+  local record="$state/$id.checks.json" admitted actual
   [ "$reads" != local ] && [ -n "$meta" ] || return 0
   [ -n "$(fm_dod_meta_value "$meta" checks)" ] || return 0
   [ "$(status_line_verb "$line")" = "done" ] || return 0
   case "$kind" in
-    ship) where=(--head "$wt") ;;
-    scout)
-      root=$(jq -r '.root // ""' "$state/$id.checks.json" 2>/dev/null)
-      if [ -z "$root" ]; then
-        printf '%s the admitted checks record %s is missing or unreadable\n' \
-          "$FM_DOD_CHECKS_REFUSAL_PREFIX" "$state/$id.checks.json"
-        return 0
-      fi
-      where=(--dir "$root") ;;
+    ship|scout) ;;
     *) return 0 ;;
   esac
-  out=$("$FM_DOD_LIB_DIR/fm-checks.sh" run "$state/$id.checks.json" "${where[@]}" \
+  admitted=$(fm_dod_meta_value "$meta" checks_sha)
+  actual=$(fm_dod_file_sha256 "$record")
+  if [ -z "$actual" ]; then
+    printf '%s the admitted checks record %s is missing or unreadable\n' "$FM_DOD_CHECKS_REFUSAL_PREFIX" "$record"
+    return 0
+  fi
+  if [ "$actual" != "$admitted" ]; then
+    printf '%s the admitted checks record %s has digest %s, not the checks_sha=%s spawn admitted; the checks were changed after launch\n' \
+      "$FM_DOD_CHECKS_REFUSAL_PREFIX" "$record" "$actual" "${admitted:-<none>}"
+    return 0
+  fi
+  case "$kind" in
+    ship) where=(--head "$wt") ;;
+    scout) where=(--dir "$(jq -r '.root // ""' "$record" 2>/dev/null)") ;;
+  esac
+  out=$("$FM_DOD_LIB_DIR/fm-checks.sh" run "$record" "${where[@]}" --digest "$admitted" \
     --drive "$(fm_dod_note_drive_path "$(status_line_note "$line")")" \
     --cache "$state/$id.checks-result" 2>&1) || rc=$?
   [ "$rc" -eq 0 ] && return 0

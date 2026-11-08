@@ -7,7 +7,7 @@
 #
 # Usage:
 #   fm-checks.sh validate <brief> --kind <ship|scout> [--root <dir>] [--admit <file>]
-#   fm-checks.sh run <admitted-file> (--head <worktree> | --dir <dir>) [--drive <file>] [--cache <file>]
+#   fm-checks.sh run <admitted-file> (--head <worktree> | --dir <dir>) [--drive <file>] [--digest <sha256>] [--cache <file>]
 #   fm-checks.sh drive-results <file>
 #   fm-checks.sh --help
 #
@@ -69,7 +69,11 @@
 # --cache <file> reuses the printed result while the record, every
 # materialized target, and the drive path are unchanged, so a supervisor read
 # repeated on every heartbeat runs each command once per deliverable state.
-# bin/fm-dod-lib.sh's fm_dod_task_checks_reason is the done-time caller.
+# --digest <sha256> is the admitted record's digest the caller verified; it
+# keys the cache too, so a result written for any other record is never reused.
+# bin/fm-dod-lib.sh's fm_dod_task_checks_reason is the done-time caller, which
+# refuses before run when the record no longer matches the checks_sha= spawn
+# recorded.
 #
 # drive-results checks that <file> is a drive run's assertion results: an
 # absolute path to a regular file whose every line other than blank lines and
@@ -99,6 +103,7 @@ die_usage() {
 }
 
 SCRATCH=
+# shellcheck disable=SC2329 # Invoked by the EXIT trap below.
 cleanup() { [ -z "$SCRATCH" ] || rm -rf "$SCRATCH"; }
 trap cleanup EXIT
 scratch() {
@@ -475,7 +480,7 @@ hash_file() {  # <file>
 }
 
 cmd_run() {
-  local record='' head='' dir='' drive='' cache='' root n i check id target type path out rc
+  local record='' head='' dir='' drive='' digest='' cache='' root n i check id target type path out rc
   local passed=0 failed=0 result fingerprint
   [ "$#" -gt 0 ] || die_usage "run needs an admitted checks file"
   record=$1
@@ -485,6 +490,7 @@ cmd_run() {
       --head) [ "$#" -ge 2 ] || die_usage "--head needs a worktree"; head=$2; shift 2 ;;
       --dir) [ "$#" -ge 2 ] || die_usage "--dir needs a directory"; dir=$2; shift 2 ;;
       --drive) [ "$#" -ge 2 ] || die_usage "--drive needs a file"; drive=$2; shift 2 ;;
+      --digest) [ "$#" -ge 2 ] || die_usage "--digest needs a sha256"; digest=$2; shift 2 ;;
       --cache) [ "$#" -ge 2 ] || die_usage "--cache needs a file"; cache=$2; shift 2 ;;
       *) die_usage "unknown run argument $1" ;;
     esac
@@ -500,7 +506,7 @@ cmd_run() {
   scratch
   i=0
   fingerprint="$SCRATCH/fingerprint"
-  { hash_file "$record"; printf 'drive %s\n' "$drive"; } > "$fingerprint"
+  { printf 'admitted %s\n' "$digest"; hash_file "$record"; printf 'drive %s\n' "$drive"; } > "$fingerprint"
   while [ "$i" -lt "$n" ]; do
     check=$(jq -c --argjson i "$i" '.checks[$i]' "$record")
     type=$(jq -r '.type' <<<"$check")

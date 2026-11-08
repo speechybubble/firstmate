@@ -21,9 +21,9 @@
 # brief contributes only Task lines explicitly marked as captain words to intent,
 # read outside fenced blocks and indented examples so a quoted `Captain:` sample
 # never passes the provenance gate as the ask (bin/fm-dod-lib.sh).
-# The scout's intake checks judged its report, so promotion drops checks= and
-# the admitted record (bin/fm-checks.sh): the promoted ship's done is not gated
-# by checks written for a report.
+# The scout's intake checks judged its report, so promotion drops checks=,
+# checks_sha=, and the admitted record (bin/fm-checks.sh): the promoted ship's
+# done is not gated by checks written for a report.
 # A scout records no delivery posture, so promotion is where this task's delivery
 # contract is decided: --mode, --yolo, and the ship branch resolved from
 # --branch-prefix are written into the meta alongside the kind= flip. Firstmate resolves all three at promotion time, having just
@@ -378,7 +378,7 @@ fi
 BRIEF_REPLACEMENT=
 
 TMP="$STATE/.$ID.meta.promote.${BASHPID:-$$}"
-grep -v -e '^kind=' -e '^mode=' -e '^yolo=' -e '^branch=' -e '^upstream_consent=' -e '^checks=' "$META" > "$TMP"
+grep -v -e '^kind=' -e '^mode=' -e '^yolo=' -e '^branch=' -e '^upstream_consent=' -e '^checks=' -e '^checks_sha=' "$META" > "$TMP"
 {
   echo "kind=ship"
   echo "mode=$MODE"

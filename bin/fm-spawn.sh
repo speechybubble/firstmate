@@ -4041,8 +4041,10 @@ fi
   echo "error: task $ID has no brief at inaccessible data path $BRIEF" >&2
   exit 1
 }
-# The admitted intake-check count; set below for a ship or scout brief.
+# The admitted intake-check count and record digest; set below for a ship or
+# scout brief.
 CHECKS_COUNT=
+CHECKS_SHA=
 if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
   HERDR_LIFECYCLE_BRIEF_GUARD=$(fm_config_source_present "$CONFIG/herdr-lifecycle-spawn-guard") || exit 1
   if [ "$HERDR_LIFECYCLE_BRIEF_GUARD" = 1 ]; then
@@ -4065,14 +4067,16 @@ if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
   fm_brief_task_slots_check "$BRIEF" spawn || exit 1
   # Intake checks: a `## Checks` slot carrying checks launches only when
   # bin/fm-checks.sh admits every one against its own good and bad examples.
-  # The admitted record at state/<id>.checks.json and checks=<count> in the
-  # task meta are what bin/fm-dod-lib.sh's done gate runs; an exempt slot, or a
-  # brief scaffolded before the slot existed, launches with neither. Each
-  # verdict is one skill fire (one per check, and one for a malformed slot), the measure of how often written checks fail
+  # The admitted record at state/<id>.checks.json, checks=<count>, and
+  # checks_sha=<the record's sha256> in the task meta are what
+  # bin/fm-dod-lib.sh's done gate runs, refusing a record whose digest moved;
+  # an exempt slot, or a brief scaffolded before the slot existed, launches
+  # with none of them. Each verdict is one skill fire (one per check, and one
+  # for a malformed slot), the measure of how often written checks fail
   # validation and how often a task is exempted. Admission happens once, at
-  # the fresh spawn: a relaunch keeps the recorded checks= and record rather
-  # than re-admitting a brief that may have changed since, and a promotion,
-  # which drops checks=, leaves a promoted ship ungated by its scout's checks.
+  # the fresh spawn: a relaunch keeps the recorded checks=, checks_sha=, and
+  # record rather than re-admitting a brief that may have changed since, and a
+  # promotion, which drops checks= and checks_sha=, leaves a promoted ship ungated by its scout's checks.
   CHECKS_RC=0
   if [ "$RELAUNCH" -eq 1 ]; then
     :
@@ -4095,7 +4099,14 @@ EOF
     fi
     case "$CHECKS_OUT" in
       'exempt: '*) ;;
-      *) CHECKS_COUNT=$(printf '%s\n' "$CHECKS_OUT" | grep -c '^admitted ') ;;
+      *)
+        CHECKS_COUNT=$(printf '%s\n' "$CHECKS_OUT" | grep -c '^admitted ')
+        CHECKS_SHA=$(fm_dod_file_sha256 "$STATE/$ID.checks.json")
+        if [ -z "$CHECKS_SHA" ]; then
+          rm -f -- "$STATE/$ID.checks.json"
+          echo "error: the admitted checks record $STATE/$ID.checks.json could not be read back to record its digest" >&2
+          exit 1
+        fi ;;
     esac
   else
     rm -f -- "$STATE/$ID.checks.json"
@@ -6868,8 +6879,10 @@ preserve_relaunch_meta() {
   [ -z "$BASE_BRANCH" ] || echo "base_branch=$BASE_BRANCH"
   [ -z "$UPSTREAM_CONSENT" ] || echo "upstream_consent=$UPSTREAM_CONSENT"
   [ -z "$DELIVERABLE" ] || echo "deliverable=$DELIVERABLE"
-  # The admitted intake-check count, read by bin/fm-dod-lib.sh's done gate.
+  # The admitted intake-check count and record digest, read by
+  # bin/fm-dod-lib.sh's done gate.
   [ -z "$CHECKS_COUNT" ] || echo "checks=$CHECKS_COUNT"
+  [ -z "$CHECKS_SHA" ] || echo "checks_sha=$CHECKS_SHA"
   # Read by bin/fm-dod-lib.sh's ready-report gate; absent on every other forge.
   [ "$EXTERNAL_REVIEW" = 0 ] || echo "forge=external"
   [ -z "$EXTERNAL_BACKUP_REMOTE" ] || echo "backup_remote=$EXTERNAL_BACKUP_REMOTE"
