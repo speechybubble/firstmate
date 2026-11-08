@@ -325,10 +325,12 @@ emit_ship_status_done() {  # [extra-detail] [reads]
     2) emit unknown status-log "$(status_line_note "$LOG_LINE")${SEP}$reason" ;;
   esac
   # This read is the one writer of the page-refused and checks-refused skill
-  # fires; a history-only read records nothing, and a refusal re-read on a
-  # later observation is written once.
+  # fires, each recorded only when its own gate gave the refusal reason; a
+  # history-only read records nothing, and a refusal re-read on a later
+  # observation is written once.
   if [ "$reads" != local ] && [ "$(meta_value deliverable)" = page ] \
-    && page_reason=$(fm_dod_page_evidence_reason "$(status_line_note "$LOG_LINE")") && [ -n "$page_reason" ]; then
+    && page_reason=$(fm_dod_page_evidence_reason "$(status_line_note "$LOG_LINE")") && [ -n "$page_reason" ] \
+    && [ "$reason" = "$page_reason" ]; then
     fm_skill_fire_append "${FM_DATA_OVERRIDE:-$FM_HOME/data}" "$ID" page-refused fm-crew-state.sh "$page_reason" once || true
   fi
   case "$reason" in

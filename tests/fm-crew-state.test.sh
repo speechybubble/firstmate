@@ -2701,6 +2701,23 @@ test_intake_checks_refusal_records_one_fire() {
   out=$(run_crew_state "$d" ck)
   assert_contains "$out" "state: done" "a done whose committed work passes its checks must read done"
   assert_absent "$log" "an accepted done recorded a refusal fire"
+
+  # A no-mistakes page ship's implementation handoff carries no drive= and the
+  # page gate does not apply to it, so a checks refusal there records only the
+  # checks-refused fire, never page-refused.
+  printf 'Full refund, no questions asked.\n' > "$d/wt/ad.txt"
+  git -C "$d/wt" commit -q -am 'unconditional guarantee again'
+  fm_write_meta "$d/state/ck.meta" \
+    "window=fm:fm-ck" "worktree=$d/wt" "project=$d/wt" \
+    "kind=ship" "mode=no-mistakes" "deliverable=page" "checks=1" "harness=claude"
+  printf 'done [at=2]: implementation ready\n' > "$d/state/ck.status"
+  rm -f "$log"
+  out=$(run_crew_state "$d" ck)
+  assert_contains "$out" "intake checks refuse this done: guarantee-conditional" "the handoff was not refused by its failing check"
+  [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-refused"' "$log" | wc -l | tr -d ' ')" = 1 ] \
+    || fail "the handoff refusal did not record one checks-refused fire: $(cat "$log" 2>/dev/null)"
+  [ "$(awk -F'\t' '$2 == "ck" && $3 == "page-refused"' "$log" | wc -l | tr -d ' ')" = 0 ] \
+    || fail "a checks refusal of a handoff the page gate never gates recorded a page-refused fire: $(cat "$log" 2>/dev/null)"
   pass "intake checks: a failing check reads blocked with the check named and records one checks-refused fire"
 }
 

@@ -4068,7 +4068,7 @@ if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
   # The admitted record at state/<id>.checks.json and checks=<count> in the
   # task meta are what bin/fm-dod-lib.sh's done gate runs; an exempt slot, or a
   # brief scaffolded before the slot existed, launches with neither. Each
-  # verdict is one skill fire, the measure of how often written checks fail
+  # verdict is one skill fire (one per check, and one for a malformed slot), the measure of how often written checks fail
   # validation and how often a task is exempted. Admission happens once, at
   # the fresh spawn: a relaunch keeps the recorded checks= and record rather
   # than re-admitting a brief that may have changed since, and a promotion,
@@ -4082,6 +4082,7 @@ if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
       case "$CHECKS_LINE" in
         'admitted '*) fm_skill_fire_append "$DATA" "$ID" checks-admitted fm-spawn.sh "${CHECKS_LINE#admitted }" once || true ;;
         'invalid '*) fm_skill_fire_append "$DATA" "$ID" checks-invalid fm-spawn.sh "${CHECKS_LINE#invalid }" once || true ;;
+        'invalid: ## Checks '*) fm_skill_fire_append "$DATA" "$ID" checks-invalid fm-spawn.sh "${CHECKS_LINE#invalid: }" once || true ;;
         'exempt: '*) fm_skill_fire_append "$DATA" "$ID" checks-exempt fm-spawn.sh "${CHECKS_LINE#exempt: }" once || true ;;
       esac
     done <<EOF

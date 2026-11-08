@@ -125,6 +125,9 @@ test_validate_refuses_schema_breaks() {
   assert_contains "$out" "invalid drive-target: an assertions check reads the drive results" "an assertions check with a target was accepted"
   assert_contains "$out" "invalid twice: id twice is used by more than one check" "a duplicate id was accepted"
   assert_contains "$out" "checks: 0 admitted, 12 invalid" "a check with several problems was counted more than once"
+  [ "$(printf '%s\n' "$out" | grep -c '^invalid ')" = 12 ] \
+    || fail "a check with several problems printed more than one invalid line: $out"
+  assert_contains "$out" "invalid typo: unknown field patern; type contains needs pattern" "a check's several problems were not joined on its one line"
   pass "validate: refuses schema breaks, unknown fields, unsafe targets, missing examples, and duplicate ids"
 }
 

@@ -650,6 +650,28 @@ EOF
   [ "$(awk -F'\t' -v id="$id" '$2 == id && $3 == "checks-invalid" && $4 == "fm-spawn.sh" && $5 ~ /^has-cta: passes its bad example/' "$log" | wc -l | tr -d ' ')" = 1 ] \
     || fail "the invalid check was not recorded as one checks-invalid fire: $(cat "$log" 2>/dev/null)"
 
+  # A check with several schema problems is one invalid check, and a malformed
+  # slot is one invalid verdict, so the fire count matches the validator's.
+  id="checks-schema"
+  FM_HOME="$home" "$BRIEF" "$id" proj --mode direct-PR >/dev/null 2>&1 || fail "checks brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Make the ad." "Write the ad."
+  # shellcheck disable=SC2016 # literal markdown code fences, not expansions.
+  set_checks_body "$home/data/$id/brief.md" "$(printf '```json\n[{"id":"two-problems","type":"contains","target":"ad.txt","good":"a","bad":"b"}]\n```')"
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode direct-PR --yolo off); status=$?
+  [ "$status" -ne 0 ] || fail "spawn launched a brief carrying a check with schema problems"
+  assert_contains "$out" "checks: 0 admitted, 1 invalid" "the validator did not count the check once"
+  [ "$(awk -F'\t' -v id="$id" '$2 == id && $3 == "checks-invalid"' "$log" | wc -l | tr -d ' ')" = 1 ] \
+    || fail "a check with two schema problems was not recorded as exactly one checks-invalid fire: $(cat "$log" 2>/dev/null)"
+  id="checks-malformed"
+  FM_HOME="$home" "$BRIEF" "$id" proj --mode direct-PR >/dev/null 2>&1 || fail "checks brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Make the ad." "Write the ad."
+  set_checks_body "$home/data/$id/brief.md" 'the ad must be good'
+  out=$(run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode direct-PR --yolo off); status=$?
+  [ "$status" -ne 0 ] || fail "spawn launched a brief whose checks slot is malformed"
+  assert_contains "$out" "invalid: ## Checks holds text outside one fenced json block" "the malformed-slot refusal did not name the problem"
+  [ "$(awk -F'\t' -v id="$id" '$2 == id && $3 == "checks-invalid" && $5 ~ /^## Checks holds text outside/' "$log" | wc -l | tr -d ' ')" = 1 ] \
+    || fail "a malformed checks slot was not recorded as one checks-invalid fire: $(cat "$log" 2>/dev/null)"
+
   id="checks-admitted"
   FM_HOME="$home" "$BRIEF" "$id" proj --mode direct-PR >/dev/null 2>&1 || fail "checks brief should scaffold"
   fill_brief_subsections "$home/data/$id/brief.md" "Make the ad." "Write the ad."

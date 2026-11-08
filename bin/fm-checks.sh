@@ -308,7 +308,7 @@ schema_lines() {  # <kind> <array-json-file>
     | .key as $i | .value as $c
     | (if ($c | type) == "object" and ($c.id | type) == "string" then $c.id else "#\($i + 1)" end) as $label
     | (problems($c) + (if ($c | type) == "object" and ($c.id | type) == "string" and ([$ids[] | select(. == $c.id)] | length) > 1 then ["id \($c.id) is used by more than one check"] else [] end)) as $p
-    | if ($p | length) > 0 then ($p[] | "bad\t\($i)\t\($label)\t\(.)") else "ok\t\($i)\t\($c.id)" end
+    | if ($p | length) > 0 then "bad\t\($i)\t\($label)\t\($p | join("; "))" else "ok\t\($i)\t\($c.id)" end
   ' "$2"
 }
 
@@ -351,7 +351,7 @@ materialize_example() {  # <check-json> <good|bad> <out-file>
 
 cmd_validate() {
   local brief='' kind='' root='' admit='' body block tmp array lines line tag idx label why check id
-  local admitted=0 invalid=0 last_bad='' out rc good bad admitted_json='[]'
+  local admitted=0 invalid=0 out rc good bad admitted_json='[]'
   [ "$#" -gt 0 ] || die_usage "validate needs a brief"
   brief=$1
   shift
@@ -407,10 +407,9 @@ cmd_validate() {
     if [ "$tag" = bad ]; then
       label=${line%%	*}
       why=${line#*	}
+      # One line per check: its schema problems arrive joined, so it counts once.
       echo "invalid $label: $why"
-      # One check may have several schema problems; it counts once.
-      [ "$idx" = "$last_bad" ] || invalid=$((invalid + 1))
-      last_bad=$idx
+      invalid=$((invalid + 1))
       continue
     fi
     id=$line
