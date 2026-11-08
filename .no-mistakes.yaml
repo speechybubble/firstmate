@@ -35,6 +35,15 @@ document:
 commands:
   lint: 'bin/fm-lint.sh && bash tests/fm-pi-primary-types.test.sh'
 
+# Run a Firstmate ship's admitted intake checks on the pipeline's own head after
+# Test, so a change its review passed still parks when a task check fails.
+# `bin/fm-checks.sh` owns the gate (`gate` in its header); a run that is not a
+# registered ship passes with a line saying so.
+gates:
+  - name: task-checks
+    after: test
+    command: 'bash bin/fm-checks.sh gate'
+
 # Publish each run's test evidence to the orphan no-mistakes/evidence branch linked from the PR.
 # The evidence is not committed to the feature or default branch.
 test:

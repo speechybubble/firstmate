@@ -27,7 +27,8 @@
 #   brief's `## Checks` slot is validated by bin/fm-checks.sh before any
 #   endpoint exists: an invalid check refuses the spawn, and admitted checks
 #   are recorded as state/<id>.checks.json plus checks=<count> for the
-#   done-time checks gate. A
+#   done-time checks gate, and a no-mistakes ship's are registered for its
+#   pipeline's task-checks gate. A
 #   registry entry the parser refuses stops the spawn rather than launching on a
 #   guessed posture. A
 #   ship or scout spawn also refuses leftover `{TASK}` / `{FIRSTMATE_SPEC}`
@@ -4120,6 +4121,14 @@ EOF
         if [ -z "$CHECKS_SHA" ]; then
           rm -f -- "$STATE/$ID.checks.json"
           echo "error: the admitted checks record $STATE/$ID.checks.json could not be read back to record its digest" >&2
+          exit 1
+        fi
+        # A no-mistakes ship's pipeline runs these checks too, through the
+        # gate bin/fm-checks.sh owns, which finds the ship by its registry entry.
+        if [ "$KIND" = ship ] && [ "$MODE" = no-mistakes ] \
+          && ! CHECKS_REG_OUT=$("$SCRIPT_DIR/fm-checks.sh" register "$STATE" "$ID" 2>&1); then
+          rm -f -- "$STATE/$ID.checks.json"
+          printf 'error: the admitted checks cannot reach this ship'\''s no-mistakes pipeline: %s\n' "$CHECKS_REG_OUT" >&2
           exit 1
         fi ;;
     esac

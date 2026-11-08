@@ -49,6 +49,7 @@ Do not relay reviewer labels or gate output as if they settled the decision.
 ## Classification examples
 
 - Fixing a concrete defect that violates an original acceptance criterion is firstmate's to decide, regardless of implementation difficulty.
+- A parked `task-checks` gate means the pipeline head fails an intake check admitted from the captain's words, so firstmate decides Fix; approving or skipping it would ship work its own acceptance check refuses.
 - Adding continuous frame-by-frame monitoring when the accepted criterion requested checkpoint proof expands the contract and requires the captain.
 - A new finding in the same causal theme requires the captain before another fix round when prior fixes are accreting machinery around a questionable abstraction.
 - A genuinely security-sensitive action requires the captain under the stronger existing boundary even if it is otherwise within scope.

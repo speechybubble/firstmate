@@ -518,7 +518,150 @@ EOF
   pass "drive-results: only a regular file of assertion results with every assertion passing is drive evidence"
 }
 
+# A no-mistakes run of ship t1 laid out as the daemon lays it out: a bare gate
+# repository whose origin is the project, holding the pushed ship branch, and a
+# detached run worktree at the ship's head, plus a home whose state holds the
+# task meta and the admitted record, registered in a private registry. The
+# admitted check wants the ad to name a trade; the ship's committed ad does not.
+# Echoes "<run-worktree>|<state>|<gate>|<origin>".
+make_gate_run() {  # <name>
+  local base="$TMP_ROOT/$1" brief record sha head
+  mkdir -p "$base/state"
+  git init -q --bare -b main "$base/origin.git"
+  git clone -q "$base/origin.git" "$base/ship" 2>/dev/null
+  printf 'base\n' > "$base/ship/readme.txt"
+  git -C "$base/ship" add readme.txt && git -C "$base/ship" commit -qm base && git -C "$base/ship" push -q origin main 2>/dev/null
+  git init -q --bare -b main "$base/gate.git"
+  git -C "$base/gate.git" remote add origin "$base/origin.git"
+  git -C "$base/gate.git" fetch -q origin '+refs/heads/main:refs/remotes/origin/main'
+  git -C "$base/ship" checkout -qb fm/t1
+  printf 'For every business in every industry.\n' > "$base/ship/ad.txt"
+  git -C "$base/ship" add ad.txt && git -C "$base/ship" commit -qm 'write the ad'
+  git -C "$base/ship" push -q "$base/gate.git" fm/t1 2>/dev/null
+  head=$(git -C "$base/ship" rev-parse HEAD)
+  git -C "$base/gate.git" worktree add -q --detach "$base/run" "$head" 2>/dev/null
+  brief="$base/brief.md"
+  record="$base/state/t1.checks.json"
+  write_checks_brief "$brief" "$(json_block '[
+ {"id":"names-the-person","source":"a specific problem for a specific person","type":"contains","target":"ad.txt","pattern":"(HVAC|plumb|remodel)","good":"For plumbers who lose jobs to slow quotes.","bad":"For every business in every industry."},
+ {"id":"apply-works","source":"click Apply and the console shows no error","type":"assertions","assertions":["apply-no-console-error"],"good":"apply-no-console-error\tpass\n","bad":"apply-no-console-error\tfail\tTypeError\n"}
+]')"
+  "$CHECKS" validate "$brief" --kind ship --admit "$record" >/dev/null 2>&1 || fail "the gate fixture's checks were not admitted"
+  sha=$(sha256sum "$record" | awk '{print $1}')
+  printf 'kind=ship\nmode=no-mistakes\nbranch=fm/t1\nworktree=%s\nchecks=2\nchecks_sha=%s\n' "$base/ship" "$sha" > "$base/state/t1.meta"
+  FM_SHIP_CHECKS_REGISTRY="$base/registry" "$CHECKS" register "$base/state" t1 || fail "the gate fixture's ship was not registered"
+  printf '%s\n' "$base/run|$base/state|$base/gate.git|$base/origin.git"
+}
+
+gate_in() {  # <name> <run-worktree>
+  ( cd "$2" && FM_SHIP_CHECKS_REGISTRY="$TMP_ROOT/$1/registry" "$CHECKS" gate 2>&1 )
+}
+
+# The regression a reviewer judging intent alone misses: the pipeline's gate
+# binds the run to its ship and refuses while an admitted check fails, naming
+# the check, then passes once a pipeline fix commit satisfies it; the assertions
+# check is skipped by name for the done gate rather than silently.
+test_gate_refuses_a_run_whose_task_check_fails() {
+  local rec run state gate origin out rc
+  rec=$(make_gate_run gate-fail)
+  IFS='|' read -r run state gate origin <<EOF
+$rec
+EOF
+  out=$(gate_in gate-fail "$run"); rc=$?
+  expect_code 1 "$rc" "the gate passed a run whose admitted check fails: $out"
+  assert_contains "$out" "task-checks: task t1 (fm/t1)" "the gate did not name the ship it bound"
+  assert_contains "$out" "fail names-the-person: " "the gate did not name the failing check"
+  assert_contains "$out" "  from: a specific problem for a specific person" "the gate did not give the fix turn the words the failing check came from"
+  assert_contains "$out" "skip apply-works: " "the gate dropped the assertions check without saying so"
+  assert_contains "$out" "checks: 0 passed, 1 failed" "the gate did not run the committed-tree check"
+
+  printf 'For plumbers who lose jobs to slow quotes.\n' > "$run/ad.txt"
+  out=$(gate_in gate-fail "$run"); rc=$?
+  expect_code 1 "$rc" "the gate read the uncommitted run tree instead of the pipeline's committed head: $out"
+  git -C "$run" commit -qam 'pipeline fix: name the trade'
+  out=$(gate_in gate-fail "$run"); rc=$?
+  expect_code 0 "$rc" "the gate refused a pipeline head that satisfies the check: $out"
+  assert_contains "$out" "pass names-the-person" "the gate did not report the passing check"
+  pass "gate: a run whose admitted check fails is refused with the check named, and the pipeline's fixed head passes"
+}
+
+# The record the gate runs is the one spawn admitted: a changed record refuses
+# before any check runs, and a ship whose registration or meta is gone, or a
+# directory that is not a worktree, never passes by binding something else.
+test_gate_trusts_only_the_admitted_record() {
+  local rec run state gate origin out rc
+  rec=$(make_gate_run gate-trust)
+  IFS='|' read -r run state gate origin <<EOF
+$rec
+EOF
+  printf 'For plumbers.\n' > "$run/ad.txt"
+  git -C "$run" commit -qam 'pipeline fix'
+  jq '.checks = []' "$state/t1.checks.json" > "$state/t1.swap" && mv "$state/t1.swap" "$state/t1.checks.json"
+  out=$(gate_in gate-trust "$run"); rc=$?
+  expect_code 1 "$rc" "the gate ran an emptied record: $out"
+  assert_contains "$out" "fail admitted-record: " "the gate did not name the untrusted record"
+
+  mv "$state/t1.meta" "$state/t1.meta.gone"
+  out=$(gate_in gate-trust "$run"); rc=$?
+  expect_code 0 "$rc" "a registration whose task meta is gone still gated: $out"
+  assert_contains "$out" "no registered Firstmate ship matches this run" "the gate did not say it bound no ship"
+  mv "$state/t1.meta.gone" "$state/t1.meta"
+  FM_SHIP_CHECKS_REGISTRY="$TMP_ROOT/gate-trust/registry" "$CHECKS" unregister "$state" t1
+  [ -z "$(find "$TMP_ROOT/gate-trust/registry" -name '*.ship')" ] || fail "unregister left the registry entry"
+  out=$(gate_in gate-trust "$run"); rc=$?
+  expect_code 0 "$rc" "an unregistered ship still gated: $out"
+
+  out=$(gate_in gate-trust "$TMP_ROOT"); rc=$?
+  expect_code 1 "$rc" "the gate passed outside any git worktree: $out"
+  pass "gate: only the admitted record is run, and a gone registration or meta binds nothing"
+}
+
+# A pipeline rebase rewrites the ship's commits, so the gate binds by patch as
+# well as by ancestry; a run for another branch, or a registered ship whose
+# commits already sit in the base, binds nothing.
+test_gate_binds_only_the_run_of_its_ship() {
+  local rec run state gate origin out rc base upstream_head
+  rec=$(make_gate_run gate-bind)
+  IFS='|' read -r run state gate origin <<EOF
+$rec
+EOF
+  base="$TMP_ROOT/gate-bind"
+  git clone -q "$origin" "$base/other" 2>/dev/null
+  printf 'later\n' > "$base/other/later.txt"
+  git -C "$base/other" add later.txt && git -C "$base/other" commit -qm 'base moves' && git -C "$base/other" push -q origin main 2>/dev/null
+  git -C "$gate" fetch -q origin '+refs/heads/main:refs/remotes/origin/main'
+  upstream_head=$(git -C "$gate" rev-parse refs/remotes/origin/main)
+  git -C "$run" checkout -q --detach "$upstream_head"
+  git -C "$run" cherry-pick "$(git -C "$gate" rev-parse refs/heads/fm/t1)" >/dev/null 2>&1 || fail "could not replay the ship onto the moved base"
+  out=$(gate_in gate-bind "$run"); rc=$?
+  expect_code 1 "$rc" "the gate lost its ship after a pipeline rebase: $out"
+  assert_contains "$out" "task-checks: task t1 (fm/t1)" "the rebased run was not bound to its ship"
+
+  git -C "$base/other" checkout -qb fm/unrelated
+  printf 'unrelated\n' > "$base/other/u.txt"
+  git -C "$base/other" add u.txt && git -C "$base/other" commit -qm unrelated
+  git -C "$base/other" push -q "$gate" fm/unrelated 2>/dev/null
+  git -C "$run" checkout -q --detach "$(git -C "$gate" rev-parse refs/heads/fm/unrelated)"
+  out=$(gate_in gate-bind "$run"); rc=$?
+  expect_code 0 "$rc" "the gate ran ship t1's checks on another branch's run: $out"
+  assert_contains "$out" "no registered Firstmate ship matches this run" "the unrelated run was not reported unbound"
+
+  git -C "$base/ship" checkout -q main && git -C "$base/ship" pull -q --no-rebase origin main 2>/dev/null
+  git -C "$base/ship" merge -q --no-ff -m 'merge t1' fm/t1 && git -C "$base/ship" push -q origin main 2>/dev/null
+  git -C "$gate" fetch -q origin '+refs/heads/main:refs/remotes/origin/main'
+  git -C "$run" checkout -q --detach refs/remotes/origin/main
+  printf 'next\n' > "$run/next.txt"
+  git -C "$run" add next.txt && git -C "$run" commit -qm 'next task'
+  out=$(gate_in gate-bind "$run"); rc=$?
+  expect_code 0 "$rc" "a ship already merged into the base claimed a later run: $out"
+  assert_contains "$out" "no registered Firstmate ship matches this run" "the later run was not reported unbound"
+  pass "gate: a rebased run stays bound to its ship, and other runs bind nothing"
+}
+
 fm_test_run \
+  test_gate_refuses_a_run_whose_task_check_fails \
+  test_gate_trusts_only_the_admitted_record \
+  test_gate_binds_only_the_run_of_its_ship \
   test_validate_admits_every_type_on_its_own_examples \
   test_validate_refuses_checks_that_cannot_tell_good_from_bad \
   test_validate_refuses_schema_breaks \
