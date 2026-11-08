@@ -1,0 +1,48 @@
+$ [t+250m] fm-run-budget.sh finding /tmp/fm-lab.OvrkXU/data/nightly-backpass Backpass has no spend line in its brief
+finding 3 recorded
+exit=0
+$ [t+300m] fm-run-budget.sh finding /tmp/fm-lab.OvrkXU/data/nightly-backpass Allowance read at 84 percent
+finding 4 recorded
+exit=0
+$ [t+350m] fm-run-budget.sh finding /tmp/fm-lab.OvrkXU/data/nightly-backpass Plateau rule absent
+finding 5 recorded
+exit=0
+$ [t+400m] fm-run-budget.sh finding /tmp/fm-lab.OvrkXU/data/nightly-backpass Run four wrote no status
+finding 6 recorded
+exit=0
+$ [t+410m] fm-run-budget.sh check /tmp/fm-lab.OvrkXU/data/nightly-backpass
+wrap-up: 410 of 480 minutes used; 0 of 25 allowance points used (claude at 84 percent, reserve 5); 10 of 60 plateau minutes since the last finding; write the final report now, then finish
+exit=0
+$ [t+470m] fm-run-budget.sh finding /tmp/fm-lab.OvrkXU/data/nightly-backpass Catch-up was filed by hand
+finding 7 recorded
+exit=0
+$ [t+481m] fm-run-budget.sh check /tmp/fm-lab.OvrkXU/data/nightly-backpass
+stop: time: 481 of 480 minutes used; the report is marked stopped, so finish the write-up with what you have and run: fm-run-budget.sh finish /tmp/fm-lab.OvrkXU/data/nightly-backpass time '<what the run did not reach>'
+exit=3
+--- report.md right after the stop verdict (before the worker writes) ---
+<!-- fm-run-budget: run-status=stopped-time -->
+Run status: stopped at its 480-minute time budget at 2026-11-08T14:30Z. This report holds what the run found before it stopped.
+
+$ [t+482m] fm-run-budget.sh finish /tmp/fm-lab.OvrkXU/data/nightly-backpass time did not reach the 2 Nov coordination trace
+run status: stopped-time
+exit=0
+--- final report.md ---
+<!-- fm-run-budget: run-status=stopped-time -->
+Run status: stopped at its 480-minute time budget at 2026-11-08T14:31Z. This report holds what the run found before it stopped. did not reach the 2 Nov coordination trace
+
+# nightly-backpass
+
+## Run log
+Findings the run recorded as it went, oldest first.
+- 2026-11-08T06:34Z Nightly runs 29 Oct - 2 Nov left a brief and no report
+- 2026-11-08T07:09Z The 29 Oct run died when the weekly allowance ran out
+- 2026-11-08T10:39Z Backpass has no spend line in its brief
+- 2026-11-08T11:29Z Allowance read at 84 percent
+- 2026-11-08T12:19Z Plateau rule absent
+- 2026-11-08T13:09Z Run four wrote no status
+- 2026-11-08T14:19Z Catch-up was filed by hand
+
+$ [t+483m] fm-run-budget.sh status /tmp/fm-lab.OvrkXU/data/nightly-backpass /tmp/fm-lab.OvrkXU/data/plain-scout
+nightly-backpass	stopped-time
+plain-scout	missing
+exit=0

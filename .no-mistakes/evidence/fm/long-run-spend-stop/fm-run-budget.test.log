@@ -1,0 +1,9 @@
+1..7
+ok - run budget: scaffold renders the section and refuses invalid or misplaced budgets
+ok - run budget: a run that hits its spend line leaves a marked partial report
+ok - run budget: the time budget stops the run and finish records what it missed
+ok - run budget: the plateau rule ignores declared waits and stops an unproductive hour
+ok - run budget: low headroom plans a short pass, no headroom stops at once, unknown headroom is disclosed
+ok - run budget: the first readable check sets the spend baseline when start could not read the allowance
+ok - run budget: a relaunch keeps the clock and salvage marks a dead or never-started run
+FM_TEST_COMPLETE

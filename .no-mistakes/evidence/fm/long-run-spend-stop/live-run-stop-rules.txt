@@ -1,0 +1,177 @@
+=== A. spend line: allowance 70 -> 52 -> 44 with spend=25 ===
+    [allowance fixture: claude 70% remaining, runway 9999999s, stale=false]
+$ [t+0m] fm-run-budget.sh start $LAB/data/spend-run
+plan: full - claude allowance at 70 percent, 65 points above the reserve
+spend line: 25 points of the claude allowance
+reserve: stop when the claude allowance falls to 5 percent
+plateau: stop after 60 minutes of work with no new finding
+report checkpoint: $LAB/data/spend-run/report.md
+exit=0
+$ [t+10m] fm-run-budget.sh finding $LAB/data/spend-run first finding
+finding 1 recorded
+exit=0
+    [allowance fixture: claude 52% remaining, runway 9999999s, stale=false]
+$ [t+20m] fm-run-budget.sh check $LAB/data/spend-run
+continue: 18 of 25 allowance points used (claude at 52 percent, reserve 5); 10 of 60 plateau minutes since the last finding
+exit=0
+    [allowance fixture: claude 44% remaining, runway 9999999s, stale=false]
+$ [t+30m] fm-run-budget.sh check $LAB/data/spend-run
+stop: spend: 26 of 25 allowance points used; the report is marked stopped, so finish the write-up with what you have and run: fm-run-budget.sh finish $LAB/data/spend-run spend '<what the run did not reach>'
+exit=3
+--- report head after spend stop ---
+<!-- fm-run-budget: run-status=stopped-spend -->
+Run status: stopped after using its 25-point share of the claude allowance at 2026-11-09T05:23Z. This report holds what the run found before it stopped.
+
+=== B. spend baseline set by first readable check (start stale) ===
+    [allowance fixture: claude 60% remaining, runway 9999999s, stale=true]
+$ [t+0m] fm-run-budget.sh start $LAB/data/baseline-run
+plan: full - claude allowance headroom unknown (the reading is stale); time and plateau rules apply until a check can read it, and the spend line counts from that reading
+spend line: 20 points of the claude allowance
+reserve: stop when the claude allowance falls to 5 percent
+plateau: stop after 60 minutes of work with no new finding
+report checkpoint: $LAB/data/baseline-run/report.md
+exit=0
+    [allowance fixture: claude 60% remaining, runway 9999999s, stale=false]
+$ [t+10m] fm-run-budget.sh check $LAB/data/baseline-run
+continue: 0 of 20 allowance points used (claude at 60 percent, reserve 5); 10 of 60 plateau minutes since the last finding
+exit=0
+    [allowance fixture: claude 45% remaining, runway 9999999s, stale=false]
+$ [t+20m] fm-run-budget.sh check $LAB/data/baseline-run
+continue: 15 of 20 allowance points used (claude at 45 percent, reserve 5); 20 of 60 plateau minutes since the last finding
+exit=0
+    [allowance fixture: claude 39% remaining, runway 9999999s, stale=false]
+$ [t+30m] fm-run-budget.sh check $LAB/data/baseline-run
+stop: spend: 21 of 20 allowance points used; the report is marked stopped, so finish the write-up with what you have and run: fm-run-budget.sh finish $LAB/data/baseline-run spend '<what the run did not reach>'
+exit=3
+ledger: 1794200600	baseline	60
+
+=== C. reserve: allowance falls to 4 percent ===
+    [allowance fixture: claude 50% remaining, runway 9999999s, stale=false]
+$ [t+0m] fm-run-budget.sh start $LAB/data/reserve-run
+plan: short - claude allowance at 50 percent, 45 points above the reserve, under the 90-point spend line, so the spend line shrinks to 45
+time budget: 600 minutes, until 2026-11-09T14:53Z
+spend line: 45 points of the claude allowance
+reserve: stop when the claude allowance falls to 5 percent
+plateau: stop after 60 minutes of work with no new finding
+report checkpoint: $LAB/data/reserve-run/report.md
+exit=0
+    [allowance fixture: claude 4% remaining, runway 9999999s, stale=false]
+$ [t+30m] fm-run-budget.sh check $LAB/data/reserve-run
+stop: reserve: claude allowance at 4 percent, at or under its 5 percent reserve; the report is marked stopped, so finish the write-up with what you have and run: fm-run-budget.sh finish $LAB/data/reserve-run reserve '<what the run did not reach>'
+exit=3
+
+=== D. short plan: headroom 12 points above reserve, spend line 25 ===
+    [allowance fixture: claude 17% remaining, runway 3600s, stale=false]
+$ [t+0m] fm-run-budget.sh start $LAB/data/short-run
+plan: short - claude allowance at 17 percent, 12 points above the reserve, under the 25-point spend line, so the spend line shrinks to 12; projected runway 60 minutes is under the 480-minute budget, so the time budget shrinks to 60
+time budget: 60 minutes, until 2026-11-09T05:53Z
+spend line: 12 points of the claude allowance
+reserve: stop when the claude allowance falls to 5 percent
+plateau: stop after 60 minutes of work with no new finding
+report checkpoint: $LAB/data/short-run/report.md
+exit=0
+
+=== E. start at or under reserve: stop at once ===
+    [allowance fixture: claude 3% remaining, runway 9999999s, stale=false]
+$ [t+0m] fm-run-budget.sh start $LAB/data/empty-run
+stop: reserve: claude allowance at 3 percent, at or under its 5 percent reserve; the report is marked stopped, so record what you can and report done
+exit=3
+<!-- fm-run-budget: run-status=stopped-reserve -->
+Run status: stopped with the claude allowance at its 5 percent reserve at 2026-11-09T04:53Z. This report holds what the run found before it stopped. It stopped before doing any work.
+
+=== F. plateau: 60 minutes of work without a finding ===
+$ [t+0m] fm-run-budget.sh start $LAB/data/plateau-run
+plan: full - budget fits as read
+time budget: 600 minutes, until 2026-11-09T14:53Z
+plateau: stop after 60 minutes of work with no new finding
+report checkpoint: $LAB/data/plateau-run/report.md
+exit=0
+$ [t+5m] fm-run-budget.sh finding $LAB/data/plateau-run only finding
+finding 1 recorded
+exit=0
+$ [t+64m] fm-run-budget.sh check $LAB/data/plateau-run
+continue: 64 of 600 minutes used; 59 of 60 plateau minutes since the last finding
+exit=0
+$ [t+66m] fm-run-budget.sh check $LAB/data/plateau-run
+stop: plateau: 61 minutes of work since the last new finding; the report is marked stopped, so finish the write-up with what you have and run: fm-run-budget.sh finish $LAB/data/plateau-run plateau '<what the run did not reach>'
+exit=3
+
+=== G. run dies mid-way (no finish): salvage marks it ===
+$ [t+0m] fm-run-budget.sh start $LAB/data/dead-run
+plan: full - budget fits as read
+time budget: 480 minutes, until 2026-11-09T12:53Z
+plateau: stop after 60 minutes of work with no new finding
+report checkpoint: $LAB/data/dead-run/report.md
+exit=0
+$ [t+10m] fm-run-budget.sh finding $LAB/data/dead-run finding before the allowance ran out
+finding 1 recorded
+exit=0
+    [report.md deleted to simulate a worker that clobbered it before dying]
+$ [t+300m] fm-run-budget.sh salvage $LAB/data/dead-run the weekly allowance ran out
+run status: ended-unfinished
+exit=0
+<!-- fm-run-budget: run-status=ended-unfinished -->
+Run status: ended without finishing (the weekly allowance ran out), recorded at 2026-11-09T09:53Z. Its last recorded activity was at 2026-11-09T05:03Z with 1 findings recorded; this report is that checkpoint and may be partial.
+
+
+## Run log
+Findings the run recorded as it went, oldest first.
+
+- 2026-11-09T05:03Z finding before the allowance ran out
+$ [t+301m] fm-run-budget.sh salvage $LAB/data/spend-run
+run status: stopped-spend (left alone)
+exit=0
+
+=== H. adversarial: commands before start, unknown subcommand, finish bad reason ===
+$ [t+0m] fm-run-budget.sh finding $LAB/data/misuse-run too early
+fm-run-budget: run not started; run fm-run-budget.sh start $LAB/data/misuse-run first
+exit=1
+$ [t+0m] fm-run-budget.sh check $LAB/data/misuse-run
+fm-run-budget: run not started; run fm-run-budget.sh start $LAB/data/misuse-run first
+exit=1
+$ [t+0m] fm-run-budget.sh bogus $LAB/data/misuse-run
+Usage:
+  fm-run-budget.sh render <spec> <task-dir>
+  fm-run-budget.sh start <task-dir>
+  fm-run-budget.sh finding <task-dir> <one-line finding>
+  fm-run-budget.sh wait <task-dir> <what the run is waiting on>
+  fm-run-budget.sh resume <task-dir>
+  fm-run-budget.sh check <task-dir>
+  fm-run-budget.sh finish <task-dir> <complete|time|spend|reserve|plateau> [<note>]
+  fm-run-budget.sh salvage <task-dir> [<why>]
+  fm-run-budget.sh status <task-dir>...
+
+exit=2
+$ [t+0m] fm-run-budget.sh start $LAB/data/misuse-run
+plan: full - budget fits as read
+time budget: 30 minutes, until 2026-11-09T05:23Z
+plateau: stop after 60 minutes of work with no new finding
+report checkpoint: $LAB/data/misuse-run/report.md
+exit=0
+$ [t+1m] fm-run-budget.sh finish $LAB/data/misuse-run exploded
+Usage:
+  fm-run-budget.sh render <spec> <task-dir>
+  fm-run-budget.sh start <task-dir>
+  fm-run-budget.sh finding <task-dir> <one-line finding>
+  fm-run-budget.sh wait <task-dir> <what the run is waiting on>
+  fm-run-budget.sh resume <task-dir>
+  fm-run-budget.sh check <task-dir>
+  fm-run-budget.sh finish <task-dir> <complete|time|spend|reserve|plateau> [<note>]
+  fm-run-budget.sh salvage <task-dir> [<why>]
+  fm-run-budget.sh status <task-dir>...
+
+exit=2
+
+=== status over all task folders (nights-with-a-report count) ===
+$ [t+400m] fm-run-budget.sh status $LAB/data/baseline-run/ $LAB/data/dead-run/ $LAB/data/empty-run/ $LAB/data/misuse-run/ $LAB/data/nightly-backpass/ $LAB/data/plain-scout/ $LAB/data/plateau-run/ $LAB/data/reserve-run/ $LAB/data/short-run/ $LAB/data/spend-run/
+baseline-run	stopped-spend
+dead-run	ended-unfinished
+empty-run	stopped-reserve
+misuse-run	in-progress
+nightly-backpass	stopped-time
+plain-scout	missing
+plateau-run	stopped-plateau
+reserve-run	stopped-reserve
+short-run	in-progress
+spend-run	stopped-spend
+exit=0

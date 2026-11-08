@@ -1,0 +1,4 @@
+1794119487	start	plan=full minutes=2 eff_minutes=2 allowance=claude spend=10 eff_spend=10 reserve=5 plateau=60 start_pct=84 runway_s= note=claude allowance at 84 percent, 79 points above the reserve
+1794119495	finding	fm-run-budget.sh has 701 lines (only fm-run file)
+1794119717	stop	time: 3 of 2 minutes used
+1794119724	finish	time: Only one fm-run file exists (fm-run-budget.sh, 701 lines), so the second finding was never produced; time budget of 2 minutes was exceeded by the 130 second sleep.

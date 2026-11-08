@@ -1,0 +1,42 @@
+== real quota-axi (read-only) behind start; clock advanced with FM_RUN_BUDGET_NOW ==
+$ [t+0m] fm-run-budget.sh start /tmp/fm-lab.OvrkXU/data/nightly-backpass
+plan: full - claude allowance at 84 percent, 79 points above the reserve
+time budget: 480 minutes, until 2026-11-08T14:29Z
+spend line: 25 points of the claude allowance
+reserve: stop when the claude allowance falls to 5 percent
+plateau: stop after 60 minutes of work with no new finding
+report checkpoint: /tmp/fm-lab.OvrkXU/data/nightly-backpass/report.md
+exit=0
+--- report.md after start ---
+<!-- fm-run-budget: run-status=in-progress -->
+Run status: in progress since 2026-11-08T06:29Z. The run writes this report as it goes, so until this line changes it holds what the run had found at its last checkpoint.
+
+# nightly-backpass
+
+## Run log
+Findings the run recorded as it went, oldest first.
+$ [t+5m] fm-run-budget.sh finding /tmp/fm-lab.OvrkXU/data/nightly-backpass Nightly runs 29 Oct - 2 Nov left a brief and no report
+finding 1 recorded
+exit=0
+$ [t+6m] fm-run-budget.sh check /tmp/fm-lab.OvrkXU/data/nightly-backpass
+continue: 6 of 480 minutes used; 0 of 25 allowance points used (claude at 84 percent, reserve 5); 1 of 60 plateau minutes since the last finding
+exit=0
+$ [t+40m] fm-run-budget.sh finding /tmp/fm-lab.OvrkXU/data/nightly-backpass The 29 Oct run died when the weekly allowance ran out
+finding 2 recorded
+exit=0
+$ [t+41m] fm-run-budget.sh wait /tmp/fm-lab.OvrkXU/data/nightly-backpass fleet log export
+wait recorded; run resume when it returns
+exit=0
+$ [t+160m] fm-run-budget.sh resume /tmp/fm-lab.OvrkXU/data/nightly-backpass
+resume recorded
+exit=0
+$ [t+161m] fm-run-budget.sh check /tmp/fm-lab.OvrkXU/data/nightly-backpass
+continue: 161 of 480 minutes used; 0 of 25 allowance points used (claude at 84 percent, reserve 5); 2 of 60 plateau minutes since the last finding
+exit=0
+$ [t+200m] fm-run-budget.sh start /tmp/fm-lab.OvrkXU/data/nightly-backpass
+restart: keeping the run's first start at 2026-11-08T06:29Z
+plan: full - claude allowance at 84 percent, 79 points above the reserve
+exit=0
+$ [t+230m] fm-run-budget.sh check /tmp/fm-lab.OvrkXU/data/nightly-backpass
+continue: 230 of 480 minutes used; 0 of 25 allowance points used (claude at 84 percent, reserve 5); 30 of 60 plateau minutes since the last finding
+exit=0

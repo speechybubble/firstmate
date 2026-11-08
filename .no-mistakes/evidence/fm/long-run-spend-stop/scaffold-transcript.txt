@@ -1,0 +1,58 @@
+$ fm-brief.sh nightly-backpass fixture --scout --run-budget minutes=480,allowance=claude,spend=25
+scaffolded: /tmp/fm-lab.OvrkXU/data/nightly-backpass/brief.md (scout; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, and {EXPERT_PROMPT})
+fill {CONFIRMED_INTENT} with the confirmed reading plus one `captain confirmed: <words>` line, or one `not captain-originated - <reason>` line, then one `end state: <what is true when done and why>` line and one `delegation: built with defaults | asked first | always asked` line
+rc=0
+
+--- brief section (Run budget .. Rules 2) ---
+# Run budget
+<!-- fm-run-budget: minutes=480,allowance=claude,spend=25,reserve=5,plateau=60 -->
+This is a long run with a spend line and a stop rule: 480 minutes of wall-clock time, 25 percentage points of the claude allowance, a stop when the claude allowance falls to 5 percent, and a plateau rule: stop when 60 minutes of work, not counting declared waits, add no new finding.
+A run that reaches its budget or plateau writes what it has and stops; it never runs on until it dies with no report.
+'/home/denni/.no-mistakes/worktrees/d567722de3ac/01M6WWT5YC823CS1E6G188VA6M/bin/fm-run-budget.sh' owns the run-status line at the top of your report, the run ledger `/tmp/fm-lab.OvrkXU/data/nightly-backpass/run-budget.tsv`, and every stop verdict; you may write that ledger only through it.
+1. Right after setup, run `'/home/denni/.no-mistakes/worktrees/d567722de3ac/01M6WWT5YC823CS1E6G188VA6M/bin/fm-run-budget.sh' start '/tmp/fm-lab.OvrkXU/data/nightly-backpass'`. It records the start, reads the allowance's headroom, writes the report's first checkpoint, and prints the plan. On `plan: short`, cover what matters most first and expect to stop early. On `stop:` the report is already marked: add what you can and report done. After a relaunch, run it again; it keeps the original start.
+2. Write the report as you go, never only at the end. Each time you establish a new finding, add it to the report and record it with `'/home/denni/.no-mistakes/worktrees/d567722de3ac/01M6WWT5YC823CS1E6G188VA6M/bin/fm-run-budget.sh' finding '/tmp/fm-lab.OvrkXU/data/nightly-backpass' '<one line>'`, which also writes it into the report's run log so it survives a run that dies before your next write.
+3. Before waiting on your own long background job, run `'/home/denni/.no-mistakes/worktrees/d567722de3ac/01M6WWT5YC823CS1E6G188VA6M/bin/fm-run-budget.sh' wait '/tmp/fm-lab.OvrkXU/data/nightly-backpass' '<what you wait on>'`, and `'/home/denni/.no-mistakes/worktrees/d567722de3ac/01M6WWT5YC823CS1E6G188VA6M/bin/fm-run-budget.sh' resume '/tmp/fm-lab.OvrkXU/data/nightly-backpass'` when it returns, so the wait does not count as work that found nothing.
+4. Run `'/home/denni/.no-mistakes/worktrees/d567722de3ac/01M6WWT5YC823CS1E6G188VA6M/bin/fm-run-budget.sh' check '/tmp/fm-lab.OvrkXU/data/nightly-backpass'` after each finding, after each wait, and at least every 30 minutes of work. `continue` means carry on. `wrap-up` means write the final report now. `stop` means the budget or plateau rule fired and the report is already marked stopped: finish the write-up with what you have, say what the run did not reach, run `'/home/denni/.no-mistakes/worktrees/d567722de3ac/01M6WWT5YC823CS1E6G188VA6M/bin/fm-run-budget.sh' finish '/tmp/fm-lab.OvrkXU/data/nightly-backpass' <reason> '<what it did not reach>'` with the reason the verdict named, and report done.
+5. When the work is complete inside the budget, run `'/home/denni/.no-mistakes/worktrees/d567722de3ac/01M6WWT5YC823CS1E6G188VA6M/bin/fm-run-budget.sh' finish '/tmp/fm-lab.OvrkXU/data/nightly-backpass' complete` before reporting done.
+
+# Setup
+55:2. Stay inside this worktree; the only files you may write outside it are the report, the run ledger your run budget names, and the status file below.
+
+$ fm-brief.sh budget-ship fixture --mode direct-PR --run-budget minutes=30
+error: --run-budget applies only to scout briefs; a ship delivers a PR rather than a report a stopped run could leave partial
+rc=1 brief_exists=no
+
+$ fm-brief.sh budget-bad fixture --scout --run-budget spend=10
+fm-run-budget: run budget spend needs allowance=<provider>
+error: --run-budget is invalid; bin/fm-run-budget.sh's header owns the spec
+rc=1 brief_exists=no
+
+$ fm-brief.sh budget-bad fixture --scout --run-budget minutes=0
+fm-run-budget: run budget minutes must be a positive whole number (got '0')
+error: --run-budget is invalid; bin/fm-run-budget.sh's header owns the spec
+rc=1 brief_exists=no
+
+$ fm-brief.sh budget-bad fixture --scout --run-budget minutes=30,reserve=100,allowance=claude
+fm-run-budget: run budget reserve must be under 100
+error: --run-budget is invalid; bin/fm-run-budget.sh's header owns the spec
+rc=1 brief_exists=no
+
+$ fm-brief.sh budget-bad fixture --scout --run-budget minutes=abc
+fm-run-budget: run budget minutes must be a positive whole number (got 'abc')
+error: --run-budget is invalid; bin/fm-run-budget.sh's header owns the spec
+rc=1 brief_exists=no
+
+$ fm-brief.sh budget-bad fixture --scout --run-budget minutes=30,bogus=1
+fm-run-budget: unknown run budget key 'bogus' (known: minutes, allowance, spend, reserve, plateau)
+error: --run-budget is invalid; bin/fm-run-budget.sh's header owns the spec
+rc=1 brief_exists=no
+
+$ fm-brief.sh budget-bad fixture --scout --run-budget allowance=claude
+fm-run-budget: run budget needs a spend line: minutes=<N> or spend=<points>
+error: --run-budget is invalid; bin/fm-run-budget.sh's header owns the spec
+rc=1 brief_exists=no
+
+$ fm-brief.sh plain-scout fixture --scout   (no flag: unchanged)
+rc=0
+0
+44:2. Stay inside this worktree; the only files you may write outside it are the report and the status file below.
