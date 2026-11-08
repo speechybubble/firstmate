@@ -1,0 +1,12 @@
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.t5rqz1
+notice: adr ships mode=local-only while the standing posture for adsr is no-mistakes - less rigor than the captain's standing posture; proceed only on a current explicit captain instruction or an intake judgment you can state
+spawned adr harness=claude kind=ship mode=local-only yolo=on window=firstmate:fm-adr worktree=/home/denni/.treehouse/adsr-0eda25/1/adsr
+rc=0
+--- meta checks lines
+checks=2
+checks_sha=4082c234bf472c2d8a9aaaa1d1cac58ea175bbdf4fa1551c91ee9a9fd0657b69
+--- sha256 of record
+4082c234bf472c2d8a9aaaa1d1cac58ea175bbdf4fa1551c91ee9a9fd0657b69  /tmp/fm-lab.t5rqz1/state/adr.checks.json
+--- skill fires
+2026-11-08T11:30:33Z	adr	checks-admitted	fm-spawn.sh	guarantee-conditional
+2026-11-08T11:30:34Z	adr	checks-admitted	fm-spawn.sh	has-cta

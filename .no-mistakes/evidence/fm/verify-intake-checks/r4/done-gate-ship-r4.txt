@@ -1,0 +1,39 @@
+### 1. worker commits an ad with an unconditional guarantee, reports done
+state: blocked · source: status-log · intake checks refuse this done: guarantee-conditional: a line matches /(any reason|no questions asked)/: Book a call. Full refund for any reason, no questions asked.
+rc=0
+### 2. worker fixes the ad, reports done again
+state: done · source: status-log · ready in branch fm/adr (commit 3df67a0b274ddb9e71ef738005c7ef69e34eaf23)
+rc=0
+### 3. rogue worker empties the admitted checks list
+state: blocked · source: status-log · intake checks refuse this done: the admitted checks record /tmp/fm-lab.t5rqz1/state/adr.checks.json has digest 2093c3727154920bbee2221f0b4033fda9eba77d3d80a7ebd8f83d5bb049c848, not the checks_sha=4082c234bf472c2d8a9aaaa1d1cac58ea175bbdf4fa1551c91ee9a9fd0657b69 spawn admitted; the checks were changed after launch
+rc=0
+### 4. rogue worker swaps a check for one that matches anything
+state: blocked · source: status-log · intake checks refuse this done: the admitted checks record /tmp/fm-lab.t5rqz1/state/adr.checks.json has digest 92570d22acc539ce91947a649e0a8a1c481b400b9db3573aea13696aca9c8d6e, not the checks_sha=4082c234bf472c2d8a9aaaa1d1cac58ea175bbdf4fa1551c91ee9a9fd0657b69 spawn admitted; the checks were changed after launch
+rc=0
+### 5. record deleted
+state: blocked · source: status-log · intake checks refuse this done: the admitted checks record /tmp/fm-lab.t5rqz1/state/adr.checks.json is missing or unreadable
+rc=0
+### 6. untouched record restored
+state: done · source: status-log · ready in branch fm/adr (commit 3df67a0b274ddb9e71ef738005c7ef69e34eaf23)
+rc=0
+### 7. worker commits bad ad and forges the checks-result cache from the good state
+--- cache before (good state):
+fingerprint 8d24d8e0542971d9606dc1e525efe37efedd06ae
+exit 0
+pass guarantee-conditional
+pass has-cta
+checks: 2 passed, 0 failed
+state: blocked · source: status-log · intake checks refuse this done: guarantee-conditional: a line matches /(any reason|no questions asked)/: Get a refund, no questions asked.; has-cta: no line matches /[Bb]ook a call/
+rc=0
+--- cache after read (recomputed):
+fingerprint b80a64b83bf0bd349d8fdddb6417e4792bebca80
+exit 1
+fail guarantee-conditional: a line matches /(any reason|no questions asked)/: Get a refund, no questions asked.
+fail has-cta: no line matches /[Bb]ook a call/
+checks: 0 passed, 2 failed
+### 8. checks-refused skill fires
+2026-11-08T11:31:34Z	adr	checks-refused	fm-crew-state.sh	intake checks refuse this done: guarantee-conditional: a line matches /(any reason|no questions asked)/: Book a call. Full refund for any reason, no questions asked.
+2026-11-08T11:31:36Z	adr	checks-refused	fm-crew-state.sh	intake checks refuse this done: the admitted checks record /tmp/fm-lab.t5rqz1/state/adr.checks.json has digest 2093c3727154920bbee2221f0b4033fda9eba77d3d80a7ebd8f83d5bb049c848, not the checks_sha=4082c234bf472c2d8a9aaaa1d1cac58ea175bbdf4fa1551c91ee9a9fd0657b69 spawn admitted; the checks were changed after launch
+2026-11-08T11:31:37Z	adr	checks-refused	fm-crew-state.sh	intake checks refuse this done: the admitted checks record /tmp/fm-lab.t5rqz1/state/adr.checks.json has digest 92570d22acc539ce91947a649e0a8a1c481b400b9db3573aea13696aca9c8d6e, not the checks_sha=4082c234bf472c2d8a9aaaa1d1cac58ea175bbdf4fa1551c91ee9a9fd0657b69 spawn admitted; the checks were changed after launch
+2026-11-08T11:31:38Z	adr	checks-refused	fm-crew-state.sh	intake checks refuse this done: the admitted checks record /tmp/fm-lab.t5rqz1/state/adr.checks.json is missing or unreadable
+2026-11-08T11:31:41Z	adr	checks-refused	fm-crew-state.sh	intake checks refuse this done: guarantee-conditional: a line matches /(any reason|no questions asked)/: Get a refund, no questions asked.; has-cta: no line matches /[Bb]ook a call/

@@ -1,0 +1,50 @@
+
+ ▐▛███▛█   Claude Code v2.1.319
+▝▜██████▀  Sonnet 5.5 with low effort · Claude Ultra
+ ▝▝   ▝▝   ~/.treehouse/adsr-0eda25/1/adsr
+
+
+❯ : Firstmate operational input waiting: read '/tmp/fm-lab.t5rqz1/state/operational-inbox/1794137445-16ad85262a460c2e.msg' and handle its contents as Firstmate operational input.
+
+  Read 1 file, ran 3 shell commands
+
+● ad.txt now holds a one-line ad with a call to action and a conditional guarantee, committed on branch fm/adr:
+
+  ▎ Book a call today: run our ads for 30 days and if none beats your current best, next month is free.
+
+  - Checks: both pass (guarantee-conditional and has-cta), and the worktree is clean.
+  - Status: I appended done to the status file. Nothing was pushed.
+
+✻ Churned for 16s · done 9:31 PM
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                                  tmux focus-events off · add 'set -g focus-events on' to ~/.tmux.conf and reattach for focus tracking
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Sonnet 5.5 | ctx: 5% used
+  ⏵⏵ bypass permissions on (shift+tab to cycle)

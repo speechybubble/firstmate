@@ -1,0 +1,21 @@
+### run --digest (removed option)
+error: unknown run argument --digest
+run 'fm-checks.sh --help' for usage
+rc=2
+### drive-results /etc/hostname
+/etc/hostname line 1 is not an <assertion><TAB><pass|fail> result, so it is not a drive run's assertion results
+rc=1
+### spawn refuses a check that passes its bad example
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /tmp/fm-lab.t5rqz1
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: /tmp/fm-lab.t5rqz1/data/adbad/brief.md ## Checks cannot be admitted; every check must pass its good example and fail its bad one before spawn (bin/fm-checks.sh --help):
+invalid has-cta: passes its bad example, so it cannot tell bad work from good
+checks: 0 admitted, 1 invalid
+rc=1
+no adbad state written
