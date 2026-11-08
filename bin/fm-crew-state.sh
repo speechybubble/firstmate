@@ -12,9 +12,12 @@
 # the pane busy-signature) and reconciles the possibly-stale log against it.
 # A ship `done:` is current-state done only when bin/fm-dod-lib.sh accepts the
 # named head as reachable outside the worker's disposable copy; otherwise blocked.
-# Its one write: a page deliverable's done refused for missing drive evidence
-# appends a page-refused line, once, to the home's skill-fire log
-# (fm_skill_fire_append in bin/fm-dod-lib.sh owns that log).
+# Its writes: a page deliverable's done refused for missing drive evidence
+# appends a page-refused line, and a done refused by failing intake checks a
+# checks-refused line, each once, to the home's skill-fire log
+# (fm_skill_fire_append in bin/fm-dod-lib.sh owns that log); running those
+# checks keeps their result cache at state/<id>.checks-result
+# (bin/fm-checks.sh run --cache).
 # A no-mistakes ship's pre-validation `done:` is the pipeline handoff and reads
 # done with the detail "handoff ready: instruct /no-mistakes", except in the
 # history-only read below.
@@ -183,8 +186,9 @@
 # read could settle reads unknown as an ungated history claim. The fleet snapshot uses it
 # only for tasks whose structured history records completion.
 #
-# Read-only and side-effect free except for its one write: the page-refused
-# skill-fire append described at the top. Always exits 0 on a successful read regardless
+# Read-only and side-effect free except for the writes described at the top:
+# the page-refused and checks-refused skill-fire appends and the checks result
+# cache. Always exits 0 on a successful read regardless
 # of state; exit 2 only on a usage error (no id).
 set -u
 
@@ -311,7 +315,7 @@ fi
 # stopped early: its detail ends with "handoff ready: instruct /no-mistakes".
 # The history-only read omits it, because its task is already recorded complete.
 emit_ship_status_done() {  # [extra-detail] [reads]
-  local extra=${1:-} reads=${2:-} reason rc=0
+  local extra=${1:-} reads=${2:-} reason page_reason rc=0
   if [ "$reads" != local ] && fm_dod_ship_done_is_nm_handoff "$KIND" "$(meta_value mode)" "$LOG_LINE"; then
     extra="${extra:+$extra$SEP}handoff ready: instruct /no-mistakes"
   fi
@@ -320,13 +324,17 @@ emit_ship_status_done() {  # [extra-detail] [reads]
     0) emit "done" status-log "$(status_line_note "$LOG_LINE")${extra:+${SEP}$extra}" ;;
     2) emit unknown status-log "$(status_line_note "$LOG_LINE")${SEP}$reason" ;;
   esac
-  # This read is the one writer of the page-refused skill fire; a history-only
-  # read records nothing, and a refusal re-read on a later observation is
-  # written once.
+  # This read is the one writer of the page-refused and checks-refused skill
+  # fires; a history-only read records nothing, and a refusal re-read on a
+  # later observation is written once.
   if [ "$reads" != local ] && [ "$(meta_value deliverable)" = page ] \
-    && [ -n "$(fm_dod_page_evidence_reason "$(status_line_note "$LOG_LINE")")" ]; then
-    fm_skill_fire_append "${FM_DATA_OVERRIDE:-$FM_HOME/data}" "$ID" page-refused fm-crew-state.sh "$reason" once || true
+    && page_reason=$(fm_dod_page_evidence_reason "$(status_line_note "$LOG_LINE")") && [ -n "$page_reason" ]; then
+    fm_skill_fire_append "${FM_DATA_OVERRIDE:-$FM_HOME/data}" "$ID" page-refused fm-crew-state.sh "$page_reason" once || true
   fi
+  case "$reason" in
+    "$FM_DOD_CHECKS_REFUSAL_PREFIX"*)
+      fm_skill_fire_append "${FM_DATA_OVERRIDE:-$FM_HOME/data}" "$ID" checks-refused fm-crew-state.sh "$reason" once || true ;;
+  esac
   emit blocked status-log "$reason"
 }
 

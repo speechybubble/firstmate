@@ -652,8 +652,12 @@ test_external_review_done_with_backup_needs_the_copy() {
 # A ship whose meta records deliverable=page needs drive evidence on every gated
 # done:, ahead of the head checks; every other ship's done is unchanged. The
 # copy's head is pushed, so the page rule is the only thing that can refuse.
+# Drive evidence is the drive run's assertion results with every assertion
+# passing: a path that merely exists - a system file such as /etc/hostname,
+# the task's own meta, a directory - is refused, which is the failure the
+# existence-only class let through.
 test_page_deliverable_done_needs_drive_evidence() {
-  local repo wt meta plain evidence reason rc pr='PR https://example.test/o/r/pull/7'
+  local repo wt meta plain results failed reason rc pr='PR https://example.test/o/r/pull/7'
   repo="$TMP_ROOT/page-repo"
   wt="$TMP_ROOT/page-wt"
   fm_git_worktree "$repo" "$wt" fm/page
@@ -661,29 +665,48 @@ test_page_deliverable_done_needs_drive_evidence() {
   git -C "$wt" update-ref refs/remotes/origin/fm/page "$(git -C "$wt" rev-parse HEAD)"
   meta="$TMP_ROOT/page.meta"
   plain="$TMP_ROOT/page-plain.meta"
-  evidence="$TMP_ROOT/page-drive-evidence"
-  mkdir -p "$evidence"
+  results="$TMP_ROOT/page-drive-results.tsv"
+  failed="$TMP_ROOT/page-drive-failed.tsv"
+  mkdir -p "$TMP_ROOT/page-drive-dir"
   printf '%s\n' kind=ship mode=direct-PR deliverable=page > "$meta"
   printf '%s\n' kind=ship mode=direct-PR > "$plain"
+  printf '# drive of the pick form\npick-form-queues\tpass\tqueued answer 1\napply-no-console-error\tpass\n' > "$results"
+  printf 'pick-form-queues\tpass\napply-no-console-error\tfail\tTypeError in apply.js\n' > "$failed"
+  printf 'some-host\n' > "$TMP_ROOT/hostname-like"
 
   reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr" "$TMP_ROOT" page "$meta"); rc=$?
   expect_code 1 "$rc" "a page done with neither marker was accepted"
   assert_contains "$reason" "without drive evidence" "the no-evidence refusal did not explain itself"
-  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$TMP_ROOT/no-such-recipe" "$TMP_ROOT" page "$meta"); rc=$?
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$TMP_ROOT/no-such-results" "$TMP_ROOT" page "$meta"); rc=$?
   expect_code 1 "$rc" "a page done naming a missing drive path was accepted"
-  assert_contains "$reason" "drive=$TMP_ROOT/no-such-recipe, which is not an existing absolute path" "the missing-path refusal did not name the path"
-  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=recipe.md" "$TMP_ROOT" page "$meta"); rc=$?
+  assert_contains "$reason" "drive=$TMP_ROOT/no-such-results, which does not show a passing drive run" "the missing-path refusal did not name the path"
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=results.tsv" "$TMP_ROOT" page "$meta"); rc=$?
   expect_code 1 "$rc" "a page done naming a relative drive path was accepted"
+  if [ -f /etc/hostname ]; then
+    reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=/etc/hostname" "$TMP_ROOT" page "$meta"); rc=$?
+    expect_code 1 "$rc" "a page done naming /etc/hostname as drive evidence was accepted"
+    assert_contains "$reason" "is not a drive run's assertion results" "the /etc/hostname refusal did not say why"
+  fi
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$TMP_ROOT/hostname-like" "$TMP_ROOT" page "$meta"); rc=$?
+  expect_code 1 "$rc" "a page done naming a file that is not drive results was accepted"
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$meta" "$TMP_ROOT" page "$meta"); rc=$?
+  expect_code 1 "$rc" "a page done naming the task's own meta as drive evidence was accepted"
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$TMP_ROOT/page-drive-dir and screenshots" "$TMP_ROOT" page "$meta"); rc=$?
+  expect_code 1 "$rc" "a page done naming a directory as drive evidence was accepted"
+  assert_contains "$reason" "is not a regular file of drive assertion results" "the directory refusal did not say why"
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$failed" "$TMP_ROOT" page "$meta"); rc=$?
+  expect_code 1 "$rc" "a page done whose drive results show a failed assertion was accepted"
+  assert_contains "$reason" "assertion apply-no-console-error failing" "the failed-assertion refusal did not name the assertion"
   reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr no-drive:" "$TMP_ROOT" page "$meta"); rc=$?
   expect_code 1 "$rc" "a page done with a bare no-drive: was accepted"
   assert_contains "$reason" "no-drive: but no reason" "the bare no-drive refusal did not explain itself"
   reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr no-drive:   " "$TMP_ROOT" page "$meta"); rc=$?
   expect_code 1 "$rc" "a page done with a whitespace-only no-drive: reason was accepted"
 
-  accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$TMP_ROOT/page.meta" "$TMP_ROOT" page "$meta" \
-    || fail "a page done naming an existing drive file was refused"
-  accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$evidence and screenshots" "$TMP_ROOT" page "$meta" \
-    || fail "a page done naming an existing drive directory was refused"
+  accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$results" "$TMP_ROOT" page "$meta" \
+    || fail "a page done naming passing drive results was refused"
+  accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$results and screenshots" "$TMP_ROOT" page "$meta" \
+    || fail "a page done whose drive results path is followed by prose was refused"
   accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr no-drive: the page is a static email template" "$TMP_ROOT" page "$meta" \
     || fail "a page done with a stated no-drive reason was refused"
   accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr" "$TMP_ROOT" page "$plain" \
@@ -691,10 +714,10 @@ test_page_deliverable_done_needs_drive_evidence() {
   accept_done ship no-mistakes "$wt" "$repo" "done [at=1]: implementation ready" "$TMP_ROOT" page "$meta" \
     || fail "a page ship's no-mistakes handoff done is now gated"
 
-  rm -rf "$evidence"
-  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$evidence" "$TMP_ROOT" page "$meta"); rc=$?
+  rm -f "$results"
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$results" "$TMP_ROOT" page "$meta"); rc=$?
   expect_code 1 "$rc" "a live read accepted a page done whose drive evidence is gone"
-  accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$evidence" "$TMP_ROOT" page "$meta" local \
+  accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$results" "$TMP_ROOT" page "$meta" local \
     || fail "a history read re-refused a finished page done whose drive evidence cleanup removed"
 
   wt="$TMP_ROOT/page-unpushed-wt"
@@ -703,7 +726,77 @@ test_page_deliverable_done_needs_drive_evidence() {
   reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr no-drive: nothing to drive" "$TMP_ROOT" page "$meta"); rc=$?
   expect_code 1 "$rc" "drive evidence let an unpushed head through"
   assert_contains "$reason" "is unreachable outside the worker copy" "drive evidence replaced the named-head gate"
-  pass "page deliverable done: refused without drive evidence, a missing or relative path, or a bare no-drive:; accepted with an existing path or a reason; history reads keep a cleaned-up drive path; other ships unchanged"
+  pass "page deliverable done: refused without drive evidence, with a path that is not passing drive results (/etc/hostname, the meta, a directory, a failed assertion), or a bare no-drive:; accepted with passing results or a reason; history reads keep a cleaned-up drive path; other ships unchanged"
+}
+
+# Admit <json> (one checks array) for task <id> into <state> the way spawn does.
+admit_checks() {  # <state> <id> <kind> <root> <json>
+  local brief="$1/$2.brief.md"
+  # shellcheck disable=SC2016 # literal markdown code fences, not expansions.
+  printf '# Task\n## Checks\n```json\n%s\n```\n' "$5" > "$brief"
+  "$ROOT/bin/fm-checks.sh" validate "$brief" --kind "$3" --root "$4" --admit "$1/$2.checks.json" >/dev/null \
+    || fail "the $2 fixture checks were not admitted"
+}
+
+# A task whose meta records admitted intake checks has every done: refused
+# while one fails on the deliverable: a ship's committed HEAD (the no-mistakes
+# handoff included), a scout's data directory. A history read and a task
+# without checks= are not gated, and a missing admitted record refuses.
+test_task_checks_gate_every_done() {
+  local repo wt state meta plain data reason rc pr='PR https://example.test/o/r/pull/8'
+  repo="$TMP_ROOT/checks-repo"
+  wt="$TMP_ROOT/checks-wt"
+  state="$TMP_ROOT/checks-state"
+  data="$TMP_ROOT/checks-data/sc"
+  mkdir -p "$state" "$data"
+  fm_git_worktree "$repo" "$wt" fm/checks
+  printf 'Full refund for any reason, no questions asked.\n' > "$wt/ad.txt"
+  git -C "$wt" add ad.txt
+  git -C "$wt" commit -q -m 'the ad'
+  git -C "$wt" update-ref refs/remotes/origin/fm/checks "$(git -C "$wt" rev-parse HEAD)"
+  meta="$state/ck.meta"
+  plain="$state/plain.meta"
+  printf '%s\n' kind=ship mode=direct-PR checks=1 > "$meta"
+  printf '%s\n' kind=ship mode=direct-PR > "$plain"
+  admit_checks "$state" ck ship "" '[{"id":"guarantee-conditional","source":"higher price guarantees should always be conditional","type":"not-contains","target":"ad.txt","pattern":"(any reason|no questions asked)","good":"If you run it 30 days and none wins, next month is free.","bad":"Full refund for any reason."}]'
+
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr" "$state" ck "$meta"); rc=$?
+  expect_code 1 "$rc" "a ship done whose deliverable fails its intake check was accepted"
+  assert_contains "$reason" "$FM_DOD_CHECKS_REFUSAL_PREFIX guarantee-conditional: a line matches" "the refusal did not name the failing check"
+  printf '%s\n' kind=ship mode=no-mistakes checks=1 > "$state/ck-nm.meta"
+  cp "$state/ck.checks.json" "$state/ck-nm.checks.json"
+  reason=$(accept_done ship no-mistakes "$wt" "$repo" "done [at=1]: implementation ready" "$state" ck-nm "$state/ck-nm.meta"); rc=$?
+  expect_code 1 "$rc" "a no-mistakes handoff whose deliverable fails its intake check was accepted"
+  accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr" "$state" plain "$plain" \
+    || fail "a ship without checks= is now gated by checks"
+  accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr" "$state" ck "$meta" local \
+    || fail "a history read re-ran the intake checks"
+  accept_done ship direct-PR "$wt" "$repo" "working [at=1]: still going" "$state" ck "$meta" \
+    || fail "a non-done line was gated by the checks"
+
+  printf 'If you run it 30 days and none wins, next month is free.\n' > "$wt/ad.txt"
+  git -C "$wt" commit -q -am 'conditional guarantee'
+  git -C "$wt" update-ref refs/remotes/origin/fm/checks "$(git -C "$wt" rev-parse HEAD)"
+  accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr" "$state" ck "$meta" \
+    || fail "a ship done whose committed deliverable passes its checks was refused"
+  accept_done ship no-mistakes "$wt" "$repo" "done [at=1]: implementation ready" "$state" ck-nm "$state/ck-nm.meta" \
+    || fail "a passing no-mistakes handoff was refused"
+
+  rm -f "$state/ck.checks.json"
+  reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr" "$state" ck "$meta"); rc=$?
+  expect_code 1 "$rc" "a done whose admitted checks record is gone was accepted"
+  assert_contains "$reason" "is missing or unreadable" "the missing-record refusal did not explain itself"
+
+  printf '%s\n' kind=scout checks=1 > "$state/sc.meta"
+  admit_checks "$state" sc scout "$data" '[{"id":"quote-verbatim","source":"the captain never said long, then short","type":"not-contains","pattern":"long, then short, then back to long","good":"a long sentence, then a short one","bad":"long, then short, then back to long"}]'
+  printf 'Your transcript said long, then short, then back to long.\n' > "$data/report.md"
+  reason=$(accept_done scout "" "$wt" "$repo" "done [at=1]: report written" "$state" sc "$state/sc.meta"); rc=$?
+  expect_code 1 "$rc" "a scout done whose report fails its intake check was accepted"
+  assert_contains "$reason" "quote-verbatim" "the scout refusal did not name the failing check"
+  printf 'Their words: a long sentence, then a short one.\n' > "$data/report.md"
+  accept_done scout "" "$wt" "$repo" "done [at=1]: report written" "$state" sc "$state/sc.meta" \
+    || fail "a scout done whose report passes its checks was refused"
+  pass "intake checks: every ship and scout done is refused while a check fails on the deliverable, history reads and unchecked tasks are not gated, and a missing record refuses"
 }
 
 # The skill-fire log is created on first write, appends tab-separated lines with
@@ -724,6 +817,7 @@ test_skill_fire_append_writes_the_log() {
 }
 
 test_page_deliverable_done_needs_drive_evidence
+test_task_checks_gate_every_done
 test_skill_fire_append_writes_the_log
 
 test_external_forge_is_direct_pr_only

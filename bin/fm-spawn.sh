@@ -23,7 +23,11 @@
 #   AI trailers, and records forge=external, backup_remote=, and backup_prefix=
 #   in the task metadata for bin/fm-dod-lib.sh's ready-report gate. A ship
 #   brief carrying bin/fm-brief.sh --deliverable page's marker is recorded as
-#   deliverable=page for that gate's page-evidence check. A
+#   deliverable=page for that gate's page-evidence check. A ship or scout
+#   brief's `## Checks` slot is validated by bin/fm-checks.sh before any
+#   endpoint exists: an invalid check refuses the spawn, and admitted checks
+#   are recorded as state/<id>.checks.json plus checks=<count> for the
+#   done-time checks gate. A
 #   registry entry the parser refuses stops the spawn rather than launching on a
 #   guessed posture. A
 #   ship or scout spawn also refuses leftover `{TASK}` / `{FIRSTMATE_SPEC}`
@@ -4037,6 +4041,8 @@ fi
   echo "error: task $ID has no brief at inaccessible data path $BRIEF" >&2
   exit 1
 }
+# The admitted intake-check count; set below for a ship or scout brief.
+CHECKS_COUNT=
 if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
   HERDR_LIFECYCLE_BRIEF_GUARD=$(fm_config_source_present "$CONFIG/herdr-lifecycle-spawn-guard") || exit 1
   if [ "$HERDR_LIFECYCLE_BRIEF_GUARD" = 1 ]; then
@@ -4057,6 +4063,42 @@ if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
     exit 1
   fi
   fm_brief_task_slots_check "$BRIEF" spawn || exit 1
+  # Intake checks: a `## Checks` slot carrying checks launches only when
+  # bin/fm-checks.sh admits every one against its own good and bad examples.
+  # The admitted record at state/<id>.checks.json and checks=<count> in the
+  # task meta are what bin/fm-dod-lib.sh's done gate runs; an exempt slot, or a
+  # brief scaffolded before the slot existed, launches with neither. Each
+  # verdict is one skill fire, the measure of how often written checks fail
+  # validation and how often a task is exempted. Admission happens once, at
+  # the fresh spawn: a relaunch keeps the recorded checks= and record rather
+  # than re-admitting a brief that may have changed since, and a promotion,
+  # which drops checks=, leaves a promoted ship ungated by its scout's checks.
+  CHECKS_RC=0
+  if [ "$RELAUNCH" -eq 1 ]; then
+    :
+  elif rm -f -- "$STATE/$ID.checks-result" && fm_brief_task_heading_present "$BRIEF" "## Checks"; then
+    CHECKS_OUT=$("$SCRIPT_DIR/fm-checks.sh" validate "$BRIEF" --kind "$KIND" --root "$DATA/$ID" --admit "$STATE/$ID.checks.json" 2>&1) || CHECKS_RC=$?
+    while IFS= read -r CHECKS_LINE; do
+      case "$CHECKS_LINE" in
+        'admitted '*) fm_skill_fire_append "$DATA" "$ID" checks-admitted fm-spawn.sh "${CHECKS_LINE#admitted }" once || true ;;
+        'invalid '*) fm_skill_fire_append "$DATA" "$ID" checks-invalid fm-spawn.sh "${CHECKS_LINE#invalid }" once || true ;;
+        'exempt: '*) fm_skill_fire_append "$DATA" "$ID" checks-exempt fm-spawn.sh "${CHECKS_LINE#exempt: }" once || true ;;
+      esac
+    done <<EOF
+$CHECKS_OUT
+EOF
+    if [ "$CHECKS_RC" -ne 0 ]; then
+      rm -f -- "$STATE/$ID.checks.json"
+      printf 'error: %s ## Checks cannot be admitted; every check must pass its good example and fail its bad one before spawn (bin/fm-checks.sh --help):\n%s\n' "$BRIEF" "$CHECKS_OUT" >&2
+      exit 1
+    fi
+    case "$CHECKS_OUT" in
+      'exempt: '*) ;;
+      *) CHECKS_COUNT=$(printf '%s\n' "$CHECKS_OUT" | grep -c '^admitted ') ;;
+    esac
+  else
+    rm -f -- "$STATE/$ID.checks.json"
+  fi
   if ADDRESS_LINE=$(fm_brief_intent_address_line "$BRIEF"); then
     echo "error: $BRIEF ## Captain's intent has an operator-address line: $ADDRESS_LINE; write the captain's actual words without a Captain label or address before spawn, since the heading already records provenance" >&2
     exit 1
@@ -6825,6 +6867,8 @@ preserve_relaunch_meta() {
   [ -z "$BASE_BRANCH" ] || echo "base_branch=$BASE_BRANCH"
   [ -z "$UPSTREAM_CONSENT" ] || echo "upstream_consent=$UPSTREAM_CONSENT"
   [ -z "$DELIVERABLE" ] || echo "deliverable=$DELIVERABLE"
+  # The admitted intake-check count, read by bin/fm-dod-lib.sh's done gate.
+  [ -z "$CHECKS_COUNT" ] || echo "checks=$CHECKS_COUNT"
   # Read by bin/fm-dod-lib.sh's ready-report gate; absent on every other forge.
   [ "$EXTERNAL_REVIEW" = 0 ] || echo "forge=external"
   [ -z "$EXTERNAL_BACKUP_REMOTE" ] || echo "backup_remote=$EXTERNAL_BACKUP_REMOTE"

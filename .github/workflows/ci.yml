@@ -484,6 +484,9 @@ jobs:
           # disagrees with the plan. Per-suite totals live in the test files.
           /bin/bash bin/fm-test-tap-verify.sh tests/fm-fleet-snapshot-view.test.sh
           /bin/bash bin/fm-test-tap-verify.sh tests/fm-bearings-snapshot.test.sh
+          # The intake-checks validator and runner back the done gate on every
+          # platform, so they must hold under stock Bash 3.2 too.
+          /bin/bash bin/fm-test-tap-verify.sh tests/fm-checks.test.sh
 
           # The full public-followup suite is not a stock-bash snapshot; run only
           # the empty-lock register regression under real /bin/bash 3.2.

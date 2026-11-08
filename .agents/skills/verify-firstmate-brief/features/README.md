@@ -8,5 +8,6 @@ It makes no claim about worker launch, supervision, or other Firstmate features.
 - [Invalid mode](invalid-mode.md) - refusal without a successful artifact.
 - [Page deliverable](page-deliverable.md) - the page marker, its drive instruction, and the scaffold's skill fire.
 - [Run budget](run-budget.md) - a long scout's budget section, its commands, and its refusals.
+- [Intake checks](intake-checks.md) - the checks slot, its validation against good and bad examples, and drive results.
 
 Use the parent [verification recipe](../SKILL.md) for launch, doctor, evidence, and cleanup.

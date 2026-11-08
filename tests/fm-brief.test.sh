@@ -154,8 +154,21 @@ assert_confirmed_intent_slot() {  # <brief> <label>
     || fail "$label: confirmed intent landed in Captain's intent"
   assert_not_contains "$(fm_brief_task_heading_body "$brief" '## Firstmate spec')" 'CONFIRMED_INTENT' \
     "$label: confirmed intent landed in Firstmate spec"
-  [ "$(fm_brief_task_slots_version "$brief")" = 3 ] \
-    || fail "$label: brief does not carry the version 3 Task slot marker"
+  [ "$(fm_brief_task_slots_version "$brief")" = 4 ] \
+    || fail "$label: brief does not carry the version 4 Task slot marker"
+  assert_checks_slot "$brief" "$label"
+}
+
+# The checks slot is the last Task subsection, a sibling after the spec, so
+# neither the captain's words nor the spec reads it as their own body.
+assert_checks_slot() {  # <brief> <label>
+  local brief=$1 label=$2
+  [ "$(fm_brief_task_heading_body "$brief" '## Checks')" = '{CHECKS}' ] \
+    || fail "$label: brief missing the {CHECKS} placeholder under ## Checks"
+  assert_not_contains "$(fm_brief_task_heading_body "$brief" "## Captain's intent")" 'CHECKS' \
+    "$label: checks landed in Captain's intent"
+  assert_not_contains "$(fm_brief_task_heading_body "$brief" '## Firstmate spec')" 'CHECKS' \
+    "$label: checks landed in Firstmate spec"
 }
 
 # fm-brief.sh must exit 0 and produce a brief with no unreplaced shell
@@ -1430,10 +1443,10 @@ test_deliverable_page_marks_the_brief_and_records_a_fire() {
       || fail "$mode page scaffold failed"
     brief="$home/data/page-$mode/brief.md"
     [ "$(fm_brief_deliverable "$brief")" = page ] || fail "$mode page brief does not declare a page deliverable"
-    [ "$(fm_brief_task_slots_version "$brief")" = 3 ] || fail "$mode page marker changed the Task slot version"
+    [ "$(fm_brief_task_slots_version "$brief")" = 4 ] || fail "$mode page marker changed the Task slot version"
     [ "$(fm_brief_task_heading_body "$brief" "## Captain's intent")" = '{TASK}' ] \
       || fail "$mode page instruction leaked into the captain's intent slot"
-    assert_grep 'drive=<absolute path to the recipe or the evidence the drive retained>' "$brief" \
+    assert_grep 'drive=<absolute path to those results>' "$brief" \
       "$mode page brief does not tell the worker what the done line carries"
     assert_grep 'no-drive: <reason>' "$brief" "$mode page brief does not offer the stated-reason path"
     fields=$(awk -F'\t' -v id="page-$mode" '$2 == id { print NF "|" $3 "|" $4 "|" $5 }' "$log")

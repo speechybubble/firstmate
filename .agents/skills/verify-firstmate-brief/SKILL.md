@@ -2,8 +2,8 @@
 name: verify-firstmate-brief
 description: >-
   Drive Firstmate's brief CLI in an isolated filesystem home to verify ship delivery modes,
-  scout reporting, invalid-mode refusal, the page-deliverable declaration, and the scout run
-  budget when the scaffold or its routes change.
+  scout reporting, invalid-mode refusal, the page-deliverable declaration, the scout run
+  budget, and the intake checks slot and its validation when the scaffold or its routes change.
 user-invocable: false
 metadata:
   internal: true

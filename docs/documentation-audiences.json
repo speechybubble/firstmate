@@ -693,6 +693,10 @@
       "audience": "agent-runtime"
     },
     {
+      "path": ".agents/skills/verify-firstmate-brief/features/intake-checks.md",
+      "audience": "agent-runtime"
+    },
+    {
       "path": ".agents/skills/verify-firstmate-brief/features/invalid-mode.md",
       "audience": "agent-runtime"
     },

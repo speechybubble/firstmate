@@ -51,10 +51,15 @@
 # --deliverable page writes FM_BRIEF_DELIVERABLE_PAGE_MARKER into `# Task`, and
 # bin/fm-spawn.sh records it as deliverable=page in the task meta) must also
 # carry drive evidence on every done: this gate tests:
-# fm_dod_page_evidence_reason owns what counts. fm_skill_fire_append owns the
+# fm_dod_page_evidence_reason owns what counts. A ship or scout whose brief's
+# `## Checks` slot carried checks bin/fm-spawn.sh admitted has every done:
+# refused while one fails on the deliverable: fm_dod_task_checks_reason owns
+# that gate and bin/fm-checks.sh the checks. fm_skill_fire_append owns the
 # home's append-only skill-fire log, data/skill-fires.tsv, whose writers are
-# bin/fm-brief.sh (rule page, at scaffold) and bin/fm-crew-state.sh (rule
-# page-refused, when this gate refuses for missing drive evidence).
+# bin/fm-brief.sh (rule page, at scaffold), bin/fm-spawn.sh (rules
+# checks-admitted, checks-invalid, and checks-exempt, at launch), and
+# bin/fm-crew-state.sh (rules page-refused and checks-refused, when this gate
+# refuses for missing drive evidence or a failing check).
 # The block opens with the fixed machine-readable "Delivery contract: mode=<mode>"
 # line that bin/fm-spawn.sh checks a ship brief against; a forge=gerrit block
 # appends " forge=gerrit shape=squash" to that line, and a forge=forgejo or
@@ -149,8 +154,11 @@
 # It takes the same optional trailing forge argument, because the rule that keeps
 # a worker off a remote is exactly the rule that changes when the forge does.
 
+# The directory holding this library, through which the done gate reaches
+# bin/fm-checks.sh.
+FM_DOD_LIB_DIR=$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd "${d:-/}" && pwd)
 # shellcheck source=bin/fm-pr-lib.sh
-. "$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd "${d:-/}" && pwd)/fm-pr-lib.sh"
+. "$FM_DOD_LIB_DIR/fm-pr-lib.sh"
 # shellcheck source=bin/fm-classify-lib.sh
 . "$(d=${BASH_SOURCE[0]%/*}; [ "$d" != "${BASH_SOURCE[0]}" ] || d=.; cd "${d:-/}" && pwd)/fm-classify-lib.sh"
 # shellcheck source=bin/fm-nm-run-lib.sh
@@ -303,11 +311,12 @@ fm_brief_task_placeholders_present() {  # <file>
 # The `# Task` line bin/fm-brief.sh writes into every ship and scout brief,
 # naming the Task slot version the brief was scaffolded with: v1 added
 # `### Expert prompt` (written as `<!-- fm-brief: expert-prompt v1 -->`), v2
-# added `## Confirmed intent`, and v3 added its `end state:` and `delegation:`
-# lines. A slot is required on every brief marked at or above the version that
-# added it; an older brief launches without it and warns.
+# added `## Confirmed intent`, v3 added its `end state:` and `delegation:`
+# lines, and v4 added `## Checks`. A slot is required on every brief marked at
+# or above the version that added it; an older brief launches without it and
+# warns.
 # shellcheck disable=SC2034 # Read by bin/fm-brief.sh, which sources this library.
-FM_BRIEF_TASK_SLOTS_MARKER='<!-- fm-brief: task-slots v3 -->'
+FM_BRIEF_TASK_SLOTS_MARKER='<!-- fm-brief: task-slots v4 -->'
 
 # The `# Task` line bin/fm-brief.sh --deliverable page writes after the slot
 # marker; bin/fm-spawn.sh reads it through fm_brief_deliverable.
@@ -486,8 +495,17 @@ fm_brief_confirmed_reading_problem() {  # <body>
   return 1
 }
 
+# Print why a brief's `## Checks` subsection cannot launch and return 0: it is
+# missing from a brief marked task-slots v4 or later, empty, or still its
+# placeholder. Return 1 otherwise; bin/fm-checks.sh validate owns whether its
+# filling - the checks or the exemption - is admitted, which bin/fm-spawn.sh
+# enforces at launch.
+fm_brief_checks_problem() {  # <file>
+  fm_brief_task_slot_problem "$1" "## Checks" '{CHECKS}' 4
+}
+
 # The one Task slot gate shared by spawn and promotion: print the refusal and
-# return 1 when either slot cannot launch, otherwise warn once for each slot a
+# return 1 when any slot cannot launch, otherwise warn once for each slot a
 # brief scaffolded before it existed lacks.
 fm_brief_task_slots_check() {  # <file> <before-what>
   local file=$1 step=$2 problem
@@ -499,10 +517,16 @@ fm_brief_task_slots_check() {  # <file> <before-what>
     printf "error: %s ### Expert prompt %s; the expert-prompt-before-work rule requires that subsection to carry either the expert prompt Firstmate wrote for this work or exactly one line \`routine: skipped - <reason>\` naming why the work needs none, before %s\n" "$file" "$problem" "$step" >&2
     return 1
   fi
+  if problem=$(fm_brief_checks_problem "$file"); then
+    printf "error: %s ## Checks %s; the checks-at-intake rule requires that subsection to carry either one fenced json block of checks written from the captain's words, each with a known-good and a known-bad example (bin/fm-checks.sh --help owns the format), or exactly one line \`routine: no checks - <reason>\`, before %s\n" "$file" "$problem" "$step" >&2
+    return 1
+  fi
   fm_brief_task_heading_present "$file" "## Confirmed intent" \
     || echo "warning: $file has no ## Confirmed intent subsection (scaffolded before briefs carried one); launching without a confirmed intent" >&2
   fm_brief_task_heading_present "$file" "### Expert prompt" \
     || echo "warning: $file has no ### Expert prompt subsection (scaffolded before briefs carried one); launching without an expert prompt" >&2
+  fm_brief_task_heading_present "$file" "## Checks" \
+    || echo "warning: $file has no ## Checks subsection (scaffolded before briefs carried one); launching without intake checks" >&2
   return 0
 }
 
@@ -1152,30 +1176,67 @@ fm_dod_named_head_reachable_outside_worktree() {  # <worktree> <project> <mode> 
   [ "$mode" = local-only ] && fm_dod_ref_contains "$project" refs/heads "$sha"
 }
 
+# The path a done: <note>'s first drive=<path> token names, ending at the first
+# whitespace, or nothing when the note has none.
+fm_dod_note_drive_path() {  # <note>
+  printf '%s\n' "$1" | awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^drive=/) { print substr($i, 7); exit } }'
+}
+
 # The refusal reason for a page deliverable's done: <note> that carries no drive
 # evidence, or nothing when it does. Accepted: a drive=<absolute path> token
-# naming an existing file or directory (a drive recipe, or the evidence a drive
-# retained), or a no-drive: token followed by a reason. The path ends at the
-# first whitespace. Only existence is checked here, so a narrower evidence class
-# can layer on this one test.
+# naming the assertion results the drive run wrote, which bin/fm-checks.sh
+# drive-results reads (it owns that format) and accepts only when every
+# assertion in it passed, or a no-drive: token followed by a reason. A path that
+# merely exists - a recipe, a directory, any other file - is not drive evidence.
 fm_dod_page_evidence_reason() {  # <note>
-  local note=$1 path
+  local note=$1 path problem
   if printf '%s\n' "$note" | grep -Eq '(^|[[:space:]])no-drive:[[:space:]]*[^[:space:]]'; then
     return 0
   fi
   if printf '%s\n' "$note" | grep -Eq '(^|[[:space:]])drive='; then
-    path=$(printf '%s\n' "$note" | awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^drive=/) { print substr($i, 7); exit } }')
-    case "$path" in
-      /*) [ -e "$path" ] && return 0 ;;
-    esac
-    printf '%s\n' "page deliverable reported done with drive=$path, which is not an existing absolute path; name the drive recipe or its retained evidence by its absolute path"
+    path=$(fm_dod_note_drive_path "$note")
+    problem=$("$FM_DOD_LIB_DIR/fm-checks.sh" drive-results "$path" 2>&1) && return 0
+    printf '%s\n' "page deliverable reported done with drive=$path, which does not show a passing drive run: $problem; name the assertion results file the drive run wrote (one <assertion><TAB><pass|fail> line per assertion, bin/fm-checks.sh --help)"
     return 0
   fi
   if printf '%s\n' "$note" | grep -Eq '(^|[[:space:]])no-drive:'; then
     printf '%s\n' "page deliverable reported done with no-drive: but no reason; write no-drive: <reason>"
     return 0
   fi
-  printf '%s\n' "page deliverable reported done without drive evidence: drive it in a real browser and add drive=<absolute path to the drive recipe or its retained evidence>, or no-drive: <reason>; a project with no drive recipe needs one first"
+  printf '%s\n' "page deliverable reported done without drive evidence: drive it in a real browser and add drive=<absolute path to the drive run's assertion results>, or no-drive: <reason>; a project with no drive recipe needs one first"
+}
+
+# The opening of every refusal fm_dod_task_checks_reason prints, which
+# bin/fm-crew-state.sh matches to record a checks-refused skill fire.
+FM_DOD_CHECKS_REFUSAL_PREFIX='intake checks refuse this done:'
+
+# The refusal reason for a ship or scout done: <line> while the task's admitted
+# intake checks fail on the deliverable, or nothing. bin/fm-spawn.sh records
+# checks=<count> in <meta> and the admitted record at <state>/<id>.checks.json
+# (bin/fm-checks.sh owns its format and the run); a task without checks= is
+# never gated here. Every done of such a task is gated, the no-mistakes
+# implementation handoff included, so failing work is stopped before validation
+# starts and again on the final head: a ship's checks read the committed HEAD of
+# <worktree>, a scout's read its task data directory, and an assertions check
+# reads the done line's drive= results. A missing or unreadable admitted record
+# refuses. A <reads> local history read gates nothing, because cleanup removes
+# the deliverable a finished task's checks read.
+fm_dod_task_checks_reason() {  # <kind> <line> <state> <id> <meta> <reads> <worktree>
+  local kind=$1 line=$2 state=$3 id=$4 meta=$5 reads=$6 wt=$7 out rc=0 where=()
+  [ "$reads" != local ] && [ -n "$meta" ] || return 0
+  [ -n "$(fm_dod_meta_value "$meta" checks)" ] || return 0
+  [ "$(status_line_verb "$line")" = "done" ] || return 0
+  case "$kind" in
+    ship) where=(--head "$wt") ;;
+    scout) where=(--dir "$(jq -r '.root // ""' "$state/$id.checks.json" 2>/dev/null)") ;;
+    *) return 0 ;;
+  esac
+  out=$("$FM_DOD_LIB_DIR/fm-checks.sh" run "$state/$id.checks.json" "${where[@]}" \
+    --drive "$(fm_dod_note_drive_path "$(status_line_note "$line")")" \
+    --cache "$state/$id.checks-result" 2>&1) || rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  printf '%s %s\n' "$FM_DOD_CHECKS_REFUSAL_PREFIX" \
+    "$(printf '%s\n' "$out" | grep -v -e '^pass ' -e '^checks: ' | sed 's/^fail //' | paste -s -d ';' - | sed 's/;/; /g')"
 }
 
 # Append one line to <data-dir>/skill-fires.tsv, the home's skill-fire log:
@@ -1199,7 +1260,9 @@ fm_skill_fire_append() {  # <data-dir> <task> <rule> <source> <ref> [<once>]
   printf '%s\t%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${fields[@]}" >> "$log"
 }
 
-# 0 when <line> is not a ship done: to gate, when the task's meta records
+# Any ship or scout done: whose task's admitted intake checks fail
+# (fm_dod_task_checks_reason) is refused first, before the ship gate below.
+# Otherwise 0 when <line> is not a ship done: to gate, when the task's meta records
 # forge=external and fm_dod_accept_external_review_done accepts it, when it
 # names the task's recorded PR whose head the forge holds, when it names a
 # Gerrit change whose current patch set carries the worker copy's HEAD tree, or otherwise when its named
@@ -1218,7 +1281,12 @@ fm_skill_fire_append() {  # <data-dir> <task> <rule> <source> <ref> [<once>]
 # set to local, a claim the gate could settle only through a live forge or
 # no-mistakes read is neither accepted nor refused: 2, with the reason on stdout.
 fm_dod_accept_ship_done() {  # <kind> <mode> <worktree> <project> <line> [<state> <id> <meta> [<reads>]]
-  local kind=$1 mode=$2 wt=$3 project=$4 line=$5 state=${6:-} id=${7:-} meta=${8:-} reads=${9:-} url sha gerrit page_reason
+  local kind=$1 mode=$2 wt=$3 project=$4 line=$5 state=${6:-} id=${7:-} meta=${8:-} reads=${9:-} url sha gerrit page_reason checks_reason
+  checks_reason=$(fm_dod_task_checks_reason "$kind" "$line" "$state" "$id" "$meta" "$reads" "$wt")
+  if [ -n "$checks_reason" ]; then
+    printf '%s\n' "$checks_reason"
+    return 1
+  fi
   fm_dod_should_gate_ship_done "$kind" "$mode" "$line" || return 0
   if [ "$reads" != local ] && [ -n "$meta" ] && [ "$(fm_dod_meta_value "$meta" deliverable)" = page ]; then
     page_reason=$(fm_dod_page_evidence_reason "$(status_line_note "$line")")
