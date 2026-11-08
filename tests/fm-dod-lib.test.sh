@@ -742,8 +742,8 @@ admit_checks() {  # <state> <id> <kind> <root> <json>
 # A task whose meta records admitted intake checks has every done: refused
 # while one fails on the deliverable: a ship's committed HEAD (the no-mistakes
 # handoff included), a scout's data directory. A history read and a task
-# without checks= are not gated, and a missing admitted record, one changed
-# after launch, or a forged result refuses.
+# without checks= are not gated, and a missing admitted record or one changed
+# after launch (emptied, or with a check swapped) refuses.
 test_task_checks_gate_every_done() {
   local repo wt state meta plain data reason rc pr='PR https://example.test/o/r/pull/8'
   repo="$TMP_ROOT/checks-repo"
@@ -786,12 +786,12 @@ test_task_checks_gate_every_done() {
   expect_code 1 "$rc" "a done whose admitted check was swapped after launch was accepted"
   assert_contains "$reason" "the checks were changed after launch" "the swapped-check refusal did not name the digest mismatch"
   "$ROOT/bin/fm-checks.sh" run "$state/ck.checks.json" --head "$wt" --drive "" \
-    --digest "$(sed -n 's/^checks_sha=//p' "$meta")" --cache "$state/ck.checks-result" >/dev/null \
+    --cache "$state/ck.checks-result" >/dev/null \
     || fail "the swapped check did not pass the ad it was swapped to pass"
   cp "$state/ck.admitted.json" "$state/ck.checks.json"
   reason=$(accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr" "$state" ck "$meta"); rc=$?
-  expect_code 1 "$rc" "a forged checks result let a failing done through"
-  assert_contains "$reason" "guarantee-conditional: a line matches" "the forged-result run did not re-check the deliverable"
+  expect_code 1 "$rc" "a result cached for the swapped record let a failing done through"
+  assert_contains "$reason" "guarantee-conditional: a line matches" "the restored record did not re-check the deliverable"
 
   printf 'If you run it 30 days and none wins, next month is free.\n' > "$wt/ad.txt"
   git -C "$wt" commit -q -am 'conditional guarantee'

@@ -1228,8 +1228,9 @@ fm_dod_file_sha256() {  # <file>
 # and the run); a task without checks= is never gated here. The worker can
 # write to <state>, so the record is trusted only while its digest matches
 # checks_sha=: a missing record, a missing checks_sha=, or any other digest
-# refuses before a check runs, and the run's result cache is keyed on that
-# digest, so an emptied, swapped, or forged record or result never passes. Every done of such a task is gated, the no-mistakes
+# refuses before a check runs, and the run's result cache is keyed on the
+# record's hash, so an emptied or swapped record never passes. Every done of
+# such a task is gated, the no-mistakes
 # implementation handoff included, so failing work is stopped before validation
 # starts and again on the final head: a ship's checks read the committed HEAD of
 # <worktree>, a scout's read its task data directory, and an assertions check
@@ -1260,7 +1261,7 @@ fm_dod_task_checks_reason() {  # <kind> <line> <state> <id> <meta> <reads> <work
     ship) where=(--head "$wt") ;;
     scout) where=(--dir "$(jq -r '.root // ""' "$record" 2>/dev/null)") ;;
   esac
-  out=$("$FM_DOD_LIB_DIR/fm-checks.sh" run "$record" "${where[@]}" --digest "$admitted" \
+  out=$("$FM_DOD_LIB_DIR/fm-checks.sh" run "$record" "${where[@]}" \
     --drive "$(fm_dod_note_drive_path "$(status_line_note "$line")")" \
     --cache "$state/$id.checks-result" 2>&1) || rc=$?
   [ "$rc" -eq 0 ] && return 0
