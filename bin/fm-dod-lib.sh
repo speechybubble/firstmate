@@ -62,7 +62,9 @@
 # bin/fm-brief.sh (rule page, at scaffold), bin/fm-spawn.sh (rules
 # checks-admitted, checks-invalid, and checks-exempt, at launch), and
 # bin/fm-crew-state.sh (rules page-refused and checks-refused, when this gate
-# refuses for missing drive evidence or a failing check).
+# refuses for missing drive evidence or a failing check, and checks-passed, when
+# every admitted check passes on a done). bin/fm-check-results.sh reads the
+# checks-* rules into the nightly check-result lines.
 # The block opens with the fixed machine-readable "Delivery contract: mode=<mode>"
 # line that bin/fm-spawn.sh checks a ship brief against; a forge=gerrit block
 # appends " forge=gerrit shape=squash" to that line, and a forge=forgejo or
