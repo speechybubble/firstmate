@@ -76,6 +76,8 @@
 # declared scratch and the report at data/<task-id>/report.md is the work
 # product. Teardown proceeds only once the report exists and the shared
 # unresolved-decision completion gate verifies its captain-held inventory.
+# A budgeted scout's report still marked in progress is then marked ended
+# without finishing (bin/fm-run-budget.sh salvage owns that mark).
 # A scratch copy (kind=scout) and a --force run discard untracked content.
 # Treehouse's return resets with `git clean -fd`, which never deletes a nested
 # git repository, so the pool slot stays dirty and later checkouts skip it.
@@ -3656,6 +3658,13 @@ if [ "$KIND" = scout ] && [ "$FORCE" != "--force" ]; then
     echo "REFUSED: scout task $ID has not passed the captain-call completion gate." >&2
     echo "Inventory its report and any visual review through bin/fm-captain-hold.sh before teardown." >&2
     exit 1
+  fi
+  # A budgeted run's report must not stay marked in progress once its worker is
+  # gone; bin/fm-run-budget.sh salvage owns that mark and leaves a finished
+  # run alone. Best-effort: the mark never blocks cleanup.
+  if [ -f "$DATA/$ID/run-budget.tsv" ]; then
+    "$SCRIPT_DIR/fm-run-budget.sh" salvage "$DATA/$ID" "its worker ended without recording a finish before cleanup" >/dev/null 2>&1 \
+      || echo "warning: could not mark the run status of $REPORT" >&2
   fi
 fi
 
