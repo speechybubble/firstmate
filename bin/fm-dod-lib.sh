@@ -1222,13 +1222,20 @@ FM_DOD_CHECKS_REFUSAL_PREFIX='intake checks refuse this done:'
 # refuses. A <reads> local history read gates nothing, because cleanup removes
 # the deliverable a finished task's checks read.
 fm_dod_task_checks_reason() {  # <kind> <line> <state> <id> <meta> <reads> <worktree>
-  local kind=$1 line=$2 state=$3 id=$4 meta=$5 reads=$6 wt=$7 out rc=0 where=()
+  local kind=$1 line=$2 state=$3 id=$4 meta=$5 reads=$6 wt=$7 out rc=0 root where=()
   [ "$reads" != local ] && [ -n "$meta" ] || return 0
   [ -n "$(fm_dod_meta_value "$meta" checks)" ] || return 0
   [ "$(status_line_verb "$line")" = "done" ] || return 0
   case "$kind" in
     ship) where=(--head "$wt") ;;
-    scout) where=(--dir "$(jq -r '.root // ""' "$state/$id.checks.json" 2>/dev/null)") ;;
+    scout)
+      root=$(jq -r '.root // ""' "$state/$id.checks.json" 2>/dev/null)
+      if [ -z "$root" ]; then
+        printf '%s the admitted checks record %s is missing or unreadable\n' \
+          "$FM_DOD_CHECKS_REFUSAL_PREFIX" "$state/$id.checks.json"
+        return 0
+      fi
+      where=(--dir "$root") ;;
     *) return 0 ;;
   esac
   out=$("$FM_DOD_LIB_DIR/fm-checks.sh" run "$state/$id.checks.json" "${where[@]}" \

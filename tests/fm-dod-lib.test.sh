@@ -796,6 +796,10 @@ test_task_checks_gate_every_done() {
   printf 'Their words: a long sentence, then a short one.\n' > "$data/report.md"
   accept_done scout "" "$wt" "$repo" "done [at=1]: report written" "$state" sc "$state/sc.meta" \
     || fail "a scout done whose report passes its checks was refused"
+  rm -f "$state/sc.checks.json"
+  reason=$(accept_done scout "" "$wt" "$repo" "done [at=1]: report written" "$state" sc "$state/sc.meta"); rc=$?
+  expect_code 1 "$rc" "a scout done whose admitted checks record is gone was accepted"
+  assert_contains "$reason" "$FM_DOD_CHECKS_REFUSAL_PREFIX the admitted checks record $state/sc.checks.json is missing or unreadable" "the scout missing-record refusal did not name the record"
   pass "intake checks: every ship and scout done is refused while a check fails on the deliverable, history reads and unchecked tasks are not gated, and a missing record refuses"
 }
 
