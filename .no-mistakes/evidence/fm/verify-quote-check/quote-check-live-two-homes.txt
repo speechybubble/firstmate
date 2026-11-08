@@ -1,0 +1,24 @@
+$ fm-quote-check.sh status   # before any build
+source: none at $LAB_MAIN/data/captain-words/source.json; run refresh
+
+$ fm-quote-check.sh check data/board/checklist.html --marker class:verbatim --marker attributed --verbose
+refreshed: 2 messages (claude:$LAB_MATE 1, claude:$LAB_MAIN 1); 0 Firstmate inputs excluded -> $LAB_MAIN/data/captain-words/source.json
+verbatim: "I probably have a long sentence, then a short one. And then I go back to long sentences." (class:verbatim, $LAB_MAIN/data/board/checklist.html)
+verbatim: "i do not want to ship the pricing page yet" (class:verbatim, $LAB_MAIN/data/board/checklist.html)
+misquote: "I [don't] want to ship the pricing page" (class:verbatim, $LAB_MAIN/data/board/checklist.html)
+verbatim with omissions: "I probably have a long sentence ... I go back to long sentences" (class:verbatim, $LAB_MAIN/data/board/checklist.html); omitted: "then a short one and then"
+misquote: "long, then short, then back to long" (attributed, $LAB_MAIN/data/board/checklist.html)
+verbatim with omissions: "i do ... want to ship the pricing page" (attributed, $LAB_MAIN/data/board/checklist.html); omitted: "not"
+quotes: 6 checked, 2 verbatim, 2 misquoted, 2 with omissions, 0 skipped; source 2026-11-08T06:12:55Z, 2 messages
+exit=1
+
+$ fm-quote-check.sh status
+source: $LAB_MAIN/data/captain-words/source.json, built 2026-11-08T06:12:55Z, 2 messages
+  claude:$LAB_MATE: 1
+  claude:$LAB_MAIN: 1
+  Firstmate inputs excluded: 0
+fresh: yes
+
+$ stat source
+700 $LAB_MAIN/data/captain-words
+600 $LAB_MAIN/data/captain-words/source.json

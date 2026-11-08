@@ -1,0 +1,47 @@
+$ fm-quote-check.sh refresh   # after an envelope was typed into the main pane
+refreshed: 3 messages (claude:$LAB_MATE 1, claude:$LAB_MAIN 2); 0 Firstmate inputs excluded -> $LAB_MAIN/data/captain-words/source.json
+
+$ fm-quote-check.sh check clean.md --marker attributed   # fresh source is reused, envelope text is not captain words
+misquote: "hmm" (attributed, $LAB_MAIN/data/board/clean.md)
+quotes: 2 checked, 1 verbatim, 1 misquoted, 0 with omissions, 0 skipped; source 2026-11-08T06:13:31Z, 3 messages
+exit=1
+
+$ fm-quote-check.sh check checklist.html --marker class:verbatim --marker attributed   # default (non-verbose) output
+misquote: "I [don't] want to ship the pricing page" (class:verbatim, $LAB_MAIN/data/board/checklist.html)
+verbatim with omissions: "I probably have a long sentence ... I go back to long sentences" (class:verbatim, $LAB_MAIN/data/board/checklist.html)
+misquote: "long, then short, then back to long" (attributed, $LAB_MAIN/data/board/checklist.html)
+verbatim with omissions: "i do ... want to ship the pricing page" (attributed, $LAB_MAIN/data/board/checklist.html)
+quotes: 6 checked, 2 verbatim, 2 misquoted, 2 with omissions, 0 skipped; source 2026-11-08T06:13:31Z, 3 messages
+exit=1
+
+# adversarial: a source built from the main home only (FM_QUOTE_HOMES) falsely flags the second mate quote
+refreshed: 2 messages (claude:$LAB_MAIN 2); 0 Firstmate inputs excluded -> $LAB_MAIN/main-only.json
+misquote: "i do not want to ship the pricing page yet" (class:verbatim, $LAB_MAIN/data/board/mate-only.html)
+quotes: 1 checked, 0 verbatim, 1 misquoted, 0 with omissions, 0 skipped; source 2026-11-08T06:13:33Z, 2 messages
+exit=1
+
+# same page against the two-home source
+quotes: 1 checked, 1 verbatim, 0 misquoted, 0 with omissions, 0 skipped; source 2026-11-08T06:13:31Z, 3 messages
+exit=0
+
+$ check with an invalid regex marker
+fm-quote-check: invalid regex marker 'regex:(unclosed': missing ), unterminated subpattern at position 0
+exit=2
+
+$ check a missing page
+fm-quote-check: page $LAB_MAIN/data/board/nope.html not found
+exit=2
+
+# day-old source is rebuilt lazily on check
+fresh: no (older than 24h)
+refreshed: 3 messages (claude:$LAB_MATE 1, claude:$LAB_MAIN 2); 0 Firstmate inputs excluded -> $LAB_MAIN/data/captain-words/source.json
+quotes: 1 checked, 1 verbatim, 0 misquoted, 0 with omissions, 0 skipped; source 2026-11-08T06:13:36Z, 3 messages
+exit=0
+
+# no source text leaks into output
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import json,sys; d=json.load(sys.stdin); print(sorted(d.keys())); print([ (q["status"], q.get("omitted")) for q in d["quotes"]])
+                                                                                                                       ~^^^^^^^^^^
+KeyError: 'quotes'
+['results', 'summary']

@@ -1,0 +1,13 @@
+$ fm-quote-check.sh refresh   # after a record-backed Firstmate doorbell was typed into the main pane
+refreshed: 3 messages (claude:$LAB_MATE 1, claude:$LAB_MAIN 2); 1 Firstmate inputs excluded -> $LAB_MAIN/data/captain-words/source.json
+$ fm-quote-check.sh status
+source: $LAB_MAIN/data/captain-words/source.json, built 2026-11-08T06:14:14Z, 3 messages
+  claude:$LAB_MATE: 1
+  claude:$LAB_MAIN: 2
+  Firstmate inputs excluded: 1
+fresh: yes
+
+$ check --json (keys and per-quote status/omitted only)
+{'quotes': 2, 'verbatim': 0, 'misquote': 1, 'omissions': 1, 'skipped': 0, 'source_built_at': '2026-11-08T06:14:14Z', 'source_messages': 3}
+{'page': '$LAB_MAIN/data/board/checklist.html', 'marker': 'attributed', 'quote': 'long, then short, then back to long', 'verdict': 'misquote'}
+{'page': '$LAB_MAIN/data/board/checklist.html', 'marker': 'attributed', 'quote': 'i do ... want to ship the pricing page', 'verdict': 'verbatim with omissions', 'omitted': ['not']}
