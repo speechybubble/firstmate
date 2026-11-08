@@ -1524,7 +1524,8 @@ Scouts without the flag are unchanged.
 ## Intake checks
 
 A ship or scout brief's `## Checks` slot holds the checks Firstmate wrote from the captain's words at intake, each with a known-good and a known-bad example, or one `routine: no checks - <reason>` line.
-`bin/fm-spawn.sh` refuses to launch while any check fails its good example or passes its bad one, and otherwise records the admitted checks in `state/<id>.checks.json` and their count as `checks=<count>` in the task metadata. It also records `checks_sha=<sha256>` of the admitted record, and a done is refused when the record is missing or no longer matches it.
+`bin/fm-spawn.sh` refuses to launch while any check fails its good example or passes its bad one, and otherwise records the admitted checks in `state/<id>.checks.json` and their count as `checks=<count>` in the task metadata.
+It also records `checks_sha=<sha256>` of the admitted record, and a done is refused when the record is missing or no longer matches it.
 Every `done:` of that task is then refused while a check fails on the deliverable, including a no-mistakes implementation handoff: a ship's checks read its committed HEAD and a scout's its `data/<id>/` directory.
 `state/<id>.checks-result` caches the last result for an unchanged deliverable, a relaunch keeps the admission recorded at spawn, a promotion drops it, and cleanup removes both files.
 Briefs scaffolded before the slot existed, and exempt briefs, launch without `checks=` and are unchanged.
