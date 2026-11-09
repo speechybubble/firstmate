@@ -4112,7 +4112,7 @@ EOF
       printf 'error: %s ## Checks cannot be admitted; every check must pass its good example and fail its bad one before spawn (bin/fm-checks.sh --help):\n%s\n' "$BRIEF" "$CHECKS_OUT" >&2
       exit 1
     fi
-    CHECKS_COUNT=$(printf '%s\n' "$CHECKS_OUT" | grep -c -e '^admitted ' -e '^standing ')
+    CHECKS_COUNT=$(printf '%s\n' "$CHECKS_OUT" | grep -c -e '^admitted ' -e '^standing ' || true)
     case "$CHECKS_COUNT" in
       0) CHECKS_COUNT= ;;
       *)
