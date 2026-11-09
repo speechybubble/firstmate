@@ -51,7 +51,11 @@ Quotes (check). A marker names how a page marks the captain's words:
   attributed     a quoted span ("...", '...', or curly quotes) that follows a
                  cue attributing it to the captain in the same sentence: "you
                  said", "you wrote", "your words", "your transcript said", "the
-                 captain said", "in your words" and close forms.
+                 captain said", "in your words", "your note" and close forms.
+                 A quote after a note cue is checked like any other: the
+                 source holds the notes the captain typed into Lavish review
+                 pages. This is the marker of the standing check
+                 bin/fm-checks.sh runs on page deliverables.
   regex:<re>     each match of <re> in the page's visible text; the group named
                  q, else group 1, else the whole match is the quote.
 

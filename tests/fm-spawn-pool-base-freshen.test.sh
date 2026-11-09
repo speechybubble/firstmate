@@ -1157,8 +1157,10 @@ test_prose_base_branch_line_is_ignored() {
 }
 
 # A ship brief's page marker (bin/fm-brief.sh --deliverable page) is recorded as
-# deliverable=page for the done-time check; the same line quoted inside the
-# captain's intent declares nothing.
+# deliverable=page for the done-time check, with bin/fm-checks.sh's standing
+# page checks admitted although the brief has no ## Checks slot, except for a
+# page declared client-facing; the same line quoted inside the captain's intent
+# declares nothing.
 test_page_deliverable_marker_is_recorded() {
   local rec id out status
   id='pool-page-marker-r1'
@@ -1179,6 +1181,80 @@ EOF
   status=$?
   expect_code 0 "$status" "a page ship should launch"$'\n'"$out"
   assert_grep 'deliverable=page' "$HOME_DIR/state/$id.meta" "the page marker was not recorded"
+  assert_grep 'checks=1' "$HOME_DIR/state/$id.meta" "the standing page check was not counted"
+  assert_grep "checks_sha=$(sha256sum "$HOME_DIR/state/$id.checks.json" | awk '{print $1}')" "$HOME_DIR/state/$id.meta" "the standing record's digest was not recorded"
+  jq -e '[.checks[].id] == ["standing-captain-quotes"]' "$HOME_DIR/state/$id.checks.json" >/dev/null \
+    || fail "the page ship's admitted record does not hold the standing quote check"
+
+  id='pool-page-client-r1'
+  rec=$(make_case page-client "$id")
+  read_case_record "$rec"
+  cat > "$HOME_DIR/data/$id/brief.md" <<'EOF'
+# Task
+<!-- fm-brief: deliverable page -->
+This ship delivers a page.
+<!-- fm-brief: client-facing -->
+This page addresses a client's visitors, not the captain.
+
+## Captain's intent
+Build the client's landing page.
+
+## Firstmate spec
+Exercise the spawn behavior under test.
+EOF
+  out=$(run_spawn "$id" --mode no-mistakes --yolo off)
+  status=$?
+  expect_code 0 "$status" "a client-facing page ship should launch"$'\n'"$out"
+  assert_grep 'deliverable=page' "$HOME_DIR/state/$id.meta" "a client-facing page lost its page deliverable"
+  assert_no_grep 'checks=' "$HOME_DIR/state/$id.meta" "a client-facing page carried the standing quote check"
+  assert_absent "$HOME_DIR/state/$id.checks.json" "a client-facing page has an admitted record"
+
+  id='pool-exempt-plain-r1'
+  rec=$(make_case exempt-plain "$id")
+  read_case_record "$rec"
+  cat > "$HOME_DIR/data/$id/brief.md" <<'EOF'
+# Task
+
+## Captain's intent
+Fix the build script.
+
+## Firstmate spec
+Exercise the spawn behavior under test.
+
+## Checks
+routine: no checks - a build script fix
+EOF
+  out=$(run_spawn "$id" --mode no-mistakes --yolo off)
+  status=$?
+  expect_code 0 "$status" "an exempt ship should launch"$'\n'"$out"
+  assert_no_grep 'checks=' "$HOME_DIR/state/$id.meta" "an exempt ship recorded checks"
+  assert_absent "$HOME_DIR/state/$id.checks.json" "an exempt ship has an admitted record"
+
+  id='pool-exempt-client-r1'
+  rec=$(make_case exempt-client "$id")
+  read_case_record "$rec"
+  cat > "$HOME_DIR/data/$id/brief.md" <<'EOF'
+# Task
+<!-- fm-brief: deliverable page -->
+This ship delivers a page.
+<!-- fm-brief: client-facing -->
+This page addresses a client's visitors, not the captain.
+
+## Captain's intent
+Build the client's landing page.
+
+## Firstmate spec
+Exercise the spawn behavior under test.
+
+## Checks
+routine: no checks - a client landing page
+EOF
+  out=$(run_spawn "$id" --mode no-mistakes --yolo off)
+  status=$?
+  expect_code 0 "$status" "an exempt client-facing page ship should launch"$'\n'"$out"
+  assert_grep 'deliverable=page' "$HOME_DIR/state/$id.meta" "an exempt client-facing page lost its page deliverable"
+  assert_no_grep 'checks=' "$HOME_DIR/state/$id.meta" "an exempt client-facing page recorded checks"
+  assert_absent "$HOME_DIR/state/$id.checks.json" "an exempt client-facing page has an admitted record"
 
   id='pool-page-quoted-r1'
   rec=$(make_case page-quoted "$id")
@@ -1188,7 +1264,9 @@ EOF
   status=$?
   expect_code 0 "$status" "a ship quoting the marker should launch"$'\n'"$out"
   assert_no_grep 'deliverable=' "$HOME_DIR/state/$id.meta" "a marker quoted in the captain's intent declared a page"
-  pass "a ship brief's page marker is recorded as deliverable=page, and a quoted one is not"
+  assert_no_grep 'checks=' "$HOME_DIR/state/$id.meta" "a ship that is not a page carried the standing check"
+  assert_absent "$HOME_DIR/state/$id.checks.json" "a ship that is not a page has an admitted record"
+  pass "a ship brief's page marker is recorded as deliverable=page with the standing quote check, a client-facing page carries none, exempt ships without a standing check launch with none, and a quoted marker is not"
 }
 
 # A named base is validated against the project's registered forge for scouts
