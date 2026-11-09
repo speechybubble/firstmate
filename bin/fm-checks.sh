@@ -135,7 +135,8 @@
 # registration of a ship in another project has no reader. Run from the run
 # worktree, it binds the run to every registered ship whose branch is in
 # the gate repository with commits of its own that the run carries, as the same
-# commits or, after a pipeline rebase, as the same patches. For each bound ship
+# commits or, after a pipeline rebase, as commits with the same author email,
+# author date, and subject, or the same patches. For each bound ship
 # it refuses a record whose digest is not the checks_sha= spawn recorded in the
 # task meta, then runs the admitted checks against the run's committed HEAD, so
 # pipeline fix commits are checked too. An assertions check reads a drive run
@@ -842,12 +843,13 @@ cmd_unregister() {
 
 # 0 when the run at <head> carries the ship branch <tip>'s own commits: the
 # commits <tip> has beyond every origin remote-tracking ref except the branch's
-# own, present as the same commits (<tip> is an ancestor of <head>) or as the
-# same patches among the run's own commits, which is what a pipeline rebase
-# leaves. A branch with no commits of its own never binds, so a long-merged
+# own, present as the same commits (<tip> is an ancestor of <head>) or, after a
+# pipeline rebase, each as a run-own commit with the same author email, author
+# date, and subject, or with the same patch. A rebase keeps the first even when
+# it shifts a patch's context or resolves a conflict. A branch with no commits of its own never binds, so a long-merged
 # branch whose tip sits in the base cannot claim an unrelated run.
 run_carries_ship() {  # <worktree> <head> <tip> <branch>
-  local wt=$1 head=$2 tip=$3 branch=$4 own run_own pids c pid matched=0
+  local wt=$1 head=$2 tip=$3 branch=$4 own run_own pids keys key c pid matched=0
   own=$(git -C "$wt" rev-list --no-merges "$tip" --not --exclude="refs/remotes/origin/$branch" --remotes=origin 2>/dev/null) || return 1
   [ -n "$own" ] || return 1
   git -C "$wt" merge-base --is-ancestor "$tip" "$head" 2>/dev/null && return 0
@@ -857,10 +859,18 @@ run_carries_ship() {  # <worktree> <head> <tip> <branch>
   pids=$(printf '%s\n' "$run_own" | while IFS= read -r c; do
     git -C "$wt" diff-tree -p "$c" 2>/dev/null | git patch-id --stable 2>/dev/null | awk '{print $1}'
   done)
+  keys=$(printf '%s\n' "$run_own" | while IFS= read -r c; do
+    git -C "$wt" show -s --format='%ae %at %s' "$c" 2>/dev/null
+  done)
   while IFS= read -r c; do
+    key=$(git -C "$wt" show -s --format='%ae %at %s' "$c" 2>/dev/null)
+    if [ -n "$key" ] && printf '%s\n' "$keys" | grep -qxF -- "$key"; then
+      matched=1
+      continue
+    fi
     pid=$(git -C "$wt" diff-tree -p "$c" 2>/dev/null | git patch-id --stable 2>/dev/null | awk '{print $1}')
     [ -n "$pid" ] || continue
-    printf '%s\n' "$pids" | grep -qxF "$pid" || return 1
+    printf '%s\n' "$pids" | grep -qxF -- "$pid" || return 1
     matched=1
   done <<EOF
 $own

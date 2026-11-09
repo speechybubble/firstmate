@@ -616,8 +616,8 @@ EOF
   pass "gate: only the admitted record is run, and a gone registration or meta binds nothing"
 }
 
-# A pipeline rebase rewrites the ship's commits, so the gate binds by patch as
-# well as by ancestry; a run for another branch, or a registered ship whose
+# A pipeline rebase rewrites the ship's commits, so the gate binds by commit
+# identity and patch as well as by ancestry; a run for another branch, or a registered ship whose
 # commits already sit in the base, binds nothing.
 test_gate_binds_only_the_run_of_its_ship() {
   local rec run state gate origin out rc base upstream_head
@@ -658,10 +658,63 @@ EOF
   pass "gate: a rebased run stays bound to its ship, and other runs bind nothing"
 }
 
+# A rebase that shifts a ship patch's context, or needs a conflict resolved,
+# changes its patch-id but keeps each commit's author and subject, so the
+# rebased run still binds and fails its check rather than passing unbound.
+test_gate_binds_a_rebase_that_changes_the_patch() {
+  local rec run state gate origin out rc base ship_tip
+  rec=$(make_gate_run gate-reshape)
+  IFS='|' read -r run state gate origin <<EOF
+$rec
+EOF
+  base="$TMP_ROOT/gate-reshape"
+  git -C "$base/ship" checkout -q main
+  printf 'one\ntwo\nthree\nfour\nfive\n' > "$base/ship/notes.txt"
+  git -C "$base/ship" add notes.txt && git -C "$base/ship" commit -qm 'add notes' && git -C "$base/ship" push -q origin main 2>/dev/null
+  git -C "$base/ship" checkout -q fm/t1
+  git -C "$base/ship" rebase -q main >/dev/null 2>&1 || fail "could not move the ship onto the notes base"
+  sed -i 's/^three$/three by the ship/' "$base/ship/notes.txt"
+  git -C "$base/ship" commit -qam 'edit the notes'
+  git -C "$base/ship" push -qf "$gate" fm/t1 2>/dev/null
+  git -C "$gate" fetch -q origin '+refs/heads/main:refs/remotes/origin/main'
+  ship_tip=$(git -C "$gate" rev-parse refs/heads/fm/t1)
+
+  git clone -q "$origin" "$base/other" 2>/dev/null
+  sed -i 's/^one$/one upstream/' "$base/other/notes.txt"
+  git -C "$base/other" commit -qam 'base edits next to the ship' && git -C "$base/other" push -q origin main 2>/dev/null
+  git -C "$gate" fetch -q origin '+refs/heads/main:refs/remotes/origin/main'
+  git -C "$run" checkout -q --detach refs/remotes/origin/main
+  git -C "$run" cherry-pick "$ship_tip~2..$ship_tip" >/dev/null 2>&1 || fail "could not replay the ship next to the base's edit"
+  [ "$(git -C "$run" diff-tree -p HEAD | git patch-id --stable | awk '{print $1}')" != "$(git -C "$gate" diff-tree -p "$ship_tip" | git patch-id --stable | awk '{print $1}')" ] \
+    || fail "the fixture's replay kept the ship's patch-id, so it does not exercise a shifted context"
+  out=$(gate_in gate-reshape "$run"); rc=$?
+  expect_code 1 "$rc" "the gate lost its ship after a rebase that shifted the patch context: $out"
+  assert_contains "$out" "task-checks: task t1 (fm/t1)" "the context-shifted run was not bound to its ship"
+  assert_contains "$out" "fail names-the-person: " "the context-shifted run did not fail its check"
+
+  sed -i 's/^three$/three upstream/' "$base/other/notes.txt"
+  git -C "$base/other" commit -qam 'base edits the ship line' && git -C "$base/other" push -q origin main 2>/dev/null
+  git -C "$gate" fetch -q origin '+refs/heads/main:refs/remotes/origin/main'
+  git -C "$run" checkout -q --detach refs/remotes/origin/main
+  git -C "$run" cherry-pick "$ship_tip~1" >/dev/null 2>&1 || fail "could not replay the ship's first commit"
+  if git -C "$run" cherry-pick "$ship_tip" >/dev/null 2>&1; then
+    fail "the fixture's replay did not conflict"
+  fi
+  printf 'one upstream\ntwo\nthree resolved\nfour\nfive\n' > "$run/notes.txt"
+  git -C "$run" add notes.txt
+  GIT_EDITOR=true git -C "$run" cherry-pick --continue >/dev/null 2>&1 || fail "could not finish the conflicted replay"
+  out=$(gate_in gate-reshape "$run"); rc=$?
+  expect_code 1 "$rc" "the gate lost its ship after a rebase that resolved a conflict: $out"
+  assert_contains "$out" "task-checks: task t1 (fm/t1)" "the conflict-resolved run was not bound to its ship"
+  assert_contains "$out" "fail names-the-person: " "the conflict-resolved run did not fail its check"
+  pass "gate: a rebase that shifts a patch's context or resolves a conflict stays bound to its ship"
+}
+
 fm_test_run \
   test_gate_refuses_a_run_whose_task_check_fails \
   test_gate_trusts_only_the_admitted_record \
   test_gate_binds_only_the_run_of_its_ship \
+  test_gate_binds_a_rebase_that_changes_the_patch \
   test_validate_admits_every_type_on_its_own_examples \
   test_validate_refuses_checks_that_cannot_tell_good_from_bad \
   test_validate_refuses_schema_breaks \
