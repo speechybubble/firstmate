@@ -141,8 +141,10 @@
 # it refuses a record whose digest is not the checks_sha= spawn recorded in the
 # task meta, then runs the admitted checks against the run's committed HEAD, so
 # pipeline fix commits are checked too. An assertions check reads a drive run
-# that only the worker's done line names, so the gate prints a `skip` line for
-# it and leaves it to the done gate. Output is the run's `pass`/`fail` lines,
+# that only the worker's done line names, and a quotes check (such as a page
+# deliverable's standing check) reads the captain's words, which stay in the
+# Firstmate home, so the gate prints a `skip` line for each and leaves it to
+# the done gate. Output is the run's `pass`/`fail` lines,
 # each failure followed by a `  from: <source>` line so a pipeline fix turn
 # works toward the words the check came from, under a
 # `task-checks: task <id> (<branch>)` heading, which the pipeline keeps
@@ -881,7 +883,7 @@ EOF
 
 cmd_gate() {
   local registry wt head entry state id meta branch tip admitted actual record filtered out rc
-  local bound=0 failed=0 skipped sid line
+  local bound=0 failed=0 skipped sid stype line
   [ "$#" -eq 0 ] || die_usage "gate takes no arguments"
   # shellcheck source=bin/fm-dod-lib.sh
   . "$SCRIPT_DIR/fm-dod-lib.sh"
@@ -913,14 +915,17 @@ cmd_gate() {
       continue
     fi
     filtered="$SCRATCH/gate.$bound.json"
-    if ! jq '.checks |= map(select(.type != "assertions"))' "$record" > "$filtered" 2>/dev/null; then
+    if ! jq '.checks |= map(select(.type != "assertions" and .type != "quotes"))' "$record" > "$filtered" 2>/dev/null; then
       echo "fail admitted-record: $record cannot be read"
       failed=$((failed + 1))
       continue
     fi
-    skipped=$(jq -r '.checks[] | select(.type == "assertions") | .id' "$record")
-    while IFS= read -r sid; do
-      [ -z "$sid" ] || echo "skip $sid: an assertions check reads the drive run the worker's done line names, so the done gate runs it"
+    skipped=$(jq -r '.checks[] | select(.type == "assertions" or .type == "quotes") | "\(.id) \(.type)"' "$record")
+    while IFS=" " read -r sid stype; do
+      case "$stype" in
+        assertions) echo "skip $sid: an assertions check reads the drive run the worker's done line names, so the done gate runs it" ;;
+        quotes) echo "skip $sid: a quotes check reads the captain's words, which stay in the Firstmate home, so the done gate runs it" ;;
+      esac
     done <<EOF
 $skipped
 EOF

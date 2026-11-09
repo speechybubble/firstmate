@@ -637,6 +637,41 @@ EOF
   pass "gate: a ship whose meta has no checks= binds nothing, and one with checks= but no checks_sha= refuses"
 }
 
+# A captain-facing page ship carries the standing quote check, which reads the
+# captain's words in the Firstmate home; the pipeline cannot see them, so the
+# gate names it as skipped for the done gate, even on a page with an invented
+# quote, while the ship's other admitted checks still run and decide the gate.
+test_gate_leaves_quotes_checks_to_the_done_gate() {
+  local rec run state gate origin out rc brief sha
+  rec=$(make_gate_run gate-quotes)
+  IFS='|' read -r run state gate origin <<EOF
+$rec
+EOF
+  brief="$TMP_ROOT/gate-quotes/page-brief.md"
+  write_checks_brief "$brief" "$(json_block '[
+ {"id":"names-the-person","source":"a specific problem for a specific person","type":"contains","target":"ad.txt","pattern":"(HVAC|plumb|remodel)","good":"For plumbers who lose jobs to slow quotes.","bad":"For every business in every industry."}
+]')"
+  "$CHECKS" validate "$brief" --kind ship --admit "$state/t1.checks.json" --deliverable page --base main >/dev/null 2>&1 \
+    || fail "the page ship's checks were not admitted"
+  sha=$(sha256sum "$state/t1.checks.json" | awk '{print $1}')
+  printf 'kind=ship\nmode=no-mistakes\nbranch=fm/t1\nworktree=%s\nchecks=2\nchecks_sha=%s\n' "$TMP_ROOT/gate-quotes/ship" "$sha" > "$state/t1.meta"
+  printf '%s\n' "$F1_PAGE" > "$run/board.html"
+  git -C "$run" add board.html && git -C "$run" commit -qm 'board with an invented quote'
+
+  out=$(gate_in gate-quotes "$run"); rc=$?
+  expect_code 1 "$rc" "the gate passed a page ship whose written check fails: $out"
+  assert_contains "$out" "skip standing-captain-quotes: " "the gate did not name the standing quote check as left to the done gate"
+  assert_contains "$out" "fail names-the-person: " "the page ship's written check did not run"
+  assert_not_contains "$out" "fail standing-captain-quotes" "the gate ran a quotes check without the captain's words"
+
+  printf 'For plumbers who lose jobs to slow quotes.\n' > "$run/ad.txt"
+  git -C "$run" commit -qam 'pipeline fix: name the trade'
+  out=$(gate_in gate-quotes "$run"); rc=$?
+  expect_code 0 "$rc" "the gate parked a page ship whose written checks pass: $out"
+  assert_contains "$out" "pass names-the-person" "the passing written check was not reported"
+  pass "gate: a page ship's quotes checks are left to the done gate and its written checks still decide the run"
+}
+
 # A pipeline rebase rewrites the ship's commits, so the gate binds by commit
 # identity and patch as well as by ancestry; a run for another branch, or a registered ship whose
 # commits already sit in the base, binds nothing.
@@ -735,6 +770,7 @@ fm_test_run \
   test_gate_refuses_a_run_whose_task_check_fails \
   test_gate_trusts_only_the_admitted_record \
   test_gate_skips_a_ship_without_admitted_checks \
+  test_gate_leaves_quotes_checks_to_the_done_gate \
   test_gate_binds_only_the_run_of_its_ship \
   test_gate_binds_a_rebase_that_changes_the_patch \
   test_validate_admits_every_type_on_its_own_examples \
