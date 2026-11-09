@@ -108,7 +108,7 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-watch.sh`            | Singleton-safe watcher: absorb benign wakes, detect stalled local-secondmate wake queues, and exit on actionable ones |
 | `fm-coordination-trace.sh` | Read-only trace of main-to-second-mate-to-worker coordination from raw records: per routed task the hops, the time between hops and the copies of each result that reached main, plus the summary numbers (ask to worker start, messages per captain change, copies per result) |
 | `fm-coordination-trace.py` | The record-reading engine behind `fm-coordination-trace.sh`; its header owns the hop definitions and fallbacks |
-| `fm-check-results.sh`    | Read-only nightly check-result lines from the skill-fire log and the backlog's Done rows: refused dones and their later confirmation by check, written checks that failed validation and tasks exempted, each beside the deliverables shipped |
+| `fm-check-results.sh`    | Read-only nightly check-result lines from the skill-fire log and the backlog's Done rows: refused dones and their later confirmation on changed work by check, written checks that failed validation and tasks exempted, each beside the deliverables shipped |
 | `fm-quote-check.sh`      | Keep the home-local source of the captain's typed words fresh and check that a page's quotes of the captain appear in it word for word ([quote check](configuration.md#captain-quote-check-datacaptain-wordssourcejson)) |
 | `fm-quote-check.py`      | The engine behind `fm-quote-check.sh`; its header owns what counts as the captain's typed words, the quote markers and the match rule |
 | `fm-inactive-reconcile.sh` | Reconcile long-inactive direct crewmate terminal outcomes without forge access |

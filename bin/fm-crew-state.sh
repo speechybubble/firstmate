@@ -13,9 +13,10 @@
 # A ship `done:` is current-state done only when bin/fm-dod-lib.sh accepts the
 # named head as reachable outside the worker's disposable copy; otherwise blocked.
 # Its writes: a page deliverable's done refused for missing drive evidence
-# appends a page-refused line, a done refused by failing intake checks a
-# checks-refused line, and a done whose intake checks all pass a checks-passed
-# line, each once, to the home's skill-fire log
+# appends a page-refused line once, and a done refused by failing intake checks
+# a checks-refused line or a done whose intake checks all pass a checks-passed
+# line, each carrying the checked head and written when it changes the task's
+# latest checks verdict, to the home's skill-fire log
 # (fm_skill_fire_append in bin/fm-dod-lib.sh owns that log); running those
 # checks keeps their result cache at state/<id>.checks-result
 # (bin/fm-checks.sh run --cache).
@@ -316,21 +317,30 @@ fi
 # stopped early: its detail ends with "handoff ready: instruct /no-mistakes".
 # The history-only read omits it, because its task is already recorded complete.
 emit_ship_status_done() {  # [extra-detail] [reads]
-  local extra=${1:-} reads=${2:-} reason page_reason rc=0
+  local extra=${1:-} reads=${2:-} reason page_reason rc=0 checks_head
   if [ "$reads" != local ] && fm_dod_ship_done_is_nm_handoff "$KIND" "$(meta_value mode)" "$LOG_LINE"; then
     extra="${extra:+$extra$SEP}handoff ready: instruct /no-mistakes"
   fi
   reason=$(fm_dod_accept_ship_done "$KIND" "$(meta_value mode)" "$WT" "$(meta_value project)" "$LOG_LINE" "$STATE" "$ID" "$META" "$reads") || rc=$?
   # A done of a task with admitted checks that the checks gate did not refuse
   # passed every check (fm_dod_task_checks_reason runs first and gates every
-  # such done on a live read), so it records one checks-passed fire per done
-  # line, whose ref is that line's note, before the accepted read exits; a
-  # later gate's refusal of the same line does not undo the checks' verdict.
+  # such done on a live read), so it records a checks-passed fire before the
+  # accepted read exits; a later gate's refusal of the same line does not undo
+  # the checks' verdict. Both checks fires carry the checked deliverable state
+  # (fm_dod_checked_head) as `head=<token>; ` before the note or reason, and
+  # each is written unless it repeats the task's latest checks fire, so a pass
+  # after a refusal is always recorded and bin/fm-check-results.sh can tell a
+  # pass on changed work from one on unchanged work.
+  checks_head=
   if [ "$reads" != local ] && [ -n "$(meta_value checks)" ]; then
+    case "$KIND" in
+      ship|scout) checks_head=$(fm_dod_checked_head "$KIND" "$WT" "$STATE/$ID.checks.json") ;;
+    esac
     case "$KIND:$reason" in
       ship:"$FM_DOD_CHECKS_REFUSAL_PREFIX"*|scout:"$FM_DOD_CHECKS_REFUSAL_PREFIX"*) ;;
       ship:*|scout:*)
-        fm_skill_fire_append "${FM_DATA_OVERRIDE:-$FM_HOME/data}" "$ID" checks-passed fm-crew-state.sh "$(status_line_note "$LOG_LINE")" once || true ;;
+        fm_skill_fire_append_changed "${FM_DATA_OVERRIDE:-$FM_HOME/data}" "$ID" checks-passed fm-crew-state.sh \
+          "head=$checks_head; $(status_line_note "$LOG_LINE")" "checks-passed checks-refused" || true ;;
     esac
   fi
   case "$rc" in
@@ -340,7 +350,7 @@ emit_ship_status_done() {  # [extra-detail] [reads]
   # This read is the one writer of the page-refused and checks-refused skill
   # fires (and of checks-passed above), each refusal recorded only when its own
   # gate gave the refusal reason; a history-only read records nothing, and a
-  # refusal re-read on a later observation is written once.
+  # refusal re-read on a later observation is not written again.
   if [ "$reads" != local ] && [ "$(meta_value deliverable)" = page ] \
     && page_reason=$(fm_dod_page_evidence_reason "$(status_line_note "$LOG_LINE")") && [ -n "$page_reason" ] \
     && [ "$reason" = "$page_reason" ]; then
@@ -348,7 +358,8 @@ emit_ship_status_done() {  # [extra-detail] [reads]
   fi
   case "$reason" in
     "$FM_DOD_CHECKS_REFUSAL_PREFIX"*)
-      fm_skill_fire_append "${FM_DATA_OVERRIDE:-$FM_HOME/data}" "$ID" checks-refused fm-crew-state.sh "$reason" once || true ;;
+      fm_skill_fire_append_changed "${FM_DATA_OVERRIDE:-$FM_HOME/data}" "$ID" checks-refused fm-crew-state.sh \
+        "head=$checks_head; $reason" "checks-passed checks-refused" || true ;;
   esac
   emit blocked status-log "$reason"
 }

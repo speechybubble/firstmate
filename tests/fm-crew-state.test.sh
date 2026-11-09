@@ -2667,7 +2667,7 @@ test_page_deliverable_refusal_records_one_fire() {
 # refusal confirmed by a later run.
 test_intake_checks_refusal_records_one_fire() {
   reset_fakes
-  local d out log sha digest
+  local d out log sha digest heads=''
   d=$(new_case checks-refused)
   make_repo_on_branch "$d/wt" fm/ck
   printf 'Full refund, no questions asked.\n' > "$d/wt/ad.txt"
@@ -2697,27 +2697,47 @@ test_intake_checks_refusal_records_one_fire() {
   [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-refused" && $4 == "fm-crew-state.sh"' "$log" | wc -l | tr -d ' ')" = 1 ] \
     || fail "a repeated refusal did not leave exactly one checks-refused fire: $(cat "$log" 2>/dev/null)"
 
+  [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-refused"' "$log" | cut -f5)" = "head=$sha; intake checks refuse this done: guarantee-conditional: a line matches /no questions asked/: Full refund, no questions asked." ] \
+    || fail "the checks-refused fire did not carry the checked head before the reason: $(cat "$log" 2>/dev/null)"
+
+  # Fixed, refused again on a regression, and fixed again, all under the same
+  # done note: every pass after a refusal is recorded with its own head, and
+  # a re-read of an unchanged verdict writes nothing.
   printf 'If you run it 30 days, next month is free.\n' > "$d/wt/ad.txt"
   git -C "$d/wt" commit -q -am 'conditional guarantee'
   git -C "$d/wt" update-ref refs/remotes/origin/fm/ck "$(git -C "$d/wt" rev-parse HEAD)"
-  printf 'done [at=2]: PR https://example.test/o/r/pull/9 conditional now\n' >> "$d/state/ck.status"
+  heads="$heads $(git -C "$d/wt" rev-parse HEAD)"
+  printf 'done [at=2]: PR https://example.test/o/r/pull/9\n' >> "$d/state/ck.status"
   out=$(run_crew_state "$d" ck)
   assert_contains "$out" "state: done" "a done whose committed work passes its checks must read done"
   run_crew_state "$d" ck >/dev/null
-  [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-refused"' "$log" | wc -l | tr -d ' ')" = 1 ] \
-    || fail "an accepted done recorded a refusal fire: $(cat "$log" 2>/dev/null)"
-  [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-passed" && $4 == "fm-crew-state.sh"' "$log" | wc -l | tr -d ' ')" = 1 ] \
-    || fail "an accepted done whose checks passed did not leave exactly one checks-passed fire: $(cat "$log" 2>/dev/null)"
-  assert_grep "conditional now" "$log" "the checks-passed fire did not record the accepted done line"
+  printf 'Full refund, no questions asked.\n' > "$d/wt/ad.txt"
+  git -C "$d/wt" commit -q -am 'regression'
+  git -C "$d/wt" update-ref refs/remotes/origin/fm/ck "$(git -C "$d/wt" rev-parse HEAD)"
+  printf 'done [at=3]: PR https://example.test/o/r/pull/9\n' >> "$d/state/ck.status"
+  out=$(run_crew_state "$d" ck)
+  assert_contains "$out" "state: blocked" "the regressed done was not refused"
+  printf 'If you run it 60 days, next month is free.\n' > "$d/wt/ad.txt"
+  git -C "$d/wt" commit -q -am 'conditional again'
+  git -C "$d/wt" update-ref refs/remotes/origin/fm/ck "$(git -C "$d/wt" rev-parse HEAD)"
+  heads="$heads $(git -C "$d/wt" rev-parse HEAD)"
+  printf 'done [at=4]: PR https://example.test/o/r/pull/9\n' >> "$d/state/ck.status"
+  out=$(run_crew_state "$d" ck)
+  assert_contains "$out" "state: done" "the fixed done did not read done"
+  run_crew_state "$d" ck >/dev/null
+  [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-refused"' "$log" | wc -l | tr -d ' ')" = 2 ] \
+    || fail "the two refusals did not leave exactly two checks-refused fires: $(cat "$log" 2>/dev/null)"
+  [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-passed" && $4 == "fm-crew-state.sh" { sub(/;.*/, "", $5); printf " %s", substr($5, 6) }' "$log")" = "$heads" ] \
+    || fail "each pass after a refusal under the same done note was not recorded once with its own head: $(cat "$log" 2>/dev/null)"
   if command -v tasks-axi >/dev/null 2>&1; then
     # bin/fm-spawn.sh records the admitted check at launch; this fixture
     # admitted it directly, so it writes that line the same way.
     printf '2000-01-02T00:00:00Z\tck\tchecks-admitted\tfm-spawn.sh\tguarantee-conditional\n' >> "$log"
     out=$(FM_HOME="$d" bash "$ROOT/bin/fm-check-results.sh" --since 2000-01-01 2>&1) \
       || fail "the check-result lines could not read the crew-state fires: $out"
-    assert_contains "$out" "1 done claims refused on 1 tasks, 1 confirmed by a later passing run (100%), 0 still open" \
-      "the check-result lines did not read the refusal and its later pass"
-    assert_contains "$out" "by check: ck/guarantee-conditional 1 refused 1 confirmed" "the refusal was not attributed to its check"
+    assert_contains "$out" "2 done claims refused on 1 tasks, 2 confirmed by a later pass on changed work (100%), 0 later passed on unchanged work, 0 still open" \
+      "the check-result lines did not read the refusals and their later passes"
+    assert_contains "$out" "by check: ck/guarantee-conditional 2 refused 2 confirmed 0 unchanged" "the refusals were not attributed to their check"
   fi
 
   # A no-mistakes page ship's implementation handoff carries no drive= and the

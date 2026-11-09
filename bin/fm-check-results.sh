@@ -22,15 +22,21 @@
 #                    the Done archive retention moves closed rows into.
 # Nothing is written except the optional --json file.
 #
-# Line 1, refusals: the done claims the checks refused in the window, how many
-# a later passing run confirmed, and how many are still open. A refusal is
-# confirmed by a later run when the same task records checks-passed after it in
-# the log: the admitted checks cannot change after launch, so a pass after a
-# refusal means the deliverable was changed until the check that refused it
-# passed. Refusals recorded before the window whose first later pass falls in
-# it are counted separately, so a refusal is never confirmed twice. "by check"
-# names each refused check as <task>/<check-id> with its refusals and
-# confirmations, matching the ids the task's checks-admitted lines name; a
+# Line 1, refusals: the done claims the checks refused in the window and how
+# each was settled by the first checks-passed the same task records after it in
+# the log. Both fires carry the checked deliverable state (`head=<token>; `, a
+# ship's HEAD commit or a scout's digest of the files its checks read). A
+# refusal is confirmed by a later pass on changed work when both heads are
+# recorded and differ: the admitted checks cannot change after launch, so the
+# work was changed until the check that refused it passed. A first later pass
+# on the same head (or with a head missing) is counted as later passed on
+# unchanged work, which a transient check failure or a fixed evidence path
+# produces, so it never counts as a confirmation. A refusal with no later pass
+# is still open. Refusals recorded before the window whose first later pass
+# falls in it and confirms them are counted separately, so a refusal is never
+# confirmed twice. "by check"
+# names each refused check as <task>/<check-id> with its refusals,
+# confirmations, and unchanged passes, matching the ids the task's checks-admitted lines name; a
 # refusal of a missing or altered checks record is attributed to <task>/record,
 # and one naming no admitted check to <task>/unattributed. The line also counts the
 # tasks whose checks passed in the window. Captain send-backs after the checks
@@ -54,7 +60,7 @@
 # has recorded no fire yet and also prints zeros.
 #
 # --json <file> writes the same figures as one object with schema
-# fm-check-results.v1: window, refusals{refused,tasks,confirmed,open,
+# fm-check-results.v1: window, refusals{refused,tasks,confirmed,unchanged,open,
 # earlier_confirmed,passed_tasks,captain_send_backs,by_check[]}, intake{
 # written,invalid,tasks,exempt_tasks}, shipped, and sources.
 #
@@ -172,7 +178,11 @@ fi
 FIRES_JSON="$SCRATCH/fires.json"
 if [ -f "$FIRES" ]; then
   jq -Rn '[inputs | split("\t") | select(length >= 5 and (.[2] | startswith("checks-")))
-    | {ts: .[0], task: .[1], rule: .[2], ref: (.[4:] | join(" "))}]
+    | {ts: .[0], task: .[1], rule: .[2], ref: (.[4:] | join(" "))}
+    | if .rule == "checks-refused" or .rule == "checks-passed" then
+        .ref as $ref | (($ref | capture("^head=(?<head>[^;]*); (?<rest>.*)$")) // {head: "", rest: $ref}) as $h
+        | . + {head: $h.head, ref: $h.rest}
+      else . end]
     | to_entries | map(.value + {n: .key})' "$FIRES" > "$FIRES_JSON" \
     || die "the skill-fire log $FIRES could not be parsed"
 else
@@ -204,14 +214,25 @@ RESULT=$(jq -n \
         elif ($why | startswith("the admitted checks record ")) then ["record"]
         else ["unattributed"] end;
   ([$all[] | select(.rule == "checks-passed" and beforeend)]) as $passes
-  | def confirmation($r): [$passes[] | select(.task == $r.task and .n > $r.n)] | first;
+  # The first pass of the same task after a refusal settles it: confirmed when
+  # both carry a checked head and the heads differ (the work changed), else
+  # unchanged (the same work later passed, so the refusal did not catch work
+  # that needed changing).
+  | def first_pass($r): [$passes[] | select(.task == $r.task and .n > $r.n)] | first;
+  def verdict($r; $p):
+      if $p == null then "open"
+      elif ($r.head != "" and $p.head != "" and $r.head != $p.head) then "confirmed"
+      else "unchanged" end;
   ([$all[] | select(.rule == "checks-refused" and inwin)]
-    | map(. + {ids: refused_ids(.), confirmed: (confirmation(.) != null)})) as $refusals
+    | map(. + {ids: refused_ids(.), verdict: verdict(.; first_pass(.))})) as $refusals
   | ([$all[] | select(.rule == "checks-refused" and ((.ts | epoch) // 0) < $since)]
-    | map(confirmation(.)) | map(select(. != null and inwin)) | length) as $earlier
-  | ([$refusals[] | .ids[] as $id | {check: "\(.task)/\($id)", confirmed}]
+    | map(. as $r | first_pass($r) as $p | select($p != null and ($p | inwin) and verdict($r; $p) == "confirmed"))
+    | length) as $earlier
+  | ([$refusals[] | .ids[] as $id | {check: "\(.task)/\($id)", verdict}]
     | group_by(.check)
-    | map({check: .[0].check, refused: length, confirmed: ([.[] | select(.confirmed)] | length)})) as $by_check
+    | map({check: .[0].check, refused: length,
+           confirmed: ([.[] | select(.verdict == "confirmed")] | length),
+           unchanged: ([.[] | select(.verdict == "unchanged")] | length)})) as $by_check
   | ([$all[] | select(.rule == "checks-passed" and inwin) | .task] | unique | length) as $passed_tasks
   # Intake verdicts in the window.
   | ([$all[] | select((.rule == "checks-admitted" or .rule == "checks-invalid" or .rule == "checks-exempt") and inwin)]) as $intake
@@ -239,8 +260,9 @@ RESULT=$(jq -n \
       refusals: {
         refused: ($refusals | length),
         tasks: ([$refusals[] | .task] | unique | length),
-        confirmed: ([$refusals[] | select(.confirmed)] | length),
-        open: ([$refusals[] | select(.confirmed | not)] | length),
+        confirmed: ([$refusals[] | select(.verdict == "confirmed")] | length),
+        unchanged: ([$refusals[] | select(.verdict == "unchanged")] | length),
+        open: ([$refusals[] | select(.verdict == "open")] | length),
         earlier_confirmed: $earlier,
         passed_tasks: $passed_tasks,
         captain_send_backs: null,
@@ -257,9 +279,9 @@ RESULT=$(jq -n \
     }
   | . as $o
   | $o + {lines: [
-      ("check refusals \($o.window.since) to \($o.window.until): \($o.refusals.refused) done claims refused on \($o.refusals.tasks) tasks, \($o.refusals.confirmed) confirmed by a later passing run (\(share($o.refusals.confirmed; $o.refusals.refused))), \($o.refusals.open) still open; earlier refusals confirmed in this window: \($o.refusals.earlier_confirmed); tasks whose checks passed: \($o.refusals.passed_tasks); captain send-backs after checks passed: not recorded; by check: "
+      ("check refusals \($o.window.since) to \($o.window.until): \($o.refusals.refused) done claims refused on \($o.refusals.tasks) tasks, \($o.refusals.confirmed) confirmed by a later pass on changed work (\(share($o.refusals.confirmed; $o.refusals.refused))), \($o.refusals.unchanged) later passed on unchanged work, \($o.refusals.open) still open; earlier refusals confirmed in this window: \($o.refusals.earlier_confirmed); tasks whose checks passed: \($o.refusals.passed_tasks); captain send-backs after checks passed: not recorded; by check: "
         + (if ($o.refusals.by_check | length) == 0 then "none"
-           else ($o.refusals.by_check | map("\(.check) \(.refused) refused \(.confirmed) confirmed") | join(", ")) end)
+           else ($o.refusals.by_check | map("\(.check) \(.refused) refused \(.confirmed) confirmed \(.unchanged) unchanged") | join(", ")) end)
         + "; deliverables shipped: \($o.shipped)"),
       ("check intake \($o.window.since) to \($o.window.until): \($o.intake.written) checks written, \($o.intake.invalid) failed validation (\(share($o.intake.invalid; $o.intake.written))); \($o.intake.exempt_tasks) of \($o.intake.tasks) launched tasks exempt (\(share($o.intake.exempt_tasks; $o.intake.tasks))); deliverables shipped: \($o.shipped)")
     ]}
