@@ -130,9 +130,10 @@
 # removes it; bin/fm-teardown.sh calls it at cleanup. A pointer whose task meta
 # is gone is ignored, so a leftover one never gates anything.
 #
-# gate is the command a repository's .no-mistakes.yaml declares as a gate after
-# the test step (this repository's own .no-mistakes.yaml is the model). Run from
-# the run worktree, it binds the run to every registered ship whose branch is in
+# gate is the command this repository's .no-mistakes.yaml declares as a gate
+# after the test step; it runs only in this repository's pipelines, so the
+# registration of a ship in another project has no reader. Run from the run
+# worktree, it binds the run to every registered ship whose branch is in
 # the gate repository with commits of its own that the run carries, as the same
 # commits or, after a pipeline rebase, as the same patches. For each bound ship
 # it refuses a record whose digest is not the checks_sha= spawn recorded in the
