@@ -69,7 +69,7 @@ test_refused_done_night_shows_in_the_lines() {
   # t4 was refused before the window and passed on changed work inside it.
   fire "$home" 2026-11-07T11:00:00Z t4 checks-refused fm-crew-state.sh "head=a4; $PREFIX price-named: no line matches US\\$"
   # t1 was refused on one check, then passed on changed work.
-  fire "$home" 2026-11-07T13:00:00Z t1 checks-refused fm-crew-state.sh "head=a1; $PREFIX guarantee-conditional: a line matches no questions asked"
+  fire "$home" 2026-11-07T13:00:00Z t1 checks-refused fm-crew-state.sh "head=a1; line=0123456789ab; $PREFIX guarantee-conditional: a line matches no questions asked"
   fire "$home" 2026-11-07T14:00:00Z t1 checks-passed fm-crew-state.sh "head=b1; PR https://example.test/o/r/pull/1"
   # t2 passed an earlier done and was refused later: that pass settles nothing.
   fire "$home" 2026-11-07T14:30:00Z t2 checks-passed fm-crew-state.sh "head=a2; implementation ready"

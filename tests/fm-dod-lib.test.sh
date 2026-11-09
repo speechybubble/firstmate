@@ -927,7 +927,19 @@ test_checked_head_tracks_the_checked_deliverable() {
   c=$(fm_dod_checked_head scout "" "$record")
   [ -n "$a" ] && [ "$a" = "$b" ] || fail "a scout's checked head moved with a file no check reads ($a, $b)"
   [ "$b" != "$c" ] || fail "a scout's checked head did not move with a checked file"
-  pass "checked head: a ship's HEAD commit, a scout's digest of its checked files"
+  # A quotes check with no target reads every page under the data directory,
+  # so a page edit moves the head; the drive results file never does.
+  jq --arg root "$dir/data" '.checks += [{id: "q", type: "quotes", markers: ["attributed"]}]' "$record" > "$record.tmp" && mv "$record.tmp" "$record"
+  mkdir -p "$dir/data/site"
+  printf '<p>first</p>\n' > "$dir/data/site/index.html"
+  a=$(fm_dod_checked_head scout "" "$record")
+  printf '<p>second</p>\n' > "$dir/data/site/index.html"
+  b=$(fm_dod_checked_head scout "" "$record")
+  printf 'apply\tpass\n' > "$dir/data/drive.tsv"
+  c=$(fm_dod_checked_head scout "" "$record")
+  [ "$a" != "$b" ] || fail "a scout's checked head did not move with a page a target-less quotes check reads"
+  [ "$b" = "$c" ] || fail "a scout's checked head moved with a drive results file"
+  pass "checked head: a ship's HEAD commit, a scout's digest of its checked files and quoted pages, never drive results"
 }
 
 test_page_deliverable_done_needs_drive_evidence

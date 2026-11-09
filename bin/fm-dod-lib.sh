@@ -1318,23 +1318,31 @@ fm_skill_fire_append() {  # <data-dir> <task> <rule> <source> <ref> [<once>]
 # different one in between (a pass, then a refusal, then the same pass again)
 # is written again, so the log keeps every change of verdict in order.
 fm_skill_fire_append_changed() {  # <data-dir> <task> <rule> <source> <ref> <rules>
-  local data=$1 task rule ref log last
-  task=$(printf '%s' "$2" | tr '\t\n\r' '   ')
+  local rule ref
   rule=$(printf '%s' "$3" | tr '\t\n\r' '   ')
   ref=$(printf '%s' "$5" | tr '\t\n\r' '   ')
-  log="$data/skill-fires.tsv"
-  if [ -f "$log" ]; then
-    last=$(awk -F'\t' -v t="$task" -v rules=" $6 " '$2 == t && index(rules, " " $3 " ") { line = $3 "\t" $5 } END { print line }' "$log")
-    [ "$last" != "$rule"$'\t'"$ref" ] || return 0
-  fi
-  fm_skill_fire_append "$data" "$2" "$3" "$4" "$5"
+  [ "$(fm_skill_fire_latest "$1" "$2" "$6")" != "$rule"$'\t'"$ref" ] || return 0
+  fm_skill_fire_append "$1" "$2" "$3" "$4" "$5"
+}
+
+# The task's latest skill-fire line among the space-separated <rules>, as
+# "<rule><TAB><ref>", or nothing when the log holds none.
+fm_skill_fire_latest() {  # <data-dir> <task> <rules>
+  local task log="$1/skill-fires.tsv"
+  [ -f "$log" ] || return 0
+  task=$(printf '%s' "$2" | tr '\t\n\r' '   ')
+  awk -F'\t' -v t="$task" -v rules=" $3 " '$2 == t && index(rules, " " $3 " ") { line = $3 "\t" $5 } END { if (line != "") print line }' "$log"
 }
 
 # The deliverable state a done's intake checks read, as one token recorded in
 # the checks-refused and checks-passed refs (`head=<token>; ...`): a ship's
 # worktree HEAD commit, or for a scout, which has no commit, a sha256 over the
-# files its admitted checks read from the data directory (a missing file
-# hashed as missing). Prints nothing when the state cannot be read.
+# files its admitted checks read from the data directory: each named target (a
+# missing file hashed as missing) and, when a quotes check names no target,
+# every page under the directory (bin/fm-checks.sh owns which pages it reads).
+# Drive results are left out, as a ship's commit leaves them out, so fixing
+# only an evidence path never reads as changed work. Prints nothing when the
+# state cannot be read.
 fm_dod_checked_head() {  # <kind> <worktree> <record>
   local kind=$1 wt=$2 record=$3 root path sum list=''
   case "$kind" in
@@ -1348,7 +1356,10 @@ fm_dod_checked_head() {  # <kind> <worktree> <record>
         sum=$(fm_dod_file_sha256 "$root/$path")
         list="$list${sum:-missing} $path"$'\n'
       done <<EOF
-$(jq -r '.checks[] | select(.type != "assertions") | .target' "$record" 2>/dev/null | sort -u)
+$( { jq -r '.checks[] | select(.type != "assertions" and (.target | type) == "string") | .target' "$record" 2>/dev/null
+  if jq -e 'any(.checks[]; .type == "quotes" and (has("target") | not))' "$record" >/dev/null 2>&1; then
+    (cd "$root" 2>/dev/null && find . -type f \( -name '*.html' -o -name '*.htm' -o -name '*.xhtml' \) | sed 's|^\./||')
+  fi; } | sort -u)
 EOF
       if command -v sha256sum >/dev/null 2>&1; then
         printf '%s' "$list" | sha256sum | awk '{print $1}'

@@ -25,7 +25,10 @@
 # Line 1, refusals: the done claims the checks refused in the window and how
 # each was settled by the first checks-passed the same task records after it in
 # the log. Both fires carry the checked deliverable state (`head=<token>; `, a
-# ship's HEAD commit or a scout's digest of the files its checks read). A
+# ship's HEAD commit or a scout's digest of the files its checks read), and a
+# refusal is recorded once per done status line (`line=<key>; `), so a done
+# claim refused while the work changes under it counts once, with the head its
+# first refusal checked. A
 # refusal is confirmed by a later pass on changed work when both heads are
 # recorded and differ: the admitted checks cannot change after launch, so the
 # work was changed until the check that refused it passed. A first later pass
@@ -180,7 +183,7 @@ if [ -f "$FIRES" ]; then
   jq -Rn '[inputs | split("\t") | select(length >= 5 and (.[2] | startswith("checks-")))
     | {ts: .[0], task: .[1], rule: .[2], ref: (.[4:] | join(" "))}
     | if .rule == "checks-refused" or .rule == "checks-passed" then
-        .ref as $ref | (($ref | capture("^head=(?<head>[^;]*); (?<rest>.*)$")) // {head: "", rest: $ref}) as $h
+        .ref as $ref | (($ref | capture("^head=(?<head>[^;]*); (line=[^;]*; )?(?<rest>.*)$")) // {head: "", rest: $ref}) as $h
         | . + {head: $h.head, ref: $h.rest}
       else . end]
     | to_entries | map(.value + {n: .key})' "$FIRES" > "$FIRES_JSON" \

@@ -2697,20 +2697,32 @@ test_intake_checks_refusal_records_one_fire() {
   [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-refused" && $4 == "fm-crew-state.sh"' "$log" | wc -l | tr -d ' ')" = 1 ] \
     || fail "a repeated refusal did not leave exactly one checks-refused fire: $(cat "$log" 2>/dev/null)"
 
-  [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-refused"' "$log" | cut -f5)" = "head=$sha; intake checks refuse this done: guarantee-conditional: a line matches /no questions asked/: Full refund, no questions asked." ] \
-    || fail "the checks-refused fire did not carry the checked head before the reason: $(cat "$log" 2>/dev/null)"
+  awk -F'\t' '$2 == "ck" && $3 == "checks-refused"' "$log" | cut -f5 \
+    | grep -qxE "head=$sha; line=[0-9a-f]{12}; intake checks refuse this done: guarantee-conditional: a line matches /no questions asked/: Full refund, no questions asked\." \
+    || fail "the checks-refused fire did not carry the checked head and done line before the reason: $(cat "$log" 2>/dev/null)"
 
-  # Fixed, refused again on a regression, and fixed again, all under the same
-  # done note: every pass after a refusal is recorded with its own head, and
-  # a re-read of an unchanged verdict writes nothing.
+  # The same done line stays current while the worker commits B and C, both
+  # still failing, then D, which passes: one refused claim, settled by D.
+  printf 'Refund, no questions asked, ever.\n' > "$d/wt/ad.txt"
+  git -C "$d/wt" commit -q -am 'still unconditional (B)'
+  run_crew_state "$d" ck >/dev/null
+  printf 'Money back, no questions asked.\n' > "$d/wt/ad.txt"
+  git -C "$d/wt" commit -q -am 'still unconditional (C)'
+  out=$(run_crew_state "$d" ck)
+  assert_contains "$out" "state: blocked" "the still-failing done read as done"
+  [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-refused"' "$log" | wc -l | tr -d ' ')" = 1 ] \
+    || fail "one done line refused at A, B and C did not leave exactly one checks-refused fire: $(cat "$log" 2>/dev/null)"
   printf 'If you run it 30 days, next month is free.\n' > "$d/wt/ad.txt"
-  git -C "$d/wt" commit -q -am 'conditional guarantee'
+  git -C "$d/wt" commit -q -am 'conditional guarantee (D)'
   git -C "$d/wt" update-ref refs/remotes/origin/fm/ck "$(git -C "$d/wt" rev-parse HEAD)"
   heads="$heads $(git -C "$d/wt" rev-parse HEAD)"
-  printf 'done [at=2]: PR https://example.test/o/r/pull/9\n' >> "$d/state/ck.status"
   out=$(run_crew_state "$d" ck)
   assert_contains "$out" "state: done" "a done whose committed work passes its checks must read done"
   run_crew_state "$d" ck >/dev/null
+
+  # Refused again on a regression under a new done line with the same note,
+  # then fixed: the pass after that refusal is recorded with its own head even
+  # though its note repeats the earlier pass's note.
   printf 'Full refund, no questions asked.\n' > "$d/wt/ad.txt"
   git -C "$d/wt" commit -q -am 'regression'
   git -C "$d/wt" update-ref refs/remotes/origin/fm/ck "$(git -C "$d/wt" rev-parse HEAD)"
@@ -2726,9 +2738,9 @@ test_intake_checks_refusal_records_one_fire() {
   assert_contains "$out" "state: done" "the fixed done did not read done"
   run_crew_state "$d" ck >/dev/null
   [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-refused"' "$log" | wc -l | tr -d ' ')" = 2 ] \
-    || fail "the two refusals did not leave exactly two checks-refused fires: $(cat "$log" 2>/dev/null)"
+    || fail "the two refused done lines did not leave exactly two checks-refused fires: $(cat "$log" 2>/dev/null)"
   [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-passed" && $4 == "fm-crew-state.sh" { sub(/;.*/, "", $5); printf " %s", substr($5, 6) }' "$log")" = "$heads" ] \
-    || fail "each pass after a refusal under the same done note was not recorded once with its own head: $(cat "$log" 2>/dev/null)"
+    || fail "each pass after a refusal was not recorded once with its own head: $(cat "$log" 2>/dev/null)"
   if command -v tasks-axi >/dev/null 2>&1; then
     # bin/fm-spawn.sh records the admitted check at launch; this fixture
     # admitted it directly, so it writes that line the same way.

@@ -14,9 +14,9 @@
 # named head as reachable outside the worker's disposable copy; otherwise blocked.
 # Its writes: a page deliverable's done refused for missing drive evidence
 # appends a page-refused line once, and a done refused by failing intake checks
-# a checks-refused line or a done whose intake checks all pass a checks-passed
-# line, each carrying the checked head and written when it changes the task's
-# latest checks verdict, to the home's skill-fire log
+# a checks-refused line (once per done status line) or a done whose intake
+# checks all pass a checks-passed line (whenever it changes the task's latest
+# checks verdict), each carrying the checked head, to the home's skill-fire log
 # (fm_skill_fire_append in bin/fm-dod-lib.sh owns that log); running those
 # checks keeps their result cache at state/<id>.checks-result
 # (bin/fm-checks.sh run --cache).
@@ -317,7 +317,7 @@ fi
 # stopped early: its detail ends with "handoff ready: instruct /no-mistakes".
 # The history-only read omits it, because its task is already recorded complete.
 emit_ship_status_done() {  # [extra-detail] [reads]
-  local extra=${1:-} reads=${2:-} reason page_reason rc=0 checks_head
+  local extra=${1:-} reads=${2:-} reason page_reason rc=0 checks_head checks_line
   if [ "$reads" != local ] && fm_dod_ship_done_is_nm_handoff "$KIND" "$(meta_value mode)" "$LOG_LINE"; then
     extra="${extra:+$extra$SEP}handoff ready: instruct /no-mistakes"
   fi
@@ -327,10 +327,11 @@ emit_ship_status_done() {  # [extra-detail] [reads]
   # such done on a live read), so it records a checks-passed fire before the
   # accepted read exits; a later gate's refusal of the same line does not undo
   # the checks' verdict. Both checks fires carry the checked deliverable state
-  # (fm_dod_checked_head) as `head=<token>; ` before the note or reason, and
-  # each is written unless it repeats the task's latest checks fire, so a pass
-  # after a refusal is always recorded and bin/fm-check-results.sh can tell a
-  # pass on changed work from one on unchanged work.
+  # (fm_dod_checked_head) as `head=<token>; ` before the note or reason. A pass
+  # is written unless it repeats the task's latest checks fire, so a pass after
+  # a refusal is always recorded; a refusal (below) is written once per done
+  # status line. bin/fm-check-results.sh then tells a pass on changed work from
+  # one on unchanged work.
   checks_head=
   if [ "$reads" != local ] && [ -n "$(meta_value checks)" ]; then
     case "$KIND" in
@@ -358,8 +359,15 @@ emit_ship_status_done() {  # [extra-detail] [reads]
   fi
   case "$reason" in
     "$FM_DOD_CHECKS_REFUSAL_PREFIX"*)
-      fm_skill_fire_append_changed "${FM_DATA_OVERRIDE:-$FM_HOME/data}" "$ID" checks-refused fm-crew-state.sh \
-        "head=$checks_head; $reason" "checks-passed checks-refused" || true ;;
+      # One refusal per done claim: a done status line that stays current
+      # while the work changes is refused once, keeping the head that first
+      # refusal checked, until a pass or a new done line comes between.
+      checks_line=$(printf '%s' "$LOG_LINE" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-12)
+      case "$(fm_skill_fire_latest "${FM_DATA_OVERRIDE:-$FM_HOME/data}" "$ID" "checks-passed checks-refused")" in
+        checks-refused$'\t'*"; line=$checks_line; "*) ;;
+        *) fm_skill_fire_append "${FM_DATA_OVERRIDE:-$FM_HOME/data}" "$ID" checks-refused fm-crew-state.sh \
+             "head=$checks_head; line=$checks_line; $reason" || true ;;
+      esac ;;
   esac
   emit blocked status-log "$reason"
 }
