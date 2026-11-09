@@ -425,6 +425,60 @@ fm_backlog_row_list() {  # <resolved-data-dir> [flag...]
   fi
 }
 
+# Section-aware extraction from a TOML file such as `.tasks.toml`: only the
+# named keys inside the named section, comments stripped. Prints one
+# "<key> <value>" line per match; an absent file prints nothing.
+fm_backlog_toml_section_entries() {  # <toml-file> <section> <key-alternation>
+  [ -f "$1" ] || return 0
+  LC_ALL=C awk -v section="[$2]" -v keys="^($3)[[:space:]]*=" '
+    function trim(v) { sub(/^[[:space:]]+/, "", v); sub(/[[:space:]]+$/, "", v); return v }
+    BEGIN { insection = 0 }
+    {
+      line = $0
+      sub(/[[:space:]]*#.*/, "", line)
+      line = trim(line)
+      if (line ~ /^\[[^]]+\]$/) { insection = (line == section); next }
+      if (!insection) next
+      if (line ~ keys) {
+        key = line
+        sub(/[[:space:]]*=.*/, "", key)
+        sub(/^[^=]*=[[:space:]]*/, "", line)
+        gsub(/^"|"$/, "", line); gsub(/^'\''|'\''$/, "", line)
+        printf "%s %s\n", key, line
+      }
+    }
+  ' "$1"
+}
+
+# The Done archive tasks-axi writes for the home whose data directory is
+# <data-dir>: the [markdown] archive key resolved with tasks-axi's own source
+# precedence (the backlog root's .tasks.toml, then the user-level
+# $HOME/.tasks-axi/config.toml; a relative value resolves against the backlog
+# root), else done-archive.md beside the addressed backlog file. Returns 1 when
+# the configured backend keeps no markdown archive. Done retention moves closed
+# rows there, and tasks-axi list and show never read it, so a reader that needs
+# every closed row replays the archive under a scratch Done section.
+fm_backlog_markdown_archive_path() {  # <data-dir>
+  local data root backend archive file
+  data=$(fm_backlog_data_absolute "$1") || return 1
+  root=$(fm_backlog_root "$data") || return 1
+  backend=$(fm_tasks_axi_backend "$root" 2>/dev/null) || return 1
+  [ "$backend" = markdown ] || return 1
+  archive=$(fm_backlog_toml_section_entries "$root/.tasks.toml" markdown archive | sed -n 's/^archive //p' | head -1)
+  if [ -z "$archive" ] && [ -n "${HOME:-}" ]; then
+    archive=$(fm_backlog_toml_section_entries "$HOME/.tasks-axi/config.toml" markdown archive | sed -n 's/^archive //p' | head -1)
+  fi
+  case "$archive" in
+    '')
+      file=$(fm_backlog_file "$data") || return 1
+      archive="${file%/*}/done-archive.md"
+      ;;
+    /*) ;;
+    *) archive="$root/$archive" ;;
+  esac
+  printf '%s\n' "$archive"
+}
+
 fm_backlog_row_probe() {  # <data-dir> <id>
   local data authorized_data=$1 id=$2 out state held blocked hold_kind command_status source_status
   if ! data=$(fm_backlog_data_absolute "$1"); then

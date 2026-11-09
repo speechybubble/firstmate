@@ -2662,10 +2662,12 @@ test_page_deliverable_refusal_records_one_fire() {
 
 # A ship done whose committed work fails an admitted intake check reads blocked
 # with the failing check, records one checks-refused skill fire however often
-# the read repeats, and reads done once the committed work passes.
+# the read repeats, and reads done once the committed work passes, recording
+# one checks-passed fire that the nightly check-result lines read as that
+# refusal confirmed by a later run.
 test_intake_checks_refusal_records_one_fire() {
   reset_fakes
-  local d out log sha digest
+  local d out log sha digest heads=''
   d=$(new_case checks-refused)
   make_repo_on_branch "$d/wt" fm/ck
   printf 'Full refund, no questions asked.\n' > "$d/wt/ad.txt"
@@ -2695,13 +2697,60 @@ test_intake_checks_refusal_records_one_fire() {
   [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-refused" && $4 == "fm-crew-state.sh"' "$log" | wc -l | tr -d ' ')" = 1 ] \
     || fail "a repeated refusal did not leave exactly one checks-refused fire: $(cat "$log" 2>/dev/null)"
 
+  awk -F'\t' '$2 == "ck" && $3 == "checks-refused"' "$log" | cut -f5 \
+    | grep -qxE "head=$sha; line=[0-9a-f]{12}; intake checks refuse this done: guarantee-conditional: a line matches /no questions asked/: Full refund, no questions asked\." \
+    || fail "the checks-refused fire did not carry the checked head and done line before the reason: $(cat "$log" 2>/dev/null)"
+
+  # The same done line stays current while the worker commits B and C, both
+  # still failing, then D, which passes: one refused claim, settled by D.
+  printf 'Refund, no questions asked, ever.\n' > "$d/wt/ad.txt"
+  git -C "$d/wt" commit -q -am 'still unconditional (B)'
+  run_crew_state "$d" ck >/dev/null
+  printf 'Money back, no questions asked.\n' > "$d/wt/ad.txt"
+  git -C "$d/wt" commit -q -am 'still unconditional (C)'
+  out=$(run_crew_state "$d" ck)
+  assert_contains "$out" "state: blocked" "the still-failing done read as done"
+  [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-refused"' "$log" | wc -l | tr -d ' ')" = 1 ] \
+    || fail "one done line refused at A, B and C did not leave exactly one checks-refused fire: $(cat "$log" 2>/dev/null)"
   printf 'If you run it 30 days, next month is free.\n' > "$d/wt/ad.txt"
-  git -C "$d/wt" commit -q -am 'conditional guarantee'
+  git -C "$d/wt" commit -q -am 'conditional guarantee (D)'
   git -C "$d/wt" update-ref refs/remotes/origin/fm/ck "$(git -C "$d/wt" rev-parse HEAD)"
-  rm -f "$log"
+  heads="$heads $(git -C "$d/wt" rev-parse HEAD)"
   out=$(run_crew_state "$d" ck)
   assert_contains "$out" "state: done" "a done whose committed work passes its checks must read done"
-  assert_absent "$log" "an accepted done recorded a refusal fire"
+  run_crew_state "$d" ck >/dev/null
+
+  # Refused again on a regression under a new done line with the same note,
+  # then fixed: the pass after that refusal is recorded with its own head even
+  # though its note repeats the earlier pass's note.
+  printf 'Full refund, no questions asked.\n' > "$d/wt/ad.txt"
+  git -C "$d/wt" commit -q -am 'regression'
+  git -C "$d/wt" update-ref refs/remotes/origin/fm/ck "$(git -C "$d/wt" rev-parse HEAD)"
+  printf 'done [at=3]: PR https://example.test/o/r/pull/9\n' >> "$d/state/ck.status"
+  out=$(run_crew_state "$d" ck)
+  assert_contains "$out" "state: blocked" "the regressed done was not refused"
+  printf 'If you run it 60 days, next month is free.\n' > "$d/wt/ad.txt"
+  git -C "$d/wt" commit -q -am 'conditional again'
+  git -C "$d/wt" update-ref refs/remotes/origin/fm/ck "$(git -C "$d/wt" rev-parse HEAD)"
+  heads="$heads $(git -C "$d/wt" rev-parse HEAD)"
+  printf 'done [at=4]: PR https://example.test/o/r/pull/9\n' >> "$d/state/ck.status"
+  out=$(run_crew_state "$d" ck)
+  assert_contains "$out" "state: done" "the fixed done did not read done"
+  run_crew_state "$d" ck >/dev/null
+  [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-refused"' "$log" | wc -l | tr -d ' ')" = 2 ] \
+    || fail "the two refused done lines did not leave exactly two checks-refused fires: $(cat "$log" 2>/dev/null)"
+  [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-passed" && $4 == "fm-crew-state.sh" { sub(/;.*/, "", $5); printf " %s", substr($5, 6) }' "$log")" = "$heads" ] \
+    || fail "each pass after a refusal was not recorded once with its own head: $(cat "$log" 2>/dev/null)"
+  if command -v tasks-axi >/dev/null 2>&1; then
+    # bin/fm-spawn.sh records the admitted check at launch; this fixture
+    # admitted it directly, so it writes that line the same way.
+    printf '2000-01-02T00:00:00Z\tck\tchecks-admitted\tfm-spawn.sh\tguarantee-conditional\n' >> "$log"
+    out=$(FM_HOME="$d" bash "$ROOT/bin/fm-check-results.sh" --since 2000-01-01 2>&1) \
+      || fail "the check-result lines could not read the crew-state fires: $out"
+    assert_contains "$out" "2 done claims refused on 1 tasks, 2 confirmed by a later pass on changed work (100%), 0 later passed on unchanged work, 0 still open" \
+      "the check-result lines did not read the refusals and their later passes"
+    assert_contains "$out" "by check: ck/guarantee-conditional 2 refused 2 confirmed 0 unchanged" "the refusals were not attributed to their check"
+  fi
 
   # A no-mistakes page ship's implementation handoff carries no drive= and the
   # page gate does not apply to it, so a checks refusal there records only the
@@ -2719,7 +2768,9 @@ test_intake_checks_refusal_records_one_fire() {
     || fail "the handoff refusal did not record one checks-refused fire: $(cat "$log" 2>/dev/null)"
   [ "$(awk -F'\t' '$2 == "ck" && $3 == "page-refused"' "$log" | wc -l | tr -d ' ')" = 0 ] \
     || fail "a checks refusal of a handoff the page gate never gates recorded a page-refused fire: $(cat "$log" 2>/dev/null)"
-  pass "intake checks: a failing check reads blocked with the check named and records one checks-refused fire"
+  [ "$(awk -F'\t' '$2 == "ck" && $3 == "checks-passed"' "$log" | wc -l | tr -d ' ')" = 0 ] \
+    || fail "a refused handoff recorded a checks-passed fire: $(cat "$log" 2>/dev/null)"
+  pass "intake checks: a failing check reads blocked with the check named and records one checks-refused fire, a passing done one checks-passed fire"
 }
 
 # forge=external: a review tool uploads its own snapshot, so the review ready

@@ -888,10 +888,66 @@ test_skill_fire_append_writes_the_log() {
   pass "skill-fire log: created on first write, five tab-separated fields, once writes deduplicated per task"
 }
 
+# A changed-verdict fire is skipped only when it repeats the task's latest
+# fire among the named rules, so a pass after a refusal is written again.
+test_skill_fire_append_changed_keeps_every_verdict_change() {
+  local data="$TMP_ROOT/fires-changed" log
+  log="$data/skill-fires.tsv"
+  fm_skill_fire_append_changed "$data" t1 checks-passed fm-crew-state.sh "head=a; PR 9" "checks-passed checks-refused"
+  fm_skill_fire_append_changed "$data" t1 checks-passed fm-crew-state.sh "head=a; PR 9" "checks-passed checks-refused"
+  fm_skill_fire_append "$data" t1 page fm-brief.sh /x/brief.md
+  fm_skill_fire_append_changed "$data" t1 checks-passed fm-crew-state.sh "head=a; PR 9" "checks-passed checks-refused"
+  fm_skill_fire_append_changed "$data" t1 checks-refused fm-crew-state.sh "head=a; refused" "checks-passed checks-refused"
+  fm_skill_fire_append_changed "$data" t1 checks-passed fm-crew-state.sh "head=a; PR 9" "checks-passed checks-refused"
+  fm_skill_fire_append_changed "$data" t2 checks-passed fm-crew-state.sh "head=a; PR 9" "checks-passed checks-refused"
+  [ "$(awk -F'\t' '{ printf "%s/%s ", $2, $3 }' "$log")" = "t1/checks-passed t1/page t1/checks-refused t1/checks-passed t2/checks-passed " ] \
+    || fail "changed-verdict fires were not written exactly at each change: $(cat "$log")"
+  pass "skill-fire log: a changed-verdict fire repeats only after a different verdict in between"
+}
+
+# The checked head is a ship's HEAD commit, and for a scout a digest of the
+# files its checks read, which moves with a checked file and not with others.
+test_checked_head_tracks_the_checked_deliverable() {
+  local dir="$TMP_ROOT/checked-head" repo record a b c
+  repo="$dir/repo"
+  mkdir -p "$repo" "$dir/data"
+  git -C "$repo" init -q
+  git -C "$repo" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m one
+  [ "$(fm_dod_checked_head ship "$repo" /nonexistent)" = "$(git -C "$repo" rev-parse HEAD)" ] \
+    || fail "a ship's checked head is not its HEAD commit"
+  record="$dir/record.json"
+  jq -n --arg root "$dir/data" '{version: 1, kind: "scout", root: $root, checks: [
+    {id: "a", type: "contains", target: "report.md", pattern: "x"},
+    {id: "b", type: "assertions", assertions: ["apply"]}]}' > "$record"
+  printf 'first\n' > "$dir/data/report.md"
+  a=$(fm_dod_checked_head scout "" "$record")
+  printf 'unrelated\n' > "$dir/data/notes.md"
+  b=$(fm_dod_checked_head scout "" "$record")
+  printf 'second\n' > "$dir/data/report.md"
+  c=$(fm_dod_checked_head scout "" "$record")
+  [ -n "$a" ] && [ "$a" = "$b" ] || fail "a scout's checked head moved with a file no check reads ($a, $b)"
+  [ "$b" != "$c" ] || fail "a scout's checked head did not move with a checked file"
+  # A quotes check with no target reads every page under the data directory,
+  # so a page edit moves the head; the drive results file never does.
+  jq --arg root "$dir/data" '.checks += [{id: "q", type: "quotes", markers: ["attributed"]}]' "$record" > "$record.tmp" && mv "$record.tmp" "$record"
+  mkdir -p "$dir/data/site"
+  printf '<p>first</p>\n' > "$dir/data/site/index.html"
+  a=$(fm_dod_checked_head scout "" "$record")
+  printf '<p>second</p>\n' > "$dir/data/site/index.html"
+  b=$(fm_dod_checked_head scout "" "$record")
+  printf 'apply\tpass\n' > "$dir/data/drive.tsv"
+  c=$(fm_dod_checked_head scout "" "$record")
+  [ "$a" != "$b" ] || fail "a scout's checked head did not move with a page a target-less quotes check reads"
+  [ "$b" = "$c" ] || fail "a scout's checked head moved with a drive results file"
+  pass "checked head: a ship's HEAD commit, a scout's digest of its checked files and quoted pages, never drive results"
+}
+
 test_page_deliverable_done_needs_drive_evidence
 test_task_checks_gate_every_done
 test_page_deliverable_done_runs_the_standing_quote_check
 test_skill_fire_append_writes_the_log
+test_skill_fire_append_changed_keeps_every_verdict_change
+test_checked_head_tracks_the_checked_deliverable
 
 test_external_forge_is_direct_pr_only
 test_external_rule_one_forbids_every_task_push

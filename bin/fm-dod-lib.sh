@@ -62,7 +62,9 @@
 # bin/fm-brief.sh (rule page, at scaffold), bin/fm-spawn.sh (rules
 # checks-admitted, checks-invalid, and checks-exempt, at launch), and
 # bin/fm-crew-state.sh (rules page-refused and checks-refused, when this gate
-# refuses for missing drive evidence or a failing check).
+# refuses for missing drive evidence or a failing check, and checks-passed, when
+# every admitted check passes on a done). bin/fm-check-results.sh reads the
+# checks-* rules into the nightly check-result lines.
 # The block opens with the fixed machine-readable "Delivery contract: mode=<mode>"
 # line that bin/fm-spawn.sh checks a ship brief against; a forge=gerrit block
 # appends " forge=gerrit shape=squash" to that line, and a forge=forgejo or
@@ -1308,6 +1310,64 @@ fm_skill_fire_append() {  # <data-dir> <task> <rule> <source> <ref> [<once>]
   fi
   mkdir -p "$data" 2>/dev/null || return 1
   printf '%s\t%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${fields[@]}" >> "$log"
+}
+
+# Append like fm_skill_fire_append, unless the task's latest line among the
+# space-separated <rules> already has this rule and ref. A refusal or pass
+# re-read on every observation is written once, while the same result after a
+# different one in between (a pass, then a refusal, then the same pass again)
+# is written again, so the log keeps every change of verdict in order.
+fm_skill_fire_append_changed() {  # <data-dir> <task> <rule> <source> <ref> <rules>
+  local rule ref
+  rule=$(printf '%s' "$3" | tr '\t\n\r' '   ')
+  ref=$(printf '%s' "$5" | tr '\t\n\r' '   ')
+  [ "$(fm_skill_fire_latest "$1" "$2" "$6")" != "$rule"$'\t'"$ref" ] || return 0
+  fm_skill_fire_append "$1" "$2" "$3" "$4" "$5"
+}
+
+# The task's latest skill-fire line among the space-separated <rules>, as
+# "<rule><TAB><ref>", or nothing when the log holds none.
+fm_skill_fire_latest() {  # <data-dir> <task> <rules>
+  local task log="$1/skill-fires.tsv"
+  [ -f "$log" ] || return 0
+  task=$(printf '%s' "$2" | tr '\t\n\r' '   ')
+  awk -F'\t' -v t="$task" -v rules=" $3 " '$2 == t && index(rules, " " $3 " ") { line = $3 "\t" $5 } END { if (line != "") print line }' "$log"
+}
+
+# The deliverable state a done's intake checks read, as one token recorded in
+# the checks-refused and checks-passed refs (`head=<token>; ...`): a ship's
+# worktree HEAD commit, or for a scout, which has no commit, a sha256 over the
+# files its admitted checks read from the data directory: each named target (a
+# missing file hashed as missing) and, when a quotes check names no target,
+# every page under the directory (bin/fm-checks.sh owns which pages it reads).
+# Drive results are left out, as a ship's commit leaves them out, so fixing
+# only an evidence path never reads as changed work. Prints nothing when the
+# state cannot be read.
+fm_dod_checked_head() {  # <kind> <worktree> <record>
+  local kind=$1 wt=$2 record=$3 root path sum list=''
+  case "$kind" in
+    ship) git -C "$wt" rev-parse --verify -q HEAD 2>/dev/null ;;
+    scout)
+      [ -f "$record" ] || return 0
+      root=$(jq -r '.root // ""' "$record" 2>/dev/null)
+      [ -n "$root" ] || return 0
+      while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        sum=$(fm_dod_file_sha256 "$root/$path")
+        list="$list${sum:-missing} $path"$'\n'
+      done <<EOF
+$( { jq -r '.checks[] | select(.type != "assertions" and (.target | type) == "string") | .target' "$record" 2>/dev/null
+  if jq -e 'any(.checks[]; .type == "quotes" and (has("target") | not))' "$record" >/dev/null 2>&1; then
+    (cd "$root" 2>/dev/null && find . -type f \( -name '*.html' -o -name '*.htm' -o -name '*.xhtml' \) | sed 's|^\./||')
+  fi; } | sort -u)
+EOF
+      if command -v sha256sum >/dev/null 2>&1; then
+        printf '%s' "$list" | sha256sum | awk '{print $1}'
+      else
+        printf '%s' "$list" | shasum -a 256 | awk '{print $1}'
+      fi
+      ;;
+  esac
 }
 
 # Any ship or scout done: whose task's admitted intake checks fail
