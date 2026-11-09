@@ -14,7 +14,7 @@
 #   fm-quote-check.sh status
 #
 # check    Find each page's quotes of the captain by every --marker given
-#          (default class:verbatim; also attributed, typed and regex:<re>) and
+#          (default class:verbatim; also attributed and regex:<re>) and
 #          look each one up in the source. Prints every quote that is not
 #          verbatim (misquoted, verbatim with omissions, or skipped) and a
 #          one-line count; --verbose prints the verbatim ones too and the

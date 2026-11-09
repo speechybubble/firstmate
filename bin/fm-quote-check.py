@@ -52,11 +52,10 @@ Quotes (check). A marker names how a page marks the captain's words:
                  cue attributing it to the captain in the same sentence: "you
                  said", "you wrote", "your words", "your transcript said", "the
                  captain said", "in your words", "your note" and close forms.
-  typed          the same spans as attributed, under the name the standing
-                 check bin/fm-checks.sh runs on page deliverables uses. A quote
-                 after a note cue ("your note", "the captain's note") is checked
-                 like any other: the source holds the notes the captain typed
-                 into Lavish review pages.
+                 A quote after a note cue is checked like any other: the
+                 source holds the notes the captain typed into Lavish review
+                 pages. This is the marker of the standing check
+                 bin/fm-checks.sh runs on page deliverables.
   regex:<re>     each match of <re> in the page's visible text; the group named
                  q, else group 1, else the whole match is the quote.
 
@@ -477,7 +476,7 @@ def page_quotes(path, marker):
         _, boxes = read_page(path, marker[6:])
         return [unwrap(b) for b in boxes]
     text, _ = read_page(path, None)
-    if marker in ("attributed", "typed"):
+    if marker == "attributed":
         return [re.sub(r"\s+", " ", q).strip() for q in attributed_quotes(text)]
     if marker.startswith("regex:"):
         try:
@@ -496,7 +495,7 @@ def page_quotes(path, marker):
             if q:
                 out.append(re.sub(r"\s+", " ", q).strip())
         return out
-    sys.stderr.write("fm-quote-check: unknown marker %r (use class:<name>, attributed, typed or regex:<re>)\n" % marker)
+    sys.stderr.write("fm-quote-check: unknown marker %r (use class:<name>, attributed or regex:<re>)\n" % marker)
     sys.exit(2)
 
 

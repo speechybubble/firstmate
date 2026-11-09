@@ -292,7 +292,7 @@ test_validate_admits_the_standing_page_check() {
   expect_code 0 "$rc" "an exempt page brief was not admitted: $out"
   assert_contains "$out" "exempt: a fleet code change" "the exemption line is missing"
   assert_contains "$out" "standing standing-captain-quotes" "the standing check was not reported"
-  jq -e '.kind == "ship" and (.checks | length) == 1 and .checks[0].type == "quotes" and .checks[0].markers == ["typed"] and .checks[0].base == "release" and (.checks[0] | has("target") | not)' "$record" >/dev/null \
+  jq -e '.kind == "ship" and (.checks | length) == 1 and .checks[0].type == "quotes" and .checks[0].markers == ["attributed"] and .checks[0].base == "release" and (.checks[0] | has("target") | not)' "$record" >/dev/null \
     || fail "the exempt page record does not hold the standing quotes check: $(cat "$record")"
   out=$(validate "$brief" ship --admit "$record"); rc=$?
   expect_code 0 "$rc" "an exempt non-page brief was refused"
@@ -340,7 +340,7 @@ test_validate_runs_a_written_quotes_check_on_its_examples() {
   write_checks_brief "$brief" "$(json_block "$(jq -cn --arg good "$REAL_PAGE" --arg bad "$F1_PAGE" '[{"id":"board-quotes","source":"the board quotes the captain exactly","type":"quotes","target":"board.html","good":$good,"bad":$bad}]')")"
   out=$(qchecks validate "$brief" --kind ship --admit "$record"); rc=$?
   expect_code 0 "$rc" "a quotes check that tells the real quote from the invented one was refused: $out"
-  jq -e '.checks[0].markers == ["typed"]' "$record" >/dev/null || fail "the quotes check was not given the typed marker"
+  jq -e '.checks[0].markers == ["attributed"]' "$record" >/dev/null || fail "the quotes check was not given the attributed marker"
   write_checks_brief "$brief" "$(json_block "$(jq -cn --arg good "$REAL_PAGE" '[{"id":"board-quotes","source":"x","type":"quotes","target":"board.html","good":$good,"bad":$good}]')")"
   out=$(qchecks validate "$brief" --kind ship); rc=$?
   expect_code 1 "$rc" "a quotes check whose bad example is accurate was admitted"
@@ -380,7 +380,7 @@ test_run_standing_check_reads_the_pages_a_ship_changed() {
   git -C "$wt" commit -q -m 'board with an invented quote'
   out=$(qchecks run "$record" --head "$wt" --cache "$cache"); rc=$?
   expect_code 1 "$rc" "a page deliverable with an invented captain quote passed"
-  assert_contains "$out" "fail standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: \"long, then short, then back to long\" (typed, site/board.html)" "the refusal did not name the invented quote and its page"
+  assert_contains "$out" "fail standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: \"long, then short, then back to long\" (attributed, site/board.html)" "the refusal did not name the invented quote and its page"
   assert_not_contains "$out" "old.html" "a page the branch did not change was checked"
   assert_present "$cache" "a failing quote result was not cached"
   qsource="$QHOME/data/captain-words/source.json"
@@ -443,7 +443,7 @@ test_run_quotes_check_reads_a_scout_directory() {
   printf '%s\n' "$F1_PAGE" > "$data/board/index.html"
   out=$(qchecks run "$record" --dir "$data"); rc=$?
   expect_code 1 "$rc" "a scout board with an invented quote passed"
-  assert_contains "$out" "(typed, board/index.html)" "the scout refusal did not name the board page"
+  assert_contains "$out" "(attributed, board/index.html)" "the scout refusal did not name the board page"
   pass "run: a target-less quotes check reads every page in a scout's data directory"
 }
 

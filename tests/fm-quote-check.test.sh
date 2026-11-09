@@ -284,20 +284,20 @@ with open(sys.argv[1], "a") as fh:
 PY
 }
 
-test_typed_marker_checks_typed_words_and_lavish_notes() {
+test_attributed_marker_checks_typed_words_and_lavish_notes() {
   local page='<p>Your transcript said &lsquo;long, then short, then back to long&rsquo;. ok</p><p>Your note said &ldquo;make the hero bolder&rdquo;. ok</p><p>You said &ldquo;pick the recommended direction&rdquo;. ok</p>'
-  check_page typed typed "$page"
-  expect_code 1 "$RC" "the typed marker flags the invented transcript and note quotes"
-  assert_contains "$OUT" 'misquote: "long, then short, then back to long" (typed' "the invented transcript quote is named under the typed marker"
-  assert_contains "$OUT" 'misquote: "make the hero bolder" (typed' "an invented quote after your note said is refused"
-  assert_contains "$OUT" "3 checked, 1 verbatim, 2 misquoted" "the typed marker checks every attributed quote"
-  check_page typednote typed '<p>Your note said &ldquo;the ideal offering im aiming for is 15k upfront&rdquo;. ok</p><p>The captain&#39;s note: &ldquo;the heading reads too loud here&rdquo;. ok</p>'
+  check_page typed attributed "$page"
+  expect_code 1 "$RC" "the attributed marker flags the invented transcript and note quotes"
+  assert_contains "$OUT" 'misquote: "long, then short, then back to long" (attributed' "the invented transcript quote is named under the attributed marker"
+  assert_contains "$OUT" 'misquote: "make the hero bolder" (attributed' "an invented quote after your note said is refused"
+  assert_contains "$OUT" "3 checked, 1 verbatim, 2 misquoted" "the attributed marker checks every attributed quote"
+  check_page typednote attributed '<p>Your note said &ldquo;the ideal offering im aiming for is 15k upfront&rdquo;. ok</p><p>The captain&#39;s note: &ldquo;the heading reads too loud here&rdquo;. ok</p>'
   expect_code 0 "$RC" "genuine Lavish note quotes were refused: $OUT"
   assert_contains "$OUT" "2 checked, 2 verbatim" "both Lavish note quotes were checked against the source"
-  check_page typednone typed '<p>The page quotes nobody, and says &ldquo;hello&rdquo; in passing.</p>'
+  check_page typednone attributed '<p>The page quotes nobody, and says &ldquo;hello&rdquo; in passing.</p>'
   expect_code 0 "$RC" "a page that quotes nobody passes"
   assert_contains "$OUT" "0 checked" "a page that quotes nobody has nothing to check"
-  pass "the typed marker checks quotes of typed words and of Lavish notes, refusing invented ones"
+  pass "the attributed marker checks quotes of typed words and of Lavish notes, refusing invented ones"
 }
 
 test_a_miss_rebuilds_a_source_older_than_ten_minutes() {
@@ -306,16 +306,16 @@ test_a_miss_rebuilds_a_source_older_than_ten_minutes() {
   age_by "$SOURCE" 1
   local before
   before=$(mtime_of "$SOURCE")
-  check_page late typed '<p>You said &ldquo;the footer feels cramped on mobile&rdquo;. ok</p>'
+  check_page late attributed '<p>You said &ldquo;the footer feels cramped on mobile&rdquo;. ok</p>'
   expect_code 0 "$RC" "words typed since the last build pass once the miss rebuilds the source: $OUT"
   assert_not_equals "$before" "$(mtime_of "$SOURCE")" "a miss on an hour-old source rebuilt it"
   type_captain_words "the hero image loads too slowly"
   before=$(mtime_of "$SOURCE")
-  check_page later typed '<p>You said &ldquo;the hero image loads too slowly&rdquo;. ok</p>'
+  check_page later attributed '<p>You said &ldquo;the hero image loads too slowly&rdquo;. ok</p>'
   expect_code 1 "$RC" "a source built minutes ago is not rebuilt on a miss"
   assert_equals "$before" "$(mtime_of "$SOURCE")" "a miss on a fresh source left it alone"
   age_by "$SOURCE" 1
-  check_page invented typed '<p>You said &ldquo;words the captain never typed anywhere&rdquo;. ok</p>'
+  check_page invented attributed '<p>You said &ldquo;words the captain never typed anywhere&rdquo;. ok</p>'
   expect_code 1 "$RC" "an invented quote still fails after the rebuild"
   assert_contains "$OUT" "1 misquoted" "the rebuilt check reports the invented quote once"
   pass "a miss rebuilds a source older than ten minutes once, so words typed since count and invented ones still fail"
@@ -340,6 +340,6 @@ fm_test_run \
   test_ellipsis_parts_must_come_from_one_message \
   test_regex_marker_json_and_markdown_pages \
   test_check_refreshes_a_stale_source_and_keeps_a_fresh_one \
-  test_typed_marker_checks_typed_words_and_lavish_notes \
+  test_attributed_marker_checks_typed_words_and_lavish_notes \
   test_a_miss_rebuilds_a_source_older_than_ten_minutes \
   test_secondmate_home_resolves_its_parent_and_siblings

@@ -43,7 +43,7 @@
 #   assertions    assertions (array of assertion ids): passes when the drive
 #                 results file holds every named assertion with pass
 #   quotes        optional markers (an array of bin/fm-quote-check.sh markers,
-#                 default ["typed"]) and optional base (a branch name): passes
+#                 default ["attributed"]) and optional base (a branch name): passes
 #                 when every quote the page presents as the captain's words is
 #                 verbatim in what the captain typed; bin/fm-quote-check.sh
 #                 owns that source, its freshness, each marker, and the match.
@@ -78,7 +78,7 @@
 #
 # --deliverable page appends the standing checks every page deliverable
 # carries, which Firstmate never writes per task, to the admitted record: one
-# today, standing-captain-quotes, a target-less quotes check with the typed
+# today, standing-captain-quotes, a target-less quotes check with the attributed
 # marker, so a page that presents as the captain's words anything the
 # captain never typed is refused at done. --base records the ship's base
 # branch in it. Standing checks have no examples to validate, since their
@@ -124,7 +124,7 @@ FM_CHECKS_COMMAND_TIMEOUT=60
 FM_CHECKS_QUOTES_SOURCE_TIMEOUT=600
 FM_CHECKS_EXEMPTION='routine: no checks'
 # The standing checks validate --deliverable page appends (see --help).
-FM_CHECKS_STANDING_PAGE='[{"id": "standing-captain-quotes", "source": "standing check on every captain-facing page deliverable: words a page presents as the captain'"'"'s must be words the captain typed (bin/fm-checks.sh)", "type": "quotes", "markers": ["typed"]}]'
+FM_CHECKS_STANDING_PAGE='[{"id": "standing-captain-quotes", "source": "standing check on every captain-facing page deliverable: words a page presents as the captain'"'"'s must be words the captain typed (bin/fm-checks.sh)", "type": "quotes", "markers": ["attributed"]}]'
 
 usage() {
   sed -n '2,/^set -u$/p' "${BASH_SOURCE[0]}" | sed '$d' | sed 's/^# \{0,1\}//'
@@ -215,7 +215,7 @@ run_quotes_check() {  # <check-json> <target>
   local check=$1 target=$2 dir rc out flagged marker margs=() pages=()
   while IFS= read -r marker; do
     margs+=(--marker "$marker")
-  done < <(jq -r '(.markers // ["typed"])[]' <<<"$check")
+  done < <(jq -r '(.markers // ["attributed"])[]' <<<"$check")
   if [ -d "$target" ]; then
     dir=$target
     while IFS= read -r -d '' marker; do
@@ -544,7 +544,7 @@ cmd_validate() {
       .[$i]
       | if .type != "assertions" and .type != "quotes" and (has("target") | not) and $kind == "scout" then .target = "report.md" else . end
       | if .type == "tsv-field" and (has("key_field") | not) then .key_field = 1 else . end
-      | if .type == "quotes" and (has("markers") | not) then .markers = ["typed"] else . end
+      | if .type == "quotes" and (has("markers") | not) then .markers = ["attributed"] else . end
     ' "$array")
     good="$SCRATCH/$idx.good"
     bad="$SCRATCH/$idx.bad"
