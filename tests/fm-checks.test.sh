@@ -673,14 +673,14 @@ EOF
   git -C "$base/ship" add notes.txt && git -C "$base/ship" commit -qm 'add notes' && git -C "$base/ship" push -q origin main 2>/dev/null
   git -C "$base/ship" checkout -q fm/t1
   git -C "$base/ship" rebase -q main >/dev/null 2>&1 || fail "could not move the ship onto the notes base"
-  sed -i 's/^three$/three by the ship/' "$base/ship/notes.txt"
+  printf 'one\ntwo\nthree by the ship\nfour\nfive\n' > "$base/ship/notes.txt"
   git -C "$base/ship" commit -qam 'edit the notes'
   git -C "$base/ship" push -qf "$gate" fm/t1 2>/dev/null
   git -C "$gate" fetch -q origin '+refs/heads/main:refs/remotes/origin/main'
   ship_tip=$(git -C "$gate" rev-parse refs/heads/fm/t1)
 
   git clone -q "$origin" "$base/other" 2>/dev/null
-  sed -i 's/^one$/one upstream/' "$base/other/notes.txt"
+  printf 'one upstream\ntwo\nthree\nfour\nfive\n' > "$base/other/notes.txt"
   git -C "$base/other" commit -qam 'base edits next to the ship' && git -C "$base/other" push -q origin main 2>/dev/null
   git -C "$gate" fetch -q origin '+refs/heads/main:refs/remotes/origin/main'
   git -C "$run" checkout -q --detach refs/remotes/origin/main
@@ -692,7 +692,7 @@ EOF
   assert_contains "$out" "task-checks: task t1 (fm/t1)" "the context-shifted run was not bound to its ship"
   assert_contains "$out" "fail names-the-person: " "the context-shifted run did not fail its check"
 
-  sed -i 's/^three$/three upstream/' "$base/other/notes.txt"
+  printf 'one upstream\ntwo\nthree upstream\nfour\nfive\n' > "$base/other/notes.txt"
   git -C "$base/other" commit -qam 'base edits the ship line' && git -C "$base/other" push -q origin main 2>/dev/null
   git -C "$gate" fetch -q origin '+refs/heads/main:refs/remotes/origin/main'
   git -C "$run" checkout -q --detach refs/remotes/origin/main
