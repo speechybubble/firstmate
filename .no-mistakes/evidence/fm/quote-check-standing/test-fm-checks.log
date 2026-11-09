@@ -1,0 +1,14 @@
+1..12
+ok - validate: every type is admitted on its own good and bad examples, and the admitted record is normalized
+ok - validate: refuses a check that passes its bad example, fails its good one, ignores its target, or cannot run
+ok - validate: refuses schema breaks, unknown fields, unsafe targets, missing examples, and duplicate ids
+ok - validate: one json block or one reasoned exemption; an exemption removes a stale record
+ok - run: a ship's checks read the committed HEAD, a missing target fails, and an uncommitted fix does not pass
+ok - run: a scout's checks read its data directory, refuse a symlinked target, and assertions read the drive results
+ok - run --cache: an unchanged deliverable reuses its result, and a changed target reruns
+ok - validate --deliverable page: the standing quote check joins written checks, an exempt slot, or no slot, and its ids are reserved
+ok - validate: a written quotes check must pass the real quote and fail the invented one, and a bad marker cannot run
+ok - run: the standing check fails an invented quote on a changed page, caches that refusal until the page or the source changes, and passes accurate quotes, pages that quote nobody, non-page files, and untouched pages
+ok - run: a target-less quotes check reads every page in a scout's data directory
+ok - drive-results: only a regular file of assertion results with every assertion passing is drive evidence
+FM_TEST_COMPLETE

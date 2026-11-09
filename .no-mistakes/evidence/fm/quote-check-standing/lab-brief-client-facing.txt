@@ -1,0 +1,17 @@
+$ fm-brief.sh client-1 site --mode direct-PR --client-facing
+error: --client-facing applies only with --deliverable page
+exit=1
+ls: cannot access '/tmp/fm-lab.iz4Aw8/data/client-1': No such file or directory
+$ fm-brief.sh client-2 site --mode direct-PR --deliverable page --client-facing
+scaffolded: /tmp/fm-lab.iz4Aw8/data/client-2/brief.md (ship, mode=direct-PR; replace {TASK}, {CONFIRMED_INTENT}, {FIRSTMATE_SPEC}, {EXPERT_PROMPT}, and {CHECKS})
+exit=0
+# Task
+<!-- fm-brief: task-slots v4 -->
+<!-- fm-brief: deliverable page -->
+This ship delivers a page. Before reporting it ready, drive it in a real browser with the project drive recipe, have the drive write its assertion results (one `<assertion>\t<pass|fail>` line per assertion), then put `drive=<absolute path to those results>` in the `done:` line that reports it ready, or `no-drive: <reason>` when it cannot be driven; the done-time check refuses that line without one of them, and refuses results that show a failed assertion or are not a drive run's results at all.
+<!-- fm-brief: client-facing -->
+This page addresses a client's visitors, not the captain, so it carries no standing check on quotes of the captain.
+
+When `## Checks` below holds checks, they were written from the captain's words before the work began, and the done-time check refuses your `done:` while any of them fails on your committed work. Before reporting done, run `'/home/denni/.no-mistakes/worktrees/d567722de3ac/01M6YY2W6W0TXR8V0JH8GR3HY7/bin/fm-checks.sh' run '/tmp/fm-lab.iz4Aw8/state/client-2.checks.json' --head <absolute path of your worktree>` (add `--drive <results file>` for a drive assertions check) and fix the work until every check passes; never edit the checks, which were fixed at launch.
+
+## Captain's intent

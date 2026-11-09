@@ -1,0 +1,14 @@
+## S5 setup: captain types new words AFTER the source build (13:00:26); worker's board quotes them
+-- heartbeat 1 (source minutes old: miss does not rebuild)
+[13:00:53] gate qboard head=38f11cf source_mtime=13:00:26 stamp=1794193226478991959
+  rc=1 reason=intake checks refuse this done: standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "the footer feels cramped on mobile" (attributed, board.html)
+-- heartbeat 2 (cached refusal replayed while inside the window)
+[13:00:54] gate qboard head=38f11cf source_mtime=13:00:26 stamp=1794193226478991959
+  rc=1 reason=intake checks refuse this done: standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "the footer feels cramped on mobile" (attributed, board.html)
+cache: fingerprint aa73a9d5bb0b8cca3899ef14d0f7088cc0d60513
+exit 1
+fail standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "the footer feels cramped on mobile" (attributed, board.html)
+checks: 0 passed, 1 failed
+## S6 setup: invented quote on qboard2
+[13:00:55] gate qboard2 head=741d369 source_mtime=13:00:26 stamp=1794193226478991959
+  rc=1 reason=intake checks refuse this done: standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "words the captain never typed anywhere" (attributed, board.html)

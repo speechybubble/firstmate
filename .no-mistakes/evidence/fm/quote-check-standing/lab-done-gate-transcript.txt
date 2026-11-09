@@ -1,0 +1,35 @@
+### source status BEFORE fixing the transcript fixture is stale (built with lavish only); this run relies on the gate's own freshness:
+source: /tmp/fm-lab.iz4Aw8/data/captain-words/source.json, built 2026-11-09T02:33:17Z, 1 messages
+  lavish: 1
+  Firstmate inputs excluded: 0
+fresh: yes
+
+### S1 rerun: F1 invented quote (source now holds the real transcript)
+intake checks refuse this done: standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "long, then short, then back to long" (attributed, board/index.html)
+gate-exit=1
+
+### source status after the gate ran
+source: /tmp/fm-lab.iz4Aw8/data/captain-words/source.json, built 2026-11-09T02:33:17Z, 1 messages
+  lavish: 1
+  Firstmate inputs excluded: 0
+fresh: yes
+
+### S2: exact transcript quote + genuine Lavish-note quote
+intake checks refuse this done: standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "I probably have a long sentence, then a short one" (attributed, board/index.html)
+gate-exit=1
+
+### S3 (adversarial): invented words after 'Your note said'
+intake checks refuse this done: standing-captain-quotes: 2 quote(s) presented as the captain's words are not what the captain typed: misquote: "I probably have a long sentence, then a short one" (attributed, board/index.html);  misquote: "make the hero bolder" (attributed, board/index.html)
+gate-exit=1
+
+### S4 (adversarial): HEAD is exact, the invented quote is only uncommitted
+intake checks refuse this done: standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "I probably have a long sentence, then a short one" (attributed, board/index.html)
+gate-exit=1
+
+### S5: page quoting nobody plus a non-page NOTES.md with the F1 quote
+gate-exit=0
+
+### skill-fire log
+2026-11-09T02:27:32Z	board-1	page	fm-brief.sh	/tmp/fm-lab.iz4Aw8/data/board-1/brief.md
+2026-11-09T02:28:04Z	client-2	page	fm-brief.sh	/tmp/fm-lab.iz4Aw8/data/client-2/brief.md
+2026-11-09T02:28:15Z	board-1	checks-exempt	fm-spawn.sh	a review board

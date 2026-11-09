@@ -1,0 +1,11 @@
+1..9
+ok - the source holds typed captain words from both homes and Lavish notes, and nothing agents wrote or pasted
+ok - an invented or altered quote is flagged while real quotes from both homes and board notes pass
+ok - pasted text, tool output, agent text and pages outside both homes never count as the captain's words
+ok - an ellipsis joins parts of one message in order and is flagged with its omitted words, and bracketed words must match
+ok - a regex marker reads the q group, Markdown is read as text, and --json carries every verdict
+ok - a check rebuilds a missing or day-old source, reuses a fresh one, and refuses bad input
+ok - the attributed marker checks quotes of typed words and of Lavish notes, refusing invented ones
+ok - a miss rebuilds a source older than ten minutes once, so words typed since count and invented ones still fail
+ok - run from a second mate home, the source covers the parent home and every registered mate
+FM_TEST_COMPLETE

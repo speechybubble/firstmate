@@ -1,0 +1,15 @@
+## S1 invented F1 quote on the captain-facing board
+[12:59:57] gate qboard head=16e48ff source_mtime= stamp=1794193197401066905
+  rc=1 reason=intake checks refuse this done: standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "long, then short, then back to long" (attributed, board.html)
+## S2 genuine transcript quote + genuine Lavish note quote
+[12:59:58] gate qboard head=498908c source_mtime=12:59:57 stamp=1794193197401066905
+  rc=1 reason=intake checks refuse this done: standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "I probably have a long sentence, then a short one" (attributed, board.html)
+## S3 invented quote after 'Your note said'
+[12:59:59] gate qboard head=116f10d source_mtime=12:59:57 stamp=1794193197401066905
+  rc=1 reason=intake checks refuse this done: standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "make the hero bolder" (attributed, board.html)
+## S4 client-facing page with visitor copy 'You told us' (no standing check admitted)
+[13:00:00] gate qclient head=94c6c50 source_mtime=12:59:57 stamp=1794193197401066905
+  rc=0 reason=<accepted>
+## S4b same visitor copy on the captain-facing board is refused
+[13:00:01] gate qboard head=00a3a3e source_mtime=12:59:57 stamp=1794193197401066905
+  rc=1 reason=intake checks refuse this done: standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "we need more leads." (attributed, board.html)

@@ -1,0 +1,13 @@
+(fixture fix: transcripts rewritten in Claude Code's compact JSONL form; source refreshed)
+## S1 invented F1 quote on the captain-facing board
+[13:00:26] gate qboard head=18714b2 source_mtime=13:00:26 stamp=1794193226478991959
+  rc=1 reason=intake checks refuse this done: standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "long, then short, then back to long" (attributed, board.html)
+## S2 genuine transcript quote + genuine Lavish note quote
+[13:00:27] gate qboard head=4c9c0be source_mtime=13:00:26 stamp=1794193226478991959
+  rc=0 reason=<accepted>
+## S3 invented quote after 'Your note said'
+[13:00:28] gate qboard head=8e1d693 source_mtime=13:00:26 stamp=1794193226478991959
+  rc=1 reason=intake checks refuse this done: standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "make the hero bolder" (attributed, board.html)
+## S4b client visitor copy on the captain-facing board is refused
+[13:00:29] gate qboard head=763329f source_mtime=13:00:26 stamp=1794193226478991959
+  rc=1 reason=intake checks refuse this done: standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "we need more leads." (attributed, board.html)

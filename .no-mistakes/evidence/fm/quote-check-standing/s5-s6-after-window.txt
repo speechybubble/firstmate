@@ -1,0 +1,10 @@
+## S5 after the window: source built 13:00:26 is now >10 minutes old, nothing on the page changed
+-- heartbeat 3
+[13:11:00] gate qboard head=38f11cf source_mtime=13:00:26 stamp=1794193226478991959 miss-refresh
+  rc=0 reason=<accepted>
+-- heartbeat 4 (genuine quote keeps passing)
+[13:11:01] gate qboard head=38f11cf source_mtime=13:11:00 stamp=1794193860854385514
+  rc=0 reason=<accepted>
+## S6 invented quote, cached refusal, source has since been rebuilt by S5's miss
+[13:11:02] gate qboard2 head=741d369 source_mtime=13:11:00 stamp=1794193860854385514
+  rc=1 reason=intake checks refuse this done: standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "words the captain never typed anywhere" (attributed, board.html)

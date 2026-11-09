@@ -1,0 +1,9 @@
+== validate qboard (as spawn does)
+exempt: a board page with no written checks
+standing standing-captain-quotes
+rc=0
+== validate qclient (as spawn does)
+exempt: a board page with no written checks
+rc=0
+qclient brief: client-facing -> spawn passes no --deliverable page
+qboard brief: captain-facing -> standing check admitted

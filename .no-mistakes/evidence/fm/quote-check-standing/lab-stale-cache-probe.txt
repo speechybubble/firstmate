@@ -1,0 +1,16 @@
+02:44:05
+$ fm-checks.sh run board-1.checks.json --head wt --cache board-1.checks-result   (same page, source now >10 min old)
+fail standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: "I probably have a long sentence, then a short one" (attributed, board/index.html)
+checks: 0 passed, 1 failed
+rc=1
+$ same, without cache
+pass standing-captain-quotes
+checks: 1 passed, 0 failed
+rc=0
+source: /tmp/fm-lab.iz4Aw8/data/captain-words/source.json, built 2026-11-09T02:44:09Z, 2 messages
+  claude:/tmp/fm-lab.iz4Aw8: 1
+  lavish: 1
+  Firstmate inputs excluded: 0
+fresh: yes
+### after the source stamp changed: the done gate on the exact-quote page (S2 content)
+gate-exit=0

@@ -1,0 +1,37 @@
+## board-1 (captain-facing page, exempt ## Checks) - real fm-spawn.sh trace excerpts
+2148:+ CHECKS_COUNT=
+2149:+ CHECKS_SHA=
+2579:+ CHECKS_PAGE_ARGS=()
+2603:+ CHECKS_PAGE_ARGS=(--deliverable page)
+2621:++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M6YY2W6W0TXR8V0JH8GR3HY7/bin/fm-checks.sh validate /tmp/fm-lab.iz4Aw8/data/board-1/brief.md --kind ship --root /tmp/fm-lab.iz4Aw8/data/board-1 --admit /tmp/fm-lab.iz4Aw8/state/board-1.checks.json --deliverable page
+2659:+ CHECKS_COUNT=1
+2667:+ CHECKS_SHA=4c048f6e7204c83db76fbf7c45ba414fa0e2a2a4282b9bf407b3fb407a552b1c
+## client-2 (--client-facing page, exempt ## Checks)
+2155:+ CHECKS_COUNT=
+2586:+ CHECKS_PAGE_ARGS=()
+2626:++ /home/denni/.no-mistakes/worktrees/d567722de3ac/01M6YY2W6W0TXR8V0JH8GR3HY7/bin/fm-checks.sh validate /tmp/fm-lab.iz4Aw8/data/client-2/brief.md --kind ship --root /tmp/fm-lab.iz4Aw8/data/client-2 --admit /tmp/fm-lab.iz4Aw8/state/client-2.checks.json
+2664:+ CHECKS_COUNT=0
+2666:+ CHECKS_COUNT=
+## spawn reached the endpoint stage (pane), where the lab shim blocks the shared treehouse pool:
+lab shim: treehouse blocked
+denni@DESKTOP-AIPT1HN:/tmp/fm-lab.iz4Aw8/projects/site$
+## state files
+board-1.checks-result
+board-1.checks.json
+board-1.meta
+board-1.status
+## admitted record board-1
+{
+  "version": 1,
+  "kind": "ship",
+  "checks": [
+    {
+      "id": "standing-captain-quotes",
+      "source": "standing check on every captain-facing page deliverable: words a page presents as the captain's must be words the captain typed (bin/fm-checks.sh)",
+      "type": "quotes",
+      "markers": [
+        "attributed"
+      ]
+    }
+  ]
+}
