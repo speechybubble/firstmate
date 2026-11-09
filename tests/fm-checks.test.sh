@@ -616,6 +616,27 @@ EOF
   pass "gate: only the admitted record is run, and a gone registration or meta binds nothing"
 }
 
+# A stale registration of a ship whose meta has no checks= gates nothing, the
+# done gate's rule, while a ship with checks= and no checks_sha= still refuses.
+test_gate_skips_a_ship_without_admitted_checks() {
+  local rec run state gate origin out rc
+  rec=$(make_gate_run gate-nochecks)
+  IFS='|' read -r run state gate origin <<EOF
+$rec
+EOF
+  printf 'kind=ship\nmode=no-mistakes\nbranch=fm/t1\nworktree=%s\n' "$TMP_ROOT/gate-nochecks/ship" > "$state/t1.meta"
+  rm -f "$state/t1.checks.json"
+  out=$(gate_in gate-nochecks "$run"); rc=$?
+  expect_code 0 "$rc" "a stale registration gated a ship with no admitted checks: $out"
+  assert_contains "$out" "no registered Firstmate ship matches this run" "the ship with no checks= was not reported unbound"
+
+  printf 'kind=ship\nmode=no-mistakes\nbranch=fm/t1\nworktree=%s\nchecks=2\n' "$TMP_ROOT/gate-nochecks/ship" > "$state/t1.meta"
+  out=$(gate_in gate-nochecks "$run"); rc=$?
+  expect_code 1 "$rc" "the gate passed a ship with checks= but no admitted record digest: $out"
+  assert_contains "$out" "fail admitted-record: " "the gate did not name the unadmitted record"
+  pass "gate: a ship whose meta has no checks= binds nothing, and one with checks= but no checks_sha= refuses"
+}
+
 # A pipeline rebase rewrites the ship's commits, so the gate binds by commit
 # identity and patch as well as by ancestry; a run for another branch, or a registered ship whose
 # commits already sit in the base, binds nothing.
@@ -713,6 +734,7 @@ EOF
 fm_test_run \
   test_gate_refuses_a_run_whose_task_check_fails \
   test_gate_trusts_only_the_admitted_record \
+  test_gate_skips_a_ship_without_admitted_checks \
   test_gate_binds_only_the_run_of_its_ship \
   test_gate_binds_a_rebase_that_changes_the_patch \
   test_validate_admits_every_type_on_its_own_examples \

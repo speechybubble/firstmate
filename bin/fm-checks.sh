@@ -128,7 +128,8 @@
 # bin/fm-spawn.sh calls it at admission and refuses the launch on failure, so a
 # no-mistakes ship never runs with checks its pipeline cannot find. unregister
 # removes it; bin/fm-teardown.sh calls it at cleanup. A pointer whose task meta
-# is gone is ignored, so a leftover one never gates anything.
+# is gone, or has no checks= line (the done gate's rule for a task with no
+# admitted checks), is ignored, so a leftover one never gates anything.
 #
 # gate is the command this repository's .no-mistakes.yaml declares as a gate
 # after the test step; it runs only in this repository's pipelines, so the
@@ -896,6 +897,7 @@ cmd_gate() {
     id=$(sed -n 's/^id=//p' "$entry" | head -n 1)
     meta="$state/$id.meta"
     [ -n "$state" ] && [ -n "$id" ] && [ -f "$meta" ] || continue
+    [ -n "$(fm_dod_meta_value "$meta" checks)" ] || continue
     branch=$(fm_dod_meta_value "$meta" branch)
     [ -n "$branch" ] || continue
     tip=$(git -C "$wt" rev-parse --verify -q "refs/heads/$branch^{commit}" 2>/dev/null) || continue
