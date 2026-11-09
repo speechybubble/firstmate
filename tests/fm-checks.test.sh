@@ -460,6 +460,7 @@ test_run_cached_refusal_reruns_once_a_miss_would_rebuild_the_source() {
   # Twenty minutes pass: a date shim moves the clock on, leaving the source's
   # build stamp (its modification time) as the heartbeat would find it.
   mkdir -p "$dir/later"
+  # shellcheck disable=SC2016 # the shim body needs a literal $* and $(( )).
   printf '#!/usr/bin/env bash\nif [ "$*" = +%%s ]; then echo $(( $(%s +%%s) + 1200 )); else exec %s "$@"; fi\n' "$(command -v date)" "$(command -v date)" > "$dir/later/date"
   chmod +x "$dir/later/date"
   out=$(PATH="$dir/later:$PATH" qchecks run "$record" --head "$wt" --cache "$cache"); rc=$?
