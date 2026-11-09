@@ -284,19 +284,20 @@ with open(sys.argv[1], "a") as fh:
 PY
 }
 
-test_typed_marker_checks_typed_words_and_leaves_notes_out() {
-  local page='<p>Your transcript said &lsquo;long, then short, then back to long&rsquo;. ok</p><p>In your notes: &ldquo;Always promise a longer deadline than it actually takes.&rdquo;</p><p>You said &ldquo;pick the recommended direction&rdquo;. ok</p>'
+test_typed_marker_checks_typed_words_and_lavish_notes() {
+  local page='<p>Your transcript said &lsquo;long, then short, then back to long&rsquo;. ok</p><p>Your note said &ldquo;make the hero bolder&rdquo;. ok</p><p>You said &ldquo;pick the recommended direction&rdquo;. ok</p>'
   check_page typed typed "$page"
-  expect_code 1 "$RC" "the typed marker flags the invented transcript quote"
-  assert_contains "$OUT" 'misquote: "long, then short, then back to long" (typed' "the invented quote is named under the typed marker"
-  assert_contains "$OUT" "2 checked, 1 verbatim, 1 misquoted" "the typed marker checks the two typed-word quotes"
-  assert_not_contains "$OUT" "longer deadline" "a quote attributed to the captain's notes is left out"
-  check_page typed attributed "$page"
-  assert_contains "$OUT" "3 checked, 1 verbatim, 2 misquoted" "the attributed marker still checks the note quote"
+  expect_code 1 "$RC" "the typed marker flags the invented transcript and note quotes"
+  assert_contains "$OUT" 'misquote: "long, then short, then back to long" (typed' "the invented transcript quote is named under the typed marker"
+  assert_contains "$OUT" 'misquote: "make the hero bolder" (typed' "an invented quote after your note said is refused"
+  assert_contains "$OUT" "3 checked, 1 verbatim, 2 misquoted" "the typed marker checks every attributed quote"
+  check_page typednote typed '<p>Your note said &ldquo;the ideal offering im aiming for is 15k upfront&rdquo;. ok</p><p>The captain&#39;s note: &ldquo;the heading reads too loud here&rdquo;. ok</p>'
+  expect_code 0 "$RC" "genuine Lavish note quotes were refused: $OUT"
+  assert_contains "$OUT" "2 checked, 2 verbatim" "both Lavish note quotes were checked against the source"
   check_page typednone typed '<p>The page quotes nobody, and says &ldquo;hello&rdquo; in passing.</p>'
   expect_code 0 "$RC" "a page that quotes nobody passes"
   assert_contains "$OUT" "0 checked" "a page that quotes nobody has nothing to check"
-  pass "the typed marker checks quotes of typed words and leaves quotes of the captain's notes out"
+  pass "the typed marker checks quotes of typed words and of Lavish notes, refusing invented ones"
 }
 
 test_a_miss_rebuilds_a_source_older_than_ten_minutes() {
@@ -339,6 +340,6 @@ fm_test_run \
   test_ellipsis_parts_must_come_from_one_message \
   test_regex_marker_json_and_markdown_pages \
   test_check_refreshes_a_stale_source_and_keeps_a_fresh_one \
-  test_typed_marker_checks_typed_words_and_leaves_notes_out \
+  test_typed_marker_checks_typed_words_and_lavish_notes \
   test_a_miss_rebuilds_a_source_older_than_ten_minutes \
   test_secondmate_home_resolves_its_parent_and_siblings

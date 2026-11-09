@@ -729,7 +729,7 @@ if [ "$DELIVERABLE" = page ]; then
     DELIVERABLE_BLOCK="$DELIVERABLE_BLOCK$FM_BRIEF_CLIENT_FACING_MARKER"$'\n''This page addresses a client'"'"'s visitors, not the captain, so it carries no standing check on quotes of the captain.'$'\n\n'
   else
     # shellcheck disable=SC2016 # Backticks are literal Markdown, not expansions.
-    DELIVERABLE_BLOCK="$DELIVERABLE_BLOCK"'A page also carries a standing check, whatever `## Checks` holds: every `done:` is refused while a page your branch changed presents as the captain'"'"'s words (after a cue such as "you said" or "your words") anything the captain never typed, so quote them exactly or not at all, and attribute words from their notes to the note; run the checks command below before reporting done.'$'\n\n'
+    DELIVERABLE_BLOCK="$DELIVERABLE_BLOCK"'A page also carries a standing check, whatever `## Checks` holds: every `done:` is refused while a page your branch changed presents as the captain'"'"'s words (after a cue such as "you said", "your words" or "your note") anything the captain never typed, in a prompt or a Lavish review note, so quote them exactly or not at all; run the checks command below before reporting done.'$'\n\n'
   fi
 fi
 

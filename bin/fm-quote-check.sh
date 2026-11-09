@@ -25,9 +25,9 @@
 #          minutes ago, the source is rebuilt once more and the check
 #          repeated, so words the captain typed since the last build count.
 #          --source names a fixed source instead and is never rebuilt.
-# refresh  Rebuild the source now, on demand. A nightly run from the machine's
-#          scheduler keeps the source warm, but freshness never depends on it:
-#          check rebuilds a stale source and rebuilds again on a miss.
+# refresh  Rebuild the source now, on demand. Freshness otherwise comes only
+#          from check and ensure, which rebuild a stale source, and from
+#          check's rebuild on a miss.
 # ensure   Rebuild the source when it is missing or older than the default
 #          --max-age, as check would, then print its build stamp (the source
 #          file's modification time in nanoseconds), which changes whenever
