@@ -1,0 +1,10 @@
+1..7
+ok - quiet night: no checked task prints zero counts and n/a shares, not an error
+ok - refused night: refused dones show in the lines, attributed by check, confirmed only by a later pass on changed work in the window
+ok - standing checks: a refusal naming a standing check is credited to it, alone or beside an admitted check
+ok - missing head: a refusal whose head was not recorded is never counted as confirmed
+ok - intake: written checks counted once, failed validation counted even after a fix, exemption read from the latest launch
+ok - shipped: Done ship and scout rows, live and archived, counted once per local day inside the window
+ok - usage: a missing or unparsable window exits 2, an unreadable log exits 1
+FM_TEST_COMPLETE
+rc=0

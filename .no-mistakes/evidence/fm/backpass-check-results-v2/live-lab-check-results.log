@@ -1,0 +1,137 @@
+
+### ship ck: admit guarantee-conditional check via fm-checks.sh validate --admit
+admitted guarantee-conditional
+checks: 1 admitted, 0 invalid
+
+### ship ck: first done read (fails check)
+state: blocked · source: status-log · intake checks refuse this done: guarantee-conditional: a line matches /no questions asked/: Full refund, no questions asked.
+state: blocked · source: status-log · intake checks refuse this done: guarantee-conditional: a line matches /no questions asked/: Full refund, no questions asked.
+
+### ship ck: same done line, still failing at new commit
+state: blocked · source: status-log · intake checks refuse this done: guarantee-conditional: a line matches /no questions asked/: Refund, no questions asked, ever.
+
+### ship ck: fixed commit, same done line
+state: done · source: status-log · PR https://github.com/o/r/pull/9
+state: done · source: status-log · PR https://github.com/o/r/pull/9
+
+### scout sc: admit report check
+admitted price-named
+checks: 1 admitted, 0 invalid
+
+### scout sc: done read with TBD report
+state: blocked · source: status-log · intake checks refuse this done: price-named: no line matches /\$[0-9]/
+
+### scout sc: report fixed
+state: done · source: status-log · report at data/sc/report.md
+
+### scout sd: done read, left unfixed (stays open)
+state: blocked · source: status-log · intake checks refuse this done: price-named: no line matches /\$[0-9]/
+
+### backlog: record Done rows via tasks-axi
+  - Run `tasks-axi ready` to dispatch work unblocked by this
+  - Run `tasks-axi ready` to dispatch work unblocked by this
+
+### backlog rows
+count: 2
+tasks[2]{id,state,kind,repo,title,closed}:
+  sc,done,scout,"-",scout sc,2026-11-09
+  ck,done,ship,"-","ship ck https://github.com/o/r/pull/9",2026-11-09
+help[1]:
+  - Run `tasks-axi show <id>` for full notes on a task
+
+### scout sd: fixed after a window mark (earlier refusal confirmed in window)
+state: done · source: status-log · report at data/sd/report.md
+
+### skill-fires.tsv (the durable log the gate wrote)
+2026-11-09T11:19:32Z	ck	checks-admitted	fm-spawn.sh	guarantee-conditional
+2026-11-09T11:19:36Z	ck	checks-refused	fm-crew-state.sh	head=aa1ee105a70b88425d2ce8af1a594c3f6e8065ae; line=022fb5ce26b4; intake checks refuse this done: guarantee-conditional: a line matches /no questions asked/: Full refund, no questions asked.
+2026-11-09T11:19:46Z	ck	checks-passed	fm-crew-state.sh	head=6826ac7e5c57825e58a16bfe5e078262f90a78ee; PR https://github.com/o/r/pull/9
+2026-11-09T11:19:50Z	sc	checks-admitted	fm-spawn.sh	price-named
+2026-11-09T11:19:54Z	sc	checks-refused	fm-crew-state.sh	head=f893e90af9b41fa67c8e443937ccab5b32ea056862b21ff4a7f560de65c90092; line=7afb44285e11; intake checks refuse this done: price-named: no line matches /\$[0-9]/
+2026-11-09T11:19:57Z	sc	checks-passed	fm-crew-state.sh	head=de8d42cefe51627a0752621448962be83d90e668051b788cb296df836b2dbbc5; report at data/sc/report.md
+2026-11-09T11:19:58Z	sd	checks-admitted	fm-spawn.sh	price-named
+2026-11-09T11:20:02Z	sd	checks-refused	fm-crew-state.sh	head=f893e90af9b41fa67c8e443937ccab5b32ea056862b21ff4a7f560de65c90092; line=732a75bc82b6; intake checks refuse this done: price-named: no line matches /\$[0-9]/
+2026-11-09T11:20:02Z	bad1	checks-invalid	fm-spawn.sh	weak-check
+2026-11-09T11:20:02Z	ex1	checks-exempt	fm-spawn.sh	no observable content
+2026-11-09T11:20:17Z	sd	checks-passed	fm-crew-state.sh	head=de8d42cefe51627a0752621448962be83d90e668051b788cb296df836b2dbbc5; report at data/sd/report.md
+
+### fm-check-results.sh --since today
+check refusals 2026-11-09T00:00:00Z to 2026-11-09T11:20:18Z: 3 done claims refused on 3 tasks, 3 confirmed by a later pass on changed work (100%), 0 later passed on unchanged work, 0 still open; earlier refusals confirmed in this window: 0; tasks whose checks passed: 3; captain send-backs after checks passed: not recorded; by check: ck/guarantee-conditional 1 refused 1 confirmed 0 unchanged, sc/price-named 1 refused 1 confirmed 0 unchanged, sd/price-named 1 refused 1 confirmed 0 unchanged; deliverables shipped: 0
+check intake 2026-11-09T00:00:00Z to 2026-11-09T11:20:18Z: 4 checks written, 1 failed validation (25%); 1 of 5 launched tasks exempt (20%); deliverables shipped: 0
+exit=0
+
+### json
+{
+  "schema": "fm-check-results.v1",
+  "window": {
+    "since": "2026-11-09T00:00:00Z",
+    "until": "2026-11-09T11:20:18Z"
+  },
+  "refusals": {
+    "refused": 3,
+    "tasks": 3,
+    "confirmed": 3,
+    "unchanged": 0,
+    "open": 0,
+    "earlier_confirmed": 0,
+    "passed_tasks": 3,
+    "captain_send_backs": null,
+    "by_check": [
+      {
+        "check": "ck/guarantee-conditional",
+        "refused": 1,
+        "confirmed": 1,
+        "unchanged": 0
+      },
+      {
+        "check": "sc/price-named",
+        "refused": 1,
+        "confirmed": 1,
+        "unchanged": 0
+      },
+      {
+        "check": "sd/price-named",
+        "refused": 1,
+        "confirmed": 1,
+        "unchanged": 0
+      }
+    ]
+  },
+  "intake": {
+    "written": 4,
+    "invalid": 1,
+    "tasks": 5,
+    "exempt_tasks": 1
+  },
+  "shipped": 0,
+  "sources": {
+    "skill_fires": "/tmp/fm-lab.diJQ4N/data/skill-fires.tsv",
+    "done_archive": "none"
+  }
+}
+
+### nightly window aligned to local midnight (2026-11-08T14:00:00Z)
+check refusals 2026-11-08T14:00:00Z to 2026-11-09T11:20:20Z: 3 done claims refused on 3 tasks, 3 confirmed by a later pass on changed work (100%), 0 later passed on unchanged work, 0 still open; earlier refusals confirmed in this window: 0; tasks whose checks passed: 3; captain send-backs after checks passed: not recorded; by check: ck/guarantee-conditional 1 refused 1 confirmed 0 unchanged, sc/price-named 1 refused 1 confirmed 0 unchanged, sd/price-named 1 refused 1 confirmed 0 unchanged; deliverables shipped: 2
+check intake 2026-11-08T14:00:00Z to 2026-11-09T11:20:20Z: 4 checks written, 1 failed validation (25%); 1 of 5 launched tasks exempt (20%); deliverables shipped: 2
+exit=0
+
+### window starting at mark 2026-11-09T11:20:13Z (sd refused before it, passed inside it)
+check refusals 2026-11-09T11:20:13Z to 2026-11-09T11:20:23Z: 0 done claims refused on 0 tasks, 0 confirmed by a later pass on changed work (n/a), 0 later passed on unchanged work, 0 still open; earlier refusals confirmed in this window: 1; tasks whose checks passed: 1; captain send-backs after checks passed: not recorded; by check: none; deliverables shipped: 0
+check intake 2026-11-09T11:20:13Z to 2026-11-09T11:20:23Z: 0 checks written, 0 failed validation (n/a); 0 of 0 launched tasks exempt (n/a); deliverables shipped: 0
+exit=0
+
+### adversarial: usage errors
+fm-check-results: --since is required
+run 'fm-check-results.sh --help' for usage
+exit=2
+fm-check-results: --since must be YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD, not yesterday
+run 'fm-check-results.sh --help' for usage
+exit=2
+fm-check-results: --until must be later than --since
+run 'fm-check-results.sh --help' for usage
+exit=2
+
+### window before today: everything outside the window
+check refusals 2026-01-01T00:00:00Z to 2026-01-02T00:00:00Z: 0 done claims refused on 0 tasks, 0 confirmed by a later pass on changed work (n/a), 0 later passed on unchanged work, 0 still open; earlier refusals confirmed in this window: 0; tasks whose checks passed: 0; captain send-backs after checks passed: not recorded; by check: none; deliverables shipped: 0
+check intake 2026-01-01T00:00:00Z to 2026-01-02T00:00:00Z: 0 checks written, 0 failed validation (n/a); 0 of 0 launched tasks exempt (n/a); deliverables shipped: 0
+exit=0
