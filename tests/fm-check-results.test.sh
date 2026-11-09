@@ -104,6 +104,28 @@ test_refused_done_night_shows_in_the_lines() {
   pass "refused night: refused dones show in the lines, attributed by check, confirmed only by a later pass on changed work in the window"
 }
 
+# Standing checks are added to the admitted record by validate and never logged
+# at launch, so a refusal naming one is credited to it by its reserved
+# standing- prefix, alone or beside an admitted check.
+test_standing_check_refusal_is_attributed() {
+  local home out refusals
+  home=$(new_home standing)
+  fire "$home" 2026-11-07T10:00:00Z p1 checks-admitted fm-spawn.sh price-named
+  fire "$home" 2026-11-07T10:00:00Z p2 checks-admitted fm-spawn.sh price-named
+  fire "$home" 2026-11-07T13:00:00Z p1 checks-refused fm-crew-state.sh "head=a1; $PREFIX standing-captain-quotes: quote 1 is not in the captain's words"
+  fire "$home" 2026-11-07T14:00:00Z p1 checks-passed fm-crew-state.sh "head=b1; page ready"
+  fire "$home" 2026-11-07T15:00:00Z p2 checks-refused fm-crew-state.sh "head=a2; $PREFIX price-named: no line matches; standing-captain-quotes: quote 2 is not in the captain's words"
+
+  out=$(results "$home" --since 2026-11-07T12:00:00Z --until 2026-11-08T12:00:00Z) \
+    || fail "the standing-check night did not exit 0: $out"
+  refusals=$(line_of "$out" 'check refusals')
+  assert_contains "$refusals" "by check: p1/standing-captain-quotes 1 refused 1 confirmed 0 unchanged, p2/price-named 1 refused 0 confirmed 0 unchanged, p2/standing-captain-quotes 1 refused 0 confirmed 0 unchanged" "a standing-check refusal was not credited to the standing check"
+  case "$refusals" in
+    *unattributed*) fail "a standing-check refusal was reported as unattributed: $refusals" ;;
+  esac
+  pass "standing checks: a refusal naming a standing check is credited to it, alone or beside an admitted check"
+}
+
 # A refusal or pass with no recorded head can never prove the work changed, so
 # its first later pass is disclosed as unchanged rather than confirmed.
 test_a_missing_head_never_confirms() {
@@ -192,6 +214,7 @@ test_usage_errors() {
 fm_test_run \
   test_quiet_night_prints_zero_counts \
   test_refused_done_night_shows_in_the_lines \
+  test_standing_check_refusal_is_attributed \
   test_a_missing_head_never_confirms \
   test_intake_line_counts_written_invalid_and_exempt \
   test_shipped_counts_done_ship_and_scout_rows_per_local_day \

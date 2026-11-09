@@ -39,9 +39,10 @@
 # falls in it and confirms them are counted separately, so a refusal is never
 # confirmed twice. "by check"
 # names each refused check as <task>/<check-id> with its refusals,
-# confirmations, and unchanged passes, matching the ids the task's checks-admitted lines name; a
+# confirmations, and unchanged passes, matching the ids the task's checks-admitted lines name
+# and the standing- ids of the standing checks validate adds; a
 # refusal of a missing or altered checks record is attributed to <task>/record,
-# and one naming no admitted check to <task>/unattributed. The line also counts the
+# and one naming no such check to <task>/unattributed. The line also counts the
 # tasks whose checks passed in the window. Captain send-backs after the checks
 # passed have no durable record yet, so the line prints them as not recorded
 # rather than estimating a number.
@@ -208,11 +209,15 @@ RESULT=$(jq -n \
   # Admitted check ids per task, from every launch before the window ends.
   | ([$all[] | select(.rule == "checks-admitted" and beforeend)] | group_by(.task)
       | map({key: .[0].task, value: [.[].ref] | unique}) | from_entries) as $admitted
-  # The ids of the admitted checks a refusal names, or its one fallback label.
+  # The ids of the admitted and standing checks a refusal names, or its one
+  # fallback label. Standing checks are added to the record by validate, not
+  # logged at launch, so they are read from their reserved standing- prefix.
   | def refused_ids($r):
       ($r.ref | ltrimstr($prefix) | sub("^ +"; "")) as $why
-      | [($admitted[$r.task] // [])[] as $id
+      | ([($admitted[$r.task] // [])[] as $id
           | select($why | test("(^|; )" + $id + ": ")) | $id]
+        + [$why | scan("(?:^|; )(standing-[a-z0-9-]+): ") | .[0]]
+        | unique)
       | if length > 0 then .
         elif ($why | startswith("the admitted checks record ")) then ["record"]
         else ["unattributed"] end;
