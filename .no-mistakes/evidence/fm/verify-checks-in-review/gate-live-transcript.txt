@@ -1,0 +1,76 @@
+
+$ fm-checks.sh validate brief.md --kind ship --admit state/ad-t1.checks.json
+admitted names-the-person
+checks: 1 admitted, 0 invalid
+[exit 0]
+
+$ fm-checks.sh register $LAB/state ad-t1
+[exit 0]
+state=$LAB/state
+id=ad-t1
+
+=== S1: review-passed run whose task check fails is parked by the gate ===
+
+$ cd run-worktree && bash bin/fm-checks.sh gate
+task-checks: task ad-t1 (fm/ad-t1)
+fail names-the-person: no line matches /(HVAC|plumb|remodel)/
+  from: captain: a specific problem for a specific person
+checks: 0 passed, 1 failed
+task-checks: the change fails its task's admitted checks; they were written from the captain's words before the work began and are fixed, so change the work until they pass
+[exit 1]
+
+=== S2: pipeline fix commit satisfying the check passes ===
+
+$ (uncommitted fix only)
+task-checks: task ad-t1 (fm/ad-t1)
+fail names-the-person: no line matches /(HVAC|plumb|remodel)/
+  from: captain: a specific problem for a specific person
+checks: 0 passed, 1 failed
+task-checks: the change fails its task's admitted checks; they were written from the captain's words before the work began and are fixed, so change the work until they pass
+[exit 1]
+
+$ (fix committed on run head)
+task-checks: task ad-t1 (fm/ad-t1)
+pass names-the-person
+checks: 1 passed, 0 failed
+[exit 0]
+
+=== S3: a run of an unrelated branch binds nothing and passes ===
+task-checks: no registered Firstmate ship matches this run, so there are no task checks to run
+[exit 0]
+
+=== S4: rebased run where base edited the ship's neighbor lines and the replay needed a conflict resolution still binds and fails ===
+rebased run head: 4db852d write the ad; ship patch-id 5268f41ddc5c vs run 4885b66a5f43
+task-checks: task ad-t1 (fm/ad-t1)
+fail names-the-person: no line matches /(HVAC|plumb|remodel)/
+  from: captain: a specific problem for a specific person
+checks: 0 passed, 1 failed
+task-checks: the change fails its task's admitted checks; they were written from the captain's words before the work began and are fixed, so change the work until they pass
+[exit 1]
+
+=== S5: a changed admitted record is refused before any check runs ===
+task-checks: task ad-t1 (fm/ad-t1)
+fail admitted-record: $LAB/state/ad-t1.checks.json has digest 80e4718de48d7490b37217e08341e47d45ac663066ebcfb6ed21dbbda2ea39d6, not the checks_sha=bc3a8355fbc5d91aacadb7cbc32814b9446cf125c4c7d390c645cfbeaf1df7c3 spawn recorded, so its checks are not the ones admitted at launch
+task-checks: the change fails its task's admitted checks; they were written from the captain's words before the work began and are fixed, so change the work until they pass
+[exit 1]
+
+=== S6: stale registration whose meta has no checks= binds nothing; checks= without checks_sha= still fails ===
+
+$ (meta without checks= / checks_sha=)
+task-checks: no registered Firstmate ship matches this run, so there are no task checks to run
+[exit 0]
+
+$ (meta with checks= but no checks_sha=)
+task-checks: task ad-t1 (fm/ad-t1)
+fail admitted-record: $LAB/state/ad-t1.checks.json has digest bc3a8355fbc5d91aacadb7cbc32814b9446cf125c4c7d390c645cfbeaf1df7c3, not the checks_sha=<none> spawn recorded, so its checks are not the ones admitted at launch
+task-checks: the change fails its task's admitted checks; they were written from the captain's words before the work began and are fixed, so change the work until they pass
+[exit 1]
+
+=== S7: unregister (cleanup) leaves nothing for the gate to bind ===
+
+$ fm-checks.sh unregister $LAB/state ad-t1
+[exit 0]
+task-checks: no registered Firstmate ship matches this run, so there are no task checks to run
+[exit 0]
+
+lab and work dirs removed

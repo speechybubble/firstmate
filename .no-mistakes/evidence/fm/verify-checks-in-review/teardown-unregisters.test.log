@@ -1,0 +1,2 @@
+ok - no-mistakes worktree with HEAD on origin is torn down (no regression)
+ok - no-mistakes worktree with genuinely unlanded work is refused (safety preserved)

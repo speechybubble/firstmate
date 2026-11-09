@@ -1,0 +1,4 @@
+$ (in this repo's run worktree, detached at 57f83db8) bash bin/fm-checks.sh gate
+task-checks: no registered Firstmate ship matches this run, so there are no task checks to run
+[exit 0]
+parsed .no-mistakes.yaml gates: [{"name": "task-checks", "after": "test", "command": "bash bin/fm-checks.sh gate"}]
