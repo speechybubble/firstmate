@@ -1468,7 +1468,20 @@ test_deliverable_page_marks_the_brief_and_records_a_fire() {
   assert_contains "$out" "--deliverable must be page" "unknown deliverable refusal did not explain itself"
   assert_absent "$home/data/page-site" "a refused deliverable left a scaffold behind"
   assert_no_grep $'\tpage-scout\t' "$log" "a refused scaffold recorded a skill fire"
-  pass "fm-brief.sh: --deliverable page marks # Task outside the slots, records one fire, and is ship-only"
+
+  ! fm_brief_client_facing_page "$home/data/page-direct-PR/brief.md" || fail "a captain-facing page declared itself client-facing"
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" page-client some-proj --mode direct-PR --deliverable page --client-facing >/dev/null \
+    || fail "client-facing page scaffold failed"
+  brief="$home/data/page-client/brief.md"
+  [ "$(fm_brief_deliverable "$brief")" = page ] || fail "a client-facing page is not a page deliverable"
+  fm_brief_client_facing_page "$brief" || fail "a client-facing page brief does not declare itself client-facing"
+  assert_grep 'drive=<absolute path to those results>' "$brief" "a client-facing page lost the drive evidence instruction"
+  assert_no_grep 'standing check, whatever' "$brief" "a client-facing page brief still tells the worker about the standing quote check"
+  out=$(FM_HOME="$home" "$ROOT/bin/fm-brief.sh" page-client-bare some-proj --mode direct-PR --client-facing 2>&1); rc=$?
+  expect_code 1 "$rc" "--client-facing without a page deliverable must be refused"
+  assert_contains "$out" "--client-facing applies only with --deliverable page" "the bare --client-facing refusal did not explain itself"
+  assert_absent "$home/data/page-client-bare" "a refused --client-facing left a scaffold behind"
+  pass "fm-brief.sh: --deliverable page marks # Task outside the slots, records one fire, and is ship-only; --client-facing marks a page for a client's visitors"
 }
 
 # --base-branch names the branch a task starts from and a ship's PR targets. It is

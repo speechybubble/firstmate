@@ -51,7 +51,8 @@
 # --deliverable page writes FM_BRIEF_DELIVERABLE_PAGE_MARKER into `# Task`, and
 # bin/fm-spawn.sh records it as deliverable=page in the task meta) must also
 # carry drive evidence on every done: this gate tests:
-# fm_dod_page_evidence_reason owns what counts. Spawn also admits
+# fm_dod_page_evidence_reason owns what counts. Unless the brief declares the
+# page client-facing (bin/fm-brief.sh --client-facing), spawn also admits
 # bin/fm-checks.sh's standing page checks for it, which the intake checks gate
 # below runs whatever its brief's `## Checks` slot holds. A ship or scout whose brief's
 # `## Checks` slot carried checks bin/fm-spawn.sh admitted has every done:
@@ -328,10 +329,27 @@ FM_BRIEF_DELIVERABLE_PAGE_MARKER='<!-- fm-brief: deliverable page -->'
 # the lines before its first subsection count, so a marker quoted in a filled
 # slot declares nothing.
 fm_brief_deliverable() {  # <file>
-  if fm_brief_heading_body "$1" "# Task" | awk '/^## / { exit } { print }' \
-    | grep -qxF -- "$FM_BRIEF_DELIVERABLE_PAGE_MARKER"; then
+  if fm_brief_task_preamble_has "$1" "$FM_BRIEF_DELIVERABLE_PAGE_MARKER"; then
     printf '%s\n' page
   fi
+}
+
+# The `# Task` line bin/fm-brief.sh --client-facing writes after the page
+# marker: the page addresses a client's visitors, not the captain.
+FM_BRIEF_CLIENT_FACING_MARKER='<!-- fm-brief: client-facing -->'
+
+# True when a brief declares a client-facing page deliverable: both markers sit
+# before `# Task`'s first subsection. bin/fm-spawn.sh admits no standing page
+# check for it.
+fm_brief_client_facing_page() {  # <file>
+  [ "$(fm_brief_deliverable "$1")" = page ] \
+    && fm_brief_task_preamble_has "$1" "$FM_BRIEF_CLIENT_FACING_MARKER"
+}
+
+# True when <line> is a whole line of `# Task` before its first subsection, so
+# a marker quoted in a filled slot declares nothing.
+fm_brief_task_preamble_has() {  # <file> <line>
+  fm_brief_heading_body "$1" "# Task" | awk '/^## / { exit } { print }' | grep -qxF -- "$2"
 }
 
 # Print the highest Task slot version a brief's `# Task` marker names, or 0.

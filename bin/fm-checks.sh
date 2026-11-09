@@ -52,9 +52,12 @@
 #                 base (origin/<base>, else <base>; without base, origin's
 #                 default branch, else main or master), and a scout's every
 #                 page under its data directory. No page to read passes, and a
-#                 base that cannot be found fails. Its verdict depends on a
-#                 source that grows, so a run where a quotes check failed is
-#                 never cached.
+#                 base that cannot be found fails. Its verdict also depends on
+#                 the source, so run first brings the source up to date under
+#                 its own longer bound and keys its cache on the source's
+#                 build stamp (bin/fm-quote-check.sh ensure): a result reruns
+#                 when a page or the source changes, and a run where a quotes
+#                 check could not run or finish is never cached.
 # Unknown fields are refused, so a misspelled field is never silently ignored.
 # Ids starting with standing- are reserved for the standing checks below.
 #
@@ -83,7 +86,9 @@
 # holds: beside admitted checks, with an exempt slot, and with no slot at all,
 # which without --deliverable is invalid. Each prints one `standing <id>`
 # line, before the summary or after the exemption line. bin/fm-spawn.sh
-# passes it for a ship brief declared a page deliverable.
+# passes it for a ship brief declared a page deliverable, unless the brief
+# declares the page client-facing (bin/fm-brief.sh --client-facing): a client's
+# visitors are addressed there, never the captain, so it carries none.
 #
 # run executes an admitted record on the deliverable: with --head the target is
 # read from the committed HEAD of that worktree (a ship's done claims committed
@@ -115,9 +120,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/fm-nm-run-lib.sh"
 
 FM_CHECKS_COMMAND_TIMEOUT=60
+# The bound on bringing the captain-words source up to date before quotes checks.
+FM_CHECKS_QUOTES_SOURCE_TIMEOUT=600
 FM_CHECKS_EXEMPTION='routine: no checks'
 # The standing checks validate --deliverable page appends (see --help).
-FM_CHECKS_STANDING_PAGE='[{"id": "standing-captain-quotes", "source": "standing check on every page deliverable: words a page presents as the captain'"'"'s must be words the captain typed (bin/fm-checks.sh)", "type": "quotes", "markers": ["typed"]}]'
+FM_CHECKS_STANDING_PAGE='[{"id": "standing-captain-quotes", "source": "standing check on every captain-facing page deliverable: words a page presents as the captain'"'"'s must be words the captain typed (bin/fm-checks.sh)", "type": "quotes", "markers": ["typed"]}]'
 
 usage() {
   sed -n '2,/^set -u$/p' "${BASH_SOURCE[0]}" | sed '$d' | sed 's/^# \{0,1\}//'
@@ -194,6 +201,14 @@ drive_results_problem() {  # <file> [<want>]
   ' "$file"
 }
 
+# Bring the captain-words source up to date under its own bound and print its
+# build stamp, or `unknown` when that cannot be done.
+quotes_source_stamp() {
+  local stamp
+  stamp=$(fm_nm_bounded "$SCRIPT_DIR" "$FM_CHECKS_QUOTES_SOURCE_TIMEOUT" "$SCRIPT_DIR/fm-quote-check.sh" ensure </dev/null 2>/dev/null) || stamp=
+  printf '%s\n' "${stamp:-unknown}"
+}
+
 # Run a quotes check on <target>: a materialized page, or a directory holding
 # the materialized pages at their relative paths. Same contract as run_check.
 run_quotes_check() {  # <check-json> <target>
@@ -211,6 +226,7 @@ run_quotes_check() {  # <check-json> <target>
     pages=("$(basename -- "$target")")
   fi
   [ "${#pages[@]}" -gt 0 ] || return 0
+  quotes_source_stamp >/dev/null
   out=$(fm_nm_bounded "$dir" "$FM_CHECKS_COMMAND_TIMEOUT" "$SCRIPT_DIR/fm-quote-check.sh" check "${pages[@]}" "${margs[@]}" </dev/null 2>&1)
   rc=$?
   case "$rc" in
@@ -221,7 +237,7 @@ run_quotes_check() {  # <check-json> <target>
       return 1 ;;
     124)
       echo "the quote check did not finish within ${FM_CHECKS_COMMAND_TIMEOUT}s"
-      return 1 ;;
+      return 2 ;;
   esac
   echo "the quote check could not run (exit $rc)${out:+: $(one_line "$(printf '%s\n' "$out" | tail -n 1)")}"
   return 2
@@ -651,6 +667,9 @@ cmd_run() {
   i=0
   fingerprint="$SCRATCH/fingerprint"
   { hash_file "$record"; printf 'drive %s\n' "$drive"; } > "$fingerprint"
+  if jq -e 'any(.checks[]; .type == "quotes")' "$record" >/dev/null; then
+    printf 'quotes-source %s\n' "$(quotes_source_stamp)" >> "$fingerprint"
+  fi
   while [ "$i" -lt "$n" ]; do
     check=$(jq -c --argjson i "$i" '.checks[$i]' "$record")
     type=$(jq -r '.type' <<<"$check")
@@ -719,7 +738,7 @@ cmd_run() {
     else
       echo "fail $id: $out" >> "$result"
       failed=$((failed + 1))
-      [ "$type" != quotes ] || uncacheable=1
+      [ "$type" != quotes ] || [ "$rc" -ne 2 ] || uncacheable=1
     fi
     i=$((i + 1))
   done

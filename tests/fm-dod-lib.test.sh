@@ -857,7 +857,18 @@ test_page_deliverable_done_runs_the_standing_quote_check() {
   git -C "$wt" update-ref refs/remotes/origin/fm/board "$(git -C "$wt" rev-parse HEAD)"
   HOME="$qfake" FM_HOME="$qhome" FM_QUOTE_HOMES="$qhome" accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$state/drive.tsv" "$state" qp "$meta" \
     || fail "a page deliverable that quotes the captain exactly was refused"
-  pass "page deliverable done: the standing quote check refuses an invented captain quote and accepts an exact one"
+
+  printf '<!doctype html><html><body><p>You told us &ldquo;we need more leads.&rdquo; So we built this.</p></body></html>\n' > "$wt/index.html"
+  git -C "$wt" commit -q -am 'client copy'
+  git -C "$wt" update-ref refs/remotes/origin/fm/board "$(git -C "$wt" rev-parse HEAD)"
+  reason=$(HOME="$qfake" FM_HOME="$qhome" FM_QUOTE_HOMES="$qhome" accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$state/drive.tsv" "$state" qp "$meta"); rc=$?
+  expect_code 1 "$rc" "a captain-facing page reached done with words the captain never typed"
+  printf '# Task\n%s\n%s\n## Checks\nroutine: no checks - a client site\n' "$FM_BRIEF_DELIVERABLE_PAGE_MARKER" "$FM_BRIEF_CLIENT_FACING_MARKER" > "$state/cp.brief.md"
+  fm_brief_client_facing_page "$state/cp.brief.md" || fail "the client-facing brief was not read as client-facing"
+  printf '%s\n' kind=ship mode=direct-PR deliverable=page > "$state/cp.meta"
+  HOME="$qfake" FM_HOME="$qhome" FM_QUOTE_HOMES="$qhome" accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$state/drive.tsv" "$state" cp "$state/cp.meta" \
+    || fail "a client-facing page whose copy addresses its visitors was refused"
+  pass "page deliverable done: the standing quote check refuses an invented captain quote and accepts an exact one, and a client-facing page's visitor copy is not checked"
 }
 
 # The skill-fire log is created on first write, appends tab-separated lines with

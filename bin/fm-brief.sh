@@ -33,7 +33,7 @@
 # caller-first design for uncertain material interfaces, migrations, or reuse;
 # the scaffold does not classify task text or impose a method on routine edits.
 # Secondmate charters keep their supervisor contract instead.
-# Usage: fm-brief.sh <task-id> <repo-name> --mode <no-mistakes|direct-PR|local-only> [--branch-prefix <prefix>] [--base-branch <branch>] [--forge <none|gerrit|forgejo|external> [--shape squash]] [--deliverable page] [--herdr-lab]
+# Usage: fm-brief.sh <task-id> <repo-name> --mode <no-mistakes|direct-PR|local-only> [--branch-prefix <prefix>] [--base-branch <branch>] [--forge <none|gerrit|forgejo|external> [--shape squash]] [--deliverable page [--client-facing]] [--herdr-lab]
 #        fm-brief.sh <task-id> <repo-name> --scout [--base-branch <branch>] [--run-budget <spec>] [--herdr-lab]
 #        fm-brief.sh <task-id> --secondmate {<project>...|--no-projects}
 #   --scout writes the scout contract instead: the deliverable is a report at
@@ -118,6 +118,11 @@
 # and appends a `page` line to the home's skill-fire log
 # (bin/fm-dod-lib.sh owns that check's evidence rule and the log).
 # Ship-only: a scout's completion is not gated on it.
+# --client-facing, only with --deliverable page, declares that the page
+# addresses a client's visitors rather than the captain, so its copy is never
+# the captain's words: it writes FM_BRIEF_CLIENT_FACING_MARKER after the page
+# marker, and bin/fm-spawn.sh admits no standing page checks for it. The drive
+# evidence rule still applies.
 # --run-budget <spec> gives a long scout a spend line and a stop rule: a
 # `# Run budget` section, rendered by bin/fm-run-budget.sh (the single owner of
 # the spec, the section, the run ledger, and the stop verdicts), whose commands
@@ -272,6 +277,7 @@ PROJECT_DIR=
 PROJECT_DIR_SET=0
 DELIVERABLE=
 DELIVERABLE_SET=0
+CLIENT_FACING=0
 RUN_BUDGET=
 RUN_BUDGET_SET=0
 POS=()
@@ -300,6 +306,7 @@ for a in "$@"; do
     --scout) KIND=scout ;;
     --secondmate) KIND=secondmate ;;
     --herdr-lab) HERDR_LAB=1 ;;
+    --client-facing) CLIENT_FACING=1 ;;
     --no-projects) NO_PROJECTS=1 ;;
     --mode) want_value=mode ;;
     --mode=*) MODE=${a#--mode=}; MODE_SET=1 ;;
@@ -421,6 +428,10 @@ if [ "$RUN_BUDGET_SET" -eq 1 ]; then
 fi
 if [ "$DELIVERABLE_SET" -eq 1 ] && [ "$DELIVERABLE" != page ]; then
   echo "error: --deliverable must be page (got '$DELIVERABLE')" >&2
+  exit 1
+fi
+if [ "$CLIENT_FACING" -eq 1 ] && [ "$DELIVERABLE" != page ]; then
+  echo "error: --client-facing applies only with --deliverable page" >&2
   exit 1
 fi
 if [ "$UPSTREAM_CONSENT_SET" -eq 1 ]; then
@@ -713,7 +724,13 @@ fi
 DELIVERABLE_BLOCK=
 if [ "$DELIVERABLE" = page ]; then
   # shellcheck disable=SC2016 # Backticks are literal Markdown, not expansions.
-  DELIVERABLE_BLOCK="$FM_BRIEF_DELIVERABLE_PAGE_MARKER"$'\n''This ship delivers a page. Before reporting it ready, drive it in a real browser with the project drive recipe, have the drive write its assertion results (one `<assertion>\t<pass|fail>` line per assertion), then put `drive=<absolute path to those results>` in the `done:` line that reports it ready, or `no-drive: <reason>` when it cannot be driven; the done-time check refuses that line without one of them, and refuses results that show a failed assertion or are not a drive run'"'"'s results at all.'$'\n''A page also carries a standing check, whatever `## Checks` holds: every `done:` is refused while a page your branch changed presents as the captain'"'"'s words (after a cue such as "you said" or "your words") anything the captain never typed, so quote them exactly or not at all, and attribute words from their notes to the note; run the checks command below before reporting done.'$'\n\n'
+  DELIVERABLE_BLOCK="$FM_BRIEF_DELIVERABLE_PAGE_MARKER"$'\n''This ship delivers a page. Before reporting it ready, drive it in a real browser with the project drive recipe, have the drive write its assertion results (one `<assertion>\t<pass|fail>` line per assertion), then put `drive=<absolute path to those results>` in the `done:` line that reports it ready, or `no-drive: <reason>` when it cannot be driven; the done-time check refuses that line without one of them, and refuses results that show a failed assertion or are not a drive run'"'"'s results at all.'$'\n'
+  if [ "$CLIENT_FACING" -eq 1 ]; then
+    DELIVERABLE_BLOCK="$DELIVERABLE_BLOCK$FM_BRIEF_CLIENT_FACING_MARKER"$'\n''This page addresses a client'"'"'s visitors, not the captain, so it carries no standing check on quotes of the captain.'$'\n\n'
+  else
+    # shellcheck disable=SC2016 # Backticks are literal Markdown, not expansions.
+    DELIVERABLE_BLOCK="$DELIVERABLE_BLOCK"'A page also carries a standing check, whatever `## Checks` holds: every `done:` is refused while a page your branch changed presents as the captain'"'"'s words (after a cue such as "you said" or "your words") anything the captain never typed, so quote them exactly or not at all, and attribute words from their notes to the note; run the checks command below before reporting done.'$'\n\n'
+  fi
 fi
 
 # How the worker runs its own intake checks before reporting done; the done

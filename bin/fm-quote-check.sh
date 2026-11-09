@@ -10,6 +10,7 @@
 #   fm-quote-check.sh check <page>... [--marker <marker>]... [--json] [--verbose]
 #                           [--source <file>] [--max-age <hours>]
 #   fm-quote-check.sh refresh [--out <file>]
+#   fm-quote-check.sh ensure
 #   fm-quote-check.sh status
 #
 # check    Find each page's quotes of the captain by every --marker given
@@ -27,6 +28,11 @@
 # refresh  Rebuild the source now, on demand. A nightly run from the machine's
 #          scheduler keeps the source warm, but freshness never depends on it:
 #          check rebuilds a stale source and rebuilds again on a miss.
+# ensure   Rebuild the source when it is missing or older than the default
+#          --max-age, as check would, then print its build stamp (the source
+#          file's modification time in nanoseconds), which changes whenever
+#          the source is rebuilt. bin/fm-checks.sh runs it outside its check
+#          bound and keys its cached result on the stamp.
 # status   Print the source's build time, message counts per channel and home,
 #          and whether it is older than the default --max-age.
 #
@@ -150,6 +156,11 @@ case "$cmd" in
       esac
     done
     refresh "$out"
+    ;;
+  ensure)
+    [ $# -eq 0 ] || usage
+    fresh "$SOURCE_DEFAULT" $((MAX_AGE_DEFAULT * 3600)) || refresh "$SOURCE_DEFAULT" >&2
+    python3 -I -c 'import os, sys; print(os.stat(sys.argv[1]).st_mtime_ns)' "$SOURCE_DEFAULT"
     ;;
   status)
     [ $# -eq 0 ] || usage

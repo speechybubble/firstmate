@@ -356,7 +356,7 @@ test_validate_runs_a_written_quotes_check_on_its_examples() {
 # an invented captain quote fails, while a page that quotes nobody, an accurate
 # quote, a non-page file, and a page the branch did not touch all pass.
 test_run_standing_check_reads_the_pages_a_ship_changed() {
-  local dir="$TMP_ROOT/quotes-run" origin wt brief record cache out rc
+  local dir="$TMP_ROOT/quotes-run" origin wt brief record cache out rc qsource
   origin="$dir/origin"
   wt="$dir/wt"
   brief="$dir/brief.md"
@@ -382,7 +382,24 @@ test_run_standing_check_reads_the_pages_a_ship_changed() {
   expect_code 1 "$rc" "a page deliverable with an invented captain quote passed"
   assert_contains "$out" "fail standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: \"long, then short, then back to long\" (typed, site/board.html)" "the refusal did not name the invented quote and its page"
   assert_not_contains "$out" "old.html" "a page the branch did not change was checked"
-  assert_absent "$cache" "a failing quote result was cached"
+  assert_present "$cache" "a failing quote result was not cached"
+  qsource="$QHOME/data/captain-words/source.json"
+  cp -p "$qsource" "$dir/source.keep"
+  printf 'not json\n' > "$qsource"
+  touch -r "$dir/source.keep" "$qsource"
+  out=$(qchecks run "$record" --head "$wt" --cache "$cache"); rc=$?
+  expect_code 1 "$rc" "an unchanged page and source did not reuse the cached refusal: $out"
+  assert_contains "$out" "misquote: \"long, then short, then back to long\"" "the cached refusal was not replayed"
+  cp -p "$dir/source.keep" "$qsource"
+  printf '%s\n' '{"type":"user","uuid":"u9","timestamp":"2026-10-21T01:00:00Z","isSidechain":false,"origin":{"kind":"human"},"promptSource":"typed","message":{"role":"user","content":"long, then short, then back to long"}}' \
+    >> "$QFAKE/.claude/projects/$(printf '%s' "$QHOME" | tr '/.' '--')/s.jsonl"
+  HOME="$QFAKE" FM_HOME="$QHOME" FM_QUOTE_HOMES="$QHOME" LAVISH_AXI_STATE_DIR="$TMP_ROOT/no-lavish" "$ROOT/bin/fm-quote-check.sh" refresh >/dev/null 2>&1 \
+    || fail "the source could not be rebuilt"
+  out=$(qchecks run "$record" --head "$wt" --cache "$cache"); rc=$?
+  expect_code 0 "$rc" "a rebuilt source holding the quoted words did not rerun the cached refusal: $out"
+  seed_captain_words
+  HOME="$QFAKE" FM_HOME="$QHOME" FM_QUOTE_HOMES="$QHOME" LAVISH_AXI_STATE_DIR="$TMP_ROOT/no-lavish" "$ROOT/bin/fm-quote-check.sh" refresh >/dev/null 2>&1 \
+    || fail "the source could not be rebuilt"
 
   printf '%s\n' "$REAL_PAGE" > "$wt/site/board.html"
   printf 'Your transcript said "long, then short, then back to long".\n' > "$wt/NOTES.md"
@@ -406,7 +423,7 @@ test_run_standing_check_reads_the_pages_a_ship_changed() {
   out=$(qchecks run "$dir/nobase.json" --head "$wt"); rc=$?
   expect_code 1 "$rc" "a base that cannot be found passed"
   assert_contains "$out" "the base no-such-branch the ship branched from cannot be found" "the missing base was not named"
-  pass "run: the standing check fails an invented quote on a changed page and passes accurate quotes, pages that quote nobody, non-page files, and untouched pages"
+  pass "run: the standing check fails an invented quote on a changed page, caches that refusal until the page or the source changes, and passes accurate quotes, pages that quote nobody, non-page files, and untouched pages"
 }
 
 # A scout's quotes check without a target reads every page in its data directory.

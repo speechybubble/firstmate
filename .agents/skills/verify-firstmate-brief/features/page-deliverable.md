@@ -5,6 +5,7 @@
 `--deliverable page` marks a ship brief as a page deliverable, ahead of the Task slots and outside every slot.
 It tells the worker what drive evidence the ready `done:` line carries, and records one `page` line in the home's skill-fire log.
 A scout refuses the flag, and so does any value other than `page`, without writing a brief or a fire.
+`--client-facing`, only beside `--deliverable page`, adds a second marker for a page that addresses a client's visitors: the brief drops the standing quote-check instruction, and spawn admits no standing check for it.
 
 ## How to get to it (user POV)
 
@@ -38,9 +39,14 @@ expect_refused() {
 }
 expect_refused page-scout fixture --scout --deliverable page
 expect_refused page-site fixture --mode direct-PR --deliverable site
+expect_refused page-client-bare fixture --mode direct-PR --client-facing
+"$BRIEF_REPO/bin/fm-brief.sh" page-client fixture --mode direct-PR --deliverable page --client-facing > "$BRIEF_PROOF/page-client.out"
+sed -n '/^# Task$/,/^## Captain/p' "$FM_HOME/data/page-client/brief.md" > "$BRIEF_PROOF/page-client-task-head.txt"
+grep -Fx '<!-- fm-brief: client-facing -->' "$BRIEF_PROOF/page-client-task-head.txt"
+! grep -F 'standing check, whatever' "$BRIEF_PROOF/page-client-task-head.txt"
 ```
 
-Expected state is one marked page brief whose instruction sits before `## Captain's intent`, exactly one five-field `page` fire naming that brief, and two refusals that left neither a brief nor a fire.
+Expected state is one marked page brief whose instruction sits before `## Captain's intent`, exactly one five-field `page` fire naming that brief, a client-facing page brief carrying both markers and no standing quote-check instruction, and three refusals that left neither a brief nor a fire.
 
 ## Gotchas
 

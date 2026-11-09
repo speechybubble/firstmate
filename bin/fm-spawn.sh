@@ -4043,7 +4043,8 @@ fi
 }
 # A ship brief's declared deliverable (bin/fm-brief.sh --deliverable), recorded
 # as deliverable= for bin/fm-dod-lib.sh's done-time page-evidence check; a page
-# also carries bin/fm-checks.sh's standing page checks, admitted below.
+# also carries bin/fm-checks.sh's standing page checks, admitted below, unless
+# its brief declares it client-facing.
 DELIVERABLE=
 [ "$KIND" != ship ] || DELIVERABLE=$(fm_brief_deliverable "$BRIEF")
 # The admitted intake-check count and record digest; set below for a ship or
@@ -4078,20 +4079,23 @@ if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
   # an exempt slot, or a brief scaffolded before the slot existed, launches
   # with none of them. Each verdict is one skill fire (one per check, and one
   # for a malformed slot), the measure of how often written checks fail
-  # validation and how often a task is exempted. A page deliverable also
-  # carries the standing page checks, Firstmate-written or not, so its record
-  # exists even when its slot is exempt or absent; checks= counts both kinds.
+  # validation and how often a task is exempted. A page deliverable not
+  # declared client-facing also carries the standing page checks, which
+  # Firstmate never writes, so its record exists even when its slot is exempt
+  # or absent; checks= counts both kinds.
   # Admission happens once, at
   # the fresh spawn: a relaunch keeps the recorded checks=, checks_sha=, and
   # record rather than re-admitting a brief that may have changed since, and a
   # promotion, which drops checks= and checks_sha=, leaves a promoted ship ungated by its scout's checks.
   CHECKS_RC=0
   CHECKS_PAGE_ARGS=()
-  [ "$DELIVERABLE" != page ] || CHECKS_PAGE_ARGS=(--deliverable page)
-  [ "$DELIVERABLE" != page ] || [ -z "$BASE_BRANCH" ] || CHECKS_PAGE_ARGS+=(--base "$BASE_BRANCH")
+  if [ "$DELIVERABLE" = page ] && ! fm_brief_client_facing_page "$BRIEF"; then
+    CHECKS_PAGE_ARGS=(--deliverable page)
+    [ -z "$BASE_BRANCH" ] || CHECKS_PAGE_ARGS+=(--base "$BASE_BRANCH")
+  fi
   if [ "$RELAUNCH" -eq 1 ]; then
     :
-  elif rm -f -- "$STATE/$ID.checks-result" && { fm_brief_task_heading_present "$BRIEF" "## Checks" || [ "$DELIVERABLE" = page ]; }; then
+  elif rm -f -- "$STATE/$ID.checks-result" && { fm_brief_task_heading_present "$BRIEF" "## Checks" || [ "${#CHECKS_PAGE_ARGS[@]}" -gt 0 ]; }; then
     CHECKS_OUT=$("$SCRIPT_DIR/fm-checks.sh" validate "$BRIEF" --kind "$KIND" --root "$DATA/$ID" --admit "$STATE/$ID.checks.json" ${CHECKS_PAGE_ARGS[@]+"${CHECKS_PAGE_ARGS[@]}"} 2>&1) || CHECKS_RC=$?
     while IFS= read -r CHECKS_LINE; do
       case "$CHECKS_LINE" in

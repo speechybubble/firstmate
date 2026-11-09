@@ -1506,7 +1506,7 @@ An ellipsis that leaves nothing out between parts, such as one the captain typed
 The source it reads is `data/captain-words/source.json` in the active home, built from the Claude Code transcripts of the root home and every local secondmate home in its `data/secondmates.md`, plus the notes typed into Lavish review pages inside those homes.
 A secondmate home resolves its local parent as the root, so a check run there covers the same homes.
 `check` rebuilds the source first when it's missing or more than a day old, and rebuilds it once more when a quote misses in a source built more than ten minutes earlier, so words the captain typed since the last build count.
-`bin/fm-quote-check.sh refresh` rebuilds it on demand; a nightly run from the machine's own scheduler keeps it warm, though freshness never depends on one.
+`bin/fm-quote-check.sh refresh` rebuilds it on demand, and `ensure` rebuilds it only when it's missing or more than a day old, then prints its build stamp; a nightly run from the machine's own scheduler keeps it warm, though freshness never depends on one.
 The source holds private conversation text, so it's written with owner-only permissions, never committed, and never printed; `status` reports only its build time and counts.
 `bin/fm-quote-check.py`'s header owns what counts as the captain's typed words, each marker, and the match rule; the wrapper's header owns the homes, the location, and freshness.
 
@@ -1531,6 +1531,8 @@ Every `done:` of that task is then refused while a check fails on the deliverabl
 `state/<id>.checks-result` caches the last result for an unchanged deliverable, a relaunch keeps the admission recorded at spawn, a promotion drops it, and cleanup removes both files.
 A ship declared a page deliverable also carries a standing quote check that Firstmate never writes: spawn admits it whatever the slot holds, exempt or absent included, and counts it in `checks=`.
 Every done of that ship is then refused while a page (`.html`, `.htm` or `.xhtml`) its branch changed presents as the captain's words, after a cue such as "you said" or "your words", anything the captain never typed, checked with the [captain quote check](#captain-quote-check-datacaptain-wordssourcejson)'s `typed` marker.
+Before running it, the gate brings the source up to date with `ensure` under its own longer bound, and the cached result is keyed on the source's build stamp, so a refused done reruns the check only when a page or the source changes.
+A page that addresses a client's visitors rather than the captain is declared at intake with `bin/fm-brief.sh --deliverable page --client-facing`: it keeps the drive evidence rule but carries no standing quote check, since its copy is never the captain's words.
 Other briefs scaffolded before the slot existed, and other exempt briefs, launch without `checks=` and are unchanged.
 [`bin/fm-checks.sh --help`](../bin/fm-checks.sh) owns the check format, the closed set of check types, and validation, and `bin/fm-dod-lib.sh`'s `fm_dod_task_checks_reason` owns the done-time gate.
 
