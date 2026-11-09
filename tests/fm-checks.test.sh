@@ -426,6 +426,49 @@ test_run_standing_check_reads_the_pages_a_ship_changed() {
   pass "run: the standing check fails an invented quote on a changed page, caches that refusal until the page or the source changes, and passes accurate quotes, pages that quote nobody, non-page files, and untouched pages"
 }
 
+# Words the captain typed after the source was built are refused once, while
+# the source is minutes old; once the source is old enough that a miss
+# rebuilds it, the cached refusal is not replayed, so the gate's next run
+# rebuilds the source and passes the genuine quote.
+test_run_cached_refusal_reruns_once_a_miss_would_rebuild_the_source() {
+  local dir="$TMP_ROOT/quotes-late" origin wt brief record cache out rc
+  origin="$dir/origin"
+  wt="$dir/wt"
+  brief="$dir/brief.md"
+  record="$dir/record.json"
+  cache="$dir/result"
+  seed_captain_words
+  HOME="$QFAKE" FM_HOME="$QHOME" FM_QUOTE_HOMES="$QHOME" LAVISH_AXI_STATE_DIR="$TMP_ROOT/no-lavish" "$ROOT/bin/fm-quote-check.sh" refresh >/dev/null 2>&1 \
+    || fail "the source could not be built"
+  git init -q -b main "$origin"
+  printf 'base\n' > "$origin/README"
+  git -C "$origin" add README
+  git -C "$origin" commit -q -m base
+  git clone -q "$origin" "$wt"
+  git -C "$wt" checkout -q -b fm/late
+  write_checks_brief "$brief" 'routine: no checks - a page'
+  validate "$brief" ship --admit "$record" --deliverable page >/dev/null || fail "the standing record was not admitted"
+  printf '%s\n' '{"type":"user","uuid":"u8","timestamp":"2026-10-21T01:00:00Z","isSidechain":false,"origin":{"kind":"human"},"promptSource":"typed","message":{"role":"user","content":"the footer feels cramped on mobile"}}' \
+    >> "$QFAKE/.claude/projects/$(printf '%s' "$QHOME" | tr '/.' '--')/s.jsonl"
+  printf '%s\n' '<!doctype html><html><body><p>You said &ldquo;the footer feels cramped on mobile&rdquo;. Fixed.</p></body></html>' > "$wt/board.html"
+  git -C "$wt" add -A
+  git -C "$wt" commit -q -m 'board quoting words typed after the build'
+  out=$(qchecks run "$record" --head "$wt" --cache "$cache"); rc=$?
+  expect_code 1 "$rc" "words typed after a build minutes old were not refused, so this test proves nothing: $out"
+  out=$(qchecks run "$record" --head "$wt" --cache "$cache"); rc=$?
+  expect_code 1 "$rc" "the cached refusal was not replayed while the source is minutes old: $out"
+  # Twenty minutes pass: a date shim moves the clock on, leaving the source's
+  # build stamp (its modification time) as the heartbeat would find it.
+  mkdir -p "$dir/later"
+  printf '#!/usr/bin/env bash\nif [ "$*" = +%%s ]; then echo $(( $(%s +%%s) + 1200 )); else exec %s "$@"; fi\n' "$(command -v date)" "$(command -v date)" > "$dir/later/date"
+  chmod +x "$dir/later/date"
+  out=$(PATH="$dir/later:$PATH" qchecks run "$record" --head "$wt" --cache "$cache"); rc=$?
+  expect_code 0 "$rc" "a cached refusal was replayed after the source aged past the miss window: $out"
+  out=$(PATH="$dir/later:$PATH" qchecks run "$record" --head "$wt" --cache "$cache"); rc=$?
+  expect_code 0 "$rc" "the genuine quote did not keep passing after the rebuild: $out"
+  pass "run: a cached quote refusal reruns once a miss would rebuild the source, so words the captain typed since the build pass"
+}
+
 # A scout's quotes check without a target reads every page in its data directory.
 test_run_quotes_check_reads_a_scout_directory() {
   local dir="$TMP_ROOT/quotes-scout" data brief record out rc
@@ -485,5 +528,6 @@ fm_test_run \
   test_validate_admits_the_standing_page_check \
   test_validate_runs_a_written_quotes_check_on_its_examples \
   test_run_standing_check_reads_the_pages_a_ship_changed \
+  test_run_cached_refusal_reruns_once_a_miss_would_rebuild_the_source \
   test_run_quotes_check_reads_a_scout_directory \
   test_drive_results_reads_only_assertion_results

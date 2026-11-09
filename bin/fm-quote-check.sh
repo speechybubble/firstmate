@@ -30,9 +30,14 @@
 #          check's rebuild on a miss.
 # ensure   Rebuild the source when it is missing or older than the default
 #          --max-age, as check would, then print its build stamp (the source
-#          file's modification time in nanoseconds), which changes whenever
-#          the source is rebuilt. bin/fm-checks.sh runs it outside its check
-#          bound and keys its cached result on the stamp.
+#          file's modification time in nanoseconds, followed by miss-refresh
+#          once the source is older than MISS_REFRESH_MINUTES and a miss
+#          would rebuild it), which changes whenever the source is rebuilt or
+#          a check's result could change without a rebuild by ensure.
+#          bin/fm-checks.sh runs it outside its check bound and keys its
+#          cached result on the stamp, so a refusal cached against a source
+#          minutes old reruns, and rebuilds the source, once it ages past
+#          the miss window.
 # status   Print the source's build time, message counts per channel and home,
 #          and whether it is older than the default --max-age.
 #
@@ -160,7 +165,9 @@ case "$cmd" in
   ensure)
     [ $# -eq 0 ] || usage
     fresh "$SOURCE_DEFAULT" $((MAX_AGE_DEFAULT * 3600)) || refresh "$SOURCE_DEFAULT" >&2
-    python3 -I -c 'import os, sys; print(os.stat(sys.argv[1]).st_mtime_ns)' "$SOURCE_DEFAULT"
+    stamp=$(python3 -I -c 'import os, sys; print(os.stat(sys.argv[1]).st_mtime_ns)' "$SOURCE_DEFAULT")
+    fresh "$SOURCE_DEFAULT" $((MISS_REFRESH_MINUTES * 60)) || stamp="$stamp miss-refresh"
+    printf '%s\n' "$stamp"
     ;;
   status)
     [ $# -eq 0 ] || usage

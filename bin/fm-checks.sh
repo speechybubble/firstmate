@@ -56,7 +56,8 @@
 #                 the source, so run first brings the source up to date under
 #                 its own longer bound and keys its cache on the source's
 #                 build stamp (bin/fm-quote-check.sh ensure): a result reruns
-#                 when a page or the source changes, and a run where a quotes
+#                 when a page or the source changes, or when the source ages
+#                 past the window after which a miss rebuilds it, and a run where a quotes
 #                 check could not run or finish is never cached.
 # Unknown fields are refused, so a misspelled field is never silently ignored.
 # Ids starting with standing- are reserved for the standing checks below.
