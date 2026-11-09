@@ -822,6 +822,44 @@ test_task_checks_gate_every_done() {
   pass "intake checks: every ship and scout done is refused while a check fails on the deliverable, history reads and unchecked tasks are not gated, and a missing record refuses"
 }
 
+# A page deliverable carries the standing quote check without Firstmate writing
+# it: its done is refused while a page the branch changed puts words in the
+# captain's mouth they never typed, and accepted once the quote is exact.
+test_page_deliverable_done_runs_the_standing_quote_check() {
+  local repo wt state meta brief qhome qfake tdir reason rc pr='PR https://example.test/o/r/pull/9'
+  repo="$TMP_ROOT/quotes-repo"
+  wt="$TMP_ROOT/quotes-wt"
+  state="$TMP_ROOT/quotes-state"
+  qhome="$TMP_ROOT/quotes-home"
+  qfake="$TMP_ROOT/quotes-fake"
+  tdir="$qfake/.claude/projects/$(printf '%s' "$qhome" | tr '/.' '--')"
+  mkdir -p "$state" "$qhome/data" "$tdir"
+  printf '%s\n' '{"type":"user","uuid":"u1","timestamp":"2026-10-14T00:42:01Z","isSidechain":false,"origin":{"kind":"human"},"promptSource":"typed","message":{"role":"user","content":"I probably have a long sentence, then a short one. And then I go back to long sentences"}}' > "$tdir/s.jsonl"
+  fm_git_worktree "$repo" "$wt" fm/board
+  printf '<!doctype html><html><body><p>Your transcript said &lsquo;long, then short, then back to long&rsquo;.</p></body></html>\n' > "$wt/index.html"
+  git -C "$wt" add index.html
+  git -C "$wt" commit -q -m 'board'
+  git -C "$wt" update-ref refs/remotes/origin/fm/board "$(git -C "$wt" rev-parse HEAD)"
+  brief="$state/qp.brief.md"
+  printf '# Task\n## Checks\nroutine: no checks - a board for the captain\n' > "$brief"
+  "$ROOT/bin/fm-checks.sh" validate "$brief" --kind ship --admit "$state/qp.checks.json" --deliverable page >/dev/null \
+    || fail "the standing page check was not admitted"
+  meta="$state/qp.meta"
+  printf '%s\n' kind=ship mode=direct-PR deliverable=page checks=1 "checks_sha=$(sha256sum "$state/qp.checks.json" | awk '{print $1}')" > "$meta"
+  printf 'board-renders\tpass\n' > "$state/drive.tsv"
+
+  reason=$(HOME="$qfake" FM_HOME="$qhome" FM_QUOTE_HOMES="$qhome" accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$state/drive.tsv" "$state" qp "$meta"); rc=$?
+  expect_code 1 "$rc" "a page deliverable whose board invents a captain quote reached done"
+  assert_contains "$reason" "$FM_DOD_CHECKS_REFUSAL_PREFIX standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: \"long, then short, then back to long\"" "the refusal did not name the invented quote"
+
+  printf '<!doctype html><html><body><p>Your words: &ldquo;I probably have a long sentence, then a short one&rdquo;.</p></body></html>\n' > "$wt/index.html"
+  git -C "$wt" commit -q -am 'exact quote'
+  git -C "$wt" update-ref refs/remotes/origin/fm/board "$(git -C "$wt" rev-parse HEAD)"
+  HOME="$qfake" FM_HOME="$qhome" FM_QUOTE_HOMES="$qhome" accept_done ship direct-PR "$wt" "$repo" "done [at=1]: $pr drive=$state/drive.tsv" "$state" qp "$meta" \
+    || fail "a page deliverable that quotes the captain exactly was refused"
+  pass "page deliverable done: the standing quote check refuses an invented captain quote and accepts an exact one"
+}
+
 # The skill-fire log is created on first write, appends tab-separated lines with
 # their own fields kept whole, and a once write never repeats an identical fire.
 test_skill_fire_append_writes_the_log() {
@@ -841,6 +879,7 @@ test_skill_fire_append_writes_the_log() {
 
 test_page_deliverable_done_needs_drive_evidence
 test_task_checks_gate_every_done
+test_page_deliverable_done_runs_the_standing_quote_check
 test_skill_fire_append_writes_the_log
 
 test_external_forge_is_direct_pr_only

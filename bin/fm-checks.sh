@@ -7,6 +7,7 @@
 #
 # Usage:
 #   fm-checks.sh validate <brief> --kind <ship|scout> [--root <dir>] [--admit <file>]
+#                         [--deliverable page [--base <branch>]]
 #   fm-checks.sh run <admitted-file> (--head <worktree> | --dir <dir>) [--drive <file>] [--cache <file>]
 #   fm-checks.sh drive-results <file>
 #   fm-checks.sh --help
@@ -41,7 +42,21 @@
 #                 key_field column is key has equals in column field
 #   assertions    assertions (array of assertion ids): passes when the drive
 #                 results file holds every named assertion with pass
+#   quotes        optional markers (an array of bin/fm-quote-check.sh markers,
+#                 default ["typed"]) and optional base (a branch name): passes
+#                 when every quote the page presents as the captain's words is
+#                 verbatim in what the captain typed; bin/fm-quote-check.sh
+#                 owns that source, its freshness, each marker, and the match.
+#                 A quotes check may omit target: a ship's then reads every
+#                 page (.html, .htm, .xhtml) its branch changed since it left
+#                 base (origin/<base>, else <base>; without base, origin's
+#                 default branch, else main or master), and a scout's every
+#                 page under its data directory. No page to read passes, and a
+#                 base that cannot be found fails. Its verdict depends on a
+#                 source that grows, so a run where a quotes check failed is
+#                 never cached.
 # Unknown fields are refused, so a misspelled field is never silently ignored.
+# Ids starting with standing- are reserved for the standing checks below.
 #
 # validate reads the brief's `## Checks` slot and runs every check against its
 # own good and bad examples, with no deliverable involved. A check is admitted
@@ -57,6 +72,18 @@
 # atomically to <file> on success and removes <file> on exemption, so a stale
 # record never outlives the brief that replaced it. bin/fm-spawn.sh is the
 # caller that refuses a launch on exit 1 and admits into state/<id>.checks.json.
+#
+# --deliverable page appends the standing checks every page deliverable
+# carries, which Firstmate never writes per task, to the admitted record: one
+# today, standing-captain-quotes, a target-less quotes check with the typed
+# marker, so a page that presents as the captain's words anything the
+# captain never typed is refused at done. --base records the ship's base
+# branch in it. Standing checks have no examples to validate, since their
+# behavior is this script's own, and they are admitted whatever the slot
+# holds: beside admitted checks, with an exempt slot, and with no slot at all,
+# which without --deliverable is invalid. Each prints one `standing <id>`
+# line, before the summary or after the exemption line. bin/fm-spawn.sh
+# passes it for a ship brief declared a page deliverable.
 #
 # run executes an admitted record on the deliverable: with --head the target is
 # read from the committed HEAD of that worktree (a ship's done claims committed
@@ -89,6 +116,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 FM_CHECKS_COMMAND_TIMEOUT=60
 FM_CHECKS_EXEMPTION='routine: no checks'
+# The standing checks validate --deliverable page appends (see --help).
+FM_CHECKS_STANDING_PAGE='[{"id": "standing-captain-quotes", "source": "standing check on every page deliverable: words a page presents as the captain'"'"'s must be words the captain typed (bin/fm-checks.sh)", "type": "quotes", "markers": ["typed"]}]'
 
 usage() {
   sed -n '2,/^set -u$/p' "${BASH_SOURCE[0]}" | sed '$d' | sed 's/^# \{0,1\}//'
@@ -165,13 +194,51 @@ drive_results_problem() {  # <file> [<want>]
   ' "$file"
 }
 
+# Run a quotes check on <target>: a materialized page, or a directory holding
+# the materialized pages at their relative paths. Same contract as run_check.
+run_quotes_check() {  # <check-json> <target>
+  local check=$1 target=$2 dir rc out flagged marker margs=() pages=()
+  while IFS= read -r marker; do
+    margs+=(--marker "$marker")
+  done < <(jq -r '(.markers // ["typed"])[]' <<<"$check")
+  if [ -d "$target" ]; then
+    dir=$target
+    while IFS= read -r -d '' marker; do
+      pages+=("${marker#./}")
+    done < <(cd "$dir" && find . -type f -print0 | LC_ALL=C sort -z)
+  else
+    dir=$(dirname -- "$target")
+    pages=("$(basename -- "$target")")
+  fi
+  [ "${#pages[@]}" -gt 0 ] || return 0
+  out=$(fm_nm_bounded "$dir" "$FM_CHECKS_COMMAND_TIMEOUT" "$SCRIPT_DIR/fm-quote-check.sh" check "${pages[@]}" "${margs[@]}" </dev/null 2>&1)
+  rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    1)
+      flagged=$(printf '%s\n' "$out" | grep -E '^(misquote|verbatim with omissions): ')
+      echo "$(printf '%s\n' "$flagged" | grep -c .) quote(s) presented as the captain's words are not what the captain typed: $(one_line "$(printf '%s\n' "$flagged" | paste -s -d ';' - | sed 's/;/; /g')")"
+      return 1 ;;
+    124)
+      echo "the quote check did not finish within ${FM_CHECKS_COMMAND_TIMEOUT}s"
+      return 1 ;;
+  esac
+  echo "the quote check could not run (exit $rc)${out:+: $(one_line "$(printf '%s\n' "$out" | tail -n 1)")}"
+  return 2
+}
+
 # Run one check (compact JSON) on <target>, a materialized file or, for an
-# assertions check, the drive results path (possibly empty). Prints the reason
-# on failure. Exit 0 pass, 1 fail, 2 the check itself cannot run.
+# assertions check, the drive results path (possibly empty), or for a quotes
+# check a directory of materialized pages. Prints the reason on failure.
+# Exit 0 pass, 1 fail, 2 the check itself cannot run.
 run_check() {  # <check-json> <target>
   local check=$1 target=$2 type pattern rc out run path equals key field key_field want work
   type=$(jq -r '.type' <<<"$check")
   case "$type" in
+    quotes)
+      run_quotes_check "$check" "$target"
+      return
+      ;;
     contains|not-contains)
       pattern=$(jq -r '.pattern' <<<"$check")
       out=$(grep -E -m 1 -e "$pattern" -- "$target" 2>/dev/null)
@@ -260,8 +327,8 @@ schema_lines() {  # <kind> <array-json-file>
     def need($t):
       {"contains": ["pattern"], "not-contains": ["pattern"], "command": ["run"],
        "json-field": ["path", "equals"], "tsv-field": ["key", "field", "equals"],
-       "assertions": ["assertions"]}[$t];
-    def may($t): need($t) + (if $t == "tsv-field" then ["key_field"] else [] end);
+       "assertions": ["assertions"], "quotes": []}[$t];
+    def may($t): need($t) + (if $t == "tsv-field" then ["key_field"] elif $t == "quotes" then ["markers", "base"] else [] end);
     def common: ["id", "source", "type", "target", "good", "good_file", "bad", "bad_file"];
     def nonempty: type == "string" and test("\\S");
     def problems($c):
@@ -269,10 +336,11 @@ schema_lines() {  # <kind> <array-json-file>
       else
         ($c.type // "") as $t
         | [
-          (if ($c.id | type) == "string" and ($c.id | test("^[a-z0-9][a-z0-9-]*$")) then empty
+          (if ($c.id | type) == "string" and ($c.id | test("^[a-z0-9][a-z0-9-]*$")) then
+             (if $c.id | startswith("standing-") then "id \($c.id) is reserved: ids starting with standing- name standing checks" else empty end)
            else "id must be lowercase letters, digits, and dashes" end),
           (if ($c.source | nonempty) then empty else "source must name the words or rule the check comes from" end),
-          (if need($t) == null then "type must be one of contains, not-contains, command, json-field, tsv-field, assertions"
+          (if need($t) == null then "type must be one of contains, not-contains, command, json-field, tsv-field, assertions, quotes"
            else
              (($c | keys) - common - may($t) | if length > 0 then "unknown field \(join(", "))" else empty end),
              (need($t)[] as $f | if $c | has($f) then empty else "type \($t) needs \($f)" end),
@@ -285,7 +353,14 @@ schema_lines() {  # <kind> <array-json-file>
                 (if ($c.target | nonempty) and ($c.target | startswith("/") | not)
                     and ($c.target | split("/") | index("..") == null)
                  then empty else "target must be a relative path without .." end)
-              elif $kind == "ship" then "a ship check needs a target path in the committed tree"
+              elif $kind == "ship" and $t != "quotes" then "a ship check needs a target path in the committed tree"
+              else empty end),
+             (if $t == "quotes" then
+                (if ($c | has("markers") | not) or (($c.markers | type) == "array" and ($c.markers | length) > 0
+                    and all($c.markers[]; type == "string" and test("^\\S") and (test("\n") | not)))
+                 then empty else "markers must be a non-empty array of quote-check markers" end),
+                (if ($c | has("base") | not) or (($c.base | type) == "string" and ($c.base | test("^[^\\s]+$")))
+                 then empty else "base must be a branch name" end)
               else empty end),
              (if $t == "contains" or $t == "not-contains" then (if ($c.pattern | nonempty) then empty else "pattern must be a non-empty string" end) else empty end),
              (if $t == "command" then (if ($c.run | nonempty) then empty else "run must be a non-empty string" end) else empty end),
@@ -352,9 +427,29 @@ materialize_example() {  # <check-json> <good|bad> <out-file>
   cp -- "$file" "$out"
 }
 
+# Write the admitted record <checks-json> to <admit> atomically, or remove
+# <admit> when <checks-json> is empty. Prints the problem and returns 1 when
+# it cannot be written.
+write_admitted() {  # <admit> <kind> <root> <checks-json>
+  local admit=$1 kind=$2 root=$3 checks=$4 tmp
+  [ -n "$admit" ] || return 0
+  if [ "$(jq 'length' <<<"$checks")" -eq 0 ]; then
+    rm -f -- "$admit"
+    return 0
+  fi
+  tmp="$admit.tmp.$$"
+  if ! jq -n --arg kind "$kind" --arg root "$root" --argjson checks "$checks" \
+    '{version: 1, kind: $kind, checks: $checks} + (if $kind == "scout" then {root: $root} else {} end)' > "$tmp" \
+    || ! mv -f -- "$tmp" "$admit"; then
+    rm -f -- "$tmp"
+    echo "invalid: the admitted checks could not be written to $admit"
+    return 1
+  fi
+}
+
 cmd_validate() {
-  local brief='' kind='' root='' admit='' body block tmp array lines line tag idx label why check id
-  local admitted=0 invalid=0 out rc good bad admitted_json='[]'
+  local brief='' kind='' root='' admit='' deliverable='' base='' body block array lines line tag idx label why check id
+  local admitted=0 invalid=0 out rc good bad admitted_json='[]' standing_json='[]'
   [ "$#" -gt 0 ] || die_usage "validate needs a brief"
   brief=$1
   shift
@@ -363,14 +458,26 @@ cmd_validate() {
       --kind) [ "$#" -ge 2 ] || die_usage "--kind needs a value"; kind=$2; shift 2 ;;
       --root) [ "$#" -ge 2 ] || die_usage "--root needs a value"; root=$2; shift 2 ;;
       --admit) [ "$#" -ge 2 ] || die_usage "--admit needs a file"; admit=$2; shift 2 ;;
+      --deliverable) [ "$#" -ge 2 ] || die_usage "--deliverable needs a value"; deliverable=$2; shift 2 ;;
+      --base) [ "$#" -ge 2 ] || die_usage "--base needs a branch"; base=$2; shift 2 ;;
       *) die_usage "unknown validate argument $1" ;;
     esac
   done
   case "$kind" in ship|scout) ;; *) die_usage "--kind must be ship or scout" ;; esac
+  case "$deliverable" in
+    '') [ -z "$base" ] || die_usage "--base applies only with --deliverable page" ;;
+    page) standing_json=$(jq -c --arg base "$base" 'map(if $base != "" then .base = $base else . end)' <<<"$FM_CHECKS_STANDING_PAGE") ;;
+    *) die_usage "--deliverable must be page" ;;
+  esac
   [ -f "$brief" ] && [ -r "$brief" ] || die_usage "brief $brief is not a readable file"
   if ! fm_brief_task_heading_present "$brief" "## Checks"; then
-    echo "invalid: $brief has no ## Checks subsection"
-    return 1
+    if [ -z "$deliverable" ]; then
+      echo "invalid: $brief has no ## Checks subsection"
+      return 1
+    fi
+    write_admitted "$admit" "$kind" "$root" "$standing_json" || return 1
+    jq -r '.[] | "standing \(.id)"' <<<"$standing_json"
+    return 0
   fi
   body=$(fm_brief_task_heading_body "$brief" "## Checks")
   if printf '%s\n' "$body" | grep -q "^[[:space:]]*$FM_CHECKS_EXEMPTION"; then
@@ -380,8 +487,9 @@ cmd_validate() {
       echo "invalid: ## Checks must be exactly one line \`$FM_CHECKS_EXEMPTION - <reason>\` when it is exempt"
       return 1
     fi
-    [ -z "$admit" ] || rm -f -- "$admit"
+    write_admitted "$admit" "$kind" "$root" "$standing_json" || return 1
     echo "exempt: $why"
+    jq -r '.[] | "standing \(.id)"' <<<"$standing_json"
     return 0
   fi
   block=$(checks_json_block "$body")
@@ -418,8 +526,9 @@ cmd_validate() {
     id=$line
     check=$(jq -c --argjson i "$idx" --arg kind "$kind" '
       .[$i]
-      | if .type != "assertions" and (has("target") | not) and $kind == "scout" then .target = "report.md" else . end
+      | if .type != "assertions" and .type != "quotes" and (has("target") | not) and $kind == "scout" then .target = "report.md" else . end
       | if .type == "tsv-field" and (has("key_field") | not) then .key_field = 1 else . end
+      | if .type == "quotes" and (has("markers") | not) then .markers = ["typed"] else . end
     ' "$array")
     good="$SCRATCH/$idx.good"
     bad="$SCRATCH/$idx.bad"
@@ -458,28 +567,66 @@ cmd_validate() {
   done <<EOF
 $lines
 EOF
+  [ "$invalid" -ne 0 ] || jq -r '.[] | "standing \(.id)"' <<<"$standing_json"
   echo "checks: $admitted admitted, $invalid invalid"
   [ "$invalid" -eq 0 ] || return 1
-  if [ -n "$admit" ]; then
-    tmp="$admit.tmp.$$"
-    if ! jq -n --arg kind "$kind" --arg root "$root" --argjson checks "$admitted_json" \
-      '{version: 1, kind: $kind, checks: $checks} + (if $kind == "scout" then {root: $root} else {} end)' > "$tmp" \
-      || ! mv -f -- "$tmp" "$admit"; then
-      rm -f -- "$tmp"
-      echo "invalid: the admitted checks could not be written to $admit"
-      return 1
-    fi
-  fi
-  return 0
+  write_admitted "$admit" "$kind" "$root" "$(jq -c --argjson s "$standing_json" '. + $s' <<<"$admitted_json")"
 }
 
 hash_file() {  # <file>
   git hash-object --no-filters -- "$1" 2>/dev/null || echo missing
 }
 
+# The first ref a ship's quotes check finds its base at in <worktree>, or
+# nothing: origin/<base> then <base>, or without a base origin's default
+# branch, then main, then master.
+quotes_base_ref() {  # <worktree> <base>
+  local wt=$1 base=$2 ref
+  if [ -n "$base" ]; then
+    set -- "refs/remotes/origin/$base" "refs/heads/$base"
+  else
+    set -- refs/remotes/origin/HEAD refs/heads/main refs/heads/master
+  fi
+  for ref in "$@"; do
+    if git -C "$wt" rev-parse --verify --quiet "$ref^{commit}" >/dev/null 2>&1; then
+      printf '%s\n' "$ref"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Materialize the pages a target-less quotes check reads into the directory
+# <out>, at their relative paths: with <worktree>, every page its committed
+# HEAD changed since it left <base>; with <dir>, every page file under it.
+# Prints the reason and returns 1 when the base cannot be found.
+quotes_pages() {  # <out> <worktree> <dir> <base>
+  local out=$1 wt=$2 dir=$3 base=$4 ref mb rel
+  mkdir -p -- "$out" || return 1
+  if [ -n "$wt" ]; then
+    if ! ref=$(quotes_base_ref "$wt" "$base") || ! mb=$(git -C "$wt" merge-base HEAD "$ref" 2>/dev/null); then
+      [ -n "$base" ] || base="origin's default branch"
+      echo "the base $base the ship branched from cannot be found, so its changed pages cannot be read"
+      return 1
+    fi
+    while IFS= read -r -d '' rel; do
+      if ! { mkdir -p -- "$out/$(dirname -- "$rel")" && git -C "$wt" show "HEAD:$rel" > "$out/$rel" 2>/dev/null; }; then
+        rm -f -- "$out/$rel"
+      fi
+    done < <(git -C "$wt" -c core.quotePath=false diff --name-only -z --no-renames --diff-filter=d "$mb" HEAD -- '*.html' '*.htm' '*.xhtml')
+  else
+    while IFS= read -r -d '' rel; do
+      rel=${rel#./}
+      if ! { mkdir -p -- "$out/$(dirname -- "$rel")" && cp -- "$dir/$rel" "$out/$rel" 2>/dev/null; }; then
+        rm -f -- "$out/$rel"
+      fi
+    done < <(cd "$dir" 2>/dev/null && find . -type f \( -name '*.html' -o -name '*.htm' -o -name '*.xhtml' \) -print0)
+  fi
+}
+
 cmd_run() {
   local record='' head='' dir='' drive='' cache='' root n i check id target type path out rc
-  local passed=0 failed=0 result fingerprint
+  local passed=0 failed=0 result fingerprint uncacheable=0 page
   [ "$#" -gt 0 ] || die_usage "run needs an admitted checks file"
   record=$1
   shift
@@ -510,6 +657,17 @@ cmd_run() {
     target="$SCRATCH/target.$i"
     if [ "$type" = assertions ]; then
       [ -z "$drive" ] || hash_file "$drive" >> "$fingerprint"
+    elif [ "$type" = quotes ] && ! jq -e 'has("target")' <<<"$check" >/dev/null; then
+      rm -rf -- "$target"
+      if quotes_pages "$target" "$head" "$dir" "$(jq -r '.base // ""' <<<"$check")" > "$target.why"; then
+        rm -f -- "$target.why"
+        while IFS= read -r -d '' page; do
+          printf '%s %s\n' "$(hash_file "$target/$page")" "$page" >> "$fingerprint"
+        done < <(cd "$target" && find . -type f -print0 | LC_ALL=C sort -z)
+      else
+        rm -rf -- "$target"
+        echo missing >> "$fingerprint"
+      fi
     else
       path=$(jq -r '.target' <<<"$check")
       rm -f -- "$target"
@@ -540,7 +698,10 @@ cmd_run() {
     if [ "$type" = assertions ]; then
       out=$(run_check "$check" "$drive")
       rc=$?
-    elif [ -f "$SCRATCH/target.$i" ]; then
+    elif [ -f "$SCRATCH/target.$i.why" ]; then
+      out=$(cat "$SCRATCH/target.$i.why")
+      rc=1
+    elif [ -f "$SCRATCH/target.$i" ] || [ -d "$SCRATCH/target.$i" ]; then
       out=$(run_check "$check" "$SCRATCH/target.$i")
       rc=$?
     else
@@ -558,13 +719,16 @@ cmd_run() {
     else
       echo "fail $id: $out" >> "$result"
       failed=$((failed + 1))
+      [ "$type" != quotes ] || uncacheable=1
     fi
     i=$((i + 1))
   done
   echo "checks: $passed passed, $failed failed" >> "$result"
   rc=0
   [ "$failed" -eq 0 ] || rc=1
-  if [ -n "$cache" ]; then
+  if [ -n "$cache" ] && [ "$uncacheable" -eq 1 ]; then
+    rm -f -- "$cache"
+  elif [ -n "$cache" ]; then
     if ! { { echo "fingerprint $(hash_file "$fingerprint")"; echo "exit $rc"; cat "$result"; } > "$cache.tmp.$$" 2>/dev/null \
       && mv -f -- "$cache.tmp.$$" "$cache" 2>/dev/null; }; then
       rm -f -- "$cache.tmp.$$"

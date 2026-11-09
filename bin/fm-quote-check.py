@@ -51,7 +51,13 @@ Quotes (check). A marker names how a page marks the captain's words:
   attributed     a quoted span ("...", '...', or curly quotes) that follows a
                  cue attributing it to the captain in the same sentence: "you
                  said", "you wrote", "your words", "your transcript said", "the
-                 captain said", "in your words" and close forms.
+                 captain said", "in your words", "your note" and close forms.
+  typed          the attributed spans whose cue claims words the captain typed
+                 to an agent, so every cue above except the ones naming a note
+                 ("your note", "your notes", "the captain's note"): the source
+                 holds no notes, so a quote of one can't be confirmed or refuted
+                 here and is left out rather than flagged. This is the marker of
+                 the standing check bin/fm-checks.sh runs on page deliverables.
   regex:<re>     each match of <re> in the page's visible text; the group named
                  q, else group 1, else the whole match is the quote.
 
@@ -429,13 +435,15 @@ def unwrap(text):
     return t
 
 
-CUE = re.compile(
+CUE_TYPED = (
     r"\b(?:you|the captain|captain)\s+(?:(?:once|just|also|literally|actually|already)\s+)?"
     r"(?:said|says|wrote|writes|typed|asked|told (?:me|us|firstmate)|put it|replied|answered|noted)\b"
-    r"|\byour (?:own )?(?:words|transcript|note|notes|message|reply|answer|comment)\b"
-    r"|\bthe captain's (?:words|note|message|reply|answer)\b"
-    r"|\bin your (?:own )?words\b",
-    re.I)
+    r"|\byour (?:own )?(?:words|transcript|message|reply|answer|comment)\b"
+    r"|\bthe captain's (?:words|message|reply|answer)\b"
+    r"|\bin your (?:own )?words\b")
+CUE_NOTE = r"|\byour (?:own )?(?:note|notes)\b|\bthe captain's note\b"
+CUE = re.compile(CUE_TYPED + CUE_NOTE, re.I)
+TYPED_CUE = re.compile(CUE_TYPED, re.I)
 # A quoted span: double or curly quotes, or single quotes (straight or curly)
 # that close before a non-letter, the straight ones also opening after a
 # non-letter, so apostrophes inside words are not quote marks.
@@ -447,9 +455,9 @@ QUOTED = re.compile(
 SENTENCE_END = re.compile(r"[.!?]\s|\n")
 
 
-def attributed_quotes(text):
+def attributed_quotes(text, cues=CUE):
     found = []
-    for cue in CUE.finditer(text):
+    for cue in cues.finditer(text):
         tail = text[cue.end():]
         m = QUOTED.search(tail)
         if not m:
@@ -472,8 +480,9 @@ def page_quotes(path, marker):
         _, boxes = read_page(path, marker[6:])
         return [unwrap(b) for b in boxes]
     text, _ = read_page(path, None)
-    if marker == "attributed":
-        return [re.sub(r"\s+", " ", q).strip() for q in attributed_quotes(text)]
+    if marker in ("attributed", "typed"):
+        cues = CUE if marker == "attributed" else TYPED_CUE
+        return [re.sub(r"\s+", " ", q).strip() for q in attributed_quotes(text, cues)]
     if marker.startswith("regex:"):
         try:
             rx = re.compile(marker[6:], re.S)
@@ -491,7 +500,7 @@ def page_quotes(path, marker):
             if q:
                 out.append(re.sub(r"\s+", " ", q).strip())
         return out
-    sys.stderr.write("fm-quote-check: unknown marker %r (use class:<name>, attributed or regex:<re>)\n" % marker)
+    sys.stderr.write("fm-quote-check: unknown marker %r (use class:<name>, attributed, typed or regex:<re>)\n" % marker)
     sys.exit(2)
 
 

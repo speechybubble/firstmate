@@ -13,15 +13,20 @@
 #   fm-quote-check.sh status
 #
 # check    Find each page's quotes of the captain by every --marker given
-#          (default class:verbatim; also attributed and regex:<re>) and look each
-#          one up in the source. Prints every quote that is not verbatim
-#          (misquoted, verbatim with omissions, or skipped) and a one-line
-#          count; --verbose prints the verbatim ones too and the source words
-#          each ellipsis left out, --json prints the full result. Before
-#          checking, the home's source is rebuilt when it is missing or older than --max-age hours (default 24), so it is
-#          never more than a day behind; --source names a fixed source
-#          instead and is never rebuilt.
-# refresh  Rebuild the source now, on demand.
+#          (default class:verbatim; also attributed, typed and regex:<re>) and
+#          look each one up in the source. Prints every quote that is not
+#          verbatim (misquoted, verbatim with omissions, or skipped) and a
+#          one-line count; --verbose prints the verbatim ones too and the
+#          source words each ellipsis left out, --json prints the full result.
+#          Before checking, the home's source is rebuilt when it is missing or
+#          older than --max-age hours (default 24); when a quote is then not
+#          verbatim in a source built more than MISS_REFRESH_MINUTES (10)
+#          minutes ago, the source is rebuilt once more and the check
+#          repeated, so words the captain typed since the last build count.
+#          --source names a fixed source instead and is never rebuilt.
+# refresh  Rebuild the source now, on demand. A nightly run from the machine's
+#          scheduler keeps the source warm, but freshness never depends on it:
+#          check rebuilds a stale source and rebuilds again on a miss.
 # status   Print the source's build time, message counts per channel and home,
 #          and whether it is older than the default --max-age.
 #
@@ -47,6 +52,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_HOME="${FM_HOME:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 SOURCE_DEFAULT="$FM_HOME/data/captain-words/source.json"
 MAX_AGE_DEFAULT=24
+MISS_REFRESH_MINUTES=10
 
 usage() { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' | sed '$d' >&2; exit 2; }
 die() { echo "fm-quote-check: $*" >&2; exit 2; }
@@ -95,13 +101,13 @@ refresh() {  # <out>
     --operational-lib "$SCRIPT_DIR/fm-operational-input.sh" "${args[@]}"
 }
 
-# True when <file> exists and is younger than <hours>.
-fresh() {  # <file> <hours>
+# True when <file> exists and is younger than <seconds>.
+fresh() {  # <file> <seconds>
   local mtime now
   [ -f "$1" ] || return 1
   mtime=$(stat -c %Y "$1" 2>/dev/null || stat -f %m "$1") || return 1
   now=$(date +%s)
-  [ $((now - mtime)) -lt $(($2 * 3600)) ]
+  [ $((now - mtime)) -lt "$2" ]
 }
 
 cmd=${1:-}
@@ -121,11 +127,18 @@ case "$cmd" in
       esac
     done
     case "$max_age" in ''|*[!0-9]*) die "--max-age takes whole hours" ;; esac
-    if [ -z "$source_file" ]; then
-      source_file=$SOURCE_DEFAULT
-      fresh "$source_file" "$max_age" || refresh "$source_file" >&2
+    if [ -n "$source_file" ]; then
+      exec python3 -I "$SCRIPT_DIR/fm-quote-check.py" check --source "$source_file" ${pass[@]+"${pass[@]}"}
     fi
-    exec python3 -I "$SCRIPT_DIR/fm-quote-check.py" check --source "$source_file" ${pass[@]+"${pass[@]}"}
+    source_file=$SOURCE_DEFAULT
+    fresh "$source_file" $((max_age * 3600)) || refresh "$source_file" >&2
+    rc=0
+    out=$(python3 -I "$SCRIPT_DIR/fm-quote-check.py" check --source "$source_file" ${pass[@]+"${pass[@]}"}) || rc=$?
+    if [ "$rc" -eq 1 ] && ! fresh "$source_file" $((MISS_REFRESH_MINUTES * 60)) && refresh "$source_file" >&2; then
+      exec python3 -I "$SCRIPT_DIR/fm-quote-check.py" check --source "$source_file" ${pass[@]+"${pass[@]}"}
+    fi
+    [ -z "$out" ] || printf '%s\n' "$out"
+    exit "$rc"
     ;;
   refresh)
     out=$SOURCE_DEFAULT
@@ -149,7 +162,7 @@ for k, v in sorted(d.get("counts", {}).items()):
     print("  %s: %d" % (k, v))
 print("  Firstmate inputs excluded: %d" % d.get("excluded_operational", 0))
 PY
-    if fresh "$SOURCE_DEFAULT" "$MAX_AGE_DEFAULT"; then echo "fresh: yes"; else echo "fresh: no (older than ${MAX_AGE_DEFAULT}h)"; fi
+    if fresh "$SOURCE_DEFAULT" $((MAX_AGE_DEFAULT * 3600)); then echo "fresh: yes"; else echo "fresh: no (older than ${MAX_AGE_DEFAULT}h)"; fi
     ;;
   -h|--help|"") usage ;;
   *) echo "fm-quote-check: unknown command $cmd" >&2; usage ;;

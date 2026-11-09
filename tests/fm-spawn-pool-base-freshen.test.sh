@@ -1157,8 +1157,9 @@ test_prose_base_branch_line_is_ignored() {
 }
 
 # A ship brief's page marker (bin/fm-brief.sh --deliverable page) is recorded as
-# deliverable=page for the done-time check; the same line quoted inside the
-# captain's intent declares nothing.
+# deliverable=page for the done-time check, with bin/fm-checks.sh's standing
+# page checks admitted although the brief has no ## Checks slot; the same line
+# quoted inside the captain's intent declares nothing.
 test_page_deliverable_marker_is_recorded() {
   local rec id out status
   id='pool-page-marker-r1'
@@ -1179,6 +1180,10 @@ EOF
   status=$?
   expect_code 0 "$status" "a page ship should launch"$'\n'"$out"
   assert_grep 'deliverable=page' "$HOME_DIR/state/$id.meta" "the page marker was not recorded"
+  assert_grep 'checks=1' "$HOME_DIR/state/$id.meta" "the standing page check was not counted"
+  assert_grep "checks_sha=$(sha256sum "$HOME_DIR/state/$id.checks.json" | awk '{print $1}')" "$HOME_DIR/state/$id.meta" "the standing record's digest was not recorded"
+  jq -e '[.checks[].id] == ["standing-captain-quotes"]' "$HOME_DIR/state/$id.checks.json" >/dev/null \
+    || fail "the page ship's admitted record does not hold the standing quote check"
 
   id='pool-page-quoted-r1'
   rec=$(make_case page-quoted "$id")
@@ -1188,7 +1193,9 @@ EOF
   status=$?
   expect_code 0 "$status" "a ship quoting the marker should launch"$'\n'"$out"
   assert_no_grep 'deliverable=' "$HOME_DIR/state/$id.meta" "a marker quoted in the captain's intent declared a page"
-  pass "a ship brief's page marker is recorded as deliverable=page, and a quoted one is not"
+  assert_no_grep 'checks=' "$HOME_DIR/state/$id.meta" "a ship that is not a page carried the standing check"
+  assert_absent "$HOME_DIR/state/$id.checks.json" "a ship that is not a page has an admitted record"
+  pass "a ship brief's page marker is recorded as deliverable=page with the standing quote check, and a quoted one is not"
 }
 
 # A named base is validated against the project's registered forge for scouts

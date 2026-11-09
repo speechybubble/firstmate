@@ -255,6 +255,181 @@ test_run_cache_reruns_only_on_change() {
   pass "run --cache: an unchanged deliverable reuses its result, and a changed target reruns"
 }
 
+# A home whose source of the captain's typed words holds two real messages,
+# and the environment that points the quote check at it.
+QHOME="$TMP_ROOT/qhome"
+QFAKE="$TMP_ROOT/qfake"
+F1_PAGE='<!doctype html><html><body><p>Your transcript said &lsquo;long, then short, then back to long&rsquo;. The opening does that.</p></body></html>'
+REAL_PAGE='<!doctype html><html><body><p>Your words: &ldquo;then a short one. And then I go back to long sentences&rdquo;. The opening does that.</p></body></html>'
+NOBODY_PAGE='<!doctype html><html><body><h1>Wine Cellar Specialists</h1><p>Cellars built to last, &ldquo;quietly&rdquo;.</p></body></html>'
+seed_captain_words() {
+  local dir
+  dir="$QFAKE/.claude/projects/$(printf '%s' "$QHOME" | tr '/.' '--')"
+  mkdir -p "$QHOME/data" "$dir"
+  python3 -I - "$dir/s.jsonl" <<'PY'
+import json, sys
+rows = ["I probably have a long sentence, then a short one. And then I go back to long sentences",
+        "pick the recommended direction"]
+with open(sys.argv[1], "w") as fh:
+    for i, text in enumerate(rows):
+        fh.write(json.dumps({"type": "user", "uuid": "u%d" % i, "timestamp": "2026-10-20T01:00:00Z",
+                             "isSidechain": False, "origin": {"kind": "human"}, "promptSource": "typed",
+                             "message": {"role": "user", "content": text}}, separators=(",", ":")) + "\n")
+PY
+}
+qchecks() {
+  HOME="$QFAKE" FM_HOME="$QHOME" FM_QUOTE_HOMES="$QHOME" LAVISH_AXI_STATE_DIR="$TMP_ROOT/no-lavish" "$CHECKS" "$@" 2>&1
+}
+
+# A page deliverable carries the standing quote check whatever its slot holds,
+# and Firstmate cannot write a check under the standing ids.
+test_validate_admits_the_standing_page_check() {
+  local dir="$TMP_ROOT/standing" brief record out rc
+  brief="$dir/brief.md"
+  record="$dir/record.json"
+  write_checks_brief "$brief" 'routine: no checks - a fleet code change'
+  out=$(validate "$brief" ship --admit "$record" --deliverable page --base release); rc=$?
+  expect_code 0 "$rc" "an exempt page brief was not admitted: $out"
+  assert_contains "$out" "exempt: a fleet code change" "the exemption line is missing"
+  assert_contains "$out" "standing standing-captain-quotes" "the standing check was not reported"
+  jq -e '.kind == "ship" and (.checks | length) == 1 and .checks[0].type == "quotes" and .checks[0].markers == ["typed"] and .checks[0].base == "release" and (.checks[0] | has("target") | not)' "$record" >/dev/null \
+    || fail "the exempt page record does not hold the standing quotes check: $(cat "$record")"
+  out=$(validate "$brief" ship --admit "$record"); rc=$?
+  expect_code 0 "$rc" "an exempt non-page brief was refused"
+  assert_absent "$record" "a non-page exemption kept the standing record"
+  assert_not_contains "$out" "standing" "a non-page brief carried the standing check"
+
+  printf '# Task\n## Captain'\''s intent\nMake the board.\n' > "$brief"
+  out=$(validate "$brief" ship --admit "$record" --deliverable page); rc=$?
+  expect_code 0 "$rc" "a page brief scaffolded before the slot was refused: $out"
+  assert_equals "standing standing-captain-quotes" "$out" "a slotless page brief did not carry only the standing check"
+  jq -e '(.checks | length) == 1 and (.checks[0] | has("base") | not)' "$record" >/dev/null || fail "the slotless page record is wrong"
+  out=$(validate "$brief" ship --admit "$record"); rc=$?
+  expect_code 1 "$rc" "a slotless non-page brief was admitted"
+
+  write_checks_brief "$brief" "$(json_block '[{"id":"has-h1","source":"the page has a heading","type":"contains","target":"index.html","pattern":"<h1>","good":"<h1>Hi</h1>","bad":"<p>Hi</p>"}]')"
+  out=$(validate "$brief" ship --admit "$record" --deliverable page); rc=$?
+  expect_code 0 "$rc" "a page brief with a written check was refused: $out"
+  assert_contains "$out" "admitted has-h1" "the written check was not admitted"
+  assert_contains "$out" "standing standing-captain-quotes" "the standing check did not join the written one"
+  jq -e '[.checks[].id] == ["has-h1", "standing-captain-quotes"]' "$record" >/dev/null || fail "the record does not hold both checks"
+
+  write_checks_brief "$brief" "$(json_block '[{"id":"has-h1","source":"x","type":"contains","target":"index.html","pattern":"Hi","good":"<p>Hi</p>","bad":"<p>Hi</p>"}]')"
+  out=$(validate "$brief" ship --admit "$record" --deliverable page); rc=$?
+  expect_code 1 "$rc" "an invalid written check was admitted beside the standing one"
+  assert_not_contains "$out" "standing standing-captain-quotes" "a refused launch reported a standing check"
+
+  write_checks_brief "$brief" "$(json_block '[{"id":"standing-captain-quotes","source":"x","type":"contains","target":"index.html","pattern":"<h1>","good":"<h1>Hi</h1>","bad":"<p>Hi</p>"}]')"
+  out=$(validate "$brief" ship --deliverable page); rc=$?
+  expect_code 1 "$rc" "a written check took a standing id"
+  assert_contains "$out" "is reserved" "the reserved id was not named"
+  out=$(validate "$brief" ship --base main); rc=$?
+  expect_code 2 "$rc" "--base without a page deliverable was accepted"
+  out=$(validate "$brief" ship --deliverable app); rc=$?
+  expect_code 2 "$rc" "an unknown deliverable was accepted"
+  pass "validate --deliverable page: the standing quote check joins written checks, an exempt slot, or no slot, and its ids are reserved"
+}
+
+# A written quotes check is admitted only when its good example quotes the
+# captain exactly and its bad example does not.
+test_validate_runs_a_written_quotes_check_on_its_examples() {
+  local dir="$TMP_ROOT/quotes-validate" brief record out rc
+  brief="$dir/brief.md"
+  record="$dir/record.json"
+  seed_captain_words
+  write_checks_brief "$brief" "$(json_block "$(jq -cn --arg good "$REAL_PAGE" --arg bad "$F1_PAGE" '[{"id":"board-quotes","source":"the board quotes the captain exactly","type":"quotes","target":"board.html","good":$good,"bad":$bad}]')")"
+  out=$(qchecks validate "$brief" --kind ship --admit "$record"); rc=$?
+  expect_code 0 "$rc" "a quotes check that tells the real quote from the invented one was refused: $out"
+  jq -e '.checks[0].markers == ["typed"]' "$record" >/dev/null || fail "the quotes check was not given the typed marker"
+  write_checks_brief "$brief" "$(json_block "$(jq -cn --arg good "$REAL_PAGE" '[{"id":"board-quotes","source":"x","type":"quotes","target":"board.html","good":$good,"bad":$good}]')")"
+  out=$(qchecks validate "$brief" --kind ship); rc=$?
+  expect_code 1 "$rc" "a quotes check whose bad example is accurate was admitted"
+  assert_contains "$out" "passes its bad example" "the vacuous quotes check was not explained"
+  write_checks_brief "$brief" "$(json_block "$(jq -cn --arg good "$REAL_PAGE" --arg bad "$F1_PAGE" '[{"id":"board-quotes","source":"x","type":"quotes","markers":["shout"],"good":$good,"bad":$bad}]')")"
+  out=$(qchecks validate "$brief" --kind ship); rc=$?
+  expect_code 1 "$rc" "a quotes check with an unknown marker was admitted"
+  assert_contains "$out" "the quote check could not run" "an unknown marker was not reported as a check that cannot run"
+  pass "validate: a written quotes check must pass the real quote and fail the invented one, and a bad marker cannot run"
+}
+
+# The standing check reads every page the ship's branch changed since its base:
+# an invented captain quote fails, while a page that quotes nobody, an accurate
+# quote, a non-page file, and a page the branch did not touch all pass.
+test_run_standing_check_reads_the_pages_a_ship_changed() {
+  local dir="$TMP_ROOT/quotes-run" origin wt brief record cache out rc
+  origin="$dir/origin"
+  wt="$dir/wt"
+  brief="$dir/brief.md"
+  record="$dir/record.json"
+  cache="$dir/result"
+  seed_captain_words
+  git init -q -b main "$origin"
+  printf '%s\n' "$F1_PAGE" > "$origin/old.html"
+  git -C "$origin" add old.html
+  git -C "$origin" commit -q -m 'an older page the ship never touches'
+  git clone -q "$origin" "$wt"
+  git -C "$wt" checkout -q -b fm/board
+  write_checks_brief "$brief" 'routine: no checks - a page'
+  validate "$brief" ship --admit "$record" --deliverable page >/dev/null || fail "the standing record was not admitted"
+
+  out=$(qchecks run "$record" --head "$wt" --cache "$cache"); rc=$?
+  expect_code 0 "$rc" "a branch that changed no page failed the standing check: $out"
+  mkdir -p "$wt/site"
+  printf '%s\n' "$F1_PAGE" > "$wt/site/board.html"
+  git -C "$wt" add -A
+  git -C "$wt" commit -q -m 'board with an invented quote'
+  out=$(qchecks run "$record" --head "$wt" --cache "$cache"); rc=$?
+  expect_code 1 "$rc" "a page deliverable with an invented captain quote passed"
+  assert_contains "$out" "fail standing-captain-quotes: 1 quote(s) presented as the captain's words are not what the captain typed: misquote: \"long, then short, then back to long\" (typed, site/board.html)" "the refusal did not name the invented quote and its page"
+  assert_not_contains "$out" "old.html" "a page the branch did not change was checked"
+  assert_absent "$cache" "a failing quote result was cached"
+
+  printf '%s\n' "$REAL_PAGE" > "$wt/site/board.html"
+  printf 'Your transcript said "long, then short, then back to long".\n' > "$wt/NOTES.md"
+  git -C "$wt" add -A
+  git -C "$wt" commit -q -m 'accurate quote; notes are not a page'
+  out=$(qchecks run "$record" --head "$wt" --cache "$cache"); rc=$?
+  expect_code 0 "$rc" "an accurate quote or a non-page file failed the standing check: $out"
+  assert_present "$cache" "a passing result was not cached"
+
+  printf '%s\n' "$NOBODY_PAGE" > "$wt/site/home.html"
+  git -C "$wt" add -A
+  git -C "$wt" commit -q -m 'a page that quotes nobody'
+  out=$(qchecks run "$record" --head "$wt" --cache "$cache"); rc=$?
+  expect_code 0 "$rc" "a page that quotes nobody failed the standing check: $out"
+
+  printf '%s\n' "$F1_PAGE" > "$wt/site/board.html"
+  out=$(qchecks run "$record" --head "$wt"); rc=$?
+  expect_code 0 "$rc" "an uncommitted invented quote was read instead of the committed page"
+
+  jq '.checks[0].base = "no-such-branch"' "$record" > "$dir/nobase.json"
+  out=$(qchecks run "$dir/nobase.json" --head "$wt"); rc=$?
+  expect_code 1 "$rc" "a base that cannot be found passed"
+  assert_contains "$out" "the base no-such-branch the ship branched from cannot be found" "the missing base was not named"
+  pass "run: the standing check fails an invented quote on a changed page and passes accurate quotes, pages that quote nobody, non-page files, and untouched pages"
+}
+
+# A scout's quotes check without a target reads every page in its data directory.
+test_run_quotes_check_reads_a_scout_directory() {
+  local dir="$TMP_ROOT/quotes-scout" data brief record out rc
+  data="$dir/data/s1"
+  brief="$dir/brief.md"
+  record="$dir/record.json"
+  seed_captain_words
+  mkdir -p "$data/board"
+  write_checks_brief "$brief" "$(json_block "$(jq -cn --arg good "$REAL_PAGE" --arg bad "$F1_PAGE" '[{"id":"board-quotes","source":"the board quotes the captain exactly","type":"quotes","good":$good,"bad":$bad}]')")"
+  qchecks validate "$brief" --kind scout --root "$data" --admit "$record" >/dev/null || fail "the scout quotes check was not admitted"
+  jq -e '.checks[0] | has("target") | not' "$record" >/dev/null || fail "a scout quotes check was given report.md as its target"
+  printf 'Your transcript said "long, then short, then back to long".\n' > "$data/report.md"
+  out=$(qchecks run "$record" --dir "$data"); rc=$?
+  expect_code 0 "$rc" "a scout with no page failed its quotes check: $out"
+  printf '%s\n' "$F1_PAGE" > "$data/board/index.html"
+  out=$(qchecks run "$record" --dir "$data"); rc=$?
+  expect_code 1 "$rc" "a scout board with an invented quote passed"
+  assert_contains "$out" "(typed, board/index.html)" "the scout refusal did not name the board page"
+  pass "run: a target-less quotes check reads every page in a scout's data directory"
+}
+
 test_drive_results_reads_only_assertion_results() {
   local dir="$TMP_ROOT/drive" out rc label body expect
   mkdir -p "$dir/a-dir"
@@ -290,4 +465,8 @@ fm_test_run \
   test_run_reads_the_committed_ship_tree \
   test_run_reads_a_scout_directory_and_drive_results \
   test_run_cache_reruns_only_on_change \
+  test_validate_admits_the_standing_page_check \
+  test_validate_runs_a_written_quotes_check_on_its_examples \
+  test_run_standing_check_reads_the_pages_a_ship_changed \
+  test_run_quotes_check_reads_a_scout_directory \
   test_drive_results_reads_only_assertion_results

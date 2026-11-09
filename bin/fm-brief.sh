@@ -114,7 +114,8 @@
 # reads task text. It writes bin/fm-dod-lib.sh's FM_BRIEF_DELIVERABLE_PAGE_MARKER
 # and a one-paragraph drive-evidence instruction after the Task slot marker,
 # which bin/fm-spawn.sh records as deliverable=page for the done-time
-# page-evidence check, and appends a `page` line to the home's skill-fire log
+# page-evidence check and admits bin/fm-checks.sh's standing page checks for,
+# and appends a `page` line to the home's skill-fire log
 # (bin/fm-dod-lib.sh owns that check's evidence rule and the log).
 # Ship-only: a scout's completion is not gated on it.
 # --run-budget <spec> gives a long scout a spend line and a stop rule: a
@@ -712,7 +713,7 @@ fi
 DELIVERABLE_BLOCK=
 if [ "$DELIVERABLE" = page ]; then
   # shellcheck disable=SC2016 # Backticks are literal Markdown, not expansions.
-  DELIVERABLE_BLOCK="$FM_BRIEF_DELIVERABLE_PAGE_MARKER"$'\n''This ship delivers a page. Before reporting it ready, drive it in a real browser with the project drive recipe, have the drive write its assertion results (one `<assertion>\t<pass|fail>` line per assertion), then put `drive=<absolute path to those results>` in the `done:` line that reports it ready, or `no-drive: <reason>` when it cannot be driven; the done-time check refuses that line without one of them, and refuses results that show a failed assertion or are not a drive run'"'"'s results at all.'$'\n\n'
+  DELIVERABLE_BLOCK="$FM_BRIEF_DELIVERABLE_PAGE_MARKER"$'\n''This ship delivers a page. Before reporting it ready, drive it in a real browser with the project drive recipe, have the drive write its assertion results (one `<assertion>\t<pass|fail>` line per assertion), then put `drive=<absolute path to those results>` in the `done:` line that reports it ready, or `no-drive: <reason>` when it cannot be driven; the done-time check refuses that line without one of them, and refuses results that show a failed assertion or are not a drive run'"'"'s results at all.'$'\n''A page also carries a standing check, whatever `## Checks` holds: every `done:` is refused while a page your branch changed presents as the captain'"'"'s words (after a cue such as "you said" or "your words") anything the captain never typed, so quote them exactly or not at all, and attribute words from their notes to the note; run the checks command below before reporting done.'$'\n\n'
 fi
 
 # How the worker runs its own intake checks before reporting done; the done

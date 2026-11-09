@@ -4041,6 +4041,11 @@ fi
   echo "error: task $ID has no brief at inaccessible data path $BRIEF" >&2
   exit 1
 }
+# A ship brief's declared deliverable (bin/fm-brief.sh --deliverable), recorded
+# as deliverable= for bin/fm-dod-lib.sh's done-time page-evidence check; a page
+# also carries bin/fm-checks.sh's standing page checks, admitted below.
+DELIVERABLE=
+[ "$KIND" != ship ] || DELIVERABLE=$(fm_brief_deliverable "$BRIEF")
 # The admitted intake-check count and record digest; set below for a ship or
 # scout brief.
 CHECKS_COUNT=
@@ -4073,15 +4078,21 @@ if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
   # an exempt slot, or a brief scaffolded before the slot existed, launches
   # with none of them. Each verdict is one skill fire (one per check, and one
   # for a malformed slot), the measure of how often written checks fail
-  # validation and how often a task is exempted. Admission happens once, at
+  # validation and how often a task is exempted. A page deliverable also
+  # carries the standing page checks, Firstmate-written or not, so its record
+  # exists even when its slot is exempt or absent; checks= counts both kinds.
+  # Admission happens once, at
   # the fresh spawn: a relaunch keeps the recorded checks=, checks_sha=, and
   # record rather than re-admitting a brief that may have changed since, and a
   # promotion, which drops checks= and checks_sha=, leaves a promoted ship ungated by its scout's checks.
   CHECKS_RC=0
+  CHECKS_PAGE_ARGS=()
+  [ "$DELIVERABLE" != page ] || CHECKS_PAGE_ARGS=(--deliverable page)
+  [ "$DELIVERABLE" != page ] || [ -z "$BASE_BRANCH" ] || CHECKS_PAGE_ARGS+=(--base "$BASE_BRANCH")
   if [ "$RELAUNCH" -eq 1 ]; then
     :
-  elif rm -f -- "$STATE/$ID.checks-result" && fm_brief_task_heading_present "$BRIEF" "## Checks"; then
-    CHECKS_OUT=$("$SCRIPT_DIR/fm-checks.sh" validate "$BRIEF" --kind "$KIND" --root "$DATA/$ID" --admit "$STATE/$ID.checks.json" 2>&1) || CHECKS_RC=$?
+  elif rm -f -- "$STATE/$ID.checks-result" && { fm_brief_task_heading_present "$BRIEF" "## Checks" || [ "$DELIVERABLE" = page ]; }; then
+    CHECKS_OUT=$("$SCRIPT_DIR/fm-checks.sh" validate "$BRIEF" --kind "$KIND" --root "$DATA/$ID" --admit "$STATE/$ID.checks.json" ${CHECKS_PAGE_ARGS[@]+"${CHECKS_PAGE_ARGS[@]}"} 2>&1) || CHECKS_RC=$?
     while IFS= read -r CHECKS_LINE; do
       case "$CHECKS_LINE" in
         'admitted '*) fm_skill_fire_append "$DATA" "$ID" checks-admitted fm-spawn.sh "${CHECKS_LINE#admitted }" once || true ;;
@@ -4097,10 +4108,10 @@ EOF
       printf 'error: %s ## Checks cannot be admitted; every check must pass its good example and fail its bad one before spawn (bin/fm-checks.sh --help):\n%s\n' "$BRIEF" "$CHECKS_OUT" >&2
       exit 1
     fi
-    case "$CHECKS_OUT" in
-      'exempt: '*) ;;
+    CHECKS_COUNT=$(printf '%s\n' "$CHECKS_OUT" | grep -c -e '^admitted ' -e '^standing ')
+    case "$CHECKS_COUNT" in
+      0) CHECKS_COUNT= ;;
       *)
-        CHECKS_COUNT=$(printf '%s\n' "$CHECKS_OUT" | grep -c '^admitted ')
         CHECKS_SHA=$(fm_dod_file_sha256 "$STATE/$ID.checks.json")
         if [ -z "$CHECKS_SHA" ]; then
           rm -f -- "$STATE/$ID.checks.json"
@@ -4176,11 +4187,6 @@ delivery_rigor_rank() { # <mode> -> 3 (most rigor) .. 1 (least); 0 = not a task 
   *) echo 0 ;;
   esac
 }
-
-# A ship brief's declared deliverable (bin/fm-brief.sh --deliverable), recorded
-# as deliverable= for bin/fm-dod-lib.sh's done-time page-evidence check.
-DELIVERABLE=
-[ "$KIND" != ship ] || DELIVERABLE=$(fm_brief_deliverable "$BRIEF")
 
 # Brief/spawn delivery agreement, checked before any endpoint exists.
 # fm-brief.sh records a ship brief's mode as a fixed "Delivery contract: mode=<mode>"

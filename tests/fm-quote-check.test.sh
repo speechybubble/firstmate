@@ -272,6 +272,54 @@ test_check_refreshes_a_stale_source_and_keeps_a_fresh_one() {
   pass "a check rebuilds a missing or day-old source, reuses a fresh one, and refuses bad input"
 }
 
+# Append one typed captain prompt to the main home's transcript.
+type_captain_words() {  # <text>
+  python3 -I - "$FAKE_HOME/.claude/projects/$(slug "$MAIN")/main.jsonl" "$1" <<'PY'
+import json, sys
+row = {"type": "user", "uuid": "late-%d" % len(sys.argv[2]), "timestamp": "2026-11-09T01:00:00Z",
+       "isSidechain": False, "origin": {"kind": "human"}, "promptSource": "typed",
+       "message": {"role": "user", "content": sys.argv[2]}}
+with open(sys.argv[1], "a") as fh:
+    fh.write(json.dumps(row, separators=(",", ":")) + "\n")
+PY
+}
+
+test_typed_marker_checks_typed_words_and_leaves_notes_out() {
+  local page='<p>Your transcript said &lsquo;long, then short, then back to long&rsquo;. ok</p><p>In your notes: &ldquo;Always promise a longer deadline than it actually takes.&rdquo;</p><p>You said &ldquo;pick the recommended direction&rdquo;. ok</p>'
+  check_page typed typed "$page"
+  expect_code 1 "$RC" "the typed marker flags the invented transcript quote"
+  assert_contains "$OUT" 'misquote: "long, then short, then back to long" (typed' "the invented quote is named under the typed marker"
+  assert_contains "$OUT" "2 checked, 1 verbatim, 1 misquoted" "the typed marker checks the two typed-word quotes"
+  assert_not_contains "$OUT" "longer deadline" "a quote attributed to the captain's notes is left out"
+  check_page typed attributed "$page"
+  assert_contains "$OUT" "3 checked, 1 verbatim, 2 misquoted" "the attributed marker still checks the note quote"
+  check_page typednone typed '<p>The page quotes nobody, and says &ldquo;hello&rdquo; in passing.</p>'
+  expect_code 0 "$RC" "a page that quotes nobody passes"
+  assert_contains "$OUT" "0 checked" "a page that quotes nobody has nothing to check"
+  pass "the typed marker checks quotes of typed words and leaves quotes of the captain's notes out"
+}
+
+test_a_miss_rebuilds_a_source_older_than_ten_minutes() {
+  qc refresh >/dev/null 2>&1 || fail "the source could not be built"
+  type_captain_words "the footer feels cramped on mobile"
+  age_by "$SOURCE" 1
+  local before
+  before=$(mtime_of "$SOURCE")
+  check_page late typed '<p>You said &ldquo;the footer feels cramped on mobile&rdquo;. ok</p>'
+  expect_code 0 "$RC" "words typed since the last build pass once the miss rebuilds the source: $OUT"
+  assert_not_equals "$before" "$(mtime_of "$SOURCE")" "a miss on an hour-old source rebuilt it"
+  type_captain_words "the hero image loads too slowly"
+  before=$(mtime_of "$SOURCE")
+  check_page later typed '<p>You said &ldquo;the hero image loads too slowly&rdquo;. ok</p>'
+  expect_code 1 "$RC" "a source built minutes ago is not rebuilt on a miss"
+  assert_equals "$before" "$(mtime_of "$SOURCE")" "a miss on a fresh source left it alone"
+  age_by "$SOURCE" 1
+  check_page invented typed '<p>You said &ldquo;words the captain never typed anywhere&rdquo;. ok</p>'
+  expect_code 1 "$RC" "an invented quote still fails after the rebuild"
+  assert_contains "$OUT" "1 misquoted" "the rebuilt check reports the invented quote once"
+  pass "a miss rebuilds a source older than ten minutes once, so words typed since count and invented ones still fail"
+}
+
 test_secondmate_home_resolves_its_parent_and_siblings() {
   printf 'schema=fm-secondmate-parent.v1\nroute=local\nparent_home=%s\n' "$MAIN" > "$MATE/.fm-secondmate-parent"
   local out
@@ -291,4 +339,6 @@ fm_test_run \
   test_ellipsis_parts_must_come_from_one_message \
   test_regex_marker_json_and_markdown_pages \
   test_check_refreshes_a_stale_source_and_keeps_a_fresh_one \
+  test_typed_marker_checks_typed_words_and_leaves_notes_out \
+  test_a_miss_rebuilds_a_source_older_than_ten_minutes \
   test_secondmate_home_resolves_its_parent_and_siblings

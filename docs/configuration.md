@@ -1499,13 +1499,14 @@ The intake checks below add `checks-admitted`, `checks-invalid`, and `checks-exe
 ## Captain quote check (data/captain-words/source.json)
 
 `bin/fm-quote-check.sh check <page> [--marker <marker>]` flags any text a captain-facing page presents as the captain's words that doesn't appear word for word in what the captain typed, and exits 1 when it finds one, so a check entry can run it as a command that must exit zero.
-The marker names how that page marks the captain's words: `class:verbatim` (the default, the internal kit's verbatim box), `attributed` (a quoted span after a cue such as "you said" or "your words"), or `regex:<re>`.
+The marker names how that page marks the captain's words: `class:verbatim` (the default, the internal kit's verbatim box), `attributed` (a quoted span after a cue such as "you said", "your words" or "your note"), `typed` (the attributed spans whose cue claims typed words, leaving out quotes attributed to the captain's notes, which the source doesn't hold), or `regex:<re>`.
 A quote matches when its words appear in order and unbroken inside one message, ignoring case and punctuation, and words inside [brackets] must match the source at their position like any other word.
 A quote with an ellipsis is reported as verbatim with omissions when its parts appear in order in one message but even the closest such match, the one leaving out the fewest source words, leaves words out between them; it's flagged for review, so `check` exits 1, and `--verbose` and `--json` list the words left out.
 An ellipsis that leaves nothing out between parts, such as one the captain typed or one marking a cut at either end, is plain verbatim.
 The source it reads is `data/captain-words/source.json` in the active home, built from the Claude Code transcripts of the root home and every local secondmate home in its `data/secondmates.md`, plus the notes typed into Lavish review pages inside those homes.
 A secondmate home resolves its local parent as the root, so a check run there covers the same homes.
-`check` rebuilds the source first when it's missing or more than a day old, and `bin/fm-quote-check.sh refresh` rebuilds it on demand.
+`check` rebuilds the source first when it's missing or more than a day old, and rebuilds it once more when a quote misses in a source built more than ten minutes earlier, so words the captain typed since the last build count.
+`bin/fm-quote-check.sh refresh` rebuilds it on demand; a nightly run from the machine's own scheduler keeps it warm, though freshness never depends on one.
 The source holds private conversation text, so it's written with owner-only permissions, never committed, and never printed; `status` reports only its build time and counts.
 `bin/fm-quote-check.py`'s header owns what counts as the captain's typed words, each marker, and the match rule; the wrapper's header owns the homes, the location, and freshness.
 
@@ -1528,7 +1529,9 @@ A ship or scout brief's `## Checks` slot holds the checks Firstmate wrote from t
 It also records `checks_sha=<sha256>` of the admitted record, and a done is refused when the record is missing or no longer matches it.
 Every `done:` of that task is then refused while a check fails on the deliverable, including a no-mistakes implementation handoff: a ship's checks read its committed HEAD and a scout's its `data/<id>/` directory.
 `state/<id>.checks-result` caches the last result for an unchanged deliverable, a relaunch keeps the admission recorded at spawn, a promotion drops it, and cleanup removes both files.
-Briefs scaffolded before the slot existed, and exempt briefs, launch without `checks=` and are unchanged.
+A ship declared a page deliverable also carries a standing quote check that Firstmate never writes: spawn admits it whatever the slot holds, exempt or absent included, and counts it in `checks=`.
+Every done of that ship is then refused while a page (`.html`, `.htm` or `.xhtml`) its branch changed presents as the captain's words, after a cue such as "you said" or "your words", anything the captain never typed, checked with the [captain quote check](#captain-quote-check-datacaptain-wordssourcejson)'s `typed` marker.
+Other briefs scaffolded before the slot existed, and other exempt briefs, launch without `checks=` and are unchanged.
 [`bin/fm-checks.sh --help`](../bin/fm-checks.sh) owns the check format, the closed set of check types, and validation, and `bin/fm-dod-lib.sh`'s `fm_dod_task_checks_reason` owns the done-time gate.
 
 ## Herdr lifecycle spawn guard (config/herdr-lifecycle-spawn-guard)

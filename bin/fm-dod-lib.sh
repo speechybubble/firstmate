@@ -51,7 +51,9 @@
 # --deliverable page writes FM_BRIEF_DELIVERABLE_PAGE_MARKER into `# Task`, and
 # bin/fm-spawn.sh records it as deliverable=page in the task meta) must also
 # carry drive evidence on every done: this gate tests:
-# fm_dod_page_evidence_reason owns what counts. A ship or scout whose brief's
+# fm_dod_page_evidence_reason owns what counts. Spawn also admits
+# bin/fm-checks.sh's standing page checks for it, which the intake checks gate
+# below runs whatever its brief's `## Checks` slot holds. A ship or scout whose brief's
 # `## Checks` slot carried checks bin/fm-spawn.sh admitted has every done:
 # refused while one fails on the deliverable: fm_dod_task_checks_reason owns
 # that gate and bin/fm-checks.sh the checks. fm_skill_fire_append owns the
