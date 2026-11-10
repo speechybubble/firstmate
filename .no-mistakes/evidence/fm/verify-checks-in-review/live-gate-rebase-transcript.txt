@@ -1,0 +1,26 @@
+### S4a: ship edits line 4; main later edits line 2 (inside the ship hunk's context); pipeline rebase replays cleanly
+rebase ok (no conflict)
+ship patch-id    f6c9921fb635
+rebased patch-id a9037c37069d
+run head is new commit: yes
+task-checks: task ctx (fm/ctx)
+fail names-the-trade: no line matches /[Pp]lumb/
+  from: captain: speak to plumbers
+checks: 0 passed, 1 failed
+task-checks: the change fails its task's admitted checks; they were written from the captain's words before the work began and are fixed, so change the work until they pass
+gate exit=1
+
+### S4b: ship edits line 6; main edits line 6 too; the pipeline rebase resolves the conflict
+rebase conflicted; resolving
+conflict resolved, rebase continued
+rebased head subject/author: ship: ad and six | ship@example.com | 1794216254 vs ship ship: ad and six | ship@example.com | 1794216254
+task-checks: task conf (fm/conf)
+fail names-the-trade: no line matches /[Pp]lumb/
+  from: captain: speak to plumbers
+checks: 0 passed, 1 failed
+task-checks: the change fails its task's admitted checks; they were written from the captain's words before the work began and are fixed, so change the work until they pass
+gate exit=1
+
+### S4c (guard): a ship branch fully merged into main binds no later unrelated run
+task-checks: no registered Firstmate ship matches this run, so there are no task checks to run
+gate exit=0

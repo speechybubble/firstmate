@@ -1,7 +1,8 @@
-1..13
+1..19
 ok - gate: a run whose admitted check fails is refused with the check named, and the pipeline's fixed head passes
 ok - gate: only the admitted record is run, and a gone registration or meta binds nothing
 ok - gate: a ship whose meta has no checks= binds nothing, and one with checks= but no checks_sha= refuses
+ok - gate: a page ship's quotes checks are left to the done gate and its written checks still decide the run
 ok - gate: a rebased run stays bound to its ship, and other runs bind nothing
 ok - gate: a rebase that shifts a patch's context or resolves a conflict stays bound to its ship
 ok - validate: every type is admitted on its own good and bad examples, and the admitted record is normalized
@@ -11,9 +12,11 @@ ok - validate: one json block or one reasoned exemption; an exemption removes a 
 ok - run: a ship's checks read the committed HEAD, a missing target fails, and an uncommitted fix does not pass
 ok - run: a scout's checks read its data directory, refuse a symlinked target, and assertions read the drive results
 ok - run --cache: an unchanged deliverable reuses its result, and a changed target reruns
+ok - validate --deliverable page: the standing quote check joins written checks, an exempt slot, or no slot, and its ids are reserved
+ok - validate: a written quotes check must pass the real quote and fail the invented one, and a bad marker cannot run
+ok - run: the standing check fails an invented quote on a changed page, caches that refusal until the page or the source changes, and passes accurate quotes, pages that quote nobody, non-page files, and untouched pages
+ok - run: a cached quote refusal reruns once a miss would rebuild the source, so words the captain typed since the build pass
+ok - run: a target-less quotes check reads every page in a scout's data directory
 ok - drive-results: only a regular file of assertion results with every assertion passing is drive evidence
 FM_TEST_COMPLETE
-
-real	0m21.865s
-user	0m6.548s
-sys	0m12.764s
+exit=0

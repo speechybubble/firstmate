@@ -1,0 +1,67 @@
+### .no-mistakes.yaml gate task-checks: after=test command=bash bin/fm-checks.sh gate
+### validate --admit (spawn's admission step)
+admitted names-the-trade
+admitted no-hype
+admitted click-works
+checks: 3 admitted, 0 invalid
+validate exit=0
+register exit=0
+registry:
+state=/home/denni/.no-mistakes/worktrees/d567722de3ac/01M6YRWCY2PJZN173J4AR91MSC/.tmp-live/fm-lab.OCr6HJ/state
+id=ad-ship
+
+### S1: pipeline run of the ship with failing task checks (run worktree detached at ship head)
+task-checks: task ad-ship (fm/ad-ship)
+skip click-works: an assertions check reads the drive run the worker's done line names, so the done gate runs it
+fail names-the-trade: no line matches /([Pp]lumb|HVAC)/
+  from: captain: the ad must speak to plumbers, not everyone
+fail no-hype: a line matches /revolutionary/: A revolutionary tool for every business in every industry.
+  from: captain: no hype words
+checks: 0 passed, 2 failed
+task-checks: the change fails its task's admitted checks; they were written from the captain's words before the work began and are fixed, so change the work until they pass
+gate exit=1
+
+### S2: pipeline fix commit satisfies the checks
+(uncommitted fix only)
+task-checks: task ad-ship (fm/ad-ship)
+skip click-works: an assertions check reads the drive run the worker's done line names, so the done gate runs it
+fail names-the-trade: no line matches /([Pp]lumb|HVAC)/
+  from: captain: the ad must speak to plumbers, not everyone
+fail no-hype: a line matches /revolutionary/: A revolutionary tool for every business in every industry.
+  from: captain: no hype words
+checks: 0 passed, 2 failed
+task-checks: the change fails its task's admitted checks; they were written from the captain's words before the work began and are fixed, so change the work until they pass
+gate exit=1
+(committed fix)
+task-checks: task ad-ship (fm/ad-ship)
+skip click-works: an assertions check reads the drive run the worker's done line names, so the done gate runs it
+pass names-the-trade
+pass no-hype
+checks: 2 passed, 0 failed
+gate exit=0
+
+### S3: an unrelated pipeline run in the same gate repo binds no ship
+task-checks: no registered Firstmate ship matches this run, so there are no task checks to run
+gate exit=0
+
+### S4: pipeline rebase onto a main that edited the line right next to the ship's hunk (patch-id changes)
+cherry-pick conflicted
+patch-id ship:    4ae3c4164dec
+patch-id rebased: d271b923be5c
+task-checks: no registered Firstmate ship matches this run, so there are no task checks to run
+gate exit=0
+
+### S5: a tampered admitted record refuses before any check runs
+task-checks: task ad-ship (fm/ad-ship)
+fail admitted-record: /home/denni/.no-mistakes/worktrees/d567722de3ac/01M6YRWCY2PJZN173J4AR91MSC/.tmp-live/fm-lab.OCr6HJ/state/ad-ship.checks.json has digest d85608300d2fbbe26b32f616f78ff047a515cbb949f7d9a81a3e761dbb26c259, not the checks_sha=a409320dd3458be5b2bd96257139325815a1b56abaa253181bed87c838c26a1b spawn recorded, so its checks are not the ones admitted at launch
+task-checks: the change fails its task's admitted checks; they were written from the captain's words before the work began and are fixed, so change the work until they pass
+gate exit=1
+
+### S6: stale pointer whose meta has no checks= (exempt respawn) binds nothing
+task-checks: no registered Firstmate ship matches this run, so there are no task checks to run
+gate exit=0
+
+### S7: unregister (what teardown calls) removes the pointer; the run then binds nothing
+016558f380c24318af8752a58e5f073b3177a436.ship
+task-checks: no registered Firstmate ship matches this run, so there are no task checks to run
+gate exit=0
