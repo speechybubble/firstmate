@@ -914,6 +914,7 @@ test_no_mistakes_origin_remote_allows() {
   # Push the task branch to origin and fetch so the worktree sees it.
   git -C "$case_dir/wt" push -q origin fm/task-x1
   git -C "$case_dir/project" fetch -q origin
+  "$ROOT/bin/fm-checks.sh" register "$case_dir/state" task-x1 || fail "nm-origin: could not register the ship's checks"
 
   set +e
   run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
@@ -922,6 +923,8 @@ test_no_mistakes_origin_remote_allows() {
 
   expect_code 0 "$rc" "nm-origin: teardown should succeed when HEAD is on origin"
   ! grep -q REFUSED "$case_dir/stderr" || fail "nm-origin: teardown printed a REFUSED line"
+  ! grep -rqx 'id=task-x1' "$FM_SHIP_CHECKS_REGISTRY" 2>/dev/null \
+    || fail "nm-origin: cleanup left the ship's pipeline checks registration behind"
   grep -F 'blockers are gone and date is due' "$case_dir/stdout" >/dev/null \
     || fail "nm-origin: teardown manual prompt did not preserve date-gate check"
   pass "no-mistakes worktree with HEAD on origin is torn down (no regression)"
@@ -934,6 +937,7 @@ test_no_mistakes_truly_unpushed_refuses() {
   # Real content that is not pushed, has no PR (default gh-axi mock), and never
   # landed on origin/main: genuinely unlanded work that must still refuse.
   wt_commit_file "$case_dir" feature.txt hello "unpushed work"
+  "$ROOT/bin/fm-checks.sh" register "$case_dir/state" task-x1 || fail "nm-unpushed: could not register the ship's checks"
 
   set +e
   run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
@@ -942,6 +946,8 @@ test_no_mistakes_truly_unpushed_refuses() {
 
   expect_code 1 "$rc" "nm-unpushed: teardown should refuse"
   grep -q REFUSED "$case_dir/stderr" || fail "nm-unpushed: no REFUSED line in stderr"
+  grep -rqx 'id=task-x1' "$FM_SHIP_CHECKS_REGISTRY" 2>/dev/null \
+    || fail "nm-unpushed: a refused cleanup dropped the ship's pipeline checks registration"
   pass "no-mistakes worktree with genuinely unlanded work is refused (safety preserved)"
 }
 

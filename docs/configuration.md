@@ -951,7 +951,7 @@ The flag is a home-local supervision-noise preference and is not inherited by se
 
 ## Gate defaults (.no-mistakes.yaml)
 
-The tracked [`.no-mistakes.yaml`](../.no-mistakes.yaml) sets `test.evidence.store_in_repo: true` and runs the canonical [shell/workflow lint](../bin/fm-lint.sh) followed by the [Pi production-consumer typecheck](../tests/fm-pi-primary-types.test.sh) in the compiler-owning lint phase.
+The tracked [`.no-mistakes.yaml`](../.no-mistakes.yaml) sets `test.evidence.store_in_repo: true`, runs the canonical [shell/workflow lint](../bin/fm-lint.sh) followed by the [Pi production-consumer typecheck](../tests/fm-pi-primary-types.test.sh) in the compiler-owning lint phase, and declares the `task-checks` gate after Test that runs a ship's [intake checks](#intake-checks) on the pipeline head.
 Storing evidence in the repo publishes each run's test artifacts to the orphan `no-mistakes/evidence` branch and links them from the PR body, instead of keeping them on local disk under the no-mistakes home.
 
 That branch shares no history with code branches, so evidence never enters a pushed feature branch or the default branch; the worktree's `.no-mistakes/` stays local and CI rejects tracked entries under that path.
@@ -1534,8 +1534,14 @@ A ship declared a page deliverable also carries a standing quote check that Firs
 Every done of that ship is then refused while a page (`.html`, `.htm` or `.xhtml`) its branch changed presents as the captain's words, after a cue such as "you said" or "your words", anything the captain never typed, checked with the [captain quote check](#captain-quote-check-datacaptain-wordssourcejson)'s `attributed` marker.
 Before running it, the gate brings the source up to date with `ensure` under its own longer bound, and the cached result is keyed on the source's build stamp, so a refused done reruns the check only when a page or the source changes, or once the source is more than 10 minutes old and a miss would rebuild it, so words the captain typed since the last build count on the next heartbeat.
 A page that addresses a client's visitors rather than the captain is declared at intake with `bin/fm-brief.sh --deliverable page --client-facing`: it keeps the drive evidence rule but carries no standing quote check, since its copy is never the captain's words.
+A `no-mistakes` ship's admitted checks also run inside its validation pipeline: spawn registers the ship in a machine-wide registry (`$FM_SHIP_CHECKS_REGISTRY`, by default `${XDG_STATE_HOME:-~/.local/state}/firstmate/ship-checks`) and refuses to launch when it cannot, and this repository's `task-checks` gate after Test parks any run whose admitted checks fail its pipeline head, before the run can push or open a PR.
+Assertions checks and quotes checks, including the standing quote check, read evidence that stays in the Firstmate home (a drive run, the captain's words), so the gate names each as skipped and the done gate alone runs it.
+The gate's step log, `gate.test.task-checks`, names the task and each failing check, so runs where a task check failed after the review passed can be counted from no-mistakes' own step records.
+The gate runs only for ships whose project is this Firstmate repository: its [`.no-mistakes.yaml`](../.no-mistakes.yaml) entry runs `bin/fm-checks.sh` from the run worktree, a file no other project has, so copying the entry into another project would fail every one of its runs.
+Spawn still registers every `no-mistakes` ship with admitted checks, whatever its project, but nothing reads the registration of a ship in another project; those ships rely on the done gate alone.
+Cleanup removes the registration.
 Other briefs scaffolded before the slot existed, and other exempt briefs, launch without `checks=` and are unchanged.
-[`bin/fm-checks.sh --help`](../bin/fm-checks.sh) owns the check format, the closed set of check types, and validation, and `bin/fm-dod-lib.sh`'s `fm_dod_task_checks_reason` owns the done-time gate.
+[`bin/fm-checks.sh --help`](../bin/fm-checks.sh) owns the check format, the closed set of check types, validation, the registry, and the pipeline gate, and `bin/fm-dod-lib.sh`'s `fm_dod_task_checks_reason` owns the done-time gate.
 
 ## Herdr lifecycle spawn guard (config/herdr-lifecycle-spawn-guard)
 
@@ -3102,6 +3108,7 @@ FM_TOOL_UPDATE_BUDGET_SECS=20   # 1..120 seconds allowed for a whole watched-too
 FM_TOOL_UPDATE_NOW=     # test override for the watched-tool sweep clock; the sweep budget still uses real time
 FM_PROCEVENT_MAX_OUTPUT_BYTES=1048576   # bound on one captured process-to-event result
 FM_PROCEVENT_CLAIM_ROOT=                # machine-wide source claim root; default $XDG_STATE_HOME/firstmate/procevent-claims
+FM_SHIP_CHECKS_REGISTRY=                # machine-wide no-mistakes ship checks registry; default $XDG_STATE_HOME/firstmate/ship-checks
 FM_PROCEVENT_OWNER_LEASE_SECONDS=600    # how long a source runner keeps going with no activity in its owning home; 1..86400
 FM_PROCEVENT_OWNER_CHECK_SECONDS=15     # a runner guard's detection interval, read twice per interval; 1..3600
 FM_PROCEVENT_LAUNCH_FLOOR_SECONDS=1     # minimum interval between launches of one registration generation's source command; 1..3600

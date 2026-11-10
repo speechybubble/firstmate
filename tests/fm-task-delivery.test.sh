@@ -690,6 +690,25 @@ EOF
     || fail "spawn did not admit the check into the task's record: $(cat "$home/state/$id.checks.json" 2>/dev/null)"
   [ "$(awk -F'\t' -v id="$id" '$2 == id && $3 == "checks-admitted" && $5 == "guarantee-conditional"' "$log" | wc -l | tr -d ' ')" = 1 ] \
     || fail "the admitted check was not recorded as one checks-admitted fire"
+  ! grep -rqx "id=$id" "$FM_SHIP_CHECKS_REGISTRY" 2>/dev/null \
+    || fail "a direct-PR ship, which runs no pipeline, was registered for the pipeline's task-checks gate"
+
+  # A no-mistakes ship's admitted checks are registered for its pipeline's
+  # task-checks gate (bin/fm-checks.sh gate), and a registry that cannot be
+  # written refuses the launch rather than leaving the pipeline blind to them.
+  id="checks-pipeline"
+  FM_HOME="$home" "$BRIEF" "$id" proj --mode no-mistakes >/dev/null 2>&1 || fail "no-mistakes checks brief should scaffold"
+  fill_brief_subsections "$home/data/$id/brief.md" "Make the ad." "Write the ad."
+  # shellcheck disable=SC2016 # literal markdown code fences, not expansions.
+  set_checks_body "$home/data/$id/brief.md" "$(printf '```json\n[%s]\n```' "$good_check")"
+  out=$(FM_SHIP_CHECKS_REGISTRY=/dev/null/registry run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off); status=$?
+  [ "$status" -ne 0 ] || fail "spawn launched a no-mistakes ship whose checks could not be registered for its pipeline"
+  assert_contains "$out" "the admitted checks cannot reach this ship's no-mistakes pipeline" "the registry refusal did not explain itself"
+  assert_absent "$home/state/$id.checks.json" "a refused registration left an admitted record"
+  assert_absent "$home/data/$id/launch-brief.md" "a refused registration reached launch"
+  run_spawn "$home" "$fakebin" "$id" "$proj" claude --mode no-mistakes --yolo off >/dev/null
+  [ "$(grep -rlx "id=$id" "$FM_SHIP_CHECKS_REGISTRY" 2>/dev/null | xargs cat 2>/dev/null | sort | paste -s -d ' ' -)" = "id=$id state=$(cd "$home/state" && pwd -P)" ] \
+    || fail "a no-mistakes ship's admitted checks were not registered for its pipeline: $(cat "$FM_SHIP_CHECKS_REGISTRY"/*.ship 2>/dev/null)"
 
   id="checks-exempt"
   FM_HOME="$home" "$BRIEF" "$id" proj --scout >/dev/null 2>&1 || fail "exempt scout brief should scaffold"

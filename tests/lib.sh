@@ -455,6 +455,14 @@ trap 'fm_test_cleanup; exit 143' TERM
 trap 'fm_test_cleanup; exit 129' HUP
 trap 'fm_test_cleanup; exit 131' QUIT
 
+# Keep spawns that admit a no-mistakes ship's checks out of the machine-wide
+# ship checks registry (bin/fm-checks.sh header), which the real daemon reads.
+if FM_TEST_SHIP_CHECKS_ROOT=$(fm_test_tmproot fm-ship-checks); then
+  export FM_SHIP_CHECKS_REGISTRY="$FM_TEST_SHIP_CHECKS_ROOT/registry"
+else
+  export FM_SHIP_CHECKS_REGISTRY=/nonexistent/fm-test-ship-checks
+fi
+
 # fm_test_reap_orphans: best-effort sweep for fixture roots left behind by a
 # prior run that was killed hard enough to skip the traps above (e.g. a
 # SIGKILL timeout). Only removes directories carrying the .fm-test-fixture

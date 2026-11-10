@@ -2,14 +2,18 @@
 # fm-checks.sh - single owner of task intake checks: the check format a brief's
 # `## Checks` slot carries, the validator that admits a check only when it
 # passes its known-good example and fails its known-bad one, the runner the
-# done gate uses on the actual deliverable, and the drive assertion-results
-# format a page deliverable's drive= evidence must hold.
+# done gate uses on the actual deliverable, the drive assertion-results
+# format a page deliverable's drive= evidence must hold, and the no-mistakes
+# gate that runs a ship's admitted checks inside its validation pipeline.
 #
 # Usage:
 #   fm-checks.sh validate <brief> --kind <ship|scout> [--root <dir>] [--admit <file>]
 #                         [--deliverable page [--base <branch>]]
 #   fm-checks.sh run <admitted-file> (--head <worktree> | --dir <dir>) [--drive <file>] [--cache <file>]
 #   fm-checks.sh drive-results <file>
+#   fm-checks.sh register <state-dir> <task-id>
+#   fm-checks.sh unregister <state-dir> <task-id>
+#   fm-checks.sh gate
 #   fm-checks.sh --help
 #
 # Firstmate writes `## Checks` at intake, from the captain's words, before any
@@ -112,6 +116,40 @@
 # one assertion, no assertion repeated, and none failed. It prints the problem
 # and exits 1 otherwise, 0 when the file shows every assertion passing.
 # bin/fm-dod-lib.sh's fm_dod_page_evidence_reason applies it to drive=.
+#
+# The ship checks registry lets a no-mistakes pipeline find the ship it is
+# validating. The daemon runs a gate command in a detached run worktree with no
+# Firstmate home in view, so each no-mistakes ship with admitted checks leaves
+# one pointer file, <registry>/<git object hash of "<state-dir>/<task-id>">.ship, holding
+# state=<absolute state dir> and id=<task id>. The registry is machine-wide so
+# every home on the machine shares the one daemon's view:
+# $FM_SHIP_CHECKS_REGISTRY, else ${XDG_STATE_HOME:-$HOME/.local/state}/firstmate/ship-checks.
+# register writes the pointer atomically and exits 1 when it cannot;
+# bin/fm-spawn.sh calls it at admission and refuses the launch on failure, so a
+# no-mistakes ship never runs with checks its pipeline cannot find. unregister
+# removes it; bin/fm-teardown.sh calls it at cleanup. A pointer whose task meta
+# is gone, or has no checks= line (the done gate's rule for a task with no
+# admitted checks), is ignored, so a leftover one never gates anything.
+#
+# gate is the command this repository's .no-mistakes.yaml declares as a gate
+# after the test step; it runs only in this repository's pipelines, so the
+# registration of a ship in another project has no reader. Run from the run
+# worktree, it binds the run to every registered ship whose branch is in
+# the gate repository with commits of its own that the run carries, as the same
+# commits or, after a pipeline rebase, as commits with the same author email,
+# author date, and subject, or the same patches. For each bound ship
+# it refuses a record whose digest is not the checks_sha= spawn recorded in the
+# task meta, then runs the admitted checks against the run's committed HEAD, so
+# pipeline fix commits are checked too. An assertions check reads a drive run
+# that only the worker's done line names, and a quotes check (such as a page
+# deliverable's standing check) reads the captain's words, which stay in the
+# Firstmate home, so the gate prints a `skip` line for each and leaves it to
+# the done gate. Output is the run's `pass`/`fail` lines,
+# each failure followed by a `  from: <source>` line so a pipeline fix turn
+# works toward the words the check came from, under a
+# `task-checks: task <id> (<branch>)` heading, which the pipeline keeps
+# as the gate step's log; a run that binds no ship says so and passes. Exit 1
+# when any bound ship's record is untrusted or any check fails, 0 otherwise.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -769,11 +807,162 @@ cmd_drive_results() {
   return 0
 }
 
+ship_registry_dir() {
+  printf '%s\n' "${FM_SHIP_CHECKS_REGISTRY:-${XDG_STATE_HOME:-$HOME/.local/state}/firstmate/ship-checks}"
+}
+
+# The registry pointer path for <state-dir> <task-id>, keyed on the physical
+# state directory so two spellings of one home share one pointer.
+ship_registry_entry() {  # <state-dir> <task-id>
+  local state key
+  state=$(cd "$1" 2>/dev/null && pwd -P) || return 1
+  key=$(printf '%s/%s' "$state" "$2" | git hash-object --stdin 2>/dev/null) || return 1
+  [ -n "$key" ] || return 1
+  printf '%s/%s.ship\n' "$(ship_registry_dir)" "$key"
+}
+
+cmd_register() {
+  local entry state dir
+  [ "$#" -eq 2 ] || die_usage "register needs <state-dir> <task-id>"
+  state=$(cd "$1" 2>/dev/null && pwd -P) || { echo "state directory $1 does not exist"; return 1; }
+  entry=$(ship_registry_entry "$state" "$2") || { echo "cannot name a registry entry for $2"; return 1; }
+  dir=${entry%/*}
+  if ! mkdir -p "$dir" 2>/dev/null \
+    || ! printf 'state=%s\nid=%s\n' "$state" "$2" > "$entry.tmp.$$" 2>/dev/null \
+    || ! mv -f -- "$entry.tmp.$$" "$entry" 2>/dev/null; then
+    rm -f -- "$entry.tmp.$$"
+    echo "cannot write the ship checks registry entry $entry"
+    return 1
+  fi
+  return 0
+}
+
+cmd_unregister() {
+  local entry
+  [ "$#" -eq 2 ] || die_usage "unregister needs <state-dir> <task-id>"
+  entry=$(ship_registry_entry "$1" "$2") || return 0
+  rm -f -- "$entry"
+}
+
+# 0 when the run at <head> carries the ship branch <tip>'s own commits: the
+# commits <tip> has beyond every origin remote-tracking ref except the branch's
+# own, present as the same commits (<tip> is an ancestor of <head>) or, after a
+# pipeline rebase, each as a run-own commit with the same author email, author
+# date, and subject, or with the same patch. A rebase keeps the first even when
+# it shifts a patch's context or resolves a conflict. A branch with no commits of its own never binds, so a long-merged
+# branch whose tip sits in the base cannot claim an unrelated run.
+run_carries_ship() {  # <worktree> <head> <tip> <branch>
+  local wt=$1 head=$2 tip=$3 branch=$4 own run_own pids keys key c pid matched=0
+  own=$(git -C "$wt" rev-list --no-merges "$tip" --not --exclude="refs/remotes/origin/$branch" --remotes=origin 2>/dev/null) || return 1
+  [ -n "$own" ] || return 1
+  git -C "$wt" merge-base --is-ancestor "$tip" "$head" 2>/dev/null && return 0
+  [ "$(printf '%s\n' "$own" | wc -l)" -le 200 ] || return 1
+  run_own=$(git -C "$wt" rev-list --no-merges --max-count=400 "$head" --not --exclude="refs/remotes/origin/$branch" --remotes=origin 2>/dev/null) || return 1
+  [ -n "$run_own" ] || return 1
+  pids=$(printf '%s\n' "$run_own" | while IFS= read -r c; do
+    git -C "$wt" diff-tree -p "$c" 2>/dev/null | git patch-id --stable 2>/dev/null | awk '{print $1}'
+  done)
+  keys=$(printf '%s\n' "$run_own" | while IFS= read -r c; do
+    git -C "$wt" show -s --format='%ae %at %s' "$c" 2>/dev/null
+  done)
+  while IFS= read -r c; do
+    key=$(git -C "$wt" show -s --format='%ae %at %s' "$c" 2>/dev/null)
+    if [ -n "$key" ] && printf '%s\n' "$keys" | grep -qxF -- "$key"; then
+      matched=1
+      continue
+    fi
+    pid=$(git -C "$wt" diff-tree -p "$c" 2>/dev/null | git patch-id --stable 2>/dev/null | awk '{print $1}')
+    [ -n "$pid" ] || continue
+    printf '%s\n' "$pids" | grep -qxF -- "$pid" || return 1
+    matched=1
+  done <<EOF
+$own
+EOF
+  [ "$matched" -eq 1 ]
+}
+
+cmd_gate() {
+  local registry wt head entry state id meta branch tip admitted actual record filtered out rc
+  local bound=0 failed=0 skipped sid stype line
+  [ "$#" -eq 0 ] || die_usage "gate takes no arguments"
+  # shellcheck source=bin/fm-dod-lib.sh
+  . "$SCRIPT_DIR/fm-dod-lib.sh"
+  registry=$(ship_registry_dir)
+  if ! wt=$(git rev-parse --show-toplevel 2>/dev/null) || ! head=$(git -C "$wt" rev-parse --verify -q 'HEAD^{commit}'); then
+    echo "task-checks: $(pwd) is not a git worktree with a commit, so no run can be bound to a ship"
+    return 1
+  fi
+  scratch
+  for entry in "$registry"/*.ship; do
+    [ -f "$entry" ] || continue
+    state=$(sed -n 's/^state=//p' "$entry" | head -n 1)
+    id=$(sed -n 's/^id=//p' "$entry" | head -n 1)
+    meta="$state/$id.meta"
+    [ -n "$state" ] && [ -n "$id" ] && [ -f "$meta" ] || continue
+    [ -n "$(fm_dod_meta_value "$meta" checks)" ] || continue
+    branch=$(fm_dod_meta_value "$meta" branch)
+    [ -n "$branch" ] || continue
+    tip=$(git -C "$wt" rev-parse --verify -q "refs/heads/$branch^{commit}" 2>/dev/null) || continue
+    run_carries_ship "$wt" "$head" "$tip" "$branch" || continue
+    bound=$((bound + 1))
+    echo "task-checks: task $id ($branch)"
+    record="$state/$id.checks.json"
+    admitted=$(fm_dod_meta_value "$meta" checks_sha)
+    actual=$(fm_dod_file_sha256 "$record")
+    if [ -z "$admitted" ] || [ -z "$actual" ] || [ "$actual" != "$admitted" ]; then
+      echo "fail admitted-record: $record has digest ${actual:-<missing>}, not the checks_sha=${admitted:-<none>} spawn recorded, so its checks are not the ones admitted at launch"
+      failed=$((failed + 1))
+      continue
+    fi
+    filtered="$SCRATCH/gate.$bound.json"
+    if ! jq '.checks |= map(select(.type != "assertions" and .type != "quotes"))' "$record" > "$filtered" 2>/dev/null; then
+      echo "fail admitted-record: $record cannot be read"
+      failed=$((failed + 1))
+      continue
+    fi
+    skipped=$(jq -r '.checks[] | select(.type == "assertions" or .type == "quotes") | "\(.id) \(.type)"' "$record")
+    while IFS=" " read -r sid stype; do
+      case "$stype" in
+        assertions) echo "skip $sid: an assertions check reads the drive run the worker's done line names, so the done gate runs it" ;;
+        quotes) echo "skip $sid: a quotes check reads the captain's words, which stay in the Firstmate home, so the done gate runs it" ;;
+      esac
+    done <<EOF
+$skipped
+EOF
+    rc=0
+    out=$(bash "$SCRIPT_DIR/fm-checks.sh" run "$filtered" --head "$wt" 2>&1) || rc=$?
+    while IFS= read -r line; do
+      printf '%s\n' "$line"
+      case "$line" in
+        'fail '*:*)
+          sid=${line#fail }
+          sid=${sid%%:*}
+          jq -r --arg id "$sid" '.checks[] | select(.id == $id) | "  from: " + .source' "$filtered" 2>/dev/null ;;
+      esac
+    done <<EOF
+$out
+EOF
+    [ "$rc" -eq 0 ] || failed=$((failed + 1))
+  done
+  if [ "$bound" -eq 0 ]; then
+    echo "task-checks: no registered Firstmate ship matches this run, so there are no task checks to run"
+    return 0
+  fi
+  if [ "$failed" -gt 0 ]; then
+    echo "task-checks: the change fails its task's admitted checks; they were written from the captain's words before the work began and are fixed, so change the work until they pass"
+    return 1
+  fi
+  return 0
+}
+
 case "${1:-}" in
   -h|--help|help) usage; exit 0 ;;
   validate) shift; cmd_validate "$@"; exit $? ;;
   run) shift; cmd_run "$@"; exit $? ;;
   drive-results) shift; cmd_drive_results "$@"; exit $? ;;
+  register) shift; cmd_register "$@"; exit $? ;;
+  unregister) shift; cmd_unregister "$@"; exit $? ;;
+  gate) shift; cmd_gate "$@"; exit $? ;;
   '') die_usage "missing command" ;;
   *) die_usage "unknown command $1" ;;
 esac
