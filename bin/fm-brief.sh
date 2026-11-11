@@ -38,6 +38,8 @@
 #        fm-brief.sh <task-id> --secondmate {<project>...|--no-projects}
 #   --scout writes the scout contract instead: the deliverable is a report at
 #   data/<task-id>/report.md (no branch, no push, no PR) and the worktree is scratch.
+#   Its Definition of done has the worker run one fresh reader on the finished
+#   report before its done line (bin/fm-fresh-read.sh owns that step and its text).
 #   It offers the Lavish review loop only when `fm-bootstrap.sh lavish-compatible`
 #   confirms the legacy board-compatibility floor; otherwise it asks for a text report.
 #   --secondmate writes a persistent secondmate charter. The project list
@@ -847,6 +849,10 @@ if [ "$RUN_BUDGET_SET" -eq 1 ]; then
   RUN_BUDGET_BLOCK="$RUN_BUDGET_BLOCK"$'\n\n'
   SCOUT_WRITES="the report, the run ledger your run budget names, and the status file below"
 fi
+# The fresh-read step of the Definition of done: bin/fm-fresh-read.sh owns its
+# text and prints nothing in a home that switched the step off.
+FRESH_READ_BLOCK=$("$SCRIPT_DIR/fm-fresh-read.sh" render "$DATA/$ID" --config "$CONFIG") || FRESH_READ_BLOCK=
+[ -z "$FRESH_READ_BLOCK" ] || FRESH_READ_BLOCK="$FRESH_READ_BLOCK"$'\n'
 cat > "$BRIEF" <<EOF
 You are a crewmate: an autonomous worker agent managed by firstmate. Work on your own; do not wait for a human.
 
@@ -901,7 +907,7 @@ State the question and why its answer matters to the decision it informs, then b
 Name the strongest alternative explanation or objection and answer it with evidence rather than leaving it out.
 $LAVISH_LINE
 Before reporting done, read and follow \`$FM_ROOT/.agents/skills/captain-hold-lifecycle/SKILL.md\` and pass its shared completion gate for the report and any visual review.
-When the report is complete, append \`done [at=<epoch>]: {one-line conclusion}\` to the status file and stop.
+${FRESH_READ_BLOCK}When the report is complete, append \`done [at=<epoch>]: {one-line conclusion}\` to the status file and stop.
 If your findings reveal work that should ship (e.g. you reproduced a bug and the fix is clear), say so in the report; firstmate may promote this task in place, and you would then receive mode-specific ship instructions as a follow-up message.
 EOF
 append_brief_include
