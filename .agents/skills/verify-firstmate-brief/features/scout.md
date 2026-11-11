@@ -4,6 +4,7 @@
 
 Scout scaffolding produces a written-report assignment without a ship delivery contract.
 It retains the intent, confirmed-intent, specification, and expert-prompt placeholders, conditional task execution, and report, status, and inbox paths.
+Its Definition of done carries the fresh-read step before the done line unless the home switched that step off.
 
 ## How to get to it (user POV)
 
@@ -29,6 +30,7 @@ grep -Fx '<!-- fm-brief: task-slots v4 -->' "$brief"
 grep -F "$FM_HOME/data/scout/report.md" "$brief"
 grep -F "$FM_HOME/state/scout.status" "$brief"
 grep -F "$FM_HOME/state/scout.inbox" "$brief"
+grep -F "$BRIEF_REPO/bin/fm-fresh-read.sh' run '$FM_HOME/data/scout'" "$brief"
 grep -F "$BRIEF_REPO/.agents/skills/task-execution/SKILL.md" "$brief"
 test -r "$BRIEF_REPO/.agents/skills/task-execution/SKILL.md"
 if grep -F 'Delivery contract: mode=' "$brief"; then

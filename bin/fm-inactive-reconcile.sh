@@ -13,9 +13,10 @@
 # ledger ends in a whole `done:` or `failed:` line has stated its own outcome,
 # so that line is published on the parent channel at once through
 # bin/fm-parent-channel-lib.sh from this unstamped payload:
-#   <state> [key=child-outcome-<child>-<state>-<fp8>]: child <child> <state>: <note> [pr=<url>] [mode=<mode>] [yolo=<posture>] [report=data/<child>/report.md]
-# carrying the child's recorded PR, delivery mode, merge posture, and scout
-# report pointer, without consulting fm-crew-state.sh. A ship `done:` is
+#   <state> [key=child-outcome-<child>-<state>-<fp8>]: child <child> <state>: <note> [pr=<url>] [mode=<mode>] [yolo=<posture>] [report=data/<child>/report.md] [fresh-read=data/<child>/fresh-read.md|not-run]
+# carrying the child's recorded PR, delivery mode, merge posture, scout
+# report pointer, and that report's fresh-read pointer (bin/fm-fresh-read.sh
+# token), without consulting fm-crew-state.sh. A ship `done:` is
 # published only when bin/fm-dod-lib.sh accepts the named head, so an
 # unpushed copy is not reported upstream as ready. The cadence path uses
 # fm-crew-state.sh, which applies the same gate: a no-mistakes
@@ -413,7 +414,7 @@ claim_inactive_report_for_ledger() { # <task> <incarnation> <state> <ledger-fing
 # delivered, or nothing is owed, and 1 when it is owed but the parent channel
 # could not be written (the notice is queued once per record).
 report_child_ledger_locked() { # <id> <meta>
-  local id=$1 meta=$2 status last previous state note pr mode yolo data incarnation fingerprint predecessor_head outcome_key line
+  local id=$1 meta=$2 status last previous state note pr mode yolo data incarnation fingerprint predecessor_head outcome_key line fresh
   status="$STATE/$id.status"
   last=$(child_terminal_ledger_line "$status") || return 0
   state=$(status_line_verb "$last")
@@ -450,6 +451,13 @@ report_child_ledger_locked() { # <id> <meta>
   [ -z "$yolo" ] || line="$line yolo=$yolo"
   if [ -f "$data/$id/report.md" ] && [ ! -L "$data/$id/report.md" ]; then
     line="$line report=data/$id/report.md"
+    # A scout's report carries its fresh-read pointer upward, so the parent is
+    # pointed at the list without the mate remembering it; the token is empty
+    # where the step is switched off (bin/fm-fresh-read.sh owns it).
+    if [ "$(meta_field "$meta" kind)" = scout ]; then
+      fresh=$("$SCRIPT_DIR/fm-fresh-read.sh" token "$data/$id" --config "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}" 2>/dev/null) || fresh=
+      [ -z "$fresh" ] || line="$line $fresh"
+    fi
   fi
   if fm_parent_channel_report "$FM_HOME" "$STATE" "$line"; then
     mark_reported "$RECORD_PENDING" || return 1

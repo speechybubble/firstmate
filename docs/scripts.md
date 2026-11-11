@@ -111,6 +111,7 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-check-results.sh`    | Read-only nightly check-result lines from the skill-fire log and the backlog's Done rows: refused dones and their later confirmation on changed work by check, written checks that failed validation and tasks exempted, each beside the deliverables shipped |
 | `fm-quote-check.sh`      | Keep the home-local source of the captain's typed words fresh and check that a page's quotes of the captain appear in it word for word ([quote check](configuration.md#captain-quote-check-datacaptain-wordssourcejson)) |
 | `fm-quote-check.py`      | The engine behind `fm-quote-check.sh`; its header owns what counts as the captain's typed words, the quote markers and the match rule |
+| `fm-fresh-read.sh`       | Run one fresh reader on a scout's finished report and leave a short advisory list beside it, point whoever relays the report at that list, and keep the acted-on ledger ([fresh read](configuration.md#fresh-read-of-scout-reports-configfresh-read)) |
 | `fm-inactive-reconcile.sh` | Reconcile long-inactive direct crewmate terminal outcomes without forge access |
 | `fm-afk-contract.sh`     | Own the away-or-quiet record's posture, schema, entry, read-back, archive, and cross-subsystem authority lock |
 | `fm-afk-start.sh`        | Run the common sourceable away-mode daemon entry in the foreground                      |

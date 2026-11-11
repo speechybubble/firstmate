@@ -399,6 +399,48 @@ test_busy_child_does_not_starve_later_ledger_outcomes() {
   pass "busy child locks do not starve later ledger outcomes"
 }
 
+# Turn a write_child fixture into a scout: no delivery mode and no PR.
+make_scout_child() { # <home> <id>
+  local home=$1 id=$2
+  awk '$0 !~ /^(kind|mode|pr|pr_head)=/' "$home/state/$id.meta" > "$home/state/$id.meta.tmp"
+  printf 'kind=scout\n' >> "$home/state/$id.meta.tmp"
+  mv "$home/state/$id.meta.tmp" "$home/state/$id.meta"
+  age "$home/state/$id.meta"
+  mkdir -p "$home/data/$id"
+  printf '# findings\n' > "$home/data/$id/report.md"
+}
+
+# A scout child's done line carries its report's fresh-read pointer upward: the
+# list's path once the reader ran, not-run while it has not, and nothing in a
+# home that switched the step off (bin/fm-fresh-read.sh token owns the token).
+test_secondmate_ledger_delivery_carries_the_fresh_read_pointer() {
+  local id key
+  make_world ledger-fresh-read; bind_secondmate local
+  for id in read unread; do
+    write_child "$MATE" "$id" 'done: report written'
+    make_scout_child "$MATE" "$id"
+  done
+  printf '<!-- fm-fresh-read: state=ran a=2 b=0 c=1 report=abc -->\n# Fresh read of report.md\n' > "$MATE/data/read/fresh-read.md"
+  FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE"
+  key=$(reported_outcome_key "$MATE" read 'done') || fail "read scout receipt key missing"
+  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$key]: child read done: report written yolo=off report=data/read/report.md fresh-read=data/read/fresh-read.md" \
+    || fail "a read scout report lost its fresh-read pointer: $(cat "$MAIN/state/mate.status")"
+  key=$(reported_outcome_key "$MATE" unread 'done') || fail "unread scout receipt key missing"
+  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$key]: child unread done: report written yolo=off report=data/unread/report.md fresh-read=not-run" \
+    || fail "a scout report with no list must say the reader did not run: $(cat "$MAIN/state/mate.status")"
+
+  make_world ledger-fresh-read-off; bind_secondmate local
+  write_child "$MATE" silenced 'done: report written'
+  make_scout_child "$MATE" silenced
+  mkdir -p "$MATE/config"
+  printf 'off\n' > "$MATE/config/fresh-read"
+  FM_FAKE_CREW_STATE='unknown' run_reconcile "$MATE"
+  key=$(reported_outcome_key "$MATE" silenced 'done') || fail "silenced scout receipt key missing"
+  sed -E 's/ \[at=[0-9]+\]//' "$MAIN/state/mate.status" | grep -Fxq "done [key=$key]: child silenced done: report written yolo=off report=data/silenced/report.md" \
+    || fail "a home with the step off must add no fresh-read token: $(cat "$MAIN/state/mate.status")"
+  pass "a scout child's upward done line carries its fresh-read pointer, and none where the step is off"
+}
+
 # A scout's done line carries its report pointer, a failed line is delivered
 # under the failed verb, and a later terminal line after recovery is a new
 # delivery rather than a suppressed duplicate.
@@ -1047,6 +1089,7 @@ test_secondmate_multiline_terminal_outcome_is_delivered_once
 test_secondmate_unterminated_prose_reports_run_outcome
 test_inactive_receipt_ignores_later_status_prose
 test_busy_child_does_not_starve_later_ledger_outcomes
+test_secondmate_ledger_delivery_carries_the_fresh_read_pointer
 test_secondmate_ledger_delivery_carries_report_and_failure
 test_pr_field_requires_recorded_pr_or_ready_signal_line
 test_terminal_line_during_state_read_yields_to_ledger_delivery

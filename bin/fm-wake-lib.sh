@@ -2949,7 +2949,7 @@ fm_wake_latest_event() {  # <validated-status-path> <tail-byte-cap>
 # raw queue consumption and released the append lock.
 fm_wake_print_annotations() {  # <deduped-raw-rows> [<presentation-snapshot>]
   local rows=$1 snapshot=${2:-} manifest status_key mode path prefix line task endpoint
-  local snapshot_task snapshot_endpoint _snapshot_ident offset last_event event_line
+  local snapshot_task snapshot_endpoint _snapshot_ident offset last_event event_line fresh
   local LC_ALL=C
 
   manifest=$(fm_wake_annotation_manifest "$rows" | awk -F '\t' '
@@ -3024,6 +3024,19 @@ EOF
       fi
       line="$prefix: $status_key: $event_line"
       printf '%s\n' "$line" || return 1
+      # A scout's done line announces its report, so the line under it points
+      # at the report's fresh-read list or says the reader did not run.
+      # bin/fm-fresh-read.sh announce owns that line and prints nothing for
+      # any other task; it is advisory, so its failure never fails the drain.
+      _fm_wake_require_classify 2>/dev/null || continue
+      case "$(status_line_verb "$event_line" 2>/dev/null)" in
+        done)
+          fresh=$(FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" "$FM_WAKE_LIB_DIR/fm-fresh-read.sh" announce "${status_key%.status}" 2>/dev/null) || fresh=
+          if [ -n "$fresh" ]; then
+            printf 'wake annotation: %s: %s\n' "$status_key" "$fresh" || return 1
+          fi
+          ;;
+      esac
     done <<EOF
 $FM_WAKE_UNREAD_LINES
 EOF

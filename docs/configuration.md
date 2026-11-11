@@ -94,7 +94,7 @@ Each effective `FM_HOME` contains private operational directories.
 
 - Project and secondmate registries.
 - Captain preferences and optional shared captain preferences.
-- Learnings, backlog, briefs, scout reports, optional task status archives, the optional per-task no-mistakes pipeline-spend ledger, and the [skill-fire log](#page-deliverables-and-the-skill-fire-log-dataskill-firestsv).
+- Learnings, backlog, briefs, scout reports, optional task status archives, the optional per-task no-mistakes pipeline-spend ledger, the [fresh-read ledger](#fresh-read-of-scout-reports-configfresh-read), and the [skill-fire log](#page-deliverables-and-the-skill-fire-log-dataskill-firestsv).
 - The [source of the captain's typed words](#captain-quote-check-datacaptain-wordssourcejson) under `data/captain-words/`.
 - Explicitly installed content-addressed extension packages under `data/extensions/packages/`.
 
@@ -1522,6 +1522,35 @@ Cleanup of a budgeted scout marks a report its worker left in progress as ended 
 Scouts without the flag are unchanged.
 
 `bin/fm-run-budget.sh` owns the spec, the brief section, the ledger, the stop verdicts, and the run-status line.
+
+## Fresh read of scout reports (config/fresh-read)
+
+Before a scout reports done, one fresh reader with none of the task's conversation reads the finished report beside the captain's words and leaves a short advisory list at `data/<task-id>/fresh-read.md`.
+The list holds at most seven items in each of three lists, ordered by how much each would change a decision the captain is being asked to make: figures, tiers, dates and scope that don't trace to the captain's words, the decisions on record, or evidence in the report; dates with no named owner; and questions that should have gone to the captain.
+Every scout brief carries the step, so nobody has to remember it, and the line under a scout's done in the wake drain points at the list with its counts, or says the reader did not run and gives the command that runs it.
+A secondmate's upward line for a scout child carries the same pointer as `fresh-read=data/<task-id>/fresh-read.md`, or `fresh-read=not-run`.
+The step is advisory: it never holds a done line, cleanup, or the relay, and a reader that is missing, fails, or passes its time limit leaves a list file that says so.
+The reader gets the brief's `## Captain's intent` and `## Confirmed intent` and nothing else from the brief, so it is only as good as that record of the captain's words; a back-test's one false alarm came from a decision the reader was never shown.
+
+The optional local, gitignored `config/fresh-read` holds one entry per line:
+
+| Line | Effect | Default |
+| --- | --- | --- |
+| `off` | Switches the step off: new scout briefs carry no step, a run does nothing, and no pointer is printed. | on |
+| `model=<id>` | The reader's model. | `claude-opus-5-5` |
+| `effort=<level>` | The reader's effort. | `high` |
+| `timeout=<seconds>` | How long the reader may take before the list records that it did not finish. | `900` |
+| `decisions=<path>` | A decisions-on-record file the reader is given with the captain's words; repeat the line for more files, and a relative path is read from the home. | none |
+
+The file is inherited by secondmate homes, so `echo off > "$FM_HOME/config/fresh-read"` in the primary switches the step off across the fleet, and a relative `decisions=` path such as `data/captain-shared.md` names the same record in every home.
+A named decisions file that cannot be read is listed as missing in the list, never skipped quietly.
+
+The step stays only if its flags get acted on.
+Each run appends a row to `data/fresh-read-ledger.tsv`, and whoever acts on an item records it with `bin/fm-fresh-read.sh mark <task-dir> <item> acted|ignored`, the command each list prints at its end.
+`bin/fm-fresh-read.sh tally` prints the count over the first ten reports the reader read, across the root home and its local secondmates.
+After those ten reports, the acted-on share decides whether the step stays: when it is low, switch the step off with the `off` line and remove it.
+
+`bin/fm-fresh-read.sh` owns the reader's instructions and isolation, the list format, the pointer lines, the setting, and the ledger.
 
 ## Intake checks
 
