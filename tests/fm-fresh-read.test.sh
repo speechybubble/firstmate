@@ -148,6 +148,23 @@ test_list_shape_caps_each_list_at_seven_and_records_the_run() {
   pass "fresh read: each list holds at most seven items and the run is recorded"
 }
 
+test_placeholder_items_are_not_counted_as_flags() {
+  local dir out
+  new_task placeholder
+  dir=$TASK
+  printf '## A\n1. lines 2: finding A1 quoting "290 prospects a month"\n2. None\n## B\n1. None\n## C\n- none found\n* Nonetheless, who owns the date in line 3?\n' > "$TMP_ROOT/placeholder-answer"
+  export FRESH_STUB_ANSWER="$TMP_ROOT/placeholder-answer"
+  out=$("$FR" run "$dir") || fail "run failed"
+  assert_contains "$out" "fresh read: 1 untraced, 0 unowned dates, 1 question for the captain" \
+    "a numbered or bulleted none must not be counted as an item"
+  assert_equals "placeholder	run	ran	a=1 b=0 c=1" "$(cut -f2-5 "$dir/../fresh-read-ledger.tsv")" \
+    "the ledger must not count a none placeholder as a flag"
+  assert_no_grep '^- b1: ' "$dir/fresh-read.md" "a none placeholder must not be listed as an item"
+  assert_match '^- c1: Nonetheless, who owns the date in line 3?$' "$dir/fresh-read.md" \
+    "an item that only starts with the letters none must be kept"
+  pass "fresh read: a numbered or bulleted none placeholder is not counted as a flag"
+}
+
 test_reader_failure_and_timeout_never_block() {
   local dir out rc start
   new_task failing
@@ -408,6 +425,7 @@ test_marks_and_tally_give_the_measure_that_retires_the_step() {
 fm_test_run \
   test_reader_is_fresh_and_sees_only_the_report_and_the_captains_words \
   test_list_shape_caps_each_list_at_seven_and_records_the_run \
+  test_placeholder_items_are_not_counted_as_flags \
   test_reader_failure_and_timeout_never_block \
   test_words_include_named_decisions_and_name_a_missing_one \
   test_setting_changes_model_and_switches_the_step_off_in_one_line \

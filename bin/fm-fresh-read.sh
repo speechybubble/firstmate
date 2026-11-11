@@ -280,9 +280,13 @@ parse_lists() {  # <answer-file>
       sub(/^[[:space:]]+/, "", body)
       sub(/[[:space:]]+$/, "", body)
       if (body == "") next
-      if (tolower(body) ~ /^[-*[:space:]]*none[.[:space:]]*$/) { flush(); next }
-      if (body ~ /^[0-9]+[.)][[:space:]]+/) { flush(); sub(/^[0-9]+[.)][[:space:]]+/, "", body); item = body; next }
-      if (body ~ /^[-*][[:space:]]+/) { flush(); sub(/^[-*][[:space:]]+/, "", body); item = body; next }
+      if (tolower(body) ~ /^none[.[:space:]]*$/) { flush(); next }
+      if (body ~ /^([0-9]+[.)]|[-*])[[:space:]]+/) {
+        flush()
+        sub(/^([0-9]+[.)]|[-*])[[:space:]]+/, "", body)
+        if (tolower(body) !~ /^none([^a-z0-9]|$)/) item = body
+        next
+      }
       if (item != "") item = item " " body
     }
     END { flush(); if (!(seen["A"] && seen["B"] && seen["C"])) exit 1 }
