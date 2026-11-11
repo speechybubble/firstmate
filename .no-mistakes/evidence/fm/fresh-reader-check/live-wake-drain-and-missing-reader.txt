@@ -1,0 +1,34 @@
+$ PATH without claude: fm-fresh-read.sh run nobin-scout
+fresh read did not run (the claude command the reader runs on is not on this machine's PATH)
+exit=0
+<!-- fm-fresh-read: state=not-run a=0 b=0 c=0 report=64904dd03f1c060e6bca7df6b0fbb4987093fedfa36bb4b4fcdb9b3cf96c390e -->
+# Fresh read of report.md
+
+The fresh reader did not run: the claude command the reader runs on is not on this machine's PATH.
+Nothing waits on it, and the report stands as written.
+
+To run it now: '/home/denni/.no-mistakes/worktrees/d567722de3ac/01M75C16B0D6F8ZN30WZ3NAB06/bin/fm-fresh-read.sh' run '/tmp/fm-lab.EF00w1/data/nobin-scout'
+
+$ status lines + wake drain (FM_HOME=lab)
+1794403726	1	signal	pricing-scout.status	signal: /tmp/fm-lab.EF00w1/state/pricing-scout.status
+1794403727	2	signal	nobin-scout.status	signal: /tmp/fm-lab.EF00w1/state/nobin-scout.status
+1794403728	3	signal	shipper.status	signal: /tmp/fm-lab.EF00w1/state/shipper.status
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 777126.1794403726.CWiejC
+wake annotation: latest wake-EVENT observed at drain, not current state: pricing-scout.status: done: care plan priced at $149 basic
+wake annotation: pricing-scout.status: fresh read: 7 untraced, 3 unowned dates, 6 questions for the captain - /tmp/fm-lab.EF00w1/data/pricing-scout/fresh-read.md (the report changed after it was read)
+wake annotation: latest wake-EVENT observed at drain, not current state: nobin-scout.status: done: there are 290 prospects
+wake annotation: nobin-scout.status: fresh read did not run (the claude command the reader runs on is not on this machine's PATH) - /tmp/fm-lab.EF00w1/data/nobin-scout/fresh-read.md
+wake annotation: latest wake-EVENT observed at drain, not current state: shipper.status: done: PR opened
+STATUS OUTCOME BACKSTOP (newest captain-facing task event has no covering branch outcome):
+nobin-scout done: there are 290 prospects
+pricing-scout done: care plan priced at $149 basic
+shipper done: PR opened
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  3 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  After draining queued wakes, watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+drain exit=0

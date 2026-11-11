@@ -1,0 +1,26 @@
+$ fm-fresh-read.sh pointer
+fresh read: 7 untraced, 3 unowned dates, 6 questions for the captain - /tmp/fm-lab.EF00w1/data/pricing-scout/fresh-read.md
+$ fm-fresh-read.sh token
+fresh-read=data/pricing-scout/fresh-read.md
+$ FM_HOME=lab fm-fresh-read.sh announce pricing-scout
+fresh read: 7 untraced, 3 unowned dates, 6 questions for the captain - /tmp/fm-lab.EF00w1/data/pricing-scout/fresh-read.md
+$ mark a1 acted; mark a5 ignored; mark a1 ignored(later wins? then acted again); mark z9 acted
+marked pricing-scout a1 acted
+exit=0
+marked pricing-scout a5 ignored
+exit=0
+marked pricing-scout c1 acted
+exit=0
+fm-fresh-read: /tmp/fm-lab.EF00w1/data/pricing-scout/fresh-read.md holds no item z9
+exit=2
+fm-fresh-read: /tmp/fm-lab.EF00w1/data/pricing-scout/fresh-read.md holds no item c7
+exit=2 (c7 not in list)
+$ FM_HOME=lab fm-fresh-read.sh tally
+fresh read: 1 of the first 10 reports read
+items: 16 flagged, 2 acted on, 1 ignored, 13 unmarked
+acted-on share: 13% of flagged items
+decision: due after report 10
+pricing-scout	/tmp/fm-lab.EF00w1	a=7 b=3 c=6	acted=2 ignored=1 unmarked=13
+exit=0
+$ edit report after read; pointer
+fresh read: 7 untraced, 3 unowned dates, 6 questions for the captain - /tmp/fm-lab.EF00w1/data/pricing-scout/fresh-read.md (the report changed after it was read)

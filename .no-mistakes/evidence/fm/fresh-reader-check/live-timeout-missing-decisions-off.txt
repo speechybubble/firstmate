@@ -1,0 +1,29 @@
+$ config/fresh-read: timeout=2, decisions=data/missing-decisions.md ; run with real claude
+fresh read did not run (the reader was still reading at its 2s time limit)
+
+real	0m2.828s
+user	0m0.135s
+sys	0m0.446s
+exit=0
+<!-- fm-fresh-read: state=not-run a=0 b=0 c=0 report=64904dd03f1c060e6bca7df6b0fbb4987093fedfa36bb4b4fcdb9b3cf96c390e -->
+# Fresh read of report.md
+
+The fresh reader did not run: the reader was still reading at its 2s time limit.
+Nothing waits on it, and the report stands as written.
+
+To run it now: '/home/denni/.no-mistakes/worktrees/d567722de3ac/01M75C16B0D6F8ZN30WZ3NAB06/bin/fm-fresh-read.sh' run '/tmp/fm-lab.EF00w1/data/nobin-scout'
+
+$ config/fresh-read: off
+fresh read is switched off in this home (/tmp/fm-lab.EF00w1/config/fresh-read)
+run exit=0 (prints nothing when off)
+render: []
+pointer: []
+off-scout brief mentions fm-fresh-read: 0
+
+$ ledger
+2026-11-11T13:28:09Z	pricing-scout	run	ran	a=7 b=3 c=6	model=claude-opus-5-5 effort=high secs=17
+2026-11-11T13:28:25Z	pricing-scout	mark	a1	acted	fixed the cap
+2026-11-11T13:28:25Z	pricing-scout	mark	a5	ignored	
+2026-11-11T13:28:25Z	pricing-scout	mark	c1	acted	asked captain
+2026-11-11T13:28:46Z	nobin-scout	run	not-run	a=0 b=0 c=0	the claude command the reader runs on is not on this machine's PATH
+2026-11-11T13:29:16Z	nobin-scout	run	not-run	a=0 b=0 c=0	the reader was still reading at its 2s time limit

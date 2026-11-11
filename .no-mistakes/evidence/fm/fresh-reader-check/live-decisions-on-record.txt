@@ -1,0 +1,55 @@
+$ words
+=== The captain's intent for this work (brief.md, Captain's intent) ===
+"research what a website care plan should cost for our small-business clients; keep it under $200 a month"
+
+=== The reading of that intent the captain confirmed (brief.md, Confirmed intent) ===
+Reading: a priced recommendation for a monthly care plan, capped at $200 a month.
+captain confirmed: yes that's it
+end state: a report with a recommended price
+delegation: built with defaults
+
+=== Decisions on record (data/decisions.md) ===
+Captain decided 2026-10-01: three tiers are fine; the $200 cap applies to the Basic tier only.
+
+
+=== Decisions on record (data/missing-decisions.md): this file could not be read, so decisions it holds are missing from this record ===
+
+$ run (real claude) with one present and one missing decisions file
+fresh read: 7 untraced, 3 unowned dates, 7 questions for the captain - /tmp/fm-lab.EF00w1/data/pricing-scout/fresh-read.md
+exit=0
+<!-- fm-fresh-read: state=ran a=7 b=3 c=7 report=6d522d826e0aa24f7d0185f933c45ca92084fa17545c05ba1bf5f7c5e6c60113 -->
+# Fresh read of report.md
+
+One reader with none of this task's conversation read the report beside the captain's words.
+This list is advisory: nothing waits on it, and it's only as good as the record of the captain's words the reader was given.
+
+Read 2026-11-11T13:29Z by claude-opus-5-5 (high) in 27s. The reader was given:
+- brief.md (Captain's intent, Confirmed intent)
+- decisions on record: data/decisions.md
+- decisions on record: data/missing-decisions.md (MISSING: could not be read, so the reader may flag what the captain already decided)
+
+## A. Doesn't trace to the captain's words, the decisions on record, or evidence in the report
+
+- a1: lines 4: "Basic at $149/month" is under the confirmed $200 cap, but the $149 figure itself has no cost, margin or market evidence behind it.
+- a2: lines 4: "Growth at $249/month, and Premium at $399/month" are untraced; the decision lets these tiers exceed $200 but gives no figures, and the document shows no basis for them.
+- a3: lines 12: "three competitors" is unproven; the competitors are not named and their prices and plan contents are not shown, so none of the line 4 prices can be checked against them.
+- a4: lines 4: The scope of each tier (services, hours, response times) is never stated, so nothing shows what $149, $249 or $399 buys or why the prices step up as they do.
+- a5: lines 5: "40 clients to sign up" has no stated source, such as current client count, conversion rate or past uptake.
+- a6: lines 8: "1 February" as the launch date is untraced and has no year.
+- a7: lines 5, 9: "first quarter" does not say which quarter or year, and "two weeks before launch" as the announcement lead time is untraced.
+
+## B. Dates with no named owner
+
+- b1: lines 8: "Launch the plans on 1 February" gives no year, and the document does not say who set the date; it does not trace to the captain.
+- b2: lines 5: "the first quarter" as the forecast window does not say which quarter, and the document does not say who set it.
+- b3: lines 9: "two weeks before launch" for the announcement email does not say who set it or who sends the email.
+
+## C. Questions that should have gone to the captain
+
+- c1: lines 4: What should each tier include (services, support hours, response times)? The document priced the tiers without defining their contents.
+$ tally after rerun (marks start afresh)
+fresh read: 1 of the first 10 reports read (the reader did not run on 1 more)
+items: 17 flagged, 0 acted on, 0 ignored, 17 unmarked
+acted-on share: 0% of flagged items
+decision: due after report 10
+pricing-scout	/tmp/fm-lab.EF00w1	a=7 b=3 c=7	acted=0 ignored=0 unmarked=17

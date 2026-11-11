@@ -1,0 +1,12 @@
+1..10
+ok - fresh read: the reader starts fresh with no tools and sees only the report and the captain's words
+ok - fresh read: each list holds at most seven items and the run is recorded
+ok - fresh read: a numbered or bulleted none placeholder is not counted as a flag
+ok - fresh read: a failed, slow, missing or malformed reader exits 0 and says so in the list
+ok - fresh read: the captain's words are the brief's two subsections plus each named decisions file
+ok - fresh read: one setting line picks the model or switches the step off
+ok - fresh read: the primary's setting reaches a secondmate home, where the same scaffold carries the step
+ok - fresh read: every scout brief carries the step before its done line and its command runs
+ok - fresh read: the drain points at the list under a scout's done line and says when the reader did not run
+ok - fresh read: marks and tally give the acted-on share over the first ten reports
+FM_TEST_COMPLETE
