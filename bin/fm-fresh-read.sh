@@ -260,7 +260,9 @@ build_prompt() {  # <words-file> <report>
 }
 
 # Turn the reader's answer into `<list><TAB><item text>` rows, every item kept.
-# Exit 1 unless all three headings are present, so an answer in another shape
+# Only an item whose whole text is an empty-list placeholder from the closed set
+# in placeholder() is dropped, so a real item that starts with "None of ..." is
+# still counted; widening that set silently undercounts the ledger. Exit 1 unless all three headings are present, so an answer in another shape
 # is never passed on as a list.
 parse_lists() {  # <answer-file>
   awk '
