@@ -152,14 +152,16 @@ test_placeholder_items_are_not_counted_as_flags() {
   local dir out
   new_task placeholder
   dir=$TASK
-  printf '## A\n1. lines 2: finding A1 quoting "290 prospects a month"\n2. None\n## B\n1. None\n## C\n- none found\n* Nonetheless, who owns the date in line 3?\n' > "$TMP_ROOT/placeholder-answer"
+  printf '## A\n1. lines 2: finding A1 quoting "290 prospects a month"\n2. None\n3. None of the five prices in lines 12-18 trace to the captain'"'"'s words\n## B\n1. None.\n- N/A\n* nothing found\n## C\n- none found\n* Nonetheless, who owns the date in line 3?\n' > "$TMP_ROOT/placeholder-answer"
   export FRESH_STUB_ANSWER="$TMP_ROOT/placeholder-answer"
   out=$("$FR" run "$dir") || fail "run failed"
-  assert_contains "$out" "fresh read: 1 untraced, 0 unowned dates, 1 question for the captain" \
+  assert_contains "$out" "fresh read: 2 untraced, 0 unowned dates, 1 question for the captain" \
     "a numbered or bulleted none must not be counted as an item"
-  assert_equals "placeholder	run	ran	a=1 b=0 c=1" "$(cut -f2-5 "$dir/../fresh-read-ledger.tsv")" \
+  assert_equals "placeholder	run	ran	a=2 b=0 c=1" "$(cut -f2-5 "$dir/../fresh-read-ledger.tsv")" \
     "the ledger must not count a none placeholder as a flag"
   assert_no_grep '^- b1: ' "$dir/fresh-read.md" "a none placeholder must not be listed as an item"
+  assert_match "^- a2: None of the five prices in lines 12-18 trace to the captain's words$" "$dir/fresh-read.md" \
+    "an item with more text than a placeholder must be kept"
   assert_match '^- c1: Nonetheless, who owns the date in line 3?$' "$dir/fresh-read.md" \
     "an item that only starts with the letters none must be kept"
   pass "fresh read: a numbered or bulleted none placeholder is not counted as a flag"

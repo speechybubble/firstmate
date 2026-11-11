@@ -265,6 +265,11 @@ build_prompt() {  # <words-file> <report>
 parse_lists() {  # <answer-file>
   awk '
     function flush() { if (cur != "" && item != "") print cur "\t" item; item = "" }
+    function placeholder(t) {
+      t = tolower(t)
+      sub(/\.$/, "", t)
+      return t ~ /^(none|none found|none identified|nothing|nothing found|n\/a)$/
+    }
     {
       line = $0
       gsub(/[\t\r]/, " ", line)
@@ -280,11 +285,11 @@ parse_lists() {  # <answer-file>
       sub(/^[[:space:]]+/, "", body)
       sub(/[[:space:]]+$/, "", body)
       if (body == "") next
-      if (tolower(body) ~ /^none[.[:space:]]*$/) { flush(); next }
+      if (placeholder(body)) { flush(); next }
       if (body ~ /^([0-9]+[.)]|[-*])[[:space:]]+/) {
         flush()
         sub(/^([0-9]+[.)]|[-*])[[:space:]]+/, "", body)
-        if (tolower(body) !~ /^none([^a-z0-9]|$)/) item = body
+        if (!placeholder(body)) item = body
         next
       }
       if (item != "") item = item " " body
